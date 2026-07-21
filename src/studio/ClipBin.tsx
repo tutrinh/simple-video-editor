@@ -175,9 +175,14 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                   <div className="st-cmeta">
                     <div className="st-cname">{clip.name}</div>
                     <div className="st-crow">
-                      <span className="st-cdur st-num">{fmtClock(clip.durationSec)}</span>
+                      <span className="st-cdur st-num">{fmtClock(b.durationSec ?? clip.durationSec)}</span>
                       <span className="st-beatno st-num">#{i + 1}</span>
                     </div>
+                    {b.captionText && (
+                      <div className="st-ccap" title={b.captionText}>
+                        {b.captionText}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

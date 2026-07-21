@@ -8,7 +8,6 @@ import TopBar from "./TopBar";
 import ClipBin from "./ClipBin";
 import StagePreview from "./StagePreview";
 import StoryBar from "./StoryBar";
-import Timeline from "./Timeline";
 import Inspector from "./Inspector";
 import ExportDrawer from "./ExportDrawer";
 import { seedProject } from "./devSeed";
@@ -120,15 +119,6 @@ export default function StudioApp() {
             )}
 
             <StoryBar />
-
-            {cut
-              ? <Timeline cut={cut} clipById={clipById} selectedBeatId={selectedBeatId} onSelectBeat={setSelectedBeatId} />
-              : (
-                <div className="st-tl">
-                  <div className="st-tlhead"><span className="t">The Cut</span></div>
-                  <div className="st-track empty"><span>No cut yet — Regenerate to build one.</span></div>
-                </div>
-              )}
           </div>
 
           {regen.busy && (
