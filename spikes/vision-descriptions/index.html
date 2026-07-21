@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spike: Claude clip descriptions</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+      h1 { font-size: 1.3rem; }
+      fieldset { margin: 1rem 0; }
+      label { display: block; margin: 0.5rem 0; }
+      input[type="password"], select, input[type="number"] { font-size: 1rem; padding: 0.3rem; }
+      input[type="password"] { width: 26rem; max-width: 100%; }
+      button { font-size: 1rem; padding: 0.5rem 1rem; cursor: pointer; }
+      .note { color: #666; font-size: 13px; }
+      .clip { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+      .clip h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+      .frames { display: flex; gap: 6px; flex-wrap: wrap; margin: 0.5rem 0; }
+      .frames img { height: 90px; border-radius: 4px; border: 1px solid #ccc; }
+      .desc { white-space: pre-wrap; background: #f6f6f8; padding: 0.75rem; border-radius: 6px; }
+      .meta { color: #888; font-size: 12px; margin-top: 0.4rem; }
+      .err { color: #b00; }
+    </style>
+  </head>
+  <body>
+    <h1>Spike — can Claude describe a clip from sampled frames?</h1>
+    <p>
+      Tests ADR-0001. Grabs a few frames from each clip (via <code>&lt;video&gt;</code> +
+      <code>&lt;canvas&gt;</code>, downscaled), sends them to a Claude vision model, and shows
+      the returned <strong>Clip Description</strong>. Read the descriptions: are they distinct
+      and concrete enough that a downstream editor could sequence a story from them alone?
+    </p>
+
+    <fieldset>
+      <legend>Setup</legend>
+      <label>Anthropic API key (dev only — pasted in memory, never stored):
+        <input id="key" type="password" placeholder="sk-ant-..." />
+      </label>
+      <p class="note">
+        Reminder: this key rides in the browser — the same knowingly-accepted trade-off as
+        ADR-0002. Fine for a personal spike; a public app would proxy it.
+      </p>
+      <label>Model:
+        <select id="model">
+          <option value="claude-haiku-4-5">claude-haiku-4-5 (cheap — the likely per-clip default)</option>
+          <option value="claude-sonnet-5">claude-sonnet-5 (mid)</option>
+          <option value="claude-opus-4-8">claude-opus-4-8 (strongest, priciest)</option>
+        </select>
+      </label>
+      <label>Frames per clip:
+        <input id="frames" type="number" value="4" min="1" max="8" style="width:4rem" />
+      </label>
+      <label>Clips:
+        <input id="clips" type="file" accept="video/*" multiple />
+      </label>
+    </fieldset>
+
+    <button id="run">Describe clips</button>
+    <span id="status"></span>
+
+    <div id="results"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

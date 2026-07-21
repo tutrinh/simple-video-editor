@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simple Video Editor — Studio (Direction A)</title>
+<style>
+  :root{
+    --bg:#0d0e11; --panel:#15171c; --panel-2:#1b1e24; --panel-3:#22262e; --line:#282c34;
+    --line-soft:#20242b; --ink:#e8e9ec; --ink-2:#9aa0ab; --ink-3:#6b7180;
+    --accent:#ffb339; --accent-ink:#1a1206; --good:#57c98a;
+    --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    --serif:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);
+    -webkit-font-smoothing:antialiased;overflow:hidden}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+
+  .app{display:grid;grid-template-rows:52px 1fr;height:100vh}
+
+  /* top bar */
+  .topbar{display:flex;align-items:center;gap:14px;padding:0 16px;
+    background:linear-gradient(#16181d,#121419);border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.01em}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 12px 1px rgba(255,179,57,.5)}
+  .proj{color:var(--ink-2);font-weight:500}
+  .proj b{color:var(--ink);font-weight:600}
+  .chip{font-size:11px;color:var(--ink-2);border:1px solid var(--line);
+    padding:3px 8px;border-radius:6px;letter-spacing:.02em}
+  .spacer{flex:1}
+  .btn{padding:7px 13px;border-radius:8px;font-weight:600;font-size:13px}
+  .btn.ghost{color:var(--ink-2);border:1px solid var(--line)}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--line-soft)}
+  .btn.primary{background:var(--accent);color:var(--accent-ink)}
+  .btn.primary:hover{background:#ffbe57}
+  .btn svg{vertical-align:-2px;margin-right:5px}
+
+  .main{display:grid;grid-template-columns:248px 1fr 312px;min-height:0}
+  .col{min-height:0;display:flex;flex-direction:column}
+  .col.bin{border-right:1px solid var(--line);background:var(--panel)}
+  .col.stage{background:var(--bg)}
+  .col.insp{border-left:1px solid var(--line);background:var(--panel)}
+
+  .colhead{display:flex;align-items:baseline;gap:8px;padding:14px 16px 10px;
+    text-transform:uppercase;font-size:11px;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+  .colhead .cnt{margin-left:auto;color:var(--ink-3);letter-spacing:0}
+
+  /* clip bin */
+  .cliplist{overflow:auto;padding:0 8px 12px}
+  .clip{display:flex;gap:10px;align-items:center;padding:7px 8px;border-radius:9px;cursor:pointer}
+  .clip:hover{background:var(--panel-2)}
+  .thumb{width:52px;height:34px;border-radius:5px;flex:none;position:relative;
+    overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+  .thumb::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(transparent 55%,rgba(0,0,0,.35))}
+  .cmeta{min-width:0;flex:1}
+  .cname{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-family:var(--mono);letter-spacing:-.02em;color:#dfe1e6}
+  .crow{display:flex;align-items:center;gap:7px;margin-top:3px}
+  .cdur{font-size:11px;color:var(--ink-3)}
+  .use{display:flex;gap:2px;margin-left:auto}
+  .use i{width:4px;height:4px;border-radius:50%;background:var(--line);display:block}
+  .use i.on{background:var(--good)}
+  .clip.drop{opacity:.5}
+  .clip.drop .thumb{filter:grayscale(.7)}
+  .tag{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
+    border:1px solid var(--line);padding:1px 5px;border-radius:4px;margin-left:auto}
+
+  /* stage */
+  .stage-inner{flex:1;display:flex;flex-direction:column;padding:18px 22px 0;min-height:0}
+  .preview{aspect-ratio:16/9;width:100%;max-height:46vh;border-radius:12px;position:relative;
+    overflow:hidden;box-shadow:0 20px 50px -24px #000,inset 0 0 0 1px rgba(255,255,255,.05);margin:0 auto}
+  .preview .cap{position:absolute;left:0;right:0;bottom:26px;text-align:center;padding:0 8%}
+  .preview .cap span{background:rgba(0,0,0,.5);color:#fff;font-weight:600;font-size:19px;
+    padding:5px 14px;border-radius:6px;line-height:1.25;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+  .badgeTL{position:absolute;top:12px;left:14px;font-size:11px;color:#fff;
+    background:rgba(0,0,0,.42);backdrop-filter:blur(4px);padding:3px 8px;border-radius:6px;font-family:var(--mono)}
+
+  /* transport */
+  .transport{display:flex;align-items:center;gap:13px;padding:12px 2px 12px}
+  .play{width:34px;height:34px;border-radius:50%;background:#fff;color:#111;
+    display:grid;place-items:center;flex:none}
+  .play:hover{background:#f0f0f0}
+  .scrub{flex:1;height:6px;border-radius:3px;background:var(--line-soft);position:relative;cursor:pointer}
+  .scrub .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);
+    border-radius:3px 0 0 3px;opacity:.85;transition:width .18s}
+  .scrub .head{position:absolute;top:50%;transform:translate(-50%,-50%);
+    width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.6);transition:left .18s}
+  .tc{font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+  .tsep{width:1px;height:20px;background:var(--line)}
+  .vctrl{display:flex;gap:4px}
+  .vbtn{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:var(--ink-2)}
+  .vbtn:hover{background:var(--panel-2);color:var(--ink)}
+  .vbtn.on{color:var(--accent)}
+
+  /* story bar (fills the stage, surfaces the Story) */
+  .storybar{margin-top:auto;display:flex;align-items:center;gap:16px;padding:14px 16px;
+    background:linear-gradient(#181b21,#151318);border:1px solid var(--line);border-radius:12px;
+    position:relative;overflow:hidden}
+  .storybar::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .story-lab{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);
+    font-weight:700;writing-mode:vertical-rl;transform:rotate(180deg);align-self:stretch;
+    display:flex;align-items:center;padding:2px 0}
+  .story-main{min-width:0;flex:1}
+  .logline{font-family:var(--serif);font-size:19px;line-height:1.25;color:#f2f0ec;letter-spacing:-.01em}
+  .dirrow{display:flex;align-items:center;gap:9px;margin-top:7px}
+  .dir-chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+  .dir-chip svg{color:var(--accent)}
+  .story-edit{color:var(--ink-2);font-size:12px;border:1px solid var(--line);border-radius:7px;padding:6px 11px;flex:none}
+  .story-edit:hover{color:var(--ink);border-color:var(--line-soft)}
+
+  /* timeline */
+  .tl{border-top:1px solid var(--line);background:var(--panel);margin:14px -22px 0;
+    padding:14px 22px 20px;flex:none}
+  .tlhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .tlhead .t{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+  .tlhead .meta{margin-left:auto;font-size:12px;color:var(--ink-2)}
+  .track{display:flex;gap:6px;align-items:stretch;position:relative}
+  .beat{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:5px;position:relative;cursor:pointer}
+  .beat .bt{height:52px;border-radius:7px;position:relative;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);transition:box-shadow .12s}
+  .beat .bt::before{content:attr(data-n);position:absolute;top:3px;left:5px;font-size:10px;
+    font-family:var(--mono);color:#fff;background:rgba(0,0,0,.45);padding:0 4px;border-radius:3px;z-index:2}
+  .beat .bcap{font-size:10.5px;color:var(--ink-2);line-height:1.3;height:26px;overflow:hidden}
+  .beat .bdur{font-size:9.5px;color:var(--ink-3);font-family:var(--mono)}
+  .beat:hover .bt{box-shadow:0 0 0 1px var(--ink-3),inset 0 0 0 1px rgba(255,255,255,.06)}
+  .beat.sel .bt{box-shadow:0 0 0 2px var(--accent),inset 0 0 0 1px rgba(255,255,255,.06)}
+  .beat.sel .bcap{color:var(--ink)}
+  .playhead{position:absolute;top:-5px;height:62px;width:2px;background:var(--accent);z-index:3;
+    pointer-events:none;transition:left .18s}
+  .playhead::before{content:"";position:absolute;top:-4px;left:-4px;width:10px;height:10px;
+    background:var(--accent);border-radius:2px;transform:rotate(45deg)}
+
+  /* inspector */
+  .insp .body{overflow:auto;padding:4px 16px 20px;display:flex;flex-direction:column;gap:16px}
+  .ip-poster{aspect-ratio:16/9;border-radius:10px;position:relative;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+  .ip-poster .cap{position:absolute;left:8px;right:8px;bottom:8px;text-align:center;
+    font-size:12px;color:#fff;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+  .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-3);font-weight:600;margin-bottom:6px}
+  .caption-edit{background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+    padding:10px 11px;font-size:14px;line-height:1.45;color:var(--ink);min-height:60px;outline:none}
+  .caption-edit:focus{border-color:var(--accent)}
+  .trim{display:flex;align-items:center;gap:8px}
+  .trim .bar{flex:1;height:34px;border-radius:7px;background:var(--panel-2);position:relative;overflow:hidden;
+    box-shadow:inset 0 0 0 1px var(--line)}
+  .trim .win{position:absolute;top:0;bottom:0;left:22%;right:34%;background:rgba(255,179,57,.18);
+    border-left:2px solid var(--accent);border-right:2px solid var(--accent)}
+  .trim .tv{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  .nudges{display:flex;flex-direction:column;gap:7px}
+  .nudge{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;
+    background:var(--panel-2);border:1px solid var(--line);text-align:left;color:var(--ink)}
+  .nudge:hover{border-color:var(--accent);background:var(--panel-3)}
+  .nudge svg{flex:none;color:var(--accent)}
+  .nudge small{display:block;color:var(--ink-3);font-size:11px;font-weight:400;margin-top:1px}
+  .nudge b{font-size:13px;font-weight:600}
+  .divider{height:1px;background:var(--line)}
+  .desc dt{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+  .desc dd{font-size:13px;color:var(--ink-2);line-height:1.45;margin-bottom:11px}
+  .aiflag{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--accent);
+    font-weight:600;margin-bottom:2px}
+  .aiflag .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* poster gradients (placeholder footage frames) */
+  .g-sunrise{background:linear-gradient(#f7b267,#ee6c4d 46%,#3d405b)}
+  .g-trail{background:linear-gradient(#bfd77e,#5a8f4e 55%,#2e5233)}
+  .g-river{background:linear-gradient(#9bd7ea,#3a92b8 50%,#0a3b52)}
+  .g-summit{background:linear-gradient(#cdd3da,#8b929c 55%,#495057)}
+  .g-pano{background:linear-gradient(#bfeaf7,#63c4e0 60%,#3a93b4)}
+  .g-golden{background:linear-gradient(#ffd98a,#f79438 55%,#c85c1a)}
+  .g-night{background:linear-gradient(#4a4e9e,#241a5c 60%,#0e0630)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span>Reel</div>
+    <div class="proj">/ <b>Dolomites Weekend</b></div>
+    <span class="chip">16:9 · 1080p</span>
+    <span class="chip num">0:29 · 6 beats</span>
+    <div class="spacer"></div>
+    <button class="btn ghost"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 019-9 9 9 0 016.7 3M21 12a9 9 0 01-9 9 9 9 0 01-6.7-3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>Regenerate cut</button>
+    <button class="btn primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v11M8 10l4 4 4-4M5 20h14"/></svg>Export video</button>
+  </header>
+
+  <div class="main">
+
+    <!-- LEFT: CLIP BIN -->
+    <aside class="col bin">
+      <div class="colhead">Clips <span class="cnt num">7</span></div>
+      <div class="cliplist" id="bin">
+        <div class="clip" data-beat="0"><div class="thumb g-sunrise"></div><div class="cmeta">
+          <div class="cname">sunrise_ridge.mov</div><div class="crow"><span class="cdur num">0:42</span>
+          <span class="use"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></div></div></div>
+        <div class="clip" data-beat="1"><div class="thumb g-trail"></div><div class="cmeta">
+          <div class="cname">trailhead_start.mp4</div><div class="crow"><span class="cdur num">1:15</span>
+          <span class="use"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></div></div></div>
+        <div class="clip" data-beat="2"><div class="thumb g-river"></div><div class="cmeta">
+          <div class="cname">river_crossing.mov</div><div class="crow"><span class="cdur num">0:38</span>
+          <span class="use"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div></div></div>
+        <div class="clip" data-beat="3"><div class="thumb g-summit"></div><div class="cmeta">
+          <div class="cname">summit_push.mp4</div><div class="crow"><span class="cdur num">2:03</span>
+          <span class="use"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></div></div></div>
+        <div class="clip" data-beat="4"><div class="thumb g-pano"></div><div class="cmeta">
+          <div class="cname">summit_pano.mov</div><div class="crow"><span class="cdur num">1:28</span>
+          <span class="use"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></div></div></div>
+        <div class="clip" data-beat="5"><div class="thumb g-golden"></div><div class="cmeta">
+          <div class="cname">descent_golden.mp4</div><div class="crow"><span class="cdur num">0:55</span>
+          <span class="use"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span></div></div></div>
+        <div class="clip drop"><div class="thumb g-night"></div><div class="cmeta">
+          <div class="cname">camp_night.mov</div><div class="crow"><span class="cdur num">1:10</span>
+          <span class="tag">unused</span></div></div></div>
+      </div>
+    </aside>
+
+    <!-- CENTER: PREVIEW + STORY + TIMELINE -->
+    <section class="col stage">
+      <div class="stage-inner">
+        <div class="preview g-summit" id="pv">
+          <div class="badgeTL num" id="pvBadge">Beat 04 · summit_push.mp4</div>
+          <div class="cap"><span id="pvCap">The last stretch is always the steepest.</span></div>
+        </div>
+        <div class="transport">
+          <button class="play"><svg width="12" height="13" viewBox="0 0 12 13" fill="currentColor"><path d="M0 0l12 6.5L0 13z"/></svg></button>
+          <span class="tc num" id="tcNow">0:16</span>
+          <div class="scrub"><div class="fill" id="scrubFill" style="width:56%"></div><div class="head" id="scrubHead" style="left:56%"></div></div>
+          <span class="tc num">0:29</span>
+          <span class="tsep"></span>
+          <div class="vctrl">
+            <button class="vbtn on" title="Captions on"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 11.5a2 2 0 100 1M15 11.5a2 2 0 100 1"/></svg></button>
+            <button class="vbtn" title="Mute"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9v6h4l5 4V5L8 9zM17 9l4 6M21 9l-4 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="storybar">
+          <div class="story-lab">Story</div>
+          <div class="story-main">
+            <div class="logline">A weekend in the Dolomites, from first light to the summit.</div>
+            <div class="dirrow">
+              <span class="dir-chip"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M6 20v-6M18 20v-3"/></svg>Direction: quiet, earned, no hype</span>
+              <span class="dir-chip num">6 of 7 clips used</span>
+            </div>
+          </div>
+          <button class="story-edit">Edit Direction</button>
+        </div>
+
+        <div class="tl">
+          <div class="tlhead"><span class="t">The Cut</span>
+            <span class="meta num">6 beats · 0:29 · 1 clip unused</span></div>
+          <div class="track" id="track">
+            <div class="playhead" id="ph" style="left:58%"></div>
+            <div class="beat" data-beat="0"><div class="bt g-sunrise" data-n="01"></div><div class="bcap">First light hits the ridge.</div><div class="bdur num">4.0s</div></div>
+            <div class="beat" data-beat="1"><div class="bt g-trail" data-n="02"></div><div class="bcap">We set out before the crowds.</div><div class="bdur num">5.2s</div></div>
+            <div class="beat" data-beat="2"><div class="bt g-river" data-n="03"></div><div class="bcap">The only way up is through.</div><div class="bdur num">3.8s</div></div>
+            <div class="beat sel" data-beat="3"><div class="bt g-summit" data-n="04"></div><div class="bcap">The last stretch is always the steepest.</div><div class="bdur num">6.1s</div></div>
+            <div class="beat" data-beat="4"><div class="bt g-pano" data-n="05"></div><div class="bcap">And then — everything opens up.</div><div class="bdur num">5.5s</div></div>
+            <div class="beat" data-beat="5"><div class="bt g-golden" data-n="06"></div><div class="bcap">Down through the golden hour.</div><div class="bdur num">4.6s</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: INSPECTOR -->
+    <aside class="col insp">
+      <div class="colhead"><span id="inspN">Beat 04</span> <span class="cnt">of 6</span></div>
+      <div class="body">
+        <div class="ip-poster g-summit" id="ipPoster"><div class="cap" id="ipCap">The last stretch is always the steepest.</div></div>
+
+        <div class="field">
+          <label>Caption · Script segment</label>
+          <div class="caption-edit" id="capEdit" contenteditable="true">The last stretch is always the steepest.</div>
+        </div>
+
+        <div class="field">
+          <label>Trim · in / out of source</label>
+          <div class="trim">
+            <span class="tv num" id="trimIn">0:48</span>
+            <div class="bar"><div class="win"></div></div>
+            <span class="tv num" id="trimOut">0:54</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>AI nudges · this beat only</label>
+          <div class="nudges">
+            <button class="nudge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg><span><b>Rewrite caption</b><small>Same beat, fresher line</small></span></button>
+            <button class="nudge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg><span><b>Re-pick trim</b><small>Find a stronger window</small></span></button>
+            <button class="nudge"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg><span><b>Swap clip</b><small>Try a different take</small></span></button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="desc">
+          <div class="aiflag"><span class="dot"></span>Clip Description · Claude</div>
+          <dl>
+            <dt>Subject / action</dt>
+            <dd id="dSubj">A hiker pushing up a steep scree slope, poles planted, slow deliberate steps.</dd>
+            <dt>Setting / mood</dt>
+            <dd id="dSet">High alpine, thinning air, flat overcast light. Effortful, determined.</dd>
+            <dt>Usability</dt>
+            <dd class="num" id="dUse">5 / 5 — sharp, well-exposed, clear action.</dd>
+          </dl>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<script>
+  const BEATS = [
+    {n:"01", clip:"sunrise_ridge.mov", g:"g-sunrise", cap:"First light hits the ridge.",
+     tin:"0:03", tout:"0:07", subj:"A cold ridge line catching the first warm light of day.",
+     set:"Pre-dawn blue giving way to gold. Still, quiet, expectant.", use:"5 / 5 — steady, well-exposed hero frame.", tc:"0:00"},
+    {n:"02", clip:"trailhead_start.mp4", g:"g-trail", cap:"We set out before the crowds.",
+     tin:"0:12", tout:"0:17", subj:"Two hikers shoulder packs and start up a shaded forest trail.",
+     set:"Green, early morning, soft light. Ordinary and hopeful.", use:"3 / 5 — slight handheld shake, still usable.", tc:"0:04"},
+    {n:"03", clip:"river_crossing.mov", g:"g-river", cap:"The only way up is through.",
+     tin:"0:05", tout:"0:09", subj:"A hiker steps across rocks in a fast, shallow river.",
+     set:"Cold teal water, deep shade. A small committed moment.", use:"4 / 5 — sharp, good motion.", tc:"0:09"},
+    {n:"04", clip:"summit_push.mp4", g:"g-summit", cap:"The last stretch is always the steepest.",
+     tin:"0:48", tout:"0:54", subj:"A hiker pushing up a steep scree slope, poles planted, slow deliberate steps.",
+     set:"High alpine, thinning air, flat overcast light. Effortful, determined.", use:"5 / 5 — sharp, well-exposed, clear action.", tc:"0:16"},
+    {n:"05", clip:"summit_pano.mov", g:"g-pano", cap:"And then — everything opens up.",
+     tin:"0:20", tout:"0:26", subj:"A slow pan across a vast sunlit mountain range from the summit.",
+     set:"Bright, open, endless sky. Release and reward.", use:"5 / 5 — the payoff shot.", tc:"0:21"},
+    {n:"06", clip:"descent_golden.mp4", g:"g-golden", cap:"Down through the golden hour.",
+     tin:"0:10", tout:"0:15", subj:"Silhouetted hikers descending a ridge in warm low sun.",
+     set:"Golden backlight, long shadows. Warm, unhurried, resolved.", use:"4 / 5 — lovely light, minor lens flare.", tc:"0:25"},
+  ];
+  const GRADS = ["g-sunrise","g-trail","g-river","g-summit","g-pano","g-golden"];
+  const $ = id => document.getElementById(id);
+
+  function select(i){
+    const b = BEATS[i];
+    document.querySelectorAll('.beat').forEach((el,idx)=>el.classList.toggle('sel', idx===i));
+    // preview
+    $('pv').className = 'preview ' + b.g;
+    $('pvBadge').textContent = `Beat ${b.n} · ${b.clip}`;
+    $('pvCap').textContent = b.cap;
+    // playhead + scrubber (equal-width columns → center of column i)
+    const pct = ((i + 0.5) / BEATS.length) * 100;
+    $('ph').style.left = pct + '%';
+    $('scrubFill').style.width = pct + '%';
+    $('scrubHead').style.left = pct + '%';
+    $('tcNow').textContent = b.tc;
+    // inspector
+    $('inspN').textContent = 'Beat ' + b.n;
+    $('ipPoster').className = 'ip-poster ' + b.g;
+    $('ipCap').textContent = b.cap;
+    $('capEdit').textContent = b.cap;
+    $('trimIn').textContent = b.tin;
+    $('trimOut').textContent = b.tout;
+    $('dSubj').textContent = b.subj;
+    $('dSet').textContent = b.set;
+    $('dUse').textContent = b.use;
+  }
+
+  document.querySelectorAll('.beat').forEach(el=>{
+    el.addEventListener('click', ()=>select(+el.dataset.beat));
+  });
+  document.querySelectorAll('#bin .clip[data-beat]').forEach(el=>{
+    el.addEventListener('click', ()=>select(+el.dataset.beat));
+  });
+</script>
+</body>
+</html>

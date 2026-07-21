@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spike: client-side 1080p export</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; max-width: 780px; margin: 2rem auto; padding: 0 1rem; }
+      h1 { font-size: 1.3rem; }
+      fieldset { margin: 1rem 0; }
+      label { display: block; margin: 0.4rem 0; }
+      button { font-size: 1rem; padding: 0.5rem 1rem; cursor: pointer; }
+      #log { white-space: pre-wrap; background: #111; color: #b6f; padding: 1rem; border-radius: 6px; height: 320px; overflow: auto; font-family: ui-monospace, monospace; font-size: 12px; }
+      .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+      .metric { font-weight: 600; }
+      a#download { display: inline-block; margin-left: 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Spike — does client-side 1080p export survive?</h1>
+    <p>
+      Proves (or breaks) ADR-0002. Each clip is trimmed, scaled + letterboxed to
+      1920×1080, optionally gets a burned-in caption, and all clips are
+      concatenated into one MP4 — entirely in the browser via ffmpeg.wasm.
+      Watch <strong>DevTools → Memory</strong> and the timing below.
+    </p>
+
+    <fieldset>
+      <legend>Inputs</legend>
+      <label>Clips (pick several real 1080p/4K clips):
+        <input id="clips" type="file" accept="video/*" multiple />
+      </label>
+      <label>Optional font for captions (.ttf/.otf — leave empty to skip caption burn-in):
+        <input id="font" type="file" accept=".ttf,.otf" />
+      </label>
+      <label class="row">Seconds to keep per clip:
+        <input id="dur" type="number" value="3" min="1" max="30" step="1" style="width:5rem" />
+      </label>
+    </fieldset>
+
+    <div class="row">
+      <button id="run">Run export</button>
+      <span id="status"></span>
+      <a id="download" hidden download="spike-export.mp4">Download result ⬇</a>
+    </div>
+
+    <div class="row" style="margin-top:0.8rem">
+      <label style="margin:0;min-width:5rem">Overall</label>
+      <progress id="overall" max="100" value="0" style="flex:1;min-width:220px"></progress>
+      <span id="overall-label" style="min-width:9rem"></span>
+    </div>
+    <div class="row">
+      <label style="margin:0;min-width:5rem">This clip</label>
+      <progress id="clip" max="100" value="0" style="flex:1;min-width:220px"></progress>
+      <span id="clip-label" style="min-width:9rem"></span>
+    </div>
+
+    <p>
+      Total time: <span class="metric" id="t-total">—</span> ·
+      Peak JS heap: <span class="metric" id="t-heap">—</span>
+    </p>
+
+    <pre id="log"></pre>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

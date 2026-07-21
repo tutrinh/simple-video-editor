@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reel — turn raw footage into a story</title>
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700,500&f[]=satoshi@400,500,700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: { DEFAULT: "#0b0c0e", 900: "#0b0c0e", 800: "#111316", 700: "#16181c", 600: "#1d2026", 500: "#2a2e36" },
+          amber: { DEFAULT: "#ffb339", soft: "#ffc86b", deep: "#e0982a" },
+          mist: { DEFAULT: "#e9eaec", 2: "#9aa0ab", 3: "#6b7180" },
+        },
+        fontFamily: {
+          display: ['"Cabinet Grotesk"', "system-ui", "sans-serif"],
+          sans: ['"Satoshi"', "system-ui", "sans-serif"],
+        },
+      },
+    },
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { background: #0b0c0e; color: #e9eaec; font-family: "Satoshi", system-ui, sans-serif; }
+  .font-display { font-family: "Cabinet Grotesk", system-ui, sans-serif; }
+  .grain::after {
+    content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .radial-wash { background: radial-gradient(120% 90% at 50% 0%, rgba(255,179,57,.10), transparent 42%), radial-gradient(100% 100% at 50% 100%, rgba(0,0,0,.85), rgba(11,12,14,.55) 45%, transparent); }
+  .amber-text { background: linear-gradient(180deg,#ffc86b,#ffb339); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body class="grain overflow-x-hidden w-full max-w-full antialiased">
+
+<!-- NAV -->
+<header class="fixed top-5 inset-x-0 z-50 flex justify-center px-4">
+  <nav class="w-full max-w-6xl flex items-center gap-6 rounded-full border border-white/10 bg-white/[.04] backdrop-blur-xl px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.08),0_20px_50px_-30px_#000]">
+    <a href="#" class="flex items-center gap-2 font-display font-extrabold tracking-tight text-lg">
+      <span class="grid place-items-center w-6 h-6 rounded-full bg-amber text-ink">
+        <svg width="11" height="12" viewBox="0 0 12 13" fill="currentColor"><path d="M0 0l12 6.5L0 13z"/></svg>
+      </span>Reel
+    </a>
+    <div class="hidden md:flex items-center gap-7 text-sm text-mist-2 ml-2">
+      <a href="#how" class="hover:text-mist transition-colors">How it works</a>
+      <a href="#features" class="hover:text-mist transition-colors">Features</a>
+      <a href="#story" class="hover:text-mist transition-colors">The idea</a>
+    </div>
+    <a href="#start" class="ml-auto rounded-full bg-amber text-ink font-bold text-sm px-4 py-2 hover:bg-amber-soft active:translate-y-px transition">Start editing</a>
+  </nav>
+</header>
+
+<!-- HERO (Attention) -->
+<section class="relative min-h-[100dvh] flex items-center justify-center overflow-hidden">
+  <img src="https://picsum.photos/seed/reel-cinematic-ridge-dawn/1920/1080" alt=""
+       class="absolute inset-0 w-full h-full object-cover object-center grayscale contrast-125 opacity-40" />
+  <div class="absolute inset-0 radial-wash"></div>
+  <div class="relative z-10 mx-auto max-w-6xl px-6 text-center">
+    <h1 class="font-display font-extrabold tracking-tight leading-[1.02]" style="font-size:clamp(2.75rem,6vw,5.5rem)">
+      Drop the footage.<br /><span class="amber-text">Keep the story.</span>
+    </h1>
+    <p class="mx-auto mt-7 max-w-2xl text-lg text-mist-2 leading-relaxed">
+      Reel watches every clip you shot, finds the story running through them, writes the captions,
+      and hands you a cut you can refine and export. All in the browser.
+    </p>
+    <div class="mt-9 flex items-center justify-center gap-4">
+      <a href="#start" class="rounded-full bg-amber text-ink font-bold px-7 py-3.5 hover:bg-amber-soft active:translate-y-px transition shadow-[0_18px_50px_-18px_rgba(255,179,57,.6)]">Start editing free</a>
+      <a href="#how" class="rounded-full border border-white/15 text-mist font-semibold px-7 py-3.5 hover:bg-white/5 active:translate-y-px transition">See how it works</a>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE (works with any footage) -->
+<section class="relative border-y border-white/5 bg-ink-800/60 py-6 overflow-hidden">
+  <div id="marquee" class="flex whitespace-nowrap will-change-transform">
+    <div class="marquee-set flex items-center gap-10 pr-10 text-2xl md:text-3xl font-display font-bold text-mist-3">
+      <span>iPhone</span><span class="text-amber">&#9670;</span><span>GoPro</span><span class="text-amber">&#9670;</span>
+      <span>Drone</span><span class="text-amber">&#9670;</span><span>Mirrorless</span><span class="text-amber">&#9670;</span>
+      <span>Handheld</span><span class="text-amber">&#9670;</span><span>4K</span><span class="text-amber">&#9670;</span>
+      <span>Vertical</span><span class="text-amber">&#9670;</span><span>Screen capture</span><span class="text-amber">&#9670;</span>
+    </div>
+    <div class="marquee-set flex items-center gap-10 pr-10 text-2xl md:text-3xl font-display font-bold text-mist-3" aria-hidden="true">
+      <span>iPhone</span><span class="text-amber">&#9670;</span><span>GoPro</span><span class="text-amber">&#9670;</span>
+      <span>Drone</span><span class="text-amber">&#9670;</span><span>Mirrorless</span><span class="text-amber">&#9670;</span>
+      <span>Handheld</span><span class="text-amber">&#9670;</span><span>4K</span><span class="text-amber">&#9670;</span>
+      <span>Vertical</span><span class="text-amber">&#9670;</span><span>Screen capture</span><span class="text-amber">&#9670;</span>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES (Interest — gapless bento) -->
+<section id="features" class="mx-auto max-w-6xl px-6 py-32 md:py-48">
+  <div class="max-w-3xl">
+    <h2 class="font-display font-extrabold tracking-tight leading-[1.05]" style="font-size:clamp(2rem,4.2vw,3.4rem)">
+      It does the editing you dread.
+    </h2>
+    <p class="mt-5 text-mist-2 text-lg leading-relaxed max-w-xl">
+      No timeline scrubbing, no guessing which take is best. Reel reads the footage the way an editor would,
+      then proposes a first cut you actually want to ship.
+    </p>
+  </div>
+
+  <div class="mt-14 grid grid-cols-1 md:grid-cols-4 grid-flow-dense gap-4 auto-rows-[220px] reveal-grid">
+    <!-- c1 big -->
+    <article class="group relative md:col-span-2 md:row-span-2 rounded-3xl overflow-hidden border border-white/10">
+      <img src="https://picsum.photos/seed/reel-summit-scree/1200/1200" alt="" class="absolute inset-0 w-full h-full object-cover grayscale contrast-125 opacity-70 group-hover:scale-105 transition-transform duration-700 ease-out" />
+      <div class="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-transparent"></div>
+      <div class="relative h-full flex flex-col justify-end p-7">
+        <h3 class="font-display text-2xl md:text-3xl font-bold">Claude watches every frame</h3>
+        <p class="mt-2 text-mist-2 max-w-sm">Eight sampled frames per clip become a real read on subject, energy, and whether the shot is worth keeping.</p>
+      </div>
+    </article>
+    <!-- c2 wide -->
+    <article class="group relative md:col-span-2 rounded-3xl overflow-hidden border border-white/10 bg-ink-700">
+      <div class="relative h-full flex items-center gap-6 p-7">
+        <div class="shrink-0 grid place-items-center w-14 h-14 rounded-2xl bg-amber/15 text-amber">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+        </div>
+        <div>
+          <h3 class="font-display text-xl md:text-2xl font-bold">Finds the story across clips</h3>
+          <p class="mt-1.5 text-mist-2">One logline, an ordered arc, weak takes dropped. You steer it with a single line of Direction.</p>
+        </div>
+      </div>
+    </article>
+    <!-- c3 -->
+    <article class="group relative rounded-3xl overflow-hidden border border-white/10 bg-ink-700 p-6 flex flex-col justify-between">
+      <div class="grid place-items-center w-11 h-11 rounded-xl bg-amber/15 text-amber">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>
+      </div>
+      <div><h3 class="font-display text-lg font-bold leading-tight">Writes the captions</h3>
+      <p class="mt-1 text-sm text-mist-2">Short, on-screen lines, one per beat.</p></div>
+    </article>
+    <!-- c4 -->
+    <article class="group relative rounded-3xl overflow-hidden border border-amber/30 bg-amber/10 p-6 flex flex-col justify-between">
+      <div class="grid place-items-center w-11 h-11 rounded-xl bg-amber text-ink">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v11M8 10l4 4 4-4M5 20h14"/></svg>
+      </div>
+      <div><h3 class="font-display text-lg font-bold leading-tight text-amber-soft">Exports in a click</h3>
+      <p class="mt-1 text-sm text-amber-soft/80">Captioned 1080p, plus a script file.</p></div>
+    </article>
+  </div>
+</section>
+
+<!-- HOW IT WORKS (Desire — horizontal accordion + inline type images) -->
+<section id="how" class="mx-auto max-w-6xl px-6 pb-32 md:pb-48">
+  <h2 class="font-display font-extrabold tracking-tight leading-[1.05] max-w-4xl" style="font-size:clamp(2rem,4.2vw,3.4rem)">
+    From raw
+    <span class="inline-block align-middle mx-1 h-9 w-16 md:h-12 md:w-24 rounded-full bg-cover bg-center" style="background-image:url('https://picsum.photos/seed/reel-forest-trail/240/120')"></span>
+    clips to a finished
+    <span class="inline-block align-middle mx-1 h-9 w-16 md:h-12 md:w-24 rounded-full bg-cover bg-center" style="background-image:url('https://picsum.photos/seed/reel-golden-descent/240/120')"></span>
+    reel.
+  </h2>
+
+  <div class="mt-14 flex flex-col md:flex-row gap-3 h-auto md:h-[440px]">
+    <!-- slice 1 -->
+    <div class="accordion-slice group relative flex-1 md:flex-[1] hover:md:flex-[2.6] transition-all duration-500 ease-[cubic-bezier(.16,1,.3,1)] rounded-3xl overflow-hidden border border-white/10 min-h-[180px]">
+      <img src="https://picsum.photos/seed/reel-drop-clips-bin/1200/900" alt="" class="absolute inset-0 w-full h-full object-cover grayscale contrast-125 opacity-45 group-hover:opacity-70 group-hover:scale-105 transition-all duration-700" />
+      <div class="absolute inset-0 bg-gradient-to-t from-ink to-transparent"></div>
+      <div class="relative h-full flex flex-col justify-end p-7">
+        <span class="font-display text-5xl font-extrabold text-amber/80">01</span>
+        <h3 class="mt-3 font-display text-2xl font-bold">Drop your clips</h3>
+        <p class="mt-2 text-mist-2 max-w-xs opacity-0 group-hover:opacity-100 transition-opacity duration-500">Anything you shot, any camera. 4K gets normalized to 1080p on the way in.</p>
+      </div>
+    </div>
+    <!-- slice 2 -->
+    <div class="accordion-slice group relative flex-1 md:flex-[1] hover:md:flex-[2.6] transition-all duration-500 ease-[cubic-bezier(.16,1,.3,1)] rounded-3xl overflow-hidden border border-white/10 min-h-[180px]">
+      <img src="https://picsum.photos/seed/reel-claude-cuts-story/1200/900" alt="" class="absolute inset-0 w-full h-full object-cover grayscale contrast-125 opacity-45 group-hover:opacity-70 group-hover:scale-105 transition-all duration-700" />
+      <div class="absolute inset-0 bg-gradient-to-t from-ink to-transparent"></div>
+      <div class="relative h-full flex flex-col justify-end p-7">
+        <span class="font-display text-5xl font-extrabold text-amber/80">02</span>
+        <h3 class="mt-3 font-display text-2xl font-bold">Claude cuts it</h3>
+        <p class="mt-2 text-mist-2 max-w-xs opacity-0 group-hover:opacity-100 transition-opacity duration-500">It describes each clip, finds the arc, trims the beats, and writes a caption for every one.</p>
+      </div>
+    </div>
+    <!-- slice 3 -->
+    <div class="accordion-slice group relative flex-1 md:flex-[1] hover:md:flex-[2.6] transition-all duration-500 ease-[cubic-bezier(.16,1,.3,1)] rounded-3xl overflow-hidden border border-amber/40 min-h-[180px]">
+      <img src="https://picsum.photos/seed/reel-export-golden-hour/1200/900" alt="" class="absolute inset-0 w-full h-full object-cover contrast-110 opacity-55 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700" />
+      <div class="absolute inset-0 bg-gradient-to-t from-ink via-ink/50 to-transparent"></div>
+      <div class="relative h-full flex flex-col justify-end p-7">
+        <span class="font-display text-5xl font-extrabold text-amber">03</span>
+        <h3 class="mt-3 font-display text-2xl font-bold text-amber-soft">Refine and export</h3>
+        <p class="mt-2 text-mist-2 max-w-xs opacity-0 group-hover:opacity-100 transition-opacity duration-500">Nudge any beat, rewrite a line, pick your aspect, then export a captioned reel.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STORY (Desire — scrubbing word reveal) -->
+<section id="story" class="mx-auto max-w-4xl px-6 py-32 md:py-56 text-center">
+  <p id="scrub" class="font-display font-bold tracking-tight leading-[1.18]" style="font-size:clamp(1.75rem,3.6vw,3rem)">
+    You shot forty minutes of footage on a trip you will only take once. The story is somewhere in there. Reel is the editor that actually watches it, and gives the story back to you.
+  </p>
+</section>
+
+<!-- GALLERY (Desire — image scale + fade on scroll) -->
+<section class="mx-auto max-w-6xl px-6 pb-32 md:pb-48">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+    <figure class="scaley rounded-3xl overflow-hidden border border-white/10 aspect-[3/4]">
+      <img src="https://picsum.photos/seed/reel-frame-sunrise/900/1200" alt="A frame from an exported reel" class="w-full h-full object-cover grayscale contrast-125" />
+    </figure>
+    <figure class="scaley rounded-3xl overflow-hidden border border-white/10 aspect-[3/4] md:mt-16">
+      <img src="https://picsum.photos/seed/reel-frame-river/900/1200" alt="A frame from an exported reel" class="w-full h-full object-cover grayscale contrast-125" />
+    </figure>
+    <figure class="scaley rounded-3xl overflow-hidden border border-white/10 aspect-[3/4]">
+      <img src="https://picsum.photos/seed/reel-frame-summit/900/1200" alt="A frame from an exported reel" class="w-full h-full object-cover grayscale contrast-125" />
+    </figure>
+  </div>
+</section>
+
+<!-- ACTION (CTA) -->
+<section id="start" class="relative overflow-hidden">
+  <div class="absolute inset-0 radial-wash"></div>
+  <div class="relative mx-auto max-w-5xl px-6 py-40 md:py-56 text-center">
+    <h2 class="font-display font-extrabold tracking-tight leading-[1.02]" style="font-size:clamp(2.5rem,6vw,5rem)">
+      Turn your footage<br /><span class="amber-text">into a reel.</span>
+    </h2>
+    <p class="mx-auto mt-6 max-w-xl text-lg text-mist-2">Bring the clips. Reel brings the edit. Free to start, right in the browser.</p>
+    <a href="#" class="inline-block mt-10 rounded-full bg-amber text-ink font-bold text-lg px-9 py-4 hover:bg-amber-soft active:translate-y-px transition shadow-[0_24px_60px_-20px_rgba(255,179,57,.7)]">Start editing free</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="border-t border-white/10">
+  <div class="mx-auto max-w-6xl px-6 py-14 flex flex-col md:flex-row md:items-center gap-8 justify-between">
+    <a href="#" class="flex items-center gap-2 font-display font-extrabold text-xl">
+      <span class="grid place-items-center w-6 h-6 rounded-full bg-amber text-ink"><svg width="11" height="12" viewBox="0 0 12 13" fill="currentColor"><path d="M0 0l12 6.5L0 13z"/></svg></span>Reel
+    </a>
+    <nav class="flex flex-wrap gap-x-8 gap-y-3 text-sm text-mist-2">
+      <a href="#how" class="hover:text-mist transition-colors">How it works</a>
+      <a href="#features" class="hover:text-mist transition-colors">Features</a>
+      <a href="#" class="hover:text-mist transition-colors">Privacy</a>
+      <a href="#" class="hover:text-mist transition-colors">Contact</a>
+    </nav>
+    <p class="text-sm text-mist-3">Built in the browser. Your footage never leaves it.</p>
+  </div>
+</footer>
+
+<script>
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Infinite marquee (transform only)
+  (function () {
+    const track = document.getElementById("marquee");
+    const set = track.querySelector(".marquee-set");
+    if (!set) return;
+    const w = set.getBoundingClientRect().width;
+    gsap.to(track, { x: -w, duration: 24, ease: "none", repeat: -1 });
+  })();
+
+  if (!reduce) {
+    // Hero content entrance
+    gsap.from("h1, h1 + p, h1 ~ div", { y: 26, opacity: 0, duration: 1, ease: "power3.out", stagger: 0.12, delay: 0.1 });
+
+    // Bento reveal
+    gsap.from(".reveal-grid > *", {
+      y: 40, opacity: 0, duration: 0.8, ease: "power3.out", stagger: 0.1,
+      scrollTrigger: { trigger: ".reveal-grid", start: "top 78%" },
+    });
+
+    // Scrubbing word reveal
+    (function () {
+      const p = document.getElementById("scrub");
+      const words = p.textContent.trim().split(/\s+/);
+      p.innerHTML = words.map((w) => `<span class="scrub-w" style="opacity:.15">${w}</span>`).join(" ");
+      gsap.to(".scrub-w", {
+        opacity: 1, ease: "none", stagger: 1,
+        scrollTrigger: { trigger: p, start: "top 80%", end: "bottom 55%", scrub: true },
+      });
+    })();
+
+    // Gallery image scale + fade
+    gsap.utils.toArray(".scaley").forEach((el) => {
+      gsap.fromTo(el, { scale: 0.82, opacity: 0.25 }, {
+        scale: 1, opacity: 1, ease: "none",
+        scrollTrigger: { trigger: el, start: "top 90%", end: "top 45%", scrub: true },
+      });
+    });
+  }
+</script>
+</body>
+</html>

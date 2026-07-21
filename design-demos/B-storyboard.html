@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Direction B — Storyboard</title>
+<style>
+  :root{
+    --paper:#f4efe4; --paper-2:#efe8d8; --card:#fbf8f1; --ink:#211d17;
+    --ink-2:#6b6153; --ink-3:#9a8f7d; --line:#e0d7c4; --line-2:#d3c8b1;
+    --accent:#bb4a2c; --accent-soft:#f2e2d6; --good:#5c7f4a;
+    --serif:"Iowan Old Style","Palatino Linotype",Georgia,"Times New Roman",serif;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font:15px/1.6 var(--ui);
+    -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(rgba(160,140,110,.05) 1px,transparent 1px);
+    background-size:4px 4px}
+  .num{font-variant-numeric:tabular-nums}
+  button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+  .wrap{max-width:880px;margin:0 auto;padding:0 32px}
+
+  /* header bar */
+  .bar{position:sticky;top:0;z-index:10;background:rgba(244,239,228,.86);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar .wrap{display:flex;align-items:center;gap:14px;height:60px}
+  .logo{font-family:var(--serif);font-size:20px;font-weight:600;letter-spacing:-.01em;
+    display:flex;align-items:center;gap:9px}
+  .logo .mk{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+  .barmeta{color:var(--ink-2);font-size:13px}
+  .grow{flex:1}
+  .btn{padding:8px 15px;border-radius:999px;font-weight:600;font-size:13.5px}
+  .btn.ghost{color:var(--ink-2);border:1px solid var(--line-2)}
+  .btn.ghost:hover{color:var(--ink);background:var(--paper-2)}
+  .btn.primary{background:var(--accent);color:#fdf7f2}
+  .btn.primary:hover{background:#a63f24}
+
+  /* story hero */
+  .hero{padding:52px 0 30px}
+  .kicker{font-size:12px;text-transform:uppercase;letter-spacing:.16em;color:var(--accent);
+    font-weight:700;margin-bottom:16px}
+  .logline{font-family:var(--serif);font-size:40px;line-height:1.18;letter-spacing:-.015em;
+    max-width:20ch;text-wrap:balance}
+  .subline{margin-top:16px;font-size:16px;color:var(--ink-2);max-width:52ch;line-height:1.6}
+  .storyrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:22px}
+  .dir-chip{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);
+    color:var(--accent);border:1px solid #e7c9ba;padding:6px 13px;border-radius:999px;
+    font-size:13px;font-weight:600}
+  .meta-chip{font-size:13px;color:var(--ink-2);border:1px solid var(--line-2);
+    padding:6px 12px;border-radius:999px}
+
+  .rule{display:flex;align-items:center;gap:14px;margin:8px 0 26px;color:var(--ink-3);
+    font-size:12px;text-transform:uppercase;letter-spacing:.14em;font-weight:700}
+  .rule::after{content:"";flex:1;height:1px;background:var(--line-2)}
+
+  /* storyboard spine */
+  .board{position:relative;padding-left:44px;margin-bottom:20px}
+  .board::before{content:"";position:absolute;left:15px;top:8px;bottom:26px;width:2px;
+    background:linear-gradient(var(--line-2),var(--line-2)) ;background-size:2px 8px}
+  .beat{position:relative;margin-bottom:22px}
+  .node{position:absolute;left:-37px;top:14px;width:32px;height:32px;border-radius:50%;
+    background:var(--card);border:2px solid var(--line-2);display:grid;place-items:center;
+    font-family:var(--serif);font-weight:700;font-size:14px;color:var(--ink-2);z-index:2}
+  .beat.key .node{background:var(--accent);border-color:var(--accent);color:#fdf7f2}
+  .card{display:grid;grid-template-columns:210px 1fr;background:var(--card);
+    border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    box-shadow:0 1px 0 #fff inset,0 12px 26px -22px rgba(60,40,20,.5)}
+  .card.key{border-color:#e2b7a5;box-shadow:0 0 0 1px #e2b7a5,0 14px 30px -20px rgba(150,60,30,.35)}
+  .poster{position:relative;min-height:150px}
+  .poster::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 55%,rgba(0,0,0,.28))}
+  .poster .pdur{position:absolute;left:10px;bottom:9px;z-index:2;color:#fff;font-size:11px;
+    font-family:var(--ui);background:rgba(0,0,0,.42);padding:2px 7px;border-radius:5px;
+    font-variant-numeric:tabular-nums}
+  .poster .pclip{position:absolute;left:10px;top:9px;z-index:2;color:#fff;font-size:10.5px;
+    letter-spacing:.02em;background:rgba(0,0,0,.34);padding:2px 7px;border-radius:5px;
+    font-family:ui-monospace,monospace}
+  .cbody{padding:18px 20px 16px;display:flex;flex-direction:column}
+  .caption{font-family:var(--serif);font-size:21px;line-height:1.32;letter-spacing:-.01em;
+    text-wrap:pretty}
+  .beat.key .caption{color:var(--ink)}
+  .script{margin-top:9px;font-size:13.5px;color:var(--ink-2);line-height:1.55;text-wrap:pretty}
+  .cfoot{margin-top:auto;padding-top:14px;display:flex;align-items:center;gap:8px}
+  .cfoot .len{font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums;
+    display:flex;align-items:center;gap:6px}
+  .nudge{margin-left:auto;display:inline-flex;gap:6px}
+  .nub{font-size:12px;color:var(--ink-2);border:1px solid var(--line-2);border-radius:999px;
+    padding:5px 11px;display:inline-flex;align-items:center;gap:6px}
+  .nub:hover{border-color:var(--accent);color:var(--accent)}
+  .nub svg{width:12px;height:12px}
+
+  /* unused shelf */
+  .shelf{margin:34px 0 60px;padding:20px 22px;background:var(--paper-2);
+    border:1px dashed var(--line-2);border-radius:16px}
+  .shelf h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink-3);
+    font-weight:700;margin-bottom:14px}
+  .shelf .row{display:flex;gap:14px}
+  .drop{width:150px}
+  .drop .dp{height:86px;border-radius:10px;position:relative;overflow:hidden;filter:grayscale(.5);opacity:.85}
+  .drop .dn{margin-top:7px;font-size:12px;color:var(--ink-2);font-family:ui-monospace,monospace}
+  .drop .dr{font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.4}
+  .restore{font-size:12px;color:var(--accent);font-weight:600;margin-top:5px}
+
+  /* poster gradients */
+  .g-sunrise{background:linear-gradient(#f6b45f,#e9663f 46%,#4a3f57)}
+  .g-trail{background:linear-gradient(#c3d982,#5f9450 55%,#345a37)}
+  .g-river{background:linear-gradient(#a2dbec,#3f96bb 50%,#0d4058)}
+  .g-summit{background:linear-gradient(#d0d5da,#8f96a0 55%,#525a63)}
+  .g-pano{background:linear-gradient(#c6ecf6,#68c7e1 60%,#3f97b6)}
+  .g-golden{background:linear-gradient(#ffdd97,#f6983f 55%,#cd6020)}
+  .g-night{background:linear-gradient(#5257a4,#281d61 60%,#120a38)}
+</style>
+</head>
+<body>
+
+  <header class="bar">
+    <div class="wrap">
+      <div class="logo"><span class="mk"></span>Curator</div>
+      <div class="grow"></div>
+      <span class="barmeta num">6 beats · 0:29</span>
+      <button class="btn ghost">Re-cut the story</button>
+      <button class="btn primary">Export film</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <section class="hero">
+      <div class="kicker">The Story · found across 7 clips</div>
+      <h1 class="logline">A weekend in the Dolomites, from first light to the summit.</h1>
+      <p class="subline">Claude read your footage and shaped it into a six-beat arc — a slow build to the summit, then the long golden descent. Edit any line, or steer the whole story below.</p>
+      <div class="storyrow">
+        <span class="dir-chip"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M12 6V4M6 20v-6M6 10V4M18 20v-3M18 13V4"/></svg>Direction: quiet, earned, no hype</span>
+        <span class="meta-chip num">16:9 · 1080p</span>
+        <span class="meta-chip num">1 clip set aside</span>
+      </div>
+    </section>
+
+    <div class="rule">The Cut</div>
+
+    <section class="board">
+
+      <div class="beat">
+        <div class="node">1</div>
+        <article class="card">
+          <div class="poster g-sunrise"><span class="pclip">sunrise_ridge.mov</span><span class="pdur num">4.0s</span></div>
+          <div class="cbody">
+            <div class="caption">First light hits the ridge.</div>
+            <div class="script">A cold, still opening — the day hasn't started for anyone else yet.</div>
+            <div class="cfoot"><span class="len"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>0:00 – 0:04</span>
+              <span class="nudge"><button class="nub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>Rewrite</button></span></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="beat">
+        <div class="node">2</div>
+        <article class="card">
+          <div class="poster g-trail"><span class="pclip">trailhead_start.mp4</span><span class="pdur num">5.2s</span></div>
+          <div class="cbody">
+            <div class="caption">We set out before the crowds.</div>
+            <div class="script">Boots on gravel, packs cinched — the ordinary, hopeful start of a long day up.</div>
+            <div class="cfoot"><span class="len"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>0:04 – 0:09</span>
+              <span class="nudge"><button class="nub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>Rewrite</button></span></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="beat">
+        <div class="node">3</div>
+        <article class="card">
+          <div class="poster g-river"><span class="pclip">river_crossing.mov</span><span class="pdur num">3.8s</span></div>
+          <div class="cbody">
+            <div class="caption">The only way up is through.</div>
+            <div class="script">A quick, committed crossing — the first moment the trip asks something of you.</div>
+            <div class="cfoot"><span class="len"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>0:09 – 0:13</span>
+              <span class="nudge"><button class="nub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>Rewrite</button></span></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="beat key">
+        <div class="node">4</div>
+        <article class="card key">
+          <div class="poster g-summit"><span class="pclip">summit_push.mp4</span><span class="pdur num">6.1s</span></div>
+          <div class="cbody">
+            <div class="caption">The last stretch is always the steepest.</div>
+            <div class="script">The climax of the climb — legs burning, air thin, the summit still hidden above.</div>
+            <div class="cfoot"><span class="len"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>0:13 – 0:19</span>
+              <span class="nudge">
+                <button class="nub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>Rewrite</button>
+                <button class="nub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>Re-trim</button>
+              </span></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="beat">
+        <div class="node">5</div>
+        <article class="card">
+          <div class="poster g-pano"><span class="pclip">summit_pano.mov</span><span class="pdur num">5.5s</span></div>
+          <div class="cbody">
+            <div class="caption">And then — everything opens up.</div>
+            <div class="script">The payoff. A slow reveal of the range, the reward the whole cut was building toward.</div>
+            <div class="cfoot"><span class="len"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>0:19 – 0:25</span>
+              <span class="nudge"><button class="nub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>Rewrite</button></span></div>
+          </div>
+        </article>
+      </div>
+
+      <div class="beat">
+        <div class="node">6</div>
+        <article class="card">
+          <div class="poster g-golden"><span class="pclip">descent_golden.mp4</span><span class="pdur num">4.6s</span></div>
+          <div class="cbody">
+            <div class="caption">Down through the golden hour.</div>
+            <div class="script">A warm, unhurried close — the light softening as the day, and the film, come home.</div>
+            <div class="cfoot"><span class="len"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>0:25 – 0:29</span>
+              <span class="nudge"><button class="nub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>Rewrite</button></span></div>
+          </div>
+        </article>
+      </div>
+
+    </section>
+
+    <div class="shelf">
+      <h3>Set aside · not in the cut</h3>
+      <div class="row">
+        <div class="drop"><div class="dp g-night"></div><div class="dn">camp_night.mov</div>
+          <div class="dr">Dropped — dark and soft; breaks the daylight arc.</div>
+          <button class="restore">↩ Bring into the cut</button></div>
+      </div>
+    </div>
+
+  </main>
+</body>
+</html>
