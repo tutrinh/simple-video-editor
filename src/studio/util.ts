@@ -31,25 +31,13 @@ function warmthSvgFilter(warm: number): string {
   return `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}#w')`;
 }
 
-import filterPresets from "../data/filterPresets.json";
-
-export interface FilterPreset {
-  id: string;
-  name: string;
-  description: string;
-  colorAdjustments: ColorAdjustments;
-  previewGradient: string;
-}
-
-export function getFilterPreset(id?: string | null): FilterPreset | undefined {
-  if (!id) return undefined;
-  return (filterPresets as FilterPreset[]).find((p) => p.id === id);
-}
+import { getFilterPresetById, type FilterPreset } from "../lib/customPresets";
+export { getFilterPresetById as getFilterPreset, type FilterPreset };
 
 /** Convert Beat color adjustments & optional Global Filter to a CSS filter string for live HTML video preview. */
-export function cssFilterFor(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1): string {
-  const preset = getFilterPreset(globalFilterId);
-  const globalAdj = preset ? preset.colorAdjustments : undefined;
+export function cssFilterFor(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1, customGlobalAdj?: ColorAdjustments): string {
+  const preset = getFilterPresetById(globalFilterId);
+  const globalAdj = customGlobalAdj ?? preset?.colorAdjustments;
 
   const exp = (adj?.exposure ?? 0) + (globalAdj?.exposure ?? 0) * globalIntensity;
   const con = (adj?.contrast ?? 0) + (globalAdj?.contrast ?? 0) * globalIntensity;
@@ -68,9 +56,9 @@ export function cssFilterFor(adj?: ColorAdjustments, globalFilterId?: string | n
 }
 
 /** Convert Beat color adjustments & optional Global Filter to FFmpeg filtergraph strings for export encoding. */
-export function ffmpegColorFilters(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1): string[] {
-  const preset = getFilterPreset(globalFilterId);
-  const globalAdj = preset ? preset.colorAdjustments : undefined;
+export function ffmpegColorFilters(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1, customGlobalAdj?: ColorAdjustments): string[] {
+  const preset = getFilterPresetById(globalFilterId);
+  const globalAdj = customGlobalAdj ?? preset?.colorAdjustments;
 
   const exp = (adj?.exposure ?? 0) + (globalAdj?.exposure ?? 0) * globalIntensity;
   const con = (adj?.contrast ?? 0) + (globalAdj?.contrast ?? 0) * globalIntensity;

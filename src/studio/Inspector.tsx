@@ -46,6 +46,18 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const [colorOpen, setColorOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
+  const currentGlobalAdj = cut?.globalFilterAdjustments ?? activeGlobalFilter?.colorAdjustments ?? {};
+
+  function updateGlobalAdj(key: keyof ColorAdjustments, value: number) {
+    if (!cut?.globalFilterId) return;
+    const nextAdj = { ...currentGlobalAdj, [key]: value };
+    dispatch({
+      type: "SET_GLOBAL_FILTER",
+      filterId: cut.globalFilterId,
+      intensity: cut.globalFilterIntensity,
+      adjustments: nextAdj,
+    });
+  }
   // Per-line caption alternatives: model + mood chosen here (seeded from settings),
   // results aligned to caption rows (row i → its suggestions).
   const [altModel, setAltModel] = useState<string>(settings.authorModel);
@@ -102,8 +114,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
               </div>
 
               {activeGlobalFilter && (
-                <div style={{ marginTop: 8, padding: 8, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
                     <button
                       type="button"
@@ -122,6 +134,75 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     onChange={(e) => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: Number(e.target.value) })}
                     style={sliderTrackStyle(cut?.globalFilterIntensity ?? 1, 0.1, 1)}
                   />
+
+                  <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>🎛️ Fine-Tune Filter</div>
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Exposure</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.exposure ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.exposure ?? 0}
+                      onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Contrast</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.contrast ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.contrast ?? 0}
+                      onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Color Tone</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.colorTone ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.colorTone ?? 0}
+                      onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Warmth</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.warmth ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.warmth ?? 0}
+                      onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Saturation</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.saturation ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.saturation ?? 0}
+                      onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -132,8 +213,9 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           <FilterPresetModal
             activeFilterId={cut?.globalFilterId}
             activeIntensity={cut?.globalFilterIntensity}
-            onSelectFilter={(filterId, intensity) => {
-              dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity });
+            activeAdjustments={cut?.globalFilterAdjustments}
+            onSelectFilter={(filterId, intensity, adjustments) => {
+              dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity, adjustments });
             }}
             onClose={() => setFilterModalOpen(false)}
           />
@@ -628,8 +710,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
               </div>
 
               {activeGlobalFilter && (
-                <div style={{ marginTop: 8, padding: 8, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
                     <button
                       type="button"
@@ -648,6 +730,75 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     onChange={(e) => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: Number(e.target.value) })}
                     style={sliderTrackStyle(cut?.globalFilterIntensity ?? 1, 0.1, 1)}
                   />
+
+                  <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>🎛️ Fine-Tune Filter</div>
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Exposure</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.exposure ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.exposure ?? 0}
+                      onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Contrast</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.contrast ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.contrast ?? 0}
+                      onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Color Tone</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.colorTone ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.colorTone ?? 0}
+                      onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Warmth</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.warmth ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.warmth ?? 0}
+                      onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Saturation</span>
+                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.saturation ?? 0}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-100"
+                      max="100"
+                      value={currentGlobalAdj.saturation ?? 0}
+                      onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
+                      style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -656,8 +807,9 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
               <FilterPresetModal
                 activeFilterId={cut?.globalFilterId}
                 activeIntensity={cut?.globalFilterIntensity}
-                onSelectFilter={(filterId, intensity) => {
-                  dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity });
+                activeAdjustments={cut?.globalFilterAdjustments}
+                onSelectFilter={(filterId, intensity, adjustments) => {
+                  dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity, adjustments });
                 }}
                 onClose={() => setFilterModalOpen(false)}
               />

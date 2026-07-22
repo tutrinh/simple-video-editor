@@ -124,4 +124,6 @@ export interface Cut {
   globalFilterId?: string;
   /** Global filter intensity scale (0..1, default 1). */
   globalFilterIntensity?: number;
+  /** Fine-tuned custom color adjustments overriding the preset defaults. */
+  globalFilterAdjustments?: ColorAdjustments;
 }

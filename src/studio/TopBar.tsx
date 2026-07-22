@@ -108,8 +108,9 @@ export default function TopBar({ onExport, onStartOver }: Props) {
         <FilterPresetModal
           activeFilterId={cut?.globalFilterId}
           activeIntensity={cut?.globalFilterIntensity}
-          onSelectFilter={(filterId, intensity) => {
-            dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity });
+          activeAdjustments={cut?.globalFilterAdjustments}
+          onSelectFilter={(filterId, intensity, adjustments) => {
+            dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity, adjustments });
           }}
           onClose={() => setFilterModalOpen(false)}
         />

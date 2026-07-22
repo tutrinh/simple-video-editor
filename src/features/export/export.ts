@@ -477,7 +477,7 @@ export async function exportCut(
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
       `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
       "setsar=1",
-      ...ffmpegColorFilters(b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity),
+      ...ffmpegColorFilters(b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
     ];
 
     const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));

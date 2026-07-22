@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip } from "../domain/types";
+import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, ColorAdjustments } from "../domain/types";
 
 /** The whole editing session. One store; every phase reads/writes it. */
 export interface ProjectState {
@@ -33,7 +33,7 @@ export type Action =
   | { type: "UPDATE_OVERLAY"; overlay: OverlayClip }
   | { type: "REMOVE_OVERLAY"; id: string }
   | { type: "DUPLICATE_OVERLAY"; id: string; newOverlayId?: string }
-  | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number }
+  | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number; adjustments?: ColorAdjustments }
   | { type: "RESET" };
 
 function patchClip(clips: Clip[], id: string, patch: Partial<Clip>): Clip[] {
@@ -117,6 +117,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
           ...state.cut,
           globalFilterId: action.filterId ?? undefined,
           globalFilterIntensity: action.intensity ?? state.cut.globalFilterIntensity ?? 1,
+          globalFilterAdjustments: action.filterId === null ? undefined : (action.adjustments ?? state.cut.globalFilterAdjustments),
         },
       };
     }
