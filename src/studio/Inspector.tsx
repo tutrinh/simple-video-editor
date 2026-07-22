@@ -5,6 +5,7 @@ import type { Beat, Clip, ColorAdjustments, VideoTransitionType } from "../domai
 import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
+import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, cssFilterFor } from "./util";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -619,6 +620,38 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                       style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 11 }}
                     />
                   </div>
+                </div>
+
+                {/* Timing Quick Shortcuts */}
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  {cut && (
+                    <button
+                      type="button"
+                      className="st-btn ghost"
+                      style={{ flex: 1, fontSize: 10, padding: "3px 6px" }}
+                      onClick={() => {
+                        const totalDur = cutDuration(cut);
+                        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: 0, durationSec: totalDur } });
+                      }}
+                      title="Set overlay duration to cover the full assembled video timeline"
+                    >
+                      ✨ Span Full Cut ({fmtSecs(cutDuration(cut))})
+                    </button>
+                  )}
+                  {beat && cut && (
+                    <button
+                      type="button"
+                      className="st-btn ghost"
+                      style={{ flex: 1, fontSize: 10, padding: "3px 6px" }}
+                      onClick={() => {
+                        const beatStart = cut.beats.slice(0, Math.max(0, index)).reduce((sum, b) => sum + b.durationSec, 0);
+                        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: beatStart, durationSec: beat.durationSec } });
+                      }}
+                      title={`Align overlay to match Beat ${index + 1}`}
+                    >
+                      🎯 Align to Beat {index + 1}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
