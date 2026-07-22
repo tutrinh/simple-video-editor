@@ -1,8 +1,37 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import React, { Component, useEffect, useRef, useState, useMemo, type ReactNode } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview from "../features/export/FinalPreview";
 import { activeCaptionText } from "../lib/pacing";
 import { fmtClock, cssFilterFor } from "./util";
+
+interface ErrorBoundaryProps {
+  fallback: (reset: () => void) => ReactNode;
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class PreviewErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("StagePreview cut render error:", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback(() => this.setState({ hasError: false }));
+    }
+    return this.props.children;
+  }
+}
 
 interface Props {
   cut: Cut;
@@ -114,7 +143,28 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
 
   if (mode === "cut") {
     return (
-      <>
+      <PreviewErrorBoundary
+        fallback={(reset) => (
+          <>
+            <div style={{ borderRadius: 12, overflow: "hidden", padding: 24, textAlign: "center", background: "#000", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 280 }}>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: 15, color: "var(--accent)" }}>🎞️ Cut Preview</h3>
+              <p style={{ fontSize: 12, opacity: 0.8, maxWidth: 360, margin: "0 0 16px 0" }}>Switched back to single Beat preview mode.</p>
+              <button
+                className="st-btn ghost"
+                onClick={() => { reset(); setMode("beat"); }}
+                style={{ borderColor: "var(--accent)", color: "var(--accent)", fontSize: 11, padding: "4px 12px" }}
+              >
+                Return to Beat View
+              </button>
+            </div>
+            <div className="st-transport">
+              <span className="st-tc">Cut view</span>
+              <span className="st-spacer" />
+              <ModeSwitch mode={mode} setMode={setMode} />
+            </div>
+          </>
+        )}
+      >
         <div style={{ borderRadius: 12, overflow: "hidden" }}>
           <FinalPreview
             cut={cut}
@@ -133,7 +183,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
           <span className="st-spacer" />
           <ModeSwitch mode={mode} setMode={setMode} />
         </div>
-      </>
+      </PreviewErrorBoundary>
     );
   }
 

@@ -55,11 +55,11 @@ export const CAPTION_TAIL_SEC = 2; // silent tail after the last line
  * there are no timers (callers fall back to the stacked, whole-beat caption).
  */
 export function captionSchedule(
-  captionText: string,
+  captionText?: string,
   durations?: number[],
   buffers?: { leadSec?: number; tailSec?: number },
 ): CaptionSchedule | null {
-  if (!durations || durations.length === 0) return null;
+  if (!captionText || !durations || durations.length === 0) return null;
   const leadSec = Math.max(0, buffers?.leadSec ?? CAPTION_LEAD_SEC);
   const tailSec = Math.max(0, buffers?.tailSec ?? CAPTION_TAIL_SEC);
   const cues: CaptionCue[] = [];
@@ -93,11 +93,12 @@ export function cueAt(schedule: CaptionSchedule | null, t: number): CaptionCue |
  * as single lines over the beat, matching the export video behavior 1-to-1.
  */
 export function activeCaptionText(
-  captionText: string,
+  captionText?: string,
   captionDurations?: number[],
   t = 0,
   totalDurationSec?: number,
 ): string {
+  if (!captionText) return "";
   const schedule = captionSchedule(captionText, captionDurations);
   if (schedule) {
     return cueAt(schedule, t)?.text ?? "";
