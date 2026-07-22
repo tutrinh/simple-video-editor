@@ -42,8 +42,10 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const [altErr, setAltErr] = useState<string | null>(null);
   const [alts, setAlts] = useState<string[][]>([]);
 
-  // Suggestions belong to one beat — clear them when a different beat is selected.
-  useEffect(() => { setAlts([]); setAltErr(null); }, [beat?.id]);
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
+
+  // Suggestions & modals belong to one beat — clear them when a different beat is selected.
+  useEffect(() => { setAlts([]); setAltErr(null); setConfirmRemoveOpen(false); }, [beat?.id]);
 
   if (!beat) {
     return (
@@ -429,13 +431,49 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           <button
             className="st-btn danger"
             style={{ flex: 1, justifyContent: "center", padding: "9px 14px" }}
-            onClick={() => dispatch({ type: "REMOVE_BEAT", id: b.id })}
+            onClick={() => setConfirmRemoveOpen(true)}
             title="Remove beat from cut"
           >
             Remove beat
           </button>
         </div>
       </div>
+
+      {confirmRemoveOpen && (
+        <div className="st-modal-scrim" onClick={() => setConfirmRemoveOpen(false)}>
+          <div className="st-modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Confirm beat removal">
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(229, 105, 95, 0.15)", color: "var(--danger)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>Remove Beat {String(index + 1).padStart(2, "0")}?</h3>
+                <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>This beat will be removed from your cut.</div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+              <button
+                className="st-btn ghost"
+                style={{ flex: 1, justifyContent: "center", padding: "8px 12px" }}
+                onClick={() => setConfirmRemoveOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="st-btn danger"
+                style={{ flex: 1, justifyContent: "center", padding: "8px 12px" }}
+                onClick={() => {
+                  setConfirmRemoveOpen(false);
+                  dispatch({ type: "REMOVE_BEAT", id: b.id });
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

@@ -5,6 +5,24 @@ import { DEFAULT_ELEVEN_VOICE } from "../lib/elevenLabs";
 
 // Export-page settings live here (not in ExportView) so they survive tab
 // navigation — switching away and back keeps every slider, dropdown, and upload.
+export interface TitleLayerSettings {
+  id: string;
+  enabled: boolean;
+  text: string;
+  fontId: string;
+  fontFile: File | null;
+  weight: number;
+  sizePx: number;
+  letterSpacing: number;
+  arcDeg: number;
+  shadow: boolean;
+  color: string;
+  posX: number;
+  posY: number;
+  scope: "intro" | "entire";
+  introSec: number;
+}
+
 export interface ExportSettings {
   captionScale: number;
   captionOpacity: number;
@@ -21,14 +39,73 @@ export interface ExportSettings {
   voiceoverGapSec: number;
   music: File | null;
   musicVolume: number;
+  /** 3 stacked title layers */
+  titleLayers: TitleLayerSettings[];
+  // Legacy single title settings for fallback
   titleText: string;
   titleFontId: string;
   titleFontFile: File | null;
+  titleWeight: number;
   titleSize: number;
   titleColor: string;
   titlePos: "top" | "center" | "bottom";
   titleScope: "intro" | "entire";
+  titleIntroSec: number;
 }
+
+const DEFAULT_TITLE_LAYERS: TitleLayerSettings[] = [
+  {
+    id: "layer-1",
+    enabled: true,
+    text: "",
+    fontId: "outfit",
+    fontFile: null,
+    weight: 700,
+    sizePx: 140,
+    letterSpacing: 0,
+    arcDeg: 0,
+    shadow: true,
+    color: "#ffffff",
+    posX: 0,
+    posY: -12,
+    scope: "intro",
+    introSec: 3,
+  },
+  {
+    id: "layer-2",
+    enabled: false,
+    text: "",
+    fontId: "inter",
+    fontFile: null,
+    weight: 400,
+    sizePx: 70,
+    letterSpacing: 0,
+    arcDeg: 0,
+    shadow: true,
+    color: "#ffd400",
+    posX: 0,
+    posY: 5,
+    scope: "intro",
+    introSec: 3,
+  },
+  {
+    id: "layer-3",
+    enabled: false,
+    text: "",
+    fontId: "space-grotesk",
+    fontFile: null,
+    weight: 600,
+    sizePx: 45,
+    letterSpacing: 0,
+    arcDeg: 0,
+    shadow: true,
+    color: "#ffffff",
+    posX: 0,
+    posY: 20,
+    scope: "intro",
+    introSec: 3,
+  },
+];
 
 const DEFAULTS: ExportSettings = {
   captionScale: 0.5,
@@ -43,13 +120,16 @@ const DEFAULTS: ExportSettings = {
   voiceoverGapSec: 0.5,
   music: null,
   musicVolume: 0.2,
+  titleLayers: DEFAULT_TITLE_LAYERS,
   titleText: "",
-  titleFontId: "sans",
+  titleFontId: "outfit",
   titleFontFile: null,
+  titleWeight: 400, // Normal by default
   titleSize: 140,
   titleColor: "#ffffff",
   titlePos: "center",
   titleScope: "intro",
+  titleIntroSec: 3,
 };
 
 const Ctx = createContext<{

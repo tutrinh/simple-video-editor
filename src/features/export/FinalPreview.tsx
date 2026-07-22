@@ -13,14 +13,25 @@ const ASPECT_RATIO = { "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1 } as const;
 const CAPTION_H_FRACTION = 0.045; // caption font ≈ 4.5% of frame height (matches export)
 const PREVIEW_H = 360;
 
-export interface PreviewTitle {
+export interface PreviewTitleLayer {
+  id: string;
+  enabled: boolean;
   text: string;
-  sizePx: number; // px on the 1080p-height canvas
+  sizePx: number;
+  letterSpacing?: number;
+  arcDeg?: number;
+  shadow?: boolean;
   color: string;
-  position: "top" | "center" | "bottom";
+  posX: number;
+  posY: number;
   scope: "intro" | "entire";
-  serif: boolean;
   introSec?: number;
+  fontFamily?: string;
+  fontWeight?: number;
+}
+
+export interface PreviewTitle {
+  layers: PreviewTitleLayer[];
 }
 
 interface Props {
@@ -227,8 +238,6 @@ export default function FinalPreview({
   // beats show the whole stacked caption, as before.
   const caption = beat ? activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec)) : "";
   const capFont = PREVIEW_H * CAPTION_H_FRACTION * captionScale;
-  const titleVisible = !!title && title.text.trim() !== "" && (title.scope === "entire" || elapsed < (title.introSec ?? 3));
-  const titleFont = title ? PREVIEW_H * (title.sizePx / canvasH) : 0;
 
   return (
     <div>
@@ -246,34 +255,107 @@ export default function FinalPreview({
       >
         <video ref={videoRef} muted playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat?.colorAdjustments) }} />
 
-        {titleVisible && title && (
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              padding: "0 12px",
-              textAlign: "center",
-              pointerEvents: "none",
-              top: title.position === "top" ? "6%" : title.position === "center" ? "50%" : undefined,
-              bottom: title.position === "bottom" ? "6%" : undefined,
-              transform: title.position === "center" ? "translateY(-50%)" : undefined,
-            }}
-          >
-            <span
+        {title && title.layers.map((layer) => {
+          if (!layer.enabled || !layer.text.trim()) return null;
+
+          let opacity = 1;
+          let visible = false;
+          if (layer.scope === "entire") {
+            visible = true;
+            opacity = 1;
+          } else {
+            const dur = layer.introSec ?? 3;
+            const fade = Math.min(0.8, dur / 2);
+            if (elapsed < dur) {
+              visible = true;
+              if (elapsed > dur - fade) {
+                opacity = Math.max(0, (dur - elapsed) / fade);
+              }
+            }
+          }
+
+          if (!visible) return null;
+          const fontSize = PREVIEW_H * (layer.sizePx / canvasH);
+          const curvature = layer.arcDeg ?? 0;
+
+          if (curvature !== 0) {
+            const hOffset = (curvature / 180) * 420;
+            const svgW = 1000;
+            const svgH = 600;
+            const startY = 300 + hOffset * 0.4;
+            const controlY = 300 - hOffset;
+            const pathD = `M 40,${startY} Q ${svgW / 2},${controlY} ${svgW - 40},${startY}`;
+            const pathId = `arc_${layer.id}`;
+
+            return (
+              <div
+                key={layer.id}
+                style={{
+                  position: "absolute",
+                  left: `${50 + layer.posX}%`,
+                  top: `${50 + layer.posY}%`,
+                  transform: "translate(-50%, -50%)",
+                  width: "95%",
+                  textAlign: "center",
+                  pointerEvents: "none",
+                  opacity,
+                  transition: "opacity 0.05s linear",
+                }}
+              >
+                <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", overflow: "visible" }}>
+                  <defs>
+                    <path id={pathId} d={pathD} fill="none" />
+                  </defs>
+                  <text
+                    fill={layer.color}
+                    fontWeight={layer.fontWeight ?? 400}
+                    fontFamily={layer.fontFamily || "system-ui, sans-serif"}
+                    fontSize={fontSize * 2.8}
+                    letterSpacing={layer.letterSpacing ? `${(layer.letterSpacing * PREVIEW_H * 2.8) / canvasH}px` : undefined}
+                    style={{
+                      filter: layer.shadow !== false ? "drop-shadow(2px 2px 3px rgba(0,0,0,0.6))" : "none",
+                    }}
+                  >
+                    <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
+                      {layer.text}
+                    </textPath>
+                  </text>
+                </svg>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={layer.id}
               style={{
-                color: title.color,
-                fontWeight: 700,
-                fontFamily: title.serif ? "Georgia, 'Times New Roman', serif" : "system-ui, sans-serif",
-                fontSize: titleFont,
-                lineHeight: 1.1,
-                textShadow: "2px 2px 3px rgba(0,0,0,0.6)",
+                position: "absolute",
+                left: `${50 + layer.posX}%`,
+                top: `${50 + layer.posY}%`,
+                transform: "translate(-50%, -50%)",
+                width: "90%",
+                textAlign: "center",
+                pointerEvents: "none",
+                opacity,
+                transition: "opacity 0.05s linear",
               }}
             >
-              {title.text}
-            </span>
-          </div>
-        )}
+              <span
+                style={{
+                  color: layer.color,
+                  fontWeight: layer.fontWeight ?? 400,
+                  fontFamily: layer.fontFamily || "system-ui, sans-serif",
+                  fontSize,
+                  letterSpacing: layer.letterSpacing ? `${(layer.letterSpacing * PREVIEW_H) / canvasH}px` : undefined,
+                  lineHeight: 1.1,
+                  textShadow: layer.shadow !== false ? "2px 2px 3px rgba(0,0,0,0.6)" : "none",
+                }}
+              >
+                {layer.text}
+              </span>
+            </div>
+          );
+        })}
 
         {caption && (
           <div style={{ position: "absolute", left: 0, right: 0, bottom: `${PREVIEW_H * 0.07}px`, textAlign: "center", padding: "0 6px", pointerEvents: "none" }}>
@@ -298,9 +380,30 @@ export default function FinalPreview({
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, justifyContent: "center" }}>
-        {playing ? <button onClick={pause}>⏸ Pause</button> : <button onClick={play}>▶ Play preview</button>}
-        <button onClick={restart}>⟲ Restart</button>
-        <span style={{ fontSize: 13, color: "#888" }}>beat {index + 1} / {cut.beats.length} · {elapsed.toFixed(1)}s</span>
+        {playing ? (
+          <button onClick={pause} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+            Pause
+          </button>
+        ) : (
+          <button onClick={play} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+            Play preview
+          </button>
+        )}
+        <button onClick={restart} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+          Restart
+        </button>
+        <span style={{ fontSize: 13, color: "#888", fontVariantNumeric: "tabular-nums" }}>beat {index + 1} / {cut.beats.length} · {elapsed.toFixed(1)}s</span>
       </div>
       <audio ref={audioRef} />
     </div>

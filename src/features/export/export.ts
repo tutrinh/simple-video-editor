@@ -12,19 +12,24 @@ import { ffmpegColorFilters } from "../../studio/util";
 // whole thing. Captions use drawtext `textfile=` + `expansion=none`, which reads
 // the caption from a file in the FS and sidesteps inline-escaping entirely.
 
-export interface TitleOverlay {
+export interface TitleLayer {
+  id: string;
+  enabled: boolean;
   text: string;
-  /** TTF/OTF bytes for the title (bundled default or a user-uploaded font). */
-  fontBytes: Uint8Array;
-  /** Font size in px on the 1080p canvas. */
+  fontBytes?: Uint8Array;
   sizePx: number;
-  /** Hex color like "#ffcc00". */
+  letterSpacing?: number;
+  arcDeg?: number;
+  shadow?: boolean;
   color: string;
-  position: "top" | "center" | "bottom";
-  /** "intro" = first `introSec` seconds only; "entire" = whole video. */
+  posX: number; // -50 .. +50 (% horizontal offset from center)
+  posY: number; // -50 .. +50 (% vertical offset from center)
   scope: "intro" | "entire";
-  /** Intro duration in seconds (used when scope === "intro"; default 3). */
   introSec?: number;
+}
+
+export interface TitleOverlay {
+  layers: TitleLayer[];
 }
 
 export interface ExportOptions {
@@ -64,18 +69,39 @@ export interface ExportOptions {
   captionLineHeight?: number;
 }
 
-/** Build the drawtext filter for a title overlay (font/text written to the FS). */
-function titleDrawtext(t: TitleOverlay, h: number): string {
-  const margin = Math.round(h * 0.06);
-  const y =
-    t.position === "top" ? String(margin) : t.position === "center" ? "(h-th)/2" : `h-th-${margin}`;
-  const color = "0x" + t.color.replace(/^#/, "");
-  const enable = t.scope === "intro" ? `:enable='between(t,0,${t.introSec ?? 3})'` : "";
-  return (
-    `drawtext=fontfile=/title.ttf:textfile=/title.txt:expansion=none:` +
-    `fontcolor=${color}:fontsize=${Math.round(t.sizePx)}:` +
-    `shadowcolor=black@0.5:shadowx=2:shadowy=2:x=(w-text_w)/2:y=${y}${enable}`
-  );
+/** Build drawtext filters and input files for stacked title layers. */
+function buildTitleFilterGraph(title: TitleOverlay, w: number, h: number, defaultFontBytes: Uint8Array): { filterGraph: string; inputs: EngineInput[] } {
+  const activeLayers = title.layers.filter((l) => l.enabled && l.text.trim());
+  const inputs: EngineInput[] = [];
+  const filters: string[] = [];
+
+  activeLayers.forEach((l, k) => {
+    const fontName = `title_font_${k}.ttf`;
+    const textName = `title_text_${k}.txt`;
+    inputs.push({ name: fontName, data: l.fontBytes ?? defaultFontBytes });
+    inputs.push({ name: textName, data: new TextEncoder().encode(wrapCaption(l.text, w, l.sizePx)) });
+
+    const xOffset = Math.round(w * (l.posX / 100));
+    const yOffset = Math.round(h * (l.posY / 100));
+    const x = `(w-text_w)/2+${xOffset}`;
+    const y = `(h-text_h)/2+${yOffset}`;
+    const color = "0x" + l.color.replace(/^#/, "");
+    const tracking = l.letterSpacing ? `:tracking=${Math.round(l.letterSpacing)}` : "";
+    const shadowFilter = l.shadow !== false ? ":shadowcolor=black@0.5:shadowx=2:shadowy=2" : "";
+    const dur = l.introSec ?? 3;
+    const fade = Math.min(0.8, dur / 2);
+    const fadeStart = (dur - fade).toFixed(3);
+    const alpha = l.scope === "intro" ? `:alpha='if(lt(t,${fadeStart}),1,if(lt(t,${dur}),(${dur}-t)/${fade},0))'` : "";
+    const enable = l.scope === "intro" ? `:enable='between(t,0,${dur})'` : "";
+
+    filters.push(
+      `drawtext=fontfile=/${fontName}:textfile=/${textName}:expansion=none:` +
+      `fontcolor=${color}:fontsize=${Math.round(l.sizePx)}${tracking}${shadowFilter}:` +
+      `x=${x}:y=${y}${alpha}${enable}`
+    );
+  });
+
+  return { filterGraph: filters.join(","), inputs };
 }
 
 /** The actual on-screen window an exported beat used (voiceover can change it). */
@@ -363,15 +389,11 @@ export async function exportCut(
 
   // Burn the title overlay over the concatenated video (re-encode video, copy
   // audio). Runs before the music mux so the title survives the stream-copy there.
-  if (opts.title && opts.title.text.trim()) {
+  if (opts.title && opts.title.layers.some((l) => l.enabled && l.text.trim())) {
+    const { filterGraph, inputs } = buildTitleFilterGraph(opts.title, w, h, opts.fontBytes);
     video = await runIsolated(
-      [
-        { name: "in.mp4", data: video },
-        { name: "title.ttf", data: opts.title.fontBytes },
-        { name: "title.txt", data: new TextEncoder().encode(wrapCaption(opts.title.text, w, opts.title.sizePx)) },
-      ],
-      ["-i", "in.mp4", "-vf", titleDrawtext(opts.title, h),
-       "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
+      [{ name: "in.mp4", data: video }, ...inputs],
+      ["-i", "in.mp4", "-vf", filterGraph, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
       "titled.mp4",
     );
   }
