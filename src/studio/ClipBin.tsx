@@ -189,56 +189,6 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
     );
   }
 
-  const [stockOpen, setStockOpen] = useState(false);
-  const [stockCategories, setStockCategories] = useState<{ category: string; files: string[] }[]>([]);
-  const [loadingStock, setLoadingStock] = useState(false);
-
-  async function openStockPicker() {
-    setStockOpen(true);
-    setLoadingStock(true);
-    try {
-      const res = await fetch("/api/overlays/list");
-      const data = await res.json();
-      setStockCategories(data.categories ?? []);
-    } catch {
-      setStockCategories([]);
-    } finally {
-      setLoadingStock(false);
-    }
-  }
-
-  async function importStockOverlay(category: string, name: string) {
-    setLoadingStock(true);
-    try {
-      const res = await fetch(`/api/overlays/file?category=${encodeURIComponent(category)}&name=${encodeURIComponent(name)}`);
-      const blob = await res.blob();
-      const file = new File([blob], name, { type: "video/mp4" });
-      const created = await createClip(file);
-      dispatch({ type: "ADD_CLIPS", clips: [created] });
-
-      if (hasCut) {
-        const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-        const newOverlay = {
-          id: `overlay-${genId()}`,
-          clipId: created.id,
-          startTimeSec: 0.5,
-          durationSec: Math.min(5.0, created.durationSec || 3.0),
-          inSec: 0,
-          outSec: Math.min(5.0, created.durationSec || 3.0),
-          blendMode: (category.includes("light") || category.includes("leak") ? "screen" : "normal") as any,
-          opacity: 0.85,
-          volume: 0,
-        };
-        dispatch({ type: "ADD_OVERLAY", overlay: newOverlay });
-      }
-    } catch (e) {
-      alert("Failed to import stock overlay: " + String(e));
-    } finally {
-      setLoadingStock(false);
-      setStockOpen(false);
-    }
-  }
-
   return (
     <aside className="st-col bin">
       <div className="st-colhead" style={{ display: "flex", alignItems: "center" }}>
@@ -269,69 +219,6 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
         or click to choose · 4K → 1080p on import
         <input ref={inputRef} type="file" accept="video/*" multiple hidden onChange={onPick} />
       </div>
-
-      <div style={{ padding: "4px 8px" }}>
-        <button
-          type="button"
-          className="st-btn ghost"
-          style={{ width: "100%", justifyContent: "center", gap: 6, fontSize: 11, padding: "5px 8px", borderColor: "var(--accent)", color: "var(--accent)" }}
-          onClick={openStockPicker}
-          title="Browse & import built-in overlay video clips from overlays/ folder"
-        >
-          ✨ Browse Stock Overlays Library
-        </button>
-      </div>
-
-      {stockOpen && (
-        <div className="st-modal-scrim" onClick={() => setStockOpen(false)}>
-          <div className="st-modal-card" style={{ maxWidth: 500, width: "90%" }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--accent)" }}>🎞️ Stock Overlays Library</h3>
-              <button className="st-btn ghost" style={{ padding: "2px 8px" }} onClick={() => setStockOpen(false)}>✕</button>
-            </div>
-
-            {loadingStock ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--ink-2)" }}>Loading overlays library…</div>
-            ) : stockCategories.length === 0 ? (
-              <div style={{ padding: 16, textAlign: "center", color: "var(--ink-2)", fontSize: 12 }}>
-                No video files found in <code>overlays/</code> subdirectories. Add MP4 videos to <code>overlays/light-leaks/</code> or other category subfolders.
-              </div>
-            ) : (
-              <div style={{ maxHeight: 350, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
-                {stockCategories.map((cat) => (
-                  <div key={cat.category} style={{ background: "var(--panel-2)", borderRadius: 6, padding: 8, border: "1px solid var(--line)" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "var(--accent)", marginBottom: 6 }}>
-                      📂 {cat.category} ({cat.files.length})
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {cat.files.map((file) => (
-                        <div
-                          key={file}
-                          onClick={() => importStockOverlay(cat.category, file)}
-                          style={{
-                            padding: "6px 10px",
-                            background: "var(--panel-3)",
-                            borderRadius: 4,
-                            fontSize: 12,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            cursor: "pointer",
-                            transition: "background 0.1s",
-                          }}
-                        >
-                          <span style={{ color: "var(--ink)", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>🎬 {file}</span>
-                          <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>+ Import & Layer</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       <div className="st-cliplist">
         {hasCut ? (
