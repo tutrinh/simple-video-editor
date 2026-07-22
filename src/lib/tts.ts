@@ -17,10 +17,20 @@ export async function synthesizeVoiceover(
   opts: { engine: TtsEngine; voice?: Voice; elevenVoiceId?: string; speed?: number },
 ): Promise<Narration> {
   const speed = opts.speed ?? 1;
-  if (opts.engine === "elevenlabs") {
-    const r = await synthesizeEleven(text, opts.elevenVoiceId ?? DEFAULT_ELEVEN_VOICE, speed);
-    return { data: r.data, ext: "mp3", durationSec: r.durationSec };
-  }
-  const { wav, durationSec } = await kokoroSynth(text, opts.voice, speed);
-  return { data: wav, ext: "wav", durationSec };
+  const timeoutMs = 15000;
+
+  const promise = (async (): Promise<Narration> => {
+    if (opts.engine === "elevenlabs") {
+      const r = await synthesizeEleven(text, opts.elevenVoiceId ?? DEFAULT_ELEVEN_VOICE, speed);
+      return { data: r.data, ext: "mp3", durationSec: r.durationSec };
+    }
+    const { wav, durationSec } = await kokoroSynth(text, opts.voice, speed);
+    return { data: wav, ext: "wav", durationSec };
+  })();
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("Voiceover synthesis timed out after 15 seconds")), timeoutMs)
+  );
+
+  return Promise.race([promise, timeoutPromise]);
 }

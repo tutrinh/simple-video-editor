@@ -615,7 +615,7 @@ export async function exportCut(
 
   const activeBeats = cut.beats.filter((b) => clips.some((c) => c.id === b.clipId));
 
-  // Check if any beats have active transitions
+  // Check if any beats have active custom transitions
   const hasTransitions = activeBeats.some((b) => b.transition && b.transition !== "none");
   let video: Uint8Array;
 
@@ -624,7 +624,7 @@ export async function exportCut(
     const ffmpegArgs: string[] = [];
     segments.forEach((_, i) => ffmpegArgs.push("-i", `seg_${i}.mp4`));
 
-    let filterGraph = "";
+    const vFilterChains: string[] = [];
     let currentOffset = 0;
 
     for (let i = 0; i < segments.length - 1; i++) {
@@ -642,7 +642,6 @@ export async function exportCut(
         rawSec = nextBeat.transitionSec ?? 0.5;
       }
 
-      // If no transition specified for this beat boundary, use 0.1s quick fade (3 frames at 30fps)
       const isCustomTr = !!tr && tr !== "none";
       const finalTr = isCustomTr ? tr : "fade";
       const segDur0 = timings[i]?.durationSec ?? 3;
@@ -656,18 +655,17 @@ export async function exportCut(
       const vIn2 = `[${i + 1}:v]`;
       const vOut = i === segments.length - 2 ? "[v]" : `[v${i + 1}]`;
 
-      const aIn1 = i === 0 ? "[0:a]" : `[a${i}]`;
-      const aIn2 = `[${i + 1}:a]`;
-      const aOut = i === segments.length - 2 ? "[a]" : `[a${i + 1}]`;
-
-      filterGraph += `${vIn1}${vIn2}xfade=transition=${finalTr}:duration=${dur.toFixed(2)}:offset=${Math.max(0, currentOffset).toFixed(2)}${vOut};`;
-      filterGraph += `${aIn1}${aIn2}acrossfade=d=${dur.toFixed(2)}${aOut}${i < segments.length - 2 ? ";" : ""}`;
+      vFilterChains.push(`${vIn1}${vIn2}xfade=transition=${finalTr}:duration=${dur.toFixed(2)}:offset=${Math.max(0, currentOffset).toFixed(2)}${vOut}`);
     }
+
+    const aFilterChain = segments.map((_, i) => `[${i}:a]`).join("") + `concat=n=${segments.length}:v=0:a=1[a]`;
+    const filterGraph = `${vFilterChains.join(";")};${aFilterChain}`;
 
     video = await runIsolated(
       inputs,
       [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "video.mp4"],
       "video.mp4",
+      (f) => onProgress?.(0.60 + f * 0.12),
     );
   } else {
     // Concat (stream copy) → the finished video with silent audio.

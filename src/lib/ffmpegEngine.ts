@@ -83,9 +83,19 @@ export async function runIsolated(
   ff.on("log", ({ message }) => { logs.push(message); });
   if (onProgress) ff.on("progress", ({ progress }) => onProgress(Math.min(1, Math.max(0, progress))));
   await ff.load(urls);
+  let timeoutTimer: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutTimer = setTimeout(() => {
+      try { ff.terminate(); } catch {}
+      reject(new Error(`FFmpeg processing timed out after 90s for ${outputName}`));
+    }, 90000);
+  });
+
   try {
-    for (const input of inputs) await ff.writeFile(input.name, input.data);
-    const code = await ff.exec(args);
+    for (const input of inputs) await ff.writeFile(input.name, input.data.slice());
+    const code = await Promise.race([ff.exec(args), timeoutPromise]);
+    if (timeoutTimer) clearTimeout(timeoutTimer);
+
     if (code !== 0) {
       const logTail = logs.slice(-8).join(" | ");
       throw new Error(`FFmpeg processing failed (code ${code}): ${logTail || "Command execution error"}`);
@@ -95,6 +105,7 @@ export async function runIsolated(
     copy.set(out);
     return copy;
   } finally {
+    if (timeoutTimer) clearTimeout(timeoutTimer);
     try {
       ff.terminate();
     } catch {}
