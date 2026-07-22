@@ -49,10 +49,31 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
+  const scrubRef = useRef<HTMLDivElement>(null);
+
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0); // 0..1 within the beat window
+  const [isScrubbing, setIsScrubbing] = useState(false);
 
-  // Load the selected clip's source; object URL lifetime matches the <video> src.
+  // 1. Clip URL map for overlays
+  const clipUrlMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of clips) {
+      const src = c.normalized ?? c.file;
+      if (src) map.set(c.id, URL.createObjectURL(src));
+    }
+    return map;
+  }, [clips]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of clipUrlMap.values()) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [clipUrlMap]);
+
+  // 2. Load the selected clip's source; object URL lifetime matches the <video> src.
   useEffect(() => {
     if (mode !== "beat") return;
     const v = videoRef.current;
@@ -67,6 +88,40 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clip?.id, beat?.id, mode]);
 
+  // 3. Update beat video volume and muted state dynamically
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !beat) return;
+    v.volume = beat.volume ?? 1;
+    v.muted = (beat.volume ?? 1) === 0;
+  }, [beat?.volume]);
+
+  // 4. Calculations for active beat & overlay
+  const beatIndex = beat ? cut.beats.indexOf(beat) : -1;
+  const beatStartSec = (beat && beatIndex >= 0) ? cut.beats.slice(0, beatIndex).reduce((sum, b) => sum + b.durationSec, 0) : 0;
+  const beatElapsed = beat ? pos * (beat.outSec - beat.inSec) : 0;
+  const elapsedCutSec = beatStartSec + beatElapsed;
+  const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec) ?? null;
+  const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
+  const overlayBlobUrl = activeOverlayClip ? clipUrlMap.get(activeOverlayClip.id) : undefined;
+
+  // 5. Active overlay sync effect
+  useEffect(() => {
+    const el = overlayVideoRef.current;
+    if (!el || !activeOverlay) return;
+    const targetTime = (elapsedCutSec - activeOverlay.startTimeSec) + activeOverlay.inSec;
+    if (Math.abs(el.currentTime - targetTime) > 0.15) {
+      try { el.currentTime = targetTime; } catch {}
+    }
+    el.volume = activeOverlay.volume ?? 0;
+    el.muted = (activeOverlay.volume ?? 0) === 0;
+    if (playing && el.paused) {
+      el.play().catch(() => {});
+    } else if (!playing && !el.paused) {
+      el.pause();
+    }
+  }, [elapsedCutSec, activeOverlay, playing]);
+
   function togglePlay() {
     const v = videoRef.current;
     if (!v || !beat) return;
@@ -77,9 +132,6 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     }
     v.play().then(() => setPlaying(true)).catch(() => {});
   }
-
-  const scrubRef = useRef<HTMLDivElement>(null);
-  const [isScrubbing, setIsScrubbing] = useState(false);
 
   function handleScrubPointer(e: React.PointerEvent<HTMLDivElement>) {
     const v = videoRef.current;
@@ -196,57 +248,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     );
   }
 
-  // Update beat video volume and muted state dynamically
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v || !beat) return;
-    v.volume = beat.volume ?? 1;
-    v.muted = (beat.volume ?? 1) === 0;
-  }, [beat?.volume]);
-
-  const clipUrlMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of clips) {
-      const src = c.normalized ?? c.file;
-      if (src) map.set(c.id, URL.createObjectURL(src));
-    }
-    return map;
-  }, [clips]);
-
-  useEffect(() => {
-    return () => {
-      for (const url of clipUrlMap.values()) {
-        URL.revokeObjectURL(url);
-      }
-    };
-  }, [clipUrlMap]);
-
   const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
-
-  const beatIndex = cut.beats.indexOf(beat);
-  const beatStartSec = cut.beats.slice(0, Math.max(0, beatIndex)).reduce((sum, b) => sum + b.durationSec, 0);
-  const beatElapsed = pos * (beat.outSec - beat.inSec);
-  const elapsedCutSec = beatStartSec + beatElapsed;
-  const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec) ?? null;
-  const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-  const overlayBlobUrl = activeOverlayClip ? clipUrlMap.get(activeOverlayClip.id) : undefined;
-
-  useEffect(() => {
-    const el = overlayVideoRef.current;
-    if (!el || !activeOverlay) return;
-    const targetTime = (elapsedCutSec - activeOverlay.startTimeSec) + activeOverlay.inSec;
-    if (Math.abs(el.currentTime - targetTime) > 0.15) {
-      try { el.currentTime = targetTime; } catch {}
-    }
-    el.volume = activeOverlay.volume ?? 0;
-    el.muted = (activeOverlay.volume ?? 0) === 0;
-    if (playing && el.paused) {
-      el.play().catch(() => {});
-    } else if (!playing && !el.paused) {
-      el.pause();
-    }
-  }, [elapsedCutSec, activeOverlay, playing]);
-
   const caption = activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec));
   const isAtEnd = !playing && pos >= 0.98;
 
