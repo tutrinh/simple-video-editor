@@ -48,14 +48,53 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     v.play().then(() => setPlaying(true)).catch(() => {});
   }
 
-  function handleScrub(e: React.MouseEvent<HTMLDivElement>) {
+  const scrubRef = useRef<HTMLDivElement>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+
+  function handleScrubPointer(e: React.PointerEvent<HTMLDivElement>) {
     const v = videoRef.current;
-    if (!v || !beat) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    const el = scrubRef.current;
+    if (!v || !beat || !el) return;
+    const rect = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const newTime = beat.inSec + pct * (beat.outSec - beat.inSec);
+    if (playing) {
+      v.pause();
+      setPlaying(false);
+    }
     v.currentTime = newTime;
     setPos(pct);
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsScrubbing(true);
+    handleScrubPointer(e);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (isScrubbing) handleScrubPointer(e);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (isScrubbing) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      setIsScrubbing(false);
+    }
+  }
+
+  function stepFrame(frames: number) {
+    const v = videoRef.current;
+    if (!v || !beat) return;
+    if (playing) {
+      v.pause();
+      setPlaying(false);
+    }
+    const frameTime = 1 / 30; // ~33.3ms 30fps frame stepping
+    const span = Math.max(0.01, beat.outSec - beat.inSec);
+    const newTime = Math.max(beat.inSec, Math.min(beat.outSec, v.currentTime + frames * frameTime));
+    v.currentTime = newTime;
+    setPos((newTime - beat.inSec) / span);
   }
 
   function onTimeUpdate() {
@@ -129,9 +168,34 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
             <svg width="12" height="13" viewBox="0 0 12 13" fill="currentColor"><path d="M0 0l12 6.5L0 13z"/></svg>
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => stepFrame(-1)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
+          title="Step 1 frame backward (30fps)"
+        >
+          ‹ 1f
+        </button>
+        <button
+          type="button"
+          onClick={() => stepFrame(1)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
+          title="Step 1 frame forward (30fps)"
+        >
+          1f ›
+        </button>
         <span className="st-tc st-num">{fmtClock(beat.inSec + pos * (beat.outSec - beat.inSec))}</span>
-        <div className="st-scrub" onClick={handleScrub} style={{ cursor: "pointer" }} title="Click to seek">
+        <div
+          ref={scrubRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          className="st-scrub"
+          style={{ cursor: "col-resize", touchAction: "none" }}
+          title="Drag or click to scrub frame-by-frame"
+        >
           <div className="fill" style={{ width: `${pos * 100}%` }} />
+          <div className="thumb" style={{ left: `${pos * 100}%` }} />
         </div>
         <span className="st-tc st-num">{fmtClock(beat.outSec)}</span>
         <span className="st-tsep" />

@@ -297,6 +297,76 @@ export default function FinalPreview({
     return undefined;
   }, [currentTr, currentTrSec, trAnimKey, index]);
 
+  // Total duration of all beats combined in the Cut
+  const totalCutDuration = useMemo(() => {
+    return cut.beats.reduce((acc, b) => acc + (b.durationSec || Math.max(0.05, b.outSec - b.inSec)), 0);
+  }, [cut.beats]);
+
+  function seekTotalTime(targetSec: number) {
+    const clamped = Math.max(0, Math.min(totalCutDuration, targetSec));
+    let accum = 0;
+    let targetIndex = 0;
+    let offsetInBeat = 0;
+
+    for (let i = 0; i < cut.beats.length; i++) {
+      const bDur = cut.beats[i].durationSec || Math.max(0.05, cut.beats[i].outSec - cut.beats[i].inSec);
+      if (clamped <= accum + bDur || i === cut.beats.length - 1) {
+        targetIndex = i;
+        offsetInBeat = Math.min(bDur, Math.max(0, clamped - accum));
+        break;
+      }
+      accum += bDur;
+    }
+
+    if (playingRef.current) setPlaying(false);
+    
+    beatElapsedRef.current = offsetInBeat;
+    setBeatElapsed(offsetInBeat);
+    setIndex(targetIndex);
+
+    const b = cut.beats[targetIndex];
+    const v = videoRef.current;
+    if (v && b) {
+      const srcSpan = Math.max(0.05, b.outSec - b.inSec);
+      const bDur = b.durationSec || srcSpan;
+      const pct = Math.min(1, Math.max(0, offsetInBeat / bDur));
+      v.currentTime = b.inSec + pct * srcSpan;
+    }
+  }
+
+  const scrubRef = useRef<HTMLDivElement>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+
+  function handleScrubPointer(e: React.PointerEvent<HTMLDivElement>) {
+    const el = scrubRef.current;
+    if (!el || totalCutDuration <= 0) return;
+    const rect = el.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    seekTotalTime(pct * totalCutDuration);
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsScrubbing(true);
+    handleScrubPointer(e);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (isScrubbing) handleScrubPointer(e);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (isScrubbing) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+      setIsScrubbing(false);
+    }
+  }
+
+  function stepFrame(frames: number) {
+    const frameSec = 1 / 30; // ~33.3ms for frame inspection
+    seekTotalTime(elapsed + frames * frameSec);
+  }
+
   return (
     <div>
       <div
@@ -462,7 +532,70 @@ export default function FinalPreview({
         )}
       </div>
 
+      {/* Interactive Scrubber Bar for Frame-by-Frame inspection */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, padding: "0 4px" }}>
+        <span style={{ fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums", width: 44 }}>
+          {elapsed.toFixed(1)}s
+        </span>
+        <div
+          ref={scrubRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          style={{
+            flex: 1,
+            height: 10,
+            borderRadius: 5,
+            background: "var(--line)",
+            position: "relative",
+            cursor: "col-resize",
+            display: "flex",
+            alignItems: "center",
+            touchAction: "none",
+          }}
+          title="Drag or click to scrub frame-by-frame"
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: `${totalCutDuration > 0 ? (elapsed / totalCutDuration) * 100 : 0}%`,
+              background: "var(--accent)",
+              borderRadius: 5,
+              opacity: 0.85,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              left: `${totalCutDuration > 0 ? (elapsed / totalCutDuration) * 100 : 0}%`,
+              top: "50%",
+              width: 10,
+              height: 14,
+              borderRadius: 3,
+              background: "var(--accent)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.5)",
+              transform: "translate(-50%, -50%)",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+        <span style={{ fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums", width: 44, textAlign: "right" }}>
+          {totalCutDuration.toFixed(1)}s
+        </span>
+      </div>
+
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, justifyContent: "center" }}>
+        <button
+          type="button"
+          onClick={() => stepFrame(-1)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
+          title="Step 1 frame backward (30fps)"
+        >
+          ‹ 1f
+        </button>
         {playing ? (
           <button type="button" onClick={pause} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 8px", borderRadius: 6 }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
@@ -479,6 +612,14 @@ export default function FinalPreview({
             Play preview
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => stepFrame(1)}
+          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
+          title="Step 1 frame forward (30fps)"
+        >
+          1f ›
+        </button>
         <button type="button" onClick={restart} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 8px", borderRadius: 6 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -486,7 +627,7 @@ export default function FinalPreview({
           </svg>
           Restart
         </button>
-        <span style={{ fontSize: 12, color: "var(--ink-2)", fontVariantNumeric: "tabular-nums", marginLeft: 4 }}>beat {index + 1} / {cut.beats.length} · {elapsed.toFixed(1)}s</span>
+        <span style={{ fontSize: 12, color: "var(--ink-2)", fontVariantNumeric: "tabular-nums", marginLeft: 4 }}>beat {index + 1} / {cut.beats.length}</span>
       </div>
       <audio ref={audioRef} />
     </div>
