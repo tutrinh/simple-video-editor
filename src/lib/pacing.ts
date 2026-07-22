@@ -87,3 +87,39 @@ export function cueAt(schedule: CaptionSchedule | null, t: number): CaptionCue |
   for (const c of schedule.cues) if (t >= c.start && t < c.end) return c;
   return null;
 }
+
+/**
+ * Return the active single-line caption text for preview at elapsed time `t`.
+ * Respects per-line timed schedules and automatically sequences multi-line captions
+ * as single lines over the beat, matching the export video behavior 1-to-1.
+ */
+export function activeCaptionText(
+  captionText: string,
+  captionDurations?: number[],
+  t = 0,
+  totalDurationSec?: number,
+): string {
+  const schedule = captionSchedule(captionText, captionDurations);
+  if (schedule) {
+    return cueAt(schedule, t)?.text ?? "";
+  }
+
+  const lines = captionText.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length <= 1) return lines[0] ?? "";
+
+  const total = Math.max(0.1, totalDurationSec ?? 1);
+  const estimates = lines.map((l) => estimateSpokenSeconds(l));
+  const sumEstimates = estimates.reduce((a, b) => a + b, 0);
+
+  let cursor = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const fraction = sumEstimates > 0 ? estimates[i] / sumEstimates : 1 / lines.length;
+    const end = cursor + total * fraction;
+    if (t >= cursor && (t < end || i === lines.length - 1)) {
+      return lines[i];
+    }
+    cursor = end;
+  }
+
+  return lines[lines.length - 1] ?? "";
+}

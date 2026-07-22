@@ -87,6 +87,21 @@ export interface Beat {
    * stack for the whole beat and duration comes from the spoken-length estimate.
    */
   captionDurations?: number[];
+  /** Optional minor color adjustments for exposure, contrast, color tone, and saturation. */
+  colorAdjustments?: ColorAdjustments;
+}
+
+export interface ColorAdjustments {
+  /** Exposure / Brightness offset (-100 to +100, default 0). */
+  exposure?: number;
+  /** Contrast offset (-100 to +100, default 0). */
+  contrast?: number;
+  /** Color tone / Hue offset (-100 to +100, default 0). */
+  colorTone?: number;
+  /** Warmth / Color temperature offset (-100 to +100, default 0). */
+  warmth?: number;
+  /** Saturation offset (-100 to +100, default 0). */
+  saturation?: number;
 }
 
 /** The assembled, editable draft — the ordered sequence of Beats. */

@@ -43,13 +43,17 @@ describe("projectReducer", () => {
     expect(s.cut?.beats.map((b) => b.id)).toEqual(["3", "1", "2"]);
   });
 
-  it("adds and removes beats on the cut", () => {
+  it("adds, duplicates (as separate clip and beat instances), and removes beats on the cut", () => {
     const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
-    let s = projectReducer(initialState, { type: "SET_CUT", cut });
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
     s = projectReducer(s, { type: "ADD_BEAT", beat: beat("2", "b") });
     expect(s.cut?.beats.map((b) => b.id)).toEqual(["1", "2"]);
+    s = projectReducer(s, { type: "DUPLICATE_BEAT", id: "1", newBeatId: "1-dup", newClipId: "a-dup" });
+    expect(s.cut?.beats.map((b) => b.id)).toEqual(["1", "1-dup", "2"]);
+    expect(s.cut?.beats[1].clipId).toBe("a-dup");
+    expect(s.clips.map((c) => c.id)).toContain("a-dup");
     s = projectReducer(s, { type: "REMOVE_BEAT", id: "1" });
-    expect(s.cut?.beats.map((b) => b.id)).toEqual(["2"]);
+    expect(s.cut?.beats.map((b) => b.id)).toEqual(["1-dup", "2"]);
   });
 
   it("resets to initial", () => {

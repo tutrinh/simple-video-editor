@@ -38,6 +38,15 @@ async function loadFont(): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+function sliderTrackStyle(val: number, min: number, max: number): React.CSSProperties {
+  const pct = Math.min(100, Math.max(0, ((val - min) / (max - min)) * 100));
+  return {
+    flex: 1,
+    width: "100%",
+    background: `linear-gradient(to right, rgba(255, 179, 57, 0.35) 0%, rgba(255, 179, 57, 0.35) ${pct}%, var(--panel-3, #22262e) ${pct}%, var(--panel-3, #22262e) 100%)`,
+  };
+}
+
 export default function ExportView() {
   const { state, dispatch } = useProject();
   const { cut, clips } = state;
@@ -67,7 +76,7 @@ export default function ExportView() {
     return () => { cancelled = true; };
   }, []);
 
-  if (!cut) return <p style={{ color: "#999" }}>Build a cut first.</p>;
+  if (!cut) return <p style={{ color: "var(--ink-3)" }}>Build a cut first.</p>;
 
   async function loadTitleFont(): Promise<Uint8Array> {
     if (titleFontId === "custom") {
@@ -165,41 +174,60 @@ export default function ExportView() {
     : null;
 
   return (
-    <section style={{ maxWidth: 560 }}>
-      <p style={{ color: "#666" }}>
-        {cut.beats.length} beats · {cutDuration(cut).toFixed(1)}s · {cut.aspect} · 1080p · burned-in captions
-      </p>
+    <section style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <span className="st-chip">{cut.beats.length} beat{cut.beats.length === 1 ? "" : "s"}</span>
+        <span className="st-chip st-num">{cutDuration(cut).toFixed(1)}s</span>
+        <span className="st-chip">{cut.aspect}</span>
+        <span className="st-chip">1080p</span>
+        <span className="st-chip">Burned-in captions</span>
+      </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, margin: "12px 0" }}>
-        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            Caption size
-            <input type="range" min={0.5} max={2} step={0.1} value={captionScale} onChange={(e) => update({ captionScale: Number(e.target.value) })} />
-            <span style={{ width: 30, color: "#888" }}>{captionScale.toFixed(1)}×</span>
+      {/* Captions Styling Card */}
+      <div className="st-field">
+        <label>Captions Styling</label>
+        <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Caption size</span>
+            <input type="range" min={0.5} max={2} step={0.1} value={captionScale} onChange={(e) => update({ captionScale: Number(e.target.value) })} style={sliderTrackStyle(captionScale, 0.5, 2)} />
+            <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{captionScale.toFixed(1)}×</span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Underlay opacity</span>
+            <input type="range" min={0} max={1} step={0.05} value={captionOpacity} onChange={(e) => update({ captionOpacity: Number(e.target.value) })} style={sliderTrackStyle(captionOpacity, 0, 1)} />
+            <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(captionOpacity * 100)}%</span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Spacing between wrapped caption lines. ~1.6 keeps line backgrounds flush.">
+            <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Line height</span>
+            <input type="range" min={1.0} max={2.2} step={0.05} value={captionLineHeight} onChange={(e) => update({ captionLineHeight: Number(e.target.value) })} style={sliderTrackStyle(captionLineHeight, 1.0, 2.2)} />
+            <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{captionLineHeight.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Voiceover Card */}
+      <div className="st-field">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <label style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ink-3)", fontWeight: 600 }}>
+            <input type="checkbox" checked={voiceover} onChange={(e) => toggleVoiceover(e.target.checked)} style={{ accentColor: "var(--accent)", cursor: "pointer" }} />
+            Voiceover (AI Narration)
           </label>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            Underlay opacity
-            <input type="range" min={0} max={1} step={0.05} value={captionOpacity} onChange={(e) => update({ captionOpacity: Number(e.target.value) })} />
-            <span style={{ width: 34, color: "#888" }}>{Math.round(captionOpacity * 100)}%</span>
-          </label>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }} title="Spacing between wrapped caption lines. ~1.6 keeps the line backgrounds flush; lower overlaps them, higher opens a gap.">
-            Line height
-            <input type="range" min={1.0} max={2.2} step={0.05} value={captionLineHeight} onChange={(e) => update({ captionLineHeight: Number(e.target.value) })} />
-            <span style={{ width: 30, color: "#888" }}>{captionLineHeight.toFixed(2)}</span>
-          </label>
+          {voiceover && (
+            <select value={ttsEngine} onChange={(e) => changeEngine(e.target.value as TtsEngine)} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 11, padding: "3px 7px", outline: "none" }}>
+              <option value="kokoro">Kokoro (in-browser, free)</option>
+              <option value="elevenlabs">ElevenLabs (higher quality)</option>
+            </select>
+          )}
         </div>
 
-        <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <input type="checkbox" checked={voiceover} onChange={(e) => toggleVoiceover(e.target.checked)} />
-          Voiceover — narrate each beat&apos;s script line
-          {voiceover && (
-            <>
-              <select value={ttsEngine} onChange={(e) => changeEngine(e.target.value as TtsEngine)} style={{ fontSize: 13 }}>
-                <option value="kokoro">Kokoro (in-browser, free)</option>
-                <option value="elevenlabs">ElevenLabs (higher quality, needs key)</option>
-              </select>
+        {voiceover && (
+          <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Voice</span>
               {ttsEngine === "kokoro" ? (
-                <select value={voice} onChange={(e) => update({ voice: e.target.value as Voice })} style={{ fontSize: 13 }}>
+                <select value={voice} onChange={(e) => update({ voice: e.target.value as Voice })} style={{ flex: 1, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
                   {[...new Set(VOICES.map((v) => v.group))].map((g) => (
                     <optgroup key={g} label={g}>
                       {VOICES.filter((v) => v.group === g).map((v) => (
@@ -209,42 +237,43 @@ export default function ExportView() {
                   ))}
                 </select>
               ) : (
-                <select value={elevenVoiceId} onChange={(e) => update({ elevenVoiceId: e.target.value })} style={{ fontSize: 13 }}>
+                <select value={elevenVoiceId} onChange={(e) => update({ elevenVoiceId: e.target.value })} style={{ flex: 1, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
                   {ELEVEN_VOICES.map((v) => (
                     <option key={v.id} value={v.id}>{v.label}</option>
                   ))}
                 </select>
               )}
-            </>
-          )}
-        </label>
-        {voiceover && modelMsg && <span style={{ fontSize: 12, color: "#888" }}>{modelMsg}</span>}
-        {voiceover && (
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }} title="Slows or speeds the narration read. 1.00× is natural.">
-              Voice speed
-              <input type="range" min={0.7} max={1.2} step={0.05} value={voiceoverSpeed} onChange={(e) => update({ voiceoverSpeed: Number(e.target.value) })} />
-              <span style={{ width: 38, color: "#888" }}>{voiceoverSpeed.toFixed(2)}×</span>
-            </label>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }} title="Silence before the voice starts in each beat, so it doesn't begin on the first frame.">
-              Lead-in before voice
-              <input type="range" min={0} max={2} step={0.1} value={voiceoverLeadSec} onChange={(e) => update({ voiceoverLeadSec: Number(e.target.value) })} />
-              <span style={{ width: 34, color: "#888" }}>{voiceoverLeadSec.toFixed(1)}s</span>
-            </label>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }} title="Silence after the voice ends in each beat, so beats don't run wall-to-wall.">
-              Tail after voice
-              <input type="range" min={0} max={2} step={0.1} value={voiceoverGapSec} onChange={(e) => update({ voiceoverGapSec: Number(e.target.value) })} />
-              <span style={{ width: 34, color: "#888" }}>{voiceoverGapSec.toFixed(1)}s</span>
-            </label>
+            </div>
+
+            {modelMsg && <span style={{ fontSize: 11, color: "var(--accent)" }}>{modelMsg}</span>}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Slows or speeds the narration read.">
+              <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Voice speed</span>
+              <input type="range" min={0.7} max={1.2} step={0.05} value={voiceoverSpeed} onChange={(e) => update({ voiceoverSpeed: Number(e.target.value) })} style={sliderTrackStyle(voiceoverSpeed, 0.7, 1.2)} />
+              <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{voiceoverSpeed.toFixed(2)}×</span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Silence before the voice starts in each beat.">
+              <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Lead-in before voice</span>
+              <input type="range" min={0} max={2} step={0.1} value={voiceoverLeadSec} onChange={(e) => update({ voiceoverLeadSec: Number(e.target.value) })} style={sliderTrackStyle(voiceoverLeadSec, 0, 2)} />
+              <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{voiceoverLeadSec.toFixed(1)}s</span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Silence after the voice ends in each beat.">
+              <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Tail gap after voice</span>
+              <input type="range" min={0} max={2} step={0.1} value={voiceoverGapSec} onChange={(e) => update({ voiceoverGapSec: Number(e.target.value) })} style={sliderTrackStyle(voiceoverGapSec, 0, 2)} />
+              <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{voiceoverGapSec.toFixed(1)}s</span>
+            </div>
           </div>
         )}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 13 }}>
-            Music bed (optional — looped &amp; trimmed to length; {voiceover ? "ducked under the voiceover" : "leave empty for silent"}):
-          </div>
+      </div>
 
+      {/* Music Bed Card */}
+      <div className="st-field">
+        <label>Music Bed (Optional)</label>
+        <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
           {musicLib.length > 0 && (
-            <div style={{ border: "1px solid var(--line, #333)", borderRadius: 8, overflow: "hidden", maxHeight: 172, overflowY: "auto" }}>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 7, overflow: "hidden", maxHeight: 150, overflowY: "auto", background: "var(--panel-3)" }}>
               {musicLib.map((name, i) => {
                 const selected = music?.name === name;
                 const isPlaying = playingName === name;
@@ -253,22 +282,22 @@ export default function ExportView() {
                     key={name}
                     style={{
                       display: "flex", alignItems: "center", gap: 10, padding: "6px 10px",
-                      borderTop: i === 0 ? "none" : "1px solid var(--line, #2a2a2a)",
-                      background: selected ? "rgba(255,179,57,0.12)" : "transparent",
+                      borderTop: i === 0 ? "none" : "1px solid var(--line)",
+                      background: selected ? "rgba(255,179,57,0.14)" : "transparent",
                     }}
                   >
                     <button
                       type="button"
                       onClick={() => togglePreview(name)}
                       title={isPlaying ? "Pause" : "Preview"}
-                      style={{ width: 26, height: 26, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: 6, border: "1px solid var(--line, #444)", background: "transparent", color: "inherit", cursor: "pointer" }}
+                      style={{ width: 24, height: 24, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: 5, border: "1px solid var(--line)", background: "transparent", color: "var(--ink-2)", cursor: "pointer" }}
                     >
                       {isPlaying
                         ? <svg width="10" height="11" viewBox="0 0 12 13" fill="currentColor"><rect x="1" width="3.4" height="13" rx="1" /><rect x="7.6" width="3.4" height="13" rx="1" /></svg>
                         : <svg width="10" height="11" viewBox="0 0 12 13" fill="currentColor"><path d="M0 0l12 6.5L0 13z" /></svg>}
                     </button>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, fontSize: 13, cursor: "pointer" }}>
-                      <input type="checkbox" checked={selected} onChange={() => selectLibraryMusic(name)} style={{ cursor: "pointer", flexShrink: 0 }} />
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, fontSize: 12, cursor: "pointer", color: "var(--ink-2)" }}>
+                      <input type="checkbox" checked={selected} onChange={() => selectLibraryMusic(name)} style={{ cursor: "pointer", accentColor: "var(--accent)" }} />
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
                     </label>
                   </div>
@@ -277,111 +306,94 @@ export default function ExportView() {
             </div>
           )}
 
-          <label style={{ fontSize: 13 }}>
-            Or choose your own:{" "}
-            <input type="file" accept="audio/*" onChange={(e) => update({ music: e.target.files?.[0] ?? null })} />
+          <label style={{ fontSize: 11, color: "var(--ink-2)", display: "flex", alignItems: "center", gap: 8 }}>
+            Or choose your own audio:
+            <input type="file" accept="audio/*" onChange={(e) => update({ music: e.target.files?.[0] ?? null })} style={{ fontSize: 11, color: "var(--ink-3)" }} />
           </label>
-          {music && <div style={{ fontSize: 12, color: "#888" }}>Loaded: {music.name}</div>}
+          {music && <div style={{ fontSize: 11, color: "var(--accent)" }}>Loaded: {music.name}</div>}
           <audio ref={audioRef} onEnded={() => setPlayingName("")} hidden />
-        </div>
-        {music && (
-          <label style={{ fontSize: 13, display: "inline-flex", alignItems: "center", gap: 6 }}>
-            Music volume
-            <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={(e) => update({ musicVolume: Number(e.target.value) })} />
-            <span style={{ width: 34, color: "#888" }}>{Math.round(musicVolume * 100)}%</span>
-          </label>
-        )}
 
-        <div style={{ border: "1px solid #e2e2e2", borderRadius: 8, padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-          <label style={{ fontSize: 13 }}>
-            Title overlay (optional):{" "}
-            <input
-              value={titleText}
-              onChange={(e) => update({ titleText: e.target.value })}
-              placeholder="e.g. Season Highlights"
-              style={{ width: 260, padding: "3px 6px", fontSize: 14 }}
-            />
-          </label>
-          {titleText.trim() && (
-            <>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", fontSize: 13 }}>
-                <label>
-                  Font{" "}
-                  <select value={titleFontId} onChange={(e) => update({ titleFontId: e.target.value })}>
-                    {TITLE_FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-                    <option value="custom">Custom upload…</option>
-                  </select>
-                </label>
-                {titleFontId === "custom" && (
-                  <input type="file" accept=".ttf,.otf,font/ttf,font/otf" onChange={(e) => update({ titleFontFile: e.target.files?.[0] ?? null })} />
-                )}
-                <label>
-                  Size{" "}
-                  <input type="number" min={16} max={300} step={2} value={titleSize} onChange={(e) => update({ titleSize: Number(e.target.value) })} style={{ width: 64 }} /> px
-                </label>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  Color
-                  {TITLE_SWATCHES.map((s) => (
-                    <button
-                      key={s.value}
-                      onClick={() => update({ titleColor: s.value })}
-                      title={s.label}
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: 4,
-                        background: s.value,
-                        border: titleColor.toLowerCase() === s.value ? "2px solid #4a90d9" : "1px solid #bbb",
-                        cursor: "pointer",
-                        padding: 0,
-                      }}
-                    />
-                  ))}
-                  <input type="color" value={titleColor} onChange={(e) => update({ titleColor: e.target.value })} title="Custom color" />
-                </span>
-                <label>
-                  Position{" "}
-                  <select value={titlePos} onChange={(e) => update({ titlePos: e.target.value as TitlePosition })}>
-                    <option value="top">Top</option>
-                    <option value="center">Center</option>
-                    <option value="bottom">Bottom</option>
-                  </select>
-                </label>
-                <label>
-                  Show{" "}
-                  <select value={titleScope} onChange={(e) => update({ titleScope: e.target.value as TitleScope })}>
-                    <option value="intro">First 3s</option>
-                    <option value="entire">Entire video</option>
-                  </select>
-                </label>
-              </div>
-              {/* Approximate preview (position/size/color; the exported font is the one chosen). */}
-              <div style={{ position: "relative", width: 240, aspectRatio: String(16 / 9), background: "#111", borderRadius: 4, overflow: "hidden" }}>
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    padding: "0 6px",
-                    textAlign: "center",
-                    color: titleColor,
-                    fontWeight: 700,
-                    lineHeight: 1.1,
-                    textShadow: "1px 1px 2px rgba(0,0,0,0.6)",
-                    fontSize: Math.max(8, (titleSize / 1080) * 135),
-                    top: titlePos === "top" ? "6%" : titlePos === "center" ? "50%" : undefined,
-                    bottom: titlePos === "bottom" ? "6%" : undefined,
-                    transform: titlePos === "center" ? "translateY(-50%)" : undefined,
-                  }}
-                >
-                  {titleText}
-                </div>
-              </div>
-            </>
+          {music && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Music volume</span>
+              <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={(e) => update({ musicVolume: Number(e.target.value) })} style={sliderTrackStyle(musicVolume, 0, 1)} />
+              <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(musicVolume * 100)}%</span>
+            </div>
           )}
         </div>
-        <div style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Preview (approx. of the final output)</div>
+      </div>
+
+      {/* Title Overlay Card */}
+      <div className="st-field">
+        <label>Title Overlay (Optional)</label>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+          <input
+            value={titleText}
+            onChange={(e) => update({ titleText: e.target.value })}
+            placeholder="e.g. Season Highlights"
+            style={{ width: "100%", padding: "7px 10px", fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none" }}
+          />
+
+          {titleText.trim() && (
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 12 }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Font
+                <select value={titleFontId} onChange={(e) => update({ titleFontId: e.target.value })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
+                  {TITLE_FONTS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                  <option value="custom">Custom upload…</option>
+                </select>
+              </label>
+              {titleFontId === "custom" && (
+                <input type="file" accept=".ttf,.otf,font/ttf,font/otf" onChange={(e) => update({ titleFontFile: e.target.files?.[0] ?? null })} style={{ fontSize: 11 }} />
+              )}
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Size
+                <input type="number" min={16} max={300} step={2} value={titleSize} onChange={(e) => update({ titleSize: Number(e.target.value) })} style={{ width: 56, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 6px", fontSize: 12, textAlign: "right", outline: "none" }} /> px
+              </label>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Color
+                {TITLE_SWATCHES.map((s) => (
+                  <button
+                    key={s.value}
+                    onClick={() => update({ titleColor: s.value })}
+                    title={s.label}
+                    style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: 4,
+                      background: s.value,
+                      border: titleColor.toLowerCase() === s.value ? "2px solid var(--accent)" : "1px solid var(--line)",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  />
+                ))}
+                <input type="color" value={titleColor} onChange={(e) => update({ titleColor: e.target.value })} title="Custom color" style={{ width: 24, height: 22, border: "none", background: "none", cursor: "pointer" }} />
+              </span>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Position
+                <select value={titlePos} onChange={(e) => update({ titlePos: e.target.value as TitlePosition })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
+                  <option value="top">Top</option>
+                  <option value="center">Center</option>
+                  <option value="bottom">Bottom</option>
+                </select>
+              </label>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Show
+                <select value={titleScope} onChange={(e) => update({ titleScope: e.target.value as TitleScope })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
+                  <option value="intro">First 3s</option>
+                  <option value="entire">Entire video</option>
+                </select>
+              </label>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Preview Section */}
+      <div className="st-field">
+        <label>Preview (approx. of final output)</label>
+        <div style={{ background: "var(--panel-2)", padding: "10px", borderRadius: 8, border: "1px solid var(--line)" }}>
           <FinalPreview
             cut={cut}
             clips={clips}
@@ -392,31 +404,42 @@ export default function ExportView() {
             music={music}
             musicVolume={musicVolume}
             voiceover={voiceover}
+            ttsEngine={ttsEngine}
+            voice={voice}
+            elevenVoiceId={elevenVoiceId}
+            voiceoverSpeed={voiceoverSpeed}
             voiceoverLeadSec={voiceoverLeadSec}
           />
         </div>
+      </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <button onClick={runExport} disabled={busy}>{busy ? "Exporting…" : "Export video"}</button>
-          <button onClick={() => download(`${fileBase}-script.txt`, buildScriptText(cut))}>Script (.txt)</button>
-          <button onClick={() => download(`${fileBase}.srt`, buildSrt(cut))}>Captions (.srt)</button>
-        </div>
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        <button className="st-btn primary" style={{ flex: 1, justifyContent: "center", padding: "9px 14px" }} onClick={runExport} disabled={busy}>
+          {busy ? "Exporting…" : "Export video"}
+        </button>
+        <button className="st-btn ghost" style={{ padding: "9px 12px" }} onClick={() => download(`${fileBase}-script.txt`, buildScriptText(cut))}>
+          Script (.txt)
+        </button>
+        <button className="st-btn ghost" style={{ padding: "9px 12px" }} onClick={() => download(`${fileBase}.srt`, buildSrt(cut))}>
+          Captions (.srt)
+        </button>
       </div>
 
       {busy && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <progress max={100} value={(progress ?? 0) * 100} style={{ flex: 1 }} />
-          <span style={{ fontSize: 13, width: 44 }}>{Math.round((progress ?? 0) * 100)}%</span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+          <progress max={100} value={(progress ?? 0) * 100} style={{ flex: 1, accentColor: "var(--accent)" }} />
+          <span style={{ fontSize: 12, width: 44, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round((progress ?? 0) * 100)}%</span>
         </div>
       )}
 
-      {error && <p style={{ color: "#b00" }}>{error}</p>}
+      {error && <p style={{ color: "var(--danger)", background: "rgba(229,105,95,0.1)", border: "1px solid rgba(229,105,95,0.25)", borderRadius: 7, padding: "8px 12px", fontSize: 12 }}>{error}</p>}
 
       {videoUrl && (
-        <div style={{ marginTop: 16 }}>
-          <video src={videoUrl} controls style={{ width: "100%", borderRadius: 8, background: "#000" }} />
+        <div style={{ marginTop: 12 }}>
+          <video src={videoUrl} controls style={{ width: "100%", borderRadius: 8, background: "#000", border: "1px solid var(--line)" }} />
           <div style={{ marginTop: 8 }}>
-            <a href={videoUrl} download={`${fileBase}.mp4`}>Download video ⬇</a>
+            <a className="st-btn primary" style={{ display: "inline-flex", textDecoration: "none" }} href={videoUrl} download={`${fileBase}.mp4`}>Download video ⬇</a>
           </div>
         </div>
       )}

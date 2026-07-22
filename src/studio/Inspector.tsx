@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
-import type { Beat, Clip } from "../domain/types";
-import { computeWindow } from "../features/assemble/assemble";
-import { rewriteCaption, suggestCaptionAlternatives } from "../features/refine/refine";
+import type { Beat, Clip, ColorAdjustments } from "../domain/types";
+import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
-import { fmtSecs } from "./util";
+import { fmtSecs, cssFilterFor } from "./util";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
 const modelLabel = (m: string) => m.replace(/^claude-/, "");
@@ -18,22 +17,33 @@ interface Props {
   logline: string;
   index: number;
   total: number;
+  onDuplicateBeat: (beatId: string) => void;
 }
 
-export default function Inspector({ beat, clip, clips, logline, index, total }: Props) {
+function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
+  const pct = ((val - min) / (max - min)) * 100;
+  return {
+    flex: 1,
+    width: "100%",
+    background: `linear-gradient(to right, rgba(255, 179, 57, 0.35) 0%, rgba(255, 179, 57, 0.35) ${pct}%, var(--panel-3, #22262e) ${pct}%, var(--panel-3, #22262e) 100%)`,
+  };
+}
+
+export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat }: Props) {
   const { dispatch } = useProject();
   const { settings } = useSettings();
-  const [aiBusy, setAiBusy] = useState(false);
   const [trimOpen, setTrimOpen] = useState(false);
+  const [colorOpen, setColorOpen] = useState(false);
   // Per-line caption alternatives: model + mood chosen here (seeded from settings),
   // results aligned to caption rows (row i → its suggestions).
   const [altModel, setAltModel] = useState<string>(settings.authorModel);
   const [altMood, setAltMood] = useState<string>(settings.tone);
   const [altBusy, setAltBusy] = useState(false);
+  const [altErr, setAltErr] = useState<string | null>(null);
   const [alts, setAlts] = useState<string[][]>([]);
 
   // Suggestions belong to one beat — clear them when a different beat is selected.
-  useEffect(() => { setAlts([]); }, [beat?.id]);
+  useEffect(() => { setAlts([]); setAltErr(null); }, [beat?.id]);
 
   if (!beat) {
     return (
@@ -103,10 +113,15 @@ export default function Inspector({ beat, clip, clips, logline, index, total }: 
   // let the author click any suggestion to drop it into that line's input.
   async function genAlts() {
     setAltBusy(true);
+    setAltErr(null);
     try {
       const result = await suggestCaptionAlternatives(clip, captionLines, logline, { model: altModel, tone: toneHint(altMood) }, 3);
       setAlts(result);
-    } catch { /* keep any prior suggestions on failure */ } finally { setAltBusy(false); }
+    } catch (e) {
+      setAltErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAltBusy(false);
+    }
   }
   const useAlt = (i: number, alt: string) => {
     editText(i, alt);
@@ -120,26 +135,37 @@ export default function Inspector({ beat, clip, clips, logline, index, total }: 
     const durationSec = durationFor(nextIn, nextOut, b.captionText, b.captionDurations);
     update({ ...b, inSec: nextIn, outSec: nextOut, durationSec });
   }
-  function swapClip(id: string) {
-    const c = clips.find((x) => x.id === id);
-    if (c) update({ ...b, clipId: c.id, ...computeWindow(c.durationSec, b.captionText) });
-  }
-  async function aiRewrite() {
-    if (!clip) return;
-    setAiBusy(true);
-    try {
-      const line = await rewriteCaption(clip, b.captionText, logline, { model: settings.authorModel, tone: toneHint(settings.tone) });
-      if (line) applyLines([line], timed ? [durations[0] ?? r1(estimateSpokenSeconds(line))] : undefined);
-    } catch { /* leave caption unchanged on failure */ } finally { setAiBusy(false); }
+
+  function updateColorAdjustment(key: keyof ColorAdjustments, value: number) {
+    const current = b.colorAdjustments ?? {};
+    const nextAdj = { ...current, [key]: value };
+    update({ ...b, colorAdjustments: nextAdj });
   }
 
-  const d = clip?.description;
+  function resetColorAdjustments() {
+    const { colorAdjustments: _drop, ...rest } = b;
+    update(rest);
+  }
+
+  function hasColorAdjustments(adj?: ColorAdjustments) {
+    if (!adj) return false;
+    return !!(adj.exposure || adj.contrast || adj.colorTone || adj.warmth || adj.saturation);
+  }
+
+  const posterAspect = clip?.width && clip?.height ? `${clip.width} / ${clip.height}` : "16 / 9";
 
   return (
     <aside className="st-col insp">
       <div className="st-colhead">Beat {String(index + 1).padStart(2, "0")} <span className="cnt">of {total}</span></div>
       <div className="st-insp-body">
-        <div className="st-ip-poster" style={{ background: clip?.poster ? `#0a0b0d url(${JSON.stringify(clip.poster)}) center/cover no-repeat` : undefined }}>
+        <div
+          className="st-ip-poster"
+          style={{
+            aspectRatio: posterAspect,
+            background: clip?.poster ? `#0a0b0d url(${JSON.stringify(clip.poster)}) center/cover no-repeat` : undefined,
+            filter: cssFilterFor(b.colorAdjustments),
+          }}
+        >
           <div className="cap">{b.captionText}</div>
         </div>
 
@@ -207,7 +233,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total }: 
 
           <div className="st-capalt-controls">
             <button className="st-btn ghost" onClick={genAlts} disabled={altBusy || !clip}>
-              {altBusy ? "Generating…" : "Generate alternatives"}
+              {altBusy ? (
+                <>
+                  <span className="st-spinner-sm" />
+                  Generating…
+                </>
+              ) : (
+                "Generate alternatives"
+              )}
             </button>
             <select value={altModel} onChange={(e) => setAltModel(e.target.value)} title="AI model">
               {MODEL_OPTIONS.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
@@ -216,6 +249,18 @@ export default function Inspector({ beat, clip, clips, logline, index, total }: 
               {TONE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
             </select>
           </div>
+          {altBusy && (
+            <div className="st-capalts-skeleton">
+              <span className="st-chip-skel" style={{ width: 140 }} />
+              <span className="st-chip-skel" style={{ width: 110 }} />
+              <span className="st-chip-skel" style={{ width: 125 }} />
+            </div>
+          )}
+          {altErr && (
+            <div className="st-capalt-err" onClick={() => setAltErr(null)} title="Click to dismiss">
+              ⚠ Could not generate alternatives: {altErr}
+            </div>
+          )}
         </div>
 
         <div className="st-field">
@@ -231,37 +276,164 @@ export default function Inspector({ beat, clip, clips, logline, index, total }: 
         </div>
 
         <div className="st-field">
-          <label>AI nudges · this beat only</label>
-          <div className="st-nudges">
-            <button className="st-nudge" onClick={aiRewrite} disabled={aiBusy}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20l4-1L20 7l-3-3L5 16z"/></svg>
-              <span><b>{aiBusy ? "Rewriting…" : "Rewrite caption"}</b><small>Same beat, fresher line</small></span>
-            </button>
-            <div className="st-swap">
-              <select value={b.clipId} onChange={(e) => swapClip(e.target.value)} title="Swap this beat's clip">
-                {clips.map((c) => <option key={c.id} value={c.id}>Clip: {c.name}</option>)}
-              </select>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              cursor: "pointer",
+              userSelect: "none",
+              padding: "2px 0",
+            }}
+            onClick={() => setColorOpen((v) => !v)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  transform: colorOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s ease",
+                  color: "var(--ink-2)",
+                }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              <label style={{ margin: 0, cursor: "pointer" }}>Color Adjustments</label>
+              {hasColorAdjustments(b.colorAdjustments) && (
+                <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• Adjusted</span>
+              )}
             </div>
-            <button className="st-nudge" onClick={() => dispatch({ type: "REMOVE_BEAT", id: b.id })}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>
-              <span><b>Remove beat</b><small>Drop it from the cut</small></span>
-            </button>
+
+            {hasColorAdjustments(b.colorAdjustments) && (
+              <button
+                style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  resetColorAdjustments();
+                }}
+                title="Reset all color adjustments to default"
+              >
+                Reset color
+              </button>
+            )}
+          </div>
+
+          <div className={"st-color-collapsible" + (colorOpen ? " open" : "")}>
+            <div className="st-color-collapsible-inner">
+              <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={b.colorAdjustments?.exposure ?? 0}
+                    onChange={(e) => updateColorAdjustment("exposure", Number(e.target.value))}
+                    onDoubleClick={() => updateColorAdjustment("exposure", 0)}
+                    title="Drag to adjust, double-click to reset to 0"
+                    style={sliderTrackStyle(b.colorAdjustments?.exposure ?? 0)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.colorAdjustments?.exposure ?? 0) > 0 ? `+${b.colorAdjustments?.exposure}` : (b.colorAdjustments?.exposure ?? 0)}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Contrast</span>
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={b.colorAdjustments?.contrast ?? 0}
+                    onChange={(e) => updateColorAdjustment("contrast", Number(e.target.value))}
+                    onDoubleClick={() => updateColorAdjustment("contrast", 0)}
+                    title="Drag to adjust, double-click to reset to 0"
+                    style={sliderTrackStyle(b.colorAdjustments?.contrast ?? 0)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.colorAdjustments?.contrast ?? 0) > 0 ? `+${b.colorAdjustments?.contrast}` : (b.colorAdjustments?.contrast ?? 0)}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Tone</span>
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={b.colorAdjustments?.colorTone ?? 0}
+                    onChange={(e) => updateColorAdjustment("colorTone", Number(e.target.value))}
+                    onDoubleClick={() => updateColorAdjustment("colorTone", 0)}
+                    title="Drag to adjust, double-click to reset to 0"
+                    style={sliderTrackStyle(b.colorAdjustments?.colorTone ?? 0)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.colorAdjustments?.colorTone ?? 0) > 0 ? `+${b.colorAdjustments?.colorTone}` : (b.colorAdjustments?.colorTone ?? 0)}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Warmth</span>
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={b.colorAdjustments?.warmth ?? 0}
+                    onChange={(e) => updateColorAdjustment("warmth", Number(e.target.value))}
+                    onDoubleClick={() => updateColorAdjustment("warmth", 0)}
+                    title="Drag to adjust, double-click to reset to 0"
+                    style={sliderTrackStyle(b.colorAdjustments?.warmth ?? 0)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.colorAdjustments?.warmth ?? 0) > 0 ? `+${b.colorAdjustments?.warmth}` : (b.colorAdjustments?.warmth ?? 0)}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Saturation</span>
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={b.colorAdjustments?.saturation ?? 0}
+                    onChange={(e) => updateColorAdjustment("saturation", Number(e.target.value))}
+                    onDoubleClick={() => updateColorAdjustment("saturation", 0)}
+                    title="Drag to adjust, double-click to reset to 0"
+                    style={sliderTrackStyle(b.colorAdjustments?.saturation ?? 0)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.colorAdjustments?.saturation ?? 0) > 0 ? `+${b.colorAdjustments?.saturation}` : (b.colorAdjustments?.saturation ?? 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="st-divider" />
-
-        <div className="st-desc">
-          <div className="st-aiflag"><span className="dot" />Clip Description · Claude</div>
-          {d ? (
-            <dl>
-              <dt>Subject / action</dt><dd>{d.subjectAction}</dd>
-              <dt>Setting / mood</dt><dd>{d.settingMood}</dd>
-              <dt>Usability</dt><dd className="st-num">{d.usability} / 5 · {d.model}</dd>
-            </dl>
-          ) : (
-            <p style={{ color: "var(--ink-3)", fontSize: 13 }}>Not described yet — Regenerate to have Claude read this clip.</p>
-          )}
+        <div className="st-beat-actions" style={{ marginTop: "auto", display: "flex", gap: 8 }}>
+          <button
+            className="st-btn ghost"
+            style={{ flex: 1, justifyContent: "center", padding: "9px 14px" }}
+            onClick={() => onDuplicateBeat(b.id)}
+            title="Duplicate this beat"
+          >
+            Duplicate beat
+          </button>
+          <button
+            className="st-btn danger"
+            style={{ flex: 1, justifyContent: "center", padding: "9px 14px" }}
+            onClick={() => dispatch({ type: "REMOVE_BEAT", id: b.id })}
+            title="Remove beat from cut"
+          >
+            Remove beat
+          </button>
         </div>
       </div>
     </aside>

@@ -113,12 +113,12 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
   const outPct = (outSec / dur) * 100;
   const handle = (side: "in" | "out"): React.CSSProperties => ({
     position: "absolute",
-    top: -3,
+    top: -1,
     left: `${side === "in" ? inPct : outPct}%`,
     transform: "translateX(-50%)",
-    width: 12,
-    height: 34,
-    borderRadius: 3,
+    width: 8,
+    height: 16,
+    borderRadius: 2,
     background: drag === side ? "#e0982a" : "var(--accent, #ffb339)",
     cursor: "ew-resize",
     touchAction: "none",
@@ -141,7 +141,7 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        style={{ position: "relative", height: 24, margin: compact ? "2px 0" : "12px 0 4px", background: "var(--panel-3, #22262e)", borderRadius: 4, boxShadow: "inset 0 0 0 1px var(--line, #282c34)", touchAction: "none" }}
+        style={{ position: "relative", height: 14, margin: compact ? "4px 0" : "10px 0 4px", background: "var(--panel-3, #22262e)", borderRadius: 4, boxShadow: "inset 0 0 0 1px var(--line, #282c34)", touchAction: "none" }}
       >
         {/* selected region */}
         <div style={{ position: "absolute", top: 0, bottom: 0, left: `${inPct}%`, width: `${outPct - inPct}%`, background: "rgba(255,179,57,0.20)", borderRadius: 4 }} />

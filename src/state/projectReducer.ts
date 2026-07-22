@@ -27,6 +27,7 @@ export type Action =
   | { type: "UPDATE_BEAT"; beat: Beat }
   | { type: "ADD_BEAT"; beat: Beat }
   | { type: "REMOVE_BEAT"; id: string }
+  | { type: "DUPLICATE_BEAT"; id: string; newBeatId?: string; newClipId?: string }
   | { type: "REORDER_BEATS"; order: string[] }
   | { type: "RESET" };
 
@@ -68,6 +69,48 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case "REMOVE_BEAT": {
       if (!state.cut) return state;
       return { ...state, cut: { ...state.cut, beats: state.cut.beats.filter((b) => b.id !== action.id) } };
+    }
+    case "DUPLICATE_BEAT": {
+      if (!state.cut) return state;
+      const idx = state.cut.beats.findIndex((b) => b.id === action.id);
+      if (idx < 0) return state;
+      const originalBeat = state.cut.beats[idx];
+      const originalClip = state.clips.find((c) => c.id === originalBeat.clipId);
+
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const newClipId = action.newClipId ?? genId();
+      const newBeatId = action.newBeatId ?? genId();
+
+      let updatedClips = state.clips;
+      let targetClipId = originalBeat.clipId;
+
+      if (originalClip) {
+        const dupClip: Clip = {
+          ...originalClip,
+          id: newClipId,
+          description: originalClip.description ? { ...originalClip.description } : undefined,
+        };
+        const clipIdx = state.clips.findIndex((c) => c.id === originalClip.id);
+        updatedClips = [...state.clips];
+        updatedClips.splice(clipIdx >= 0 ? clipIdx + 1 : updatedClips.length, 0, dupClip);
+        targetClipId = newClipId;
+      }
+
+      const dupBeat: Beat = {
+        ...originalBeat,
+        id: newBeatId,
+        clipId: targetClipId,
+        captionDurations: originalBeat.captionDurations ? [...originalBeat.captionDurations] : undefined,
+      };
+
+      const beats = [...state.cut.beats];
+      beats.splice(idx + 1, 0, dupBeat);
+
+      return {
+        ...state,
+        clips: updatedClips,
+        cut: { ...state.cut, beats },
+      };
     }
     case "REORDER_BEATS": {
       if (!state.cut) return state;

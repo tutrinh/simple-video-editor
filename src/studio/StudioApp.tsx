@@ -7,7 +7,6 @@ import { useRegenerate } from "./useRegenerate";
 import TopBar from "./TopBar";
 import ClipBin from "./ClipBin";
 import StagePreview from "./StagePreview";
-import StoryBar from "./StoryBar";
 import Inspector from "./Inspector";
 import ExportDrawer from "./ExportDrawer";
 import { seedProject } from "./devSeed";
@@ -62,6 +61,15 @@ export default function StudioApp() {
     setSelectedBeatId(beat.id);
   }
 
+  function duplicateBeat(beatId: string) {
+    if (!cut) return;
+    const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+    const newClipId = genId();
+    const newBeatId = genId();
+    dispatch({ type: "DUPLICATE_BEAT", id: beatId, newClipId, newBeatId });
+    setSelectedBeatId(newBeatId);
+  }
+
   // Build a Cut without the AI — every clip in order, empty captions to fill in.
   // Makes "Generate cut" optional: you can arrange and edit the cut by hand.
   function startManualCut() {
@@ -83,14 +91,20 @@ export default function StudioApp() {
   return (
     <div className="studio">
       <TopBar
-        regenBusy={regen.busy}
-        onRegenerate={regen.regenerate}
         onExport={() => setExportOpen(true)}
         onStartOver={startOver}
       />
 
       <div className="st-main">
-        <ClipBin usedClipIds={usedClipIds} selectedClipId={selectedClip?.id ?? null} hasCut={!!cut} beats={beats} onPickClip={pickClip} onAddClip={addClipToCut} />
+        <ClipBin
+          usedClipIds={usedClipIds}
+          selectedClipId={selectedClip?.id ?? null}
+          hasCut={!!cut}
+          beats={beats}
+          onPickClip={pickClip}
+          onAddClip={addClipToCut}
+          onDuplicateBeat={duplicateBeat}
+        />
 
         <section className="st-col stage" style={{ position: "relative" }}>
           <div className="st-stage-inner">
@@ -118,7 +132,6 @@ export default function StudioApp() {
               </div>
             )}
 
-            <StoryBar />
           </div>
 
           {regen.busy && (
@@ -136,6 +149,7 @@ export default function StudioApp() {
           logline={story?.logline ?? ""}
           index={selIndex}
           total={beats.length}
+          onDuplicateBeat={duplicateBeat}
         />
       </div>
 

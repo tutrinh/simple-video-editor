@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateSpokenSeconds, captionSchedule, scheduleDuration, cueAt } from "./pacing";
+import { estimateSpokenSeconds, captionSchedule, scheduleDuration, cueAt, activeCaptionText } from "./pacing";
 
 describe("estimateSpokenSeconds", () => {
   it("applies the readability floor for short text", () => {
@@ -65,5 +65,15 @@ describe("cueAt", () => {
     expect(cueAt(buffered, 0.5)).toBeNull(); // inside the lead-in
     expect(cueAt(buffered, 1)?.text).toBe("first"); // first line starts after the lead
     expect(cueAt(buffered, 6.5)).toBeNull(); // inside the tail (last line ended at 6)
+  });
+});
+describe("activeCaptionText", () => {
+  it("sequences multi-line captions as single lines over duration when no timers provided", () => {
+    const text = "Blink\nand it's parade time";
+    expect(activeCaptionText(text, undefined, 0, 4)).toBe("Blink");
+    expect(activeCaptionText(text, undefined, 3, 4)).toBe("and it's parade time");
+  });
+  it("returns single line text for single line captions", () => {
+    expect(activeCaptionText("Hello world", undefined, 0, 4)).toBe("Hello world");
   });
 });
