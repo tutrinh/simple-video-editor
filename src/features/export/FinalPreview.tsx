@@ -152,6 +152,19 @@ export default function FinalPreview({
     else v.pause();
   }, [playing]);
 
+  // Keep DOM video element synchronized with beatElapsed when paused or loaded
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !beat || playing) return;
+    const srcSpan = Math.max(0.05, beat.outSec - beat.inSec);
+    const bDur = beat.durationSec || srcSpan;
+    const pct = Math.min(1, Math.max(0, beatElapsed / bDur));
+    const targetTime = beat.inSec + pct * srcSpan;
+    if (Math.abs(v.currentTime - targetTime) > 0.05) {
+      try { v.currentTime = targetTime; } catch {}
+    }
+  }, [beat, beatElapsed, playing]);
+
   // The beat clock: advance beatElapsed in real time, freeze the video once its
   // footage is spent, and move to the next beat when beatElapsed reaches the
   // beat's full on-screen duration.
@@ -268,7 +281,17 @@ export default function FinalPreview({
     };
   }, [index, playing, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, cut.beats]);
 
-  const play = () => setPlaying(true);
+  const play = () => {
+    if (index >= cut.beats.length - 1) {
+      const lastBeat = cut.beats[cut.beats.length - 1];
+      const lastDur = lastBeat ? (lastBeat.durationSec || Math.max(0.05, lastBeat.outSec - lastBeat.inSec)) : 0;
+      if (beatElapsedRef.current >= lastDur - 0.05) {
+        restart();
+        return;
+      }
+    }
+    setPlaying(true);
+  };
   const pause = () => setPlaying(false);
   const restart = () => {
     beatElapsedRef.current = 0;
