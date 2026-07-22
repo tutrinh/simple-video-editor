@@ -1,6 +1,6 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Clip, Beat } from "../domain/types";
+import type { Clip, Beat, OverlayBlendMode } from "../domain/types";
 import { sampleFrames } from "../lib/frameSampler";
 import { runPool } from "../lib/pool";
 import { multithreadReady } from "../lib/ffmpegEngine";
@@ -128,9 +128,49 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
             <span className="st-cdur st-num">{fmtClock(clip.durationSec)}</span>
             {st?.phase === "normalizing" && <span className="st-status">normalizing {Math.round(st.progress * 100)}%</span>}
             {st?.phase === "error" && <span className="st-status err" title={st.error}>failed</span>}
-            {addable ? <span className="st-tag add">+ add</span>
-              : described ? <UsabilityDots score={clip.description!.usability} />
-              : null}
+            {addable ? (
+              <div style={{ display: "inline-flex", gap: 4, marginLeft: "auto" }}>
+                <button
+                  type="button"
+                  className="st-btn ghost"
+                  style={{ fontSize: 9, padding: "1px 5px" }}
+                  onClick={(e) => { e.stopPropagation(); onAddClip(clip.id); }}
+                  title="Add clip as a sequential beat in the main cut"
+                >
+                  + Beat
+                </button>
+                <button
+                  type="button"
+                  className="st-btn ghost"
+                  style={{ fontSize: 9, padding: "1px 5px", color: "var(--accent)", borderColor: "var(--accent)" }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+                    const nameLower = clip.name.toLowerCase();
+                    const isBlend = nameLower.includes("overlay") || nameLower.includes("leak") || nameLower.includes("grain") || nameLower.includes("glitch");
+                    dispatch({
+                      type: "ADD_OVERLAY",
+                      overlay: {
+                        id: `overlay-${genId()}`,
+                        clipId: clip.id,
+                        startTimeSec: 0.5,
+                        durationSec: Math.min(5.0, clip.durationSec || 3.0),
+                        inSec: 0,
+                        outSec: Math.min(5.0, clip.durationSec || 3.0),
+                        blendMode: (isBlend ? "screen" : "normal") as OverlayBlendMode,
+                        opacity: 0.85,
+                        volume: 0,
+                      },
+                    });
+                  }}
+                  title="Layer clip as a video overlay on top of beats"
+                >
+                  + Overlay
+                </button>
+              </div>
+            ) : described ? (
+              <UsabilityDots score={clip.description!.usability} />
+            ) : null}
             {onAnalyzeClips && (
               <button
                 type="button"

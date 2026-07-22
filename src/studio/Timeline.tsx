@@ -1,5 +1,5 @@
 import { useProject } from "../state/ProjectContext";
-import type { Cut, Clip } from "../domain/types";
+import type { Cut, Clip, OverlayBlendMode } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, posterBg } from "./util";
 
@@ -38,16 +38,23 @@ export default function Timeline({
 
   function handleAddOverlay() {
     if (clips.length === 0) return;
+    // Prefer clips not used in main beats first (e.g. stock overlays)
+    const usedBeatClipIds = new Set(beats.map((b) => b.clipId));
+    const targetClip = clips.find((c) => !usedBeatClipIds.has(c.id)) ?? clips[0];
+
     const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+    const nameLower = targetClip.name.toLowerCase();
+    const isBlend = nameLower.includes("overlay") || nameLower.includes("leak") || nameLower.includes("grain") || nameLower.includes("glitch");
+
     const newOverlay = {
       id: `overlay-${genId()}`,
-      clipId: clips[0].id,
+      clipId: targetClip.id,
       startTimeSec: 1.0,
-      durationSec: 3.0,
+      durationSec: Math.min(5.0, targetClip.durationSec || 3.0),
       inSec: 0,
-      outSec: 3.0,
-      blendMode: "normal" as const,
-      opacity: 0.8,
+      outSec: Math.min(5.0, targetClip.durationSec || 3.0),
+      blendMode: (isBlend ? "screen" : "normal") as OverlayBlendMode,
+      opacity: 0.85,
       volume: 0.5,
     };
     dispatch({ type: "ADD_OVERLAY", overlay: newOverlay });
