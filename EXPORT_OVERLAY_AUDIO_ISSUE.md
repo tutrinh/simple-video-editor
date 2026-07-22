@@ -1,6 +1,6 @@
 # 🐞 Working Issue: Export Overlays & Audio (branch `exporting-with-overlays`)
 
-**Status:** 🟡 TESTING — `overlaid.mp4` crash was the `gbrp` RGB blend (Fix #3), NOT tpad. Reverted to YUV blend + restored tpad (Fix #14). Screen/multiply magenta tint is a known open cosmetic issue (RGB blend crashes this wasm build).
+**Status:** 🟡 TESTING — Fix #15: overlay compositing split into lean passes (pre-trim → RGB video composite → separate audio mix) so the `gbrp` RGB blend fits in memory. Goal: fix the screen/multiply magenta WITHOUT the OOM crash. Awaiting on-device retest.
 **Last updated:** 2026-07-22
 **Owner:** Tu Trinh
 
@@ -61,7 +61,8 @@ Core files:
 | 11 | Diagnostics | `runIsolated` now surfaces real ffmpeg error lines (prefers lines matching `error/invalid/matches no/option … not/…`) instead of trailing stream banner | `ffmpegEngine.ts` `summarizeFfmpegError` | ✅ next failure will name the offending filter |
 | 12 | Portability | Transparent letterbox color `0x00000000` → `black@0.0` in normal-overlay path | `export.ts` | 🟡 best-guess hardening, unverified |
 | 13 | `overlaid.mp4` crash | Hypothesised tpad OOM → replaced with PTS-shift `setpts=…+<st>/TB`. **DID NOT FIX** (still crashed) — and worse: without tpad the overlay/blend framesync buffers all base frames before `st` (OOM for late overlays). Reverted by Fix #14. | `export.ts` | ❌ wrong diagnosis, reverted |
-| 14 | `overlaid.mp4` crash | **Real root cause:** the `gbrp` RGB blend from Fix #3 crashes this ffmpeg.wasm build at runtime (no error line = abort). The pink frame proved YUV blend + tpad worked; `gbrp` was the delta. **Fix:** revert blend to **YUV** (drop gbrp) + **restore tpad** placement (needed so framesync doesn't buffer). Overlays render again; screen/multiply get the **magenta tint back** (open cosmetic issue). | `export.ts` `applyOverlaysToVideo` | 🟡 TESTING |
+| 14 | `overlaid.mp4` crash | **Real root cause:** the `gbrp` RGB blend from Fix #3 crashes this ffmpeg.wasm build at runtime (no error line = abort). The pink frame proved YUV blend + tpad worked; `gbrp` was the delta. **Fix:** revert blend to **YUV** (drop gbrp) + **restore tpad** placement (needed so framesync doesn't buffer). Overlays render again; screen/multiply get the **magenta tint back** (open cosmetic issue). | `export.ts` `applyOverlaysToVideo` | ✅ confirmed: YUV overlays render, magenta present |
+| 15 | Magenta + memory | **Hypothesis:** the `gbrp` crash was OOM (combined pass = full clips + RGB frames + audio amix + re-encode), not a gbrp bug. **Fix:** split into lean passes — (1) pre-trim each overlay to its window (kills full-clip memory cost), (2) composite overlay **video** in one pass with **RGB (gbrp)** blend + `-c:a copy` base audio, (3) mix overlay **audio** in a separate pass. RGB→YUV→base fallback ladder + per-pass try/catch keeps it crash-proof. Goal: RGB blend now fits → **magenta fixed**. | `export.ts` `applyOverlaysToVideo` | 🟡 TESTING |
 
 Legend: ✅ fixed · 🟡 partial/mitigated · ⚠️ suspected regression · ▶️ led to next issue
 
@@ -69,25 +70,25 @@ Legend: ✅ fixed · 🟡 partial/mitigated · ⚠️ suspected regression · �
 
 ## 4. Current status / open question
 
-**`overlaid.mp4` (stage 5) runtime crash — ROOT-CAUSED (Fix #13), retest pending.**
+**Magenta on screen/multiply overlays — attempting to fix via memory isolation (Fix #15).**
 
-Diagnosis path:
-- The surfaced error was from the attempt whose `filter_complex` had **only the video
-  overlay chains**, so the failure was the **video overlay filtergraph**, not audio.
-- Improved logging (Fix #11) showed **both** attempts failing *after* output streams
-  were configured, with **no explicit error line** → a runtime **abort/OOM**, not a
-  parse error.
-- The one filter common to **both** the blend path and the normal path (both failed)
-  was `tpad=start_duration=<st>`. It prepends `st` seconds of real 1080p frames to
-  place the overlay on the timeline — memory-catastrophic in ffmpeg.wasm for overlays
-  that start several seconds in. → **Fix #13: PTS shift instead of tpad.**
+Confirmed so far:
+- YUV blend renders overlays fine but tints screen/multiply magenta (Fix #14).
+- RGB (`gbrp`) blend fixes the color but crashed — **no ffmpeg error line = wasm abort**,
+  strongly implying **OOM**, not a `gbrp` filter bug.
+
+Fix #15 bets the crash was OOM from doing everything in one pass, and splits it:
+1. **pre-trim** each overlay → small windowed file (removes full-clip memory cost),
+2. **video composite** pass: base + small overlays, `gbrp` RGB blend, base audio copied,
+3. **audio mix** pass: `amix` overlay audio onto the composited video.
+
+Each pass is far leaner, so RGB blend should now fit. RGB→YUV→base fallback keeps it safe.
 
 ### What to collect on next retest
-1. Does the export **complete with overlays visible** at the right time/opacity/blend?
-2. If still failing: DevTools console `Overlay composite attempt … failed` line
-   (Fix #11 surfaces the real ffmpeg error).
-3. The overlay's **blend mode** + its **startTimeSec** (large start = was worst-hit by
-   the tpad bug).
+1. Do **screen/multiply** overlays now show **correct colour** (no magenta)?
+2. Console: any `Overlay video composite failed (RGB=true)` warning? If present, RGB still
+   fails even lean → likely a real `gbrp` build bug (not just OOM); next step is `rgb24`/`rgba`.
+3. Does overlay **audio** come through, and is the base (beat/voiceover) audio intact?
 
 ---
 

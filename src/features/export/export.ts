@@ -373,127 +373,139 @@ async function applyOverlaysToVideo(
   const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
   if (activeOverlays.length === 0) return videoBytes;
 
-  // Composite each overlay to mirror the preview, which uses the browser's CSS
-  // `mix-blend-mode` + `opacity`. blend=all_mode={screen,multiply,overlay} is the
-  // same per-pixel math; `normal` uses the alpha-aware overlay filter. Each is
-  // time-gated to its [startTimeSec, startTimeSec+durationSec) window.
-  const engineInputs: EngineInput[] = [{ name: "in.mp4", data: videoBytes }];
-  const ffmpegArgs: string[] = ["-i", "in.mp4"];
-  const filterChains: string[] = [];
-  let lastV = "[0:v]";
+  // Overlay compositing runs as several LEAN ffmpeg passes instead of one heavy
+  // filtergraph. The combined pass (full clips + RGB blend + audio amix, all at
+  // once) OOM-aborted ffmpeg.wasm. See EXPORT_OVERLAY_AUDIO_ISSUE.md.
+  //   1. pre-trim each overlay to its window (drops the full-clip memory cost),
+  //   2. composite overlay VIDEO in one lean pass (RGB blend → matches CSS),
+  //   3. mix overlay AUDIO in a separate pass (copies the video).
+  // Every step degrades gracefully so the export always completes.
 
+  // ---- 1. Pre-trim each overlay to [inSec, inSec+dur] (isolated, small output). ----
+  const trimmed: { data: Uint8Array; o: OverlayClip }[] = [];
   for (let idx = 0; idx < activeOverlays.length; idx++) {
     const o = activeOverlays[idx];
     const clip = clips.find((c) => c.id === o.clipId);
     if (!clip) continue;
-
-    const overlayData = await bytesOf(clip.normalized ?? clip.file);
-    const ovName = `ov_${idx}.mp4`;
-    engineInputs.push({ name: ovName, data: overlayData });
-
-    const mode = o.blendMode ?? "normal";
-    const op = (o.opacity ?? 1).toFixed(2);
-    const st = o.startTimeSec.toFixed(3);
-    const dur = o.durationSec.toFixed(3);
-    const inS = o.inSec.toFixed(3);
-    const inputIdx = idx + 1;
-
-    // Trim the overlay to [inSec, inSec+dur]; timeline placement is done in-graph
-    // below via tpad, not -itsoffset (which stalled blend's framesync at t<start).
-    ffmpegArgs.push("-ss", inS, "-t", dur, "-i", ovName);
-
-    const scaledOv = `[ov_${idx}]`;
-    const nextV = idx === activeOverlays.length - 1 ? "[v_out]" : `[v_step_${idx}]`;
-    const enable = `enable='between(t,${st},${st}+${dur})'`;
-    const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
-
-    // Place the overlay on the timeline with tpad (prepend `st` seconds) so its
-    // first frame lands at startTimeSec AND the overlay stream has a frame from
-    // t=0 — without that, overlay/blend framesync buffers every base frame before
-    // `st` (OOM for late-starting overlays). `enable` gates the composite window.
-    // NB: blend runs in YUV here. RGB blend (gbrp/rgb24) is the "correct" match for
-    // CSS screen/multiply but crashes this ffmpeg.wasm build — see issue doc Fix #14.
-    const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}`;
-    if (mode === "screen" || mode === "multiply" || mode === "overlay") {
-      // Letterbox pad uses each mode's identity colour so the bars stay invisible:
-      // black is a no-op under screen, white under multiply, mid-grey under overlay.
-      const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
-      filterChains.push(
-        `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}:color=${padColor}${scaledOv}`
+    try {
+      const srcData = await bytesOf(clip.normalized ?? clip.file);
+      const out = await runIsolated(
+        [{ name: "src.mp4", data: srcData }],
+        ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", "src.mp4",
+         "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
+        "ov.mp4",
       );
-      filterChains.push(`${lastV}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
-    } else {
-      // Normal: alpha-aware "over" compositing. Transparent letterbox + opacity.
-      // (black@0.0 is more portable across ffmpeg builds than 0x00000000.)
-      filterChains.push(
-        `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place}:color=black@0.0,colorchannelmixer=aa=${op}${scaledOv}`
-      );
-      filterChains.push(`${lastV}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${nextV}`);
+      trimmed.push({ data: out, o });
+    } catch (err) {
+      console.warn(`Overlay ${idx} pre-trim failed; skipping this overlay.`, err);
     }
-    lastV = nextV;
+    onProgress?.(((idx + 1) / activeOverlays.length) * 0.4);
   }
+  if (trimmed.length === 0) return videoBytes;
 
-  // Mix each audible overlay's audio over the base track — the preview plays
-  // overlay audio at `volume`, so the export must too. Each overlay stream is
-  // trimmed to [inSec, inSec+dur] by its -ss/-t input flags; here we set its
-  // volume and adelay it onto the timeline at startTimeSec, then amix them all.
-  // Overlays at zero/absent volume are skipped, so a silent or audio-less overlay
-  // never reaches the mix.
-  const audioOverlays = activeOverlays
-    .map((o, idx) => ({ o, inputIdx: idx + 1 }))
-    .filter(({ o }) => (o.volume ?? 0) > 0);
-
-  const inputArgs = ffmpegArgs; // -i flags built above; audio tail differs per attempt.
-
-  // withOverlayAudio=false just copies the base audio (handles no-audio overlays).
-  const buildArgs = (withOverlayAudio: boolean): string[] => {
-    const audioChains: string[] = [];
-    let audioArgs: string[];
-    if (withOverlayAudio && audioOverlays.length > 0) {
-      const mixLabels: string[] = ["[abase]"];
-      audioChains.push(`[0:a]aresample=48000[abase]`);
-      for (const { o, inputIdx } of audioOverlays) {
-        const vol = (o.volume ?? 0).toFixed(2);
-        const delayMs = Math.round(o.startTimeSec * 1000);
-        const lbl = `[oa_${inputIdx}]`;
-        audioChains.push(
-          `[${inputIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${delayMs}|${delayMs}${lbl}`
+  // ---- 2. Composite overlay VIDEO onto the base (keep base audio via copy). ----
+  // RGB blend (gbrp) is the correct match for CSS screen/multiply; if it fails we
+  // retry in YUV (works, but screen/multiply take a colour tint). Each overlay is
+  // placed with tpad so its first frame lands at startTimeSec AND the stream has a
+  // frame from t=0 (else framesync buffers every base frame before it → OOM).
+  const buildVideoArgs = (useRgb: boolean): { inputs: EngineInput[]; args: string[] } => {
+    const inputs: EngineInput[] = [{ name: "base.mp4", data: videoBytes }];
+    const args: string[] = ["-i", "base.mp4"];
+    const chains: string[] = [];
+    let lastV = "[0:v]";
+    trimmed.forEach(({ o, data }, idx) => {
+      inputs.push({ name: `ov_${idx}.mp4`, data });
+      args.push("-i", `ov_${idx}.mp4`);
+      const inputIdx = idx + 1;
+      const mode = o.blendMode ?? "normal";
+      const op = (o.opacity ?? 1).toFixed(2);
+      const st = o.startTimeSec.toFixed(3);
+      const dur = o.durationSec.toFixed(3);
+      const scaledOv = `[ov_${idx}]`;
+      const nextV = idx === trimmed.length - 1 ? "[v_out]" : `[v_step_${idx}]`;
+      const enable = `enable='between(t,${st},${st}+${dur})'`;
+      const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
+      const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}`;
+      if (mode === "screen" || mode === "multiply" || mode === "overlay") {
+        // Letterbox pad uses each mode's identity colour so bars stay invisible.
+        const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
+        const rgb = useRgb ? ",format=gbrp" : "";
+        chains.push(
+          `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}:color=${padColor}${rgb}${scaledOv}`
         );
-        mixLabels.push(lbl);
+        const base = useRgb ? `[base_${idx}]` : lastV;
+        if (useRgb) chains.push(`${lastV}format=gbrp${base}`);
+        chains.push(`${base}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
+      } else {
+        // Normal: alpha-aware "over" compositing. Transparent letterbox + opacity.
+        chains.push(
+          `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place}:color=black@0.0,colorchannelmixer=aa=${op}${scaledOv}`
+        );
+        chains.push(`${lastV}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${nextV}`);
       }
-      // duration=first keeps the output as long as the base; normalize=0 stops
-      // amix from ducking every track by the input count when they don't overlap.
-      audioChains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[aout]`);
-      audioArgs = ["-map", "[aout]", "-c:a", "aac", "-b:a", "192k"];
-    } else {
-      audioArgs = ["-map", "0:a:0?", "-c:a", "copy"];
-    }
-    return [
-      ...inputArgs,
-      "-filter_complex", [...filterChains, ...audioChains].join(";"),
-      "-map", lastV,
-      ...audioArgs,
+      lastV = nextV;
+    });
+    args.push(
+      "-filter_complex", chains.join(";"),
+      "-map", lastV, "-map", "0:a:0?",
       "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-      "overlaid.mp4",
-    ];
+      "-c:a", "copy", "video.mp4",
+    );
+    return { inputs, args };
   };
 
-  // Try, in order: full overlay video + mixed audio → overlay video + base audio
-  // only (if an overlay clip has no audio stream) → the un-overlaid base video (if
-  // the overlay video filtergraph itself fails). Each runs in a fresh engine, so a
-  // failed attempt never taints the next, and the export can always complete.
-  const attempts: string[][] =
-    audioOverlays.length > 0 ? [buildArgs(true), buildArgs(false)] : [buildArgs(false)];
-
-  for (let a = 0; a < attempts.length; a++) {
+  let composited: Uint8Array | null = null;
+  for (const useRgb of [true, false]) {
     try {
-      return await runIsolated(engineInputs, attempts[a], "overlaid.mp4", onProgress);
+      const { inputs, args } = buildVideoArgs(useRgb);
+      composited = await runIsolated(inputs, args, "video.mp4", (f) => onProgress?.(0.4 + f * 0.4));
+      if (!useRgb) console.warn("Overlay video composited in YUV (screen/multiply may show a colour tint); RGB blend failed.");
+      break;
     } catch (err) {
-      console.warn(`Overlay composite attempt ${a + 1}/${attempts.length} failed for overlaid.mp4.`, err);
+      console.warn(`Overlay video composite failed (RGB=${useRgb}).`, err);
     }
   }
-  console.warn("All overlay composite attempts failed; exporting without overlays.");
-  return videoBytes;
+  if (!composited) {
+    console.warn("Overlay video composite failed entirely; exporting without overlays.");
+    return videoBytes;
+  }
+
+  // ---- 3. Mix each audible overlay's audio onto the composited video. ----
+  const audible = trimmed.filter(({ o }) => (o.volume ?? 0) > 0);
+  if (audible.length === 0) {
+    onProgress?.(1.0);
+    return composited;
+  }
+  try {
+    const inputs: EngineInput[] = [{ name: "vid.mp4", data: composited }];
+    const args: string[] = ["-i", "vid.mp4"];
+    const chains: string[] = [`[0:a]aresample=48000[abase]`];
+    const mixLabels: string[] = ["[abase]"];
+    audible.forEach(({ o, data }, k) => {
+      inputs.push({ name: `oa_${k}.mp4`, data });
+      args.push("-i", `oa_${k}.mp4`);
+      const vol = (o.volume ?? 0).toFixed(2);
+      const delayMs = Math.round(o.startTimeSec * 1000);
+      const lbl = `[oa_${k}]`;
+      chains.push(`[${k + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${delayMs}|${delayMs}${lbl}`);
+      mixLabels.push(lbl);
+    });
+    // duration=first keeps the output as long as the base; normalize=0 stops amix
+    // from ducking every track by the input count when they don't overlap.
+    chains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[aout]`);
+    args.push(
+      "-filter_complex", chains.join(";"),
+      "-map", "0:v:0", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "final.mp4",
+    );
+    const withAudio = await runIsolated(inputs, args, "final.mp4", (f) => onProgress?.(0.8 + f * 0.2));
+    onProgress?.(1.0);
+    return withAudio;
+  } catch (err) {
+    console.warn("Overlay audio mix failed (a clip likely has no audio track); keeping overlay video without its audio.", err);
+    onProgress?.(1.0);
+    return composited;
+  }
 }
 
 export async function exportCut(
