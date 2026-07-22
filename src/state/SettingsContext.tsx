@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-// Per-stage model config (ADR-0001: cheap for analyze, stronger for authoring).
-// No API key — AI calls run through the local `claude -p` proxy (ADR-0005).
+export type AiProvider = "claude" | "antigravity";
+
 export interface Settings {
+  aiProvider: AiProvider;
   analyzeModel: string;
   authorModel: string;
   /** Tone/mood that steers the vlog coaching (Analyze) and script voice (Author). */
@@ -10,10 +11,16 @@ export interface Settings {
 }
 
 const DEFAULTS: Settings = {
+  aiProvider: "claude",
   analyzeModel: "claude-haiku-4-5",
   authorModel: "claude-opus-4-8",
   tone: "casual",
 };
+
+export const AI_PROVIDER_OPTIONS: { id: AiProvider; label: string }[] = [
+  { id: "claude", label: "Claude Code CLI (claude -p)" },
+  { id: "antigravity", label: "Antigravity CLI (antigravity)" },
+];
 
 export const MODEL_OPTIONS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-4-8"] as const;
 

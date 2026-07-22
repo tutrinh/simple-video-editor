@@ -6,16 +6,18 @@ import type { SampledFrame } from "./frameSampler";
 // model alias travels; the proxy maps it to Claude Code's opus/sonnet/haiku.
 
 export interface ClaudeConfig {
+  provider?: "claude" | "antigravity";
   model?: string;
   /** Tone/mood phrase to steer the output (see SettingsContext.toneHint). */
   tone?: string;
 }
 
-async function runClaude(prompt: string, images: string[] | undefined, model?: string): Promise<string> {
-  const res = await fetch("/api/claude", {
+async function runClaude(prompt: string, images: string[] | undefined, cfg?: ClaudeConfig): Promise<string> {
+  const endpoint = cfg?.provider === "antigravity" ? "/api/antigravity" : "/api/claude";
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt, images, model }),
+    body: JSON.stringify({ prompt, images, model: cfg?.model }),
   });
   const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
   if (!res.ok || data.error) throw new Error(data.error ?? `proxy HTTP ${res.status}`);
@@ -24,7 +26,7 @@ async function runClaude(prompt: string, images: string[] | undefined, model?: s
 
 /** Text-only call (author, refine). */
 export async function callClaude(prompt: string, cfg: ClaudeConfig): Promise<string> {
-  return runClaude(prompt, undefined, cfg.model);
+  return runClaude(prompt, undefined, cfg);
 }
 
 // A neutral description of the footage — the signal the Story is built from, not
@@ -64,6 +66,6 @@ export async function describeClip(
   filenameHint: string,
   cfg: ClaudeConfig,
 ): Promise<ClipDescription> {
-  const text = await runClaude(DESCRIBE_PROMPT(frames.length, filenameHint), frames.map((f) => f.base64), cfg.model);
+  const text = await runClaude(DESCRIBE_PROMPT(frames.length, filenameHint), frames.map((f) => f.base64), cfg);
   return parseDescription(text, cfg.model ?? "claude");
 }

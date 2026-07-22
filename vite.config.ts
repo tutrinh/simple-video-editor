@@ -85,6 +85,80 @@ function claudeProxy(): Plugin {
   };
 }
 
+// Dev-only proxy for local Antigravity CLI: runs `antigravity run -p` (or ANTIGRAVITY_PATH env)
+function antigravityProxy(configuredPath?: string): Plugin {
+  return {
+    name: "antigravity-cli-proxy",
+    configureServer(server) {
+      server.middlewares.use("/api/antigravity", async (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
+        const send = (code: number, body: unknown) => {
+          res.statusCode = code;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(body));
+        };
+        let dir = "";
+        try {
+          const { prompt, images, model } = JSON.parse(await readBody(req)) as {
+            prompt: string;
+            images?: string[];
+            model?: string;
+          };
+          dir = mkdtempSync(join(tmpdir(), "sve-frames-"));
+          const paths = (images ?? []).map((b64, i) => {
+            const p = join(dir, `f${i}.jpg`);
+            writeFileSync(p, Buffer.from(b64, "base64"));
+            return p;
+          });
+          const full = paths.length
+            ? `Read these image files:\n${paths.map((p) => `- ${p}`).join("\n")}\n\n${prompt}`
+            : prompt;
+
+          const defaultScript = join(process.cwd(), "scripts", "antigravity_runner.py");
+          const customBin = configuredPath || process.env.ANTIGRAVITY_PATH;
+
+          let execCmd = "python3";
+          let args: string[] = [];
+
+          if (customBin && !customBin.includes("antigravity-ide")) {
+            execCmd = customBin;
+            args = ["--prompt", prompt];
+            if (paths.length) args.push("--images", ...paths);
+            if (model) args.push("--model", model);
+          } else {
+            execCmd = "python3";
+            args = [defaultScript, "--prompt", prompt];
+            if (paths.length) args.push("--images", ...paths);
+            if (model) args.push("--model", model);
+          }
+
+          execFile(execCmd, args, { maxBuffer: 10 * 1024 * 1024, timeout: 180_000 }, (err, stdout, stderr) => {
+            if (dir) rmSync(dir, { recursive: true, force: true });
+            if (err) {
+              const msg = (stderr || err.message || "Antigravity execution failed").toString();
+              return send(500, { error: msg.slice(0, 2000) });
+            }
+            const text = stdout.toString().trim();
+            if (!text) {
+              return send(500, {
+                error: `Antigravity runner returned empty text output. Switch the AI Engine dropdown to 'Claude Code CLI (claude -p)' or check python log.`
+              });
+            }
+            send(200, { text });
+          });
+        } catch (e) {
+          if (dir) rmSync(dir, { recursive: true, force: true });
+          send(500, { error: e instanceof Error ? e.message : String(e) });
+        }
+      });
+    },
+  };
+}
+
 // Dev-only ElevenLabs proxy: keeps ELEVENLABS_API_KEY server-side. The browser
 // POSTs { text, voiceId } to /api/tts; we forward to ElevenLabs and stream back
 // the MP3. Like the Claude proxy, this only exists under `vite dev`.
@@ -213,6 +287,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       claudeProxy(),
+      antigravityProxy(env.ANTIGRAVITY_PATH ?? ""),
       elevenProxy(env.ELEVENLABS_API_KEY ?? ""),
       defaultMusic(defaultMusicPath),
       musicLibrary(musicDir),

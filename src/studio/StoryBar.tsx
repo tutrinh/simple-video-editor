@@ -1,5 +1,5 @@
 import { useProject } from "../state/ProjectContext";
-import { useSettings, TONE_OPTIONS } from "../state/SettingsContext";
+import { useSettings, TONE_OPTIONS, AI_PROVIDER_OPTIONS, type AiProvider } from "../state/SettingsContext";
 import { isIncluded } from "./util";
 
 interface Props {
@@ -28,6 +28,14 @@ export default function StoryBar({ onAuthor, busy }: Props) {
             onChange={(e) => dispatch({ type: "SET_DIRECTION", direction: e.target.value })}
             placeholder="Direction (optional) — steer the story, e.g. build the tension, save the best for last"
           />
+          <select
+            className="st-tone"
+            value={settings.aiProvider}
+            onChange={(e) => update({ aiProvider: e.target.value as AiProvider })}
+            title="AI CLI engine choice: Claude CLI (claude -p) vs Antigravity CLI (antigravity)"
+          >
+            {AI_PROVIDER_OPTIONS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
           <select
             className="st-tone"
             value={settings.tone}

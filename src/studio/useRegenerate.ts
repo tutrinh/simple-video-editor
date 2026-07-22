@@ -35,7 +35,7 @@ export function useRegenerate() {
       for (let i = 0; i < targetClips.length; i++) {
         const clip = targetClips[i];
         setSt({ busy: true, label: `Step 1: Describing clip ${i + 1} of ${targetClips.length} (${clip.name})…`, error: "" });
-        const description = await analyzeClip(clip, { model: settings.analyzeModel });
+        const description = await analyzeClip(clip, { provider: settings.aiProvider, model: settings.analyzeModel });
         dispatch({ type: "SET_DESCRIPTION", id: clip.id, description });
       }
       setSt({ busy: false, label: "", error: "" });
@@ -56,7 +56,7 @@ export function useRegenerate() {
       for (let i = 0; i < toDescribe.length; i++) {
         const clip = toDescribe[i];
         setSt({ busy: true, label: `Step 1: Describing clip ${i + 1} of ${toDescribe.length}…`, error: "" });
-        const description = await analyzeClip(clip, { model: settings.analyzeModel });
+        const description = await analyzeClip(clip, { provider: settings.aiProvider, model: settings.analyzeModel });
         dispatch({ type: "SET_DESCRIPTION", id: clip.id, description });
         freshDesc.set(clip.id, description);
       }
@@ -69,8 +69,8 @@ export function useRegenerate() {
       }
 
       // 2. Author the Story with Claude.
-      setSt({ busy: true, label: "Step 2: Authoring story & script with Claude…", error: "" });
-      const story = await authorStory(clipsNow, state.direction, { model: settings.authorModel, tone });
+      setSt({ busy: true, label: "Step 2: Authoring story & script with AI…", error: "" });
+      const story = await authorStory(clipsNow, state.direction, { provider: settings.aiProvider, model: settings.authorModel, tone });
       dispatch({ type: "SET_STORY", story });
 
       // 3. Assemble the Cut.
