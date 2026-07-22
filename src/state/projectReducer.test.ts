@@ -78,8 +78,13 @@ describe("projectReducer", () => {
     expect(s.cut?.overlays?.[0].blendMode).toBe("screen");
     expect(s.cut?.overlays?.[0].opacity).toBe(0.9);
 
+    s = projectReducer(s, { type: "DUPLICATE_OVERLAY", id: "ov1", newOverlayId: "ov1-dup" });
+    expect(s.cut?.overlays).toHaveLength(2);
+    expect(s.cut?.overlays?.[1].id).toBe("ov1-dup");
+    expect(s.cut?.overlays?.[1].blendMode).toBe("screen");
+
     s = projectReducer(s, { type: "REMOVE_OVERLAY", id: "ov1" });
-    expect(s.cut?.overlays).toHaveLength(0);
+    expect(s.cut?.overlays).toHaveLength(1);
   });
 
   it("resets to initial", () => {

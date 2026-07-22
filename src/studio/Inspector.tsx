@@ -550,9 +550,30 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
               <div className="st-sec" style={{ marginTop: 10, background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--accent)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎞️ Overlay Clip Settings</span>
-                  <button className="st-btn danger" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => { dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlay.id }); onSelectOverlay?.(null); }}>
-                    Remove
-                  </button>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      className="st-btn ghost"
+                      style={{ padding: "2px 8px", fontSize: 11 }}
+                      onClick={() => {
+                        const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+                        const newId = `overlay-${genId()}`;
+                        dispatch({ type: "DUPLICATE_OVERLAY", id: selectedOverlay.id, newOverlayId: newId });
+                        onSelectOverlay?.(newId);
+                      }}
+                      title="Duplicate this overlay clip (Cmd+D / Ctrl+D)"
+                    >
+                      📋 Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      className="st-btn danger"
+                      style={{ padding: "2px 8px", fontSize: 11 }}
+                      onClick={() => { dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlay.id }); onSelectOverlay?.(null); }}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
 
                 {/* Clip Selector */}

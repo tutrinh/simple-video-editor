@@ -32,6 +32,7 @@ export type Action =
   | { type: "ADD_OVERLAY"; overlay: OverlayClip }
   | { type: "UPDATE_OVERLAY"; overlay: OverlayClip }
   | { type: "REMOVE_OVERLAY"; id: string }
+  | { type: "DUPLICATE_OVERLAY"; id: string; newOverlayId?: string }
   | { type: "RESET" };
 
 function patchClip(clips: Clip[], id: string, patch: Partial<Clip>): Clip[] {
@@ -86,6 +87,25 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case "REMOVE_OVERLAY": {
       if (!state.cut) return state;
       const overlays = (state.cut.overlays ?? []).filter((o) => o.id !== action.id);
+      return { ...state, cut: { ...state.cut, overlays } };
+    }
+    case "DUPLICATE_OVERLAY": {
+      if (!state.cut) return state;
+      const target = (state.cut.overlays ?? []).find((o) => o.id === action.id);
+      if (!target) return state;
+
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const newId = action.newOverlayId ?? `overlay-${genId()}`;
+      const totalDur = state.cut.beats.reduce((acc, b) => acc + (b.durationSec || Math.max(0.05, b.outSec - b.inSec)), 0);
+      const newStart = Math.min(Math.max(0, totalDur - target.durationSec), target.startTimeSec + 0.5);
+
+      const duplicated: OverlayClip = {
+        ...target,
+        id: newId,
+        startTimeSec: Math.round(newStart * 10) / 10,
+      };
+
+      const overlays = [...(state.cut.overlays ?? []), duplicated];
       return { ...state, cut: { ...state.cut, overlays } };
     }
     case "DUPLICATE_BEAT": {
