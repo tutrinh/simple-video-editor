@@ -165,8 +165,9 @@ export default function FinalPreview({
       const b = cut.beats[index];
       if (!b) { setPlaying(false); return; }
       const v = videoRef.current;
-      if (v && v.currentTime >= b.outSec - 0.03 && !v.paused) v.pause(); // freeze last frame
+      const footageDur = b.outSec - b.inSec;
       const e = beatElapsedRef.current + dt;
+      if (v && footageDur > 0 && e >= footageDur - 0.03 && !v.paused) v.pause(); // freeze last frame once footage window is spent
       const total = Math.max(0.05, b.durationSec);
       if (e >= total) {
         if (index < cut.beats.length - 1) {
