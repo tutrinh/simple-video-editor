@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useTheme } from "../state/ThemeContext";
 import type { Aspect } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
-import { fmtClock } from "./util";
+import { fmtClock, getFilterPreset } from "./util";
+import FilterPresetModal from "./FilterPresetModal";
 
 const ASPECTS: Aspect[] = ["16:9", "9:16", "1:1"];
 
@@ -16,6 +18,8 @@ export default function TopBar({ onExport, onStartOver }: Props) {
   const { theme, toggleTheme } = useTheme();
   const { clips, cut, title } = state;
   const titleSize = Math.min(40, Math.max(15, (title.length || "Untitled project".length) + 1));
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
 
   // Aspect is a Cut property that doesn't affect beat trims — switch it without
   // rebuilding, preserving manual edits (export letterboxes/pads to the choice).
@@ -44,6 +48,23 @@ export default function TopBar({ onExport, onStartOver }: Props) {
             <button key={a} className={cut.aspect === a ? "on" : ""} onClick={() => setAspect(a)}>{a}</button>
           ))}
         </span>
+      )}
+      {cut && (
+        <button
+          className="st-btn ghost"
+          style={{
+            fontSize: 11,
+            padding: "3px 10px",
+            borderRadius: 999,
+            borderColor: activeGlobalFilter ? "var(--accent)" : undefined,
+            color: activeGlobalFilter ? "var(--accent)" : "var(--ink-2)",
+            background: activeGlobalFilter ? "var(--accent-subtle, rgba(255,179,57,0.15))" : undefined,
+          }}
+          onClick={() => setFilterModalOpen(true)}
+          title="Choose a global color grading filter preset for the cut"
+        >
+          🎨 {activeGlobalFilter ? activeGlobalFilter.name : "Color Filter"}
+        </button>
       )}
       {cut && <span className="st-chip">1080p</span>}
       {cut && <span className="st-chip st-num">{fmtClock(cutDuration(cut))} · {cut.beats.length} beats</span>}
@@ -82,6 +103,17 @@ export default function TopBar({ onExport, onStartOver }: Props) {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 3v11M8 10l4 4 4-4M5 20h14"/></svg>
         Export video
       </button>
+
+      {filterModalOpen && (
+        <FilterPresetModal
+          activeFilterId={cut?.globalFilterId}
+          activeIntensity={cut?.globalFilterIntensity}
+          onSelectFilter={(filterId, intensity) => {
+            dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity });
+          }}
+          onClose={() => setFilterModalOpen(false)}
+        />
+      )}
     </header>
   );
 }

@@ -78,7 +78,66 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     return (
       <aside className="st-col insp">
         <div className="st-colhead">Inspector</div>
-        <div className="st-insp-empty">Select a beat in the timeline to edit its caption, trim, and clip.</div>
+        <div className="st-insp-empty" style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
+          <span style={{ color: "var(--ink-3)", fontSize: 12 }}>Select a beat in the timeline to edit its caption, trim, and clip.</span>
+
+          {cut && (
+            <div className="st-sec" style={{ width: "100%", textAlign: "left" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>🎨 Global Look & Feel Filter</span>
+                <button
+                  type="button"
+                  className="st-btn ghost"
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: 11,
+                    borderColor: activeGlobalFilter ? "var(--accent)" : undefined,
+                    color: activeGlobalFilter ? "var(--accent)" : undefined,
+                  }}
+                  onClick={() => setFilterModalOpen(true)}
+                  title="Choose a global color grading filter preset for the entire cut"
+                >
+                  {activeGlobalFilter ? `✨ ${activeGlobalFilter.name}` : "Choose Preset..."}
+                </button>
+              </div>
+
+              {activeGlobalFilter && (
+                <div style={{ marginTop: 8, padding: 8, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                      onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
+                    >
+                      Remove Filter
+                    </button>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1"
+                    step="0.05"
+                    value={cut?.globalFilterIntensity ?? 1}
+                    onChange={(e) => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: Number(e.target.value) })}
+                    style={sliderTrackStyle(cut?.globalFilterIntensity ?? 1, 0.1, 1)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {filterModalOpen && (
+          <FilterPresetModal
+            activeFilterId={cut?.globalFilterId}
+            activeIntensity={cut?.globalFilterIntensity}
+            onSelectFilter={(filterId, intensity) => {
+              dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity });
+            }}
+            onClose={() => setFilterModalOpen(false)}
+          />
+        )}
       </aside>
     );
   }
