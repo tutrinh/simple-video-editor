@@ -1,6 +1,6 @@
 # 🐞 Working Issue: Export Overlays & Audio (branch `exporting-with-overlays`)
 
-**Status:** 🟡 TESTING — `overlaid.mp4` runtime crash root-caused to `tpad` (OOM); fixed with PTS-shift (Fix #13), awaiting retest.
+**Status:** 🟡 TESTING — `overlaid.mp4` crash was the `gbrp` RGB blend (Fix #3), NOT tpad. Reverted to YUV blend + restored tpad (Fix #14). Screen/multiply magenta tint is a known open cosmetic issue (RGB blend crashes this wasm build).
 **Last updated:** 2026-07-22
 **Owner:** Tu Trinh
 
@@ -60,7 +60,8 @@ Core files:
 | 10 | `overlaid.mp4` failure | (see Current Status) safety net: overlay stage never throws — falls back to un-overlaid base video; export always completes | `export.ts` `applyOverlaysToVideo` | 🟡 crash prevented; **overlays may be skipped** — root cause unconfirmed |
 | 11 | Diagnostics | `runIsolated` now surfaces real ffmpeg error lines (prefers lines matching `error/invalid/matches no/option … not/…`) instead of trailing stream banner | `ffmpegEngine.ts` `summarizeFfmpegError` | ✅ next failure will name the offending filter |
 | 12 | Portability | Transparent letterbox color `0x00000000` → `black@0.0` in normal-overlay path | `export.ts` | 🟡 best-guess hardening, unverified |
-| 13 | `overlaid.mp4` crash | **Root cause:** overlay timeline placement used `tpad=start_duration=<st>`, which prepends `st` seconds of real 1080p frames → OOM/abort in ffmpeg.wasm for overlays not starting at t=0. **Fix:** place via PTS shift `setpts=PTS-STARTPTS+<st>/TB` (no frame generation). Common to BOTH blend + normal paths (both were failing). | `export.ts` `applyOverlaysToVideo` | 🟡 TESTING |
+| 13 | `overlaid.mp4` crash | Hypothesised tpad OOM → replaced with PTS-shift `setpts=…+<st>/TB`. **DID NOT FIX** (still crashed) — and worse: without tpad the overlay/blend framesync buffers all base frames before `st` (OOM for late overlays). Reverted by Fix #14. | `export.ts` | ❌ wrong diagnosis, reverted |
+| 14 | `overlaid.mp4` crash | **Real root cause:** the `gbrp` RGB blend from Fix #3 crashes this ffmpeg.wasm build at runtime (no error line = abort). The pink frame proved YUV blend + tpad worked; `gbrp` was the delta. **Fix:** revert blend to **YUV** (drop gbrp) + **restore tpad** placement (needed so framesync doesn't buffer). Overlays render again; screen/multiply get the **magenta tint back** (open cosmetic issue). | `export.ts` `applyOverlaysToVideo` | 🟡 TESTING |
 
 Legend: ✅ fixed · 🟡 partial/mitigated · ⚠️ suspected regression · ▶️ led to next issue
 
@@ -98,8 +99,13 @@ Diagnosis path:
 - ❌ Unbounded `apad` + `-shortest` for seg audio — muxer fails to finalize (Fix #9). Use `apad,atrim=0:<dur>`.
 - ❌ Music stage mapping **music-only** when no voiceover — drops beat/overlay audio (Fix #6).
 - ❌ Trusting the ffmpeg "last-N-lines" banner as the error — it's the post-error stream banner (Fix #11).
-- ❌ `tpad=start_duration=<st>` to place an overlay on the timeline — prepends `st`
-  seconds of real frames → OOM/abort in ffmpeg.wasm (Fix #13). Use `setpts=PTS-STARTPTS+<st>/TB`.
+- ❌ RGB blend via `format=gbrp` (Fix #3) — crashes this ffmpeg.wasm build at runtime
+  (silent abort). Blend runs in YUV. **Open:** find a non-crashing RGB blend to kill the
+  screen/multiply magenta tint (try `rgb24`/`rgba` cautiously; may also crash — keep the
+  safety net + retest each). Do NOT reintroduce gbrp without confirming on-device.
+- ⚠️ Do NOT remove `tpad` placement for overlays: it both positions the overlay AND gives
+  the overlay stream a frame from t=0. Without it, overlay/blend framesync buffers all base
+  frames before `startTimeSec` → OOM (Fix #13). `setpts`-only shift is NOT a substitute.
 
 ---
 

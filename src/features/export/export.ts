@@ -407,31 +407,26 @@ async function applyOverlaysToVideo(
     const enable = `enable='between(t,${st},${st}+${dur})'`;
     const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
 
-    // Place the overlay on the timeline by SHIFTING its PTS to start at
-    // startTimeSec (setpts) — NOT tpad, which prepends `st` seconds of real
-    // padding frames and OOM-crashed ffmpeg.wasm for overlays that don't start at
-    // t=0. `enable` gates compositing to the [start, start+dur) window; the
-    // overlay filter/blend shows the base outside it.
-    const shift = `setpts=PTS-STARTPTS+${st}/TB`;
+    // Place the overlay on the timeline with tpad (prepend `st` seconds) so its
+    // first frame lands at startTimeSec AND the overlay stream has a frame from
+    // t=0 — without that, overlay/blend framesync buffers every base frame before
+    // `st` (OOM for late-starting overlays). `enable` gates the composite window.
+    // NB: blend runs in YUV here. RGB blend (gbrp/rgb24) is the "correct" match for
+    // CSS screen/multiply but crashes this ffmpeg.wasm build — see issue doc Fix #14.
+    const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}`;
     if (mode === "screen" || mode === "multiply" || mode === "overlay") {
       // Letterbox pad uses each mode's identity colour so the bars stay invisible:
       // black is a no-op under screen, white under multiply, mid-grey under overlay.
       const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
-      // Blend MUST run in RGB to match the browser's CSS mix-blend-mode. On the
-      // native yuv420p frames the screen/multiply math hits the chroma planes and
-      // casts the whole frame magenta — force gbrp (planar RGB) on both inputs.
-      const baseRgb = `[base_${idx}]`;
       filterChains.push(
-        `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${shift},format=gbrp${scaledOv}`
+        `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}:color=${padColor}${scaledOv}`
       );
-      filterChains.push(`${lastV}format=gbrp${baseRgb}`);
-      // Real blend math (matches the browser's CSS mix-blend-mode), time-gated.
-      filterChains.push(`${baseRgb}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
+      filterChains.push(`${lastV}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
     } else {
       // Normal: alpha-aware "over" compositing. Transparent letterbox + opacity.
       // (black@0.0 is more portable across ffmpeg builds than 0x00000000.)
       filterChains.push(
-        `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${shift},colorchannelmixer=aa=${op}${scaledOv}`
+        `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place}:color=black@0.0,colorchannelmixer=aa=${op}${scaledOv}`
       );
       filterChains.push(`${lastV}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${nextV}`);
     }
