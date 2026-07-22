@@ -7,6 +7,7 @@ import { useRegenerate } from "./useRegenerate";
 import TopBar from "./TopBar";
 import ClipBin from "./ClipBin";
 import StagePreview from "./StagePreview";
+import Timeline from "./Timeline";
 import Inspector from "./Inspector";
 import ExportDrawer from "./ExportDrawer";
 import { seedProject } from "./devSeed";
@@ -118,7 +119,18 @@ export default function StudioApp() {
             )}
 
             {cut ? (
-              <StagePreview cut={cut} clips={clips} beat={selectedBeat} clip={selectedClip} />
+              <>
+                <StagePreview cut={cut} clips={clips} beat={selectedBeat} clip={selectedClip} />
+                <Timeline
+                  cut={cut}
+                  clipById={clipById}
+                  clips={clips}
+                  selectedBeatId={selectedBeatId}
+                  onSelectBeat={setSelectedBeatId}
+                  selectedOverlayId={selectedOverlayId}
+                  onSelectOverlay={setSelectedOverlayId}
+                />
+              </>
             ) : (
               <div className="st-stage-empty">
                 <h2>{clips.length ? "Ready when you are" : "Start with your footage"}</h2>
