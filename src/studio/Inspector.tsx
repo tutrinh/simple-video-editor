@@ -80,6 +80,30 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     }));
     dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
   }
+  const [copiedColor, setCopiedColor] = useState<ColorAdjustments | null>(null);
+  const [colorCopiedToast, setColorCopiedToast] = useState(false);
+
+  function copyBeatColor() {
+    if (!beat?.colorAdjustments) return;
+    setCopiedColor({ ...beat.colorAdjustments });
+    setColorCopiedToast(true);
+    setTimeout(() => setColorCopiedToast(false), 2000);
+  }
+
+  function pasteBeatColor() {
+    if (!copiedColor || !beat) return;
+    update({ ...beat, colorAdjustments: { ...copiedColor } });
+  }
+
+  function applyColorToAllBeats() {
+    if (!cut || !beat) return;
+    const adj = beat.colorAdjustments;
+    const updatedBeats = cut.beats.map((item) => ({
+      ...item,
+      colorAdjustments: adj ? { ...adj } : undefined,
+    }));
+    dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
+  }
 
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
@@ -582,6 +606,41 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     {(b.colorAdjustments?.saturation ?? 0) > 0 ? `+${b.colorAdjustments?.saturation}` : (b.colorAdjustments?.saturation ?? 0)}
                   </span>
                 </div>
+
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    className="st-btn ghost"
+                    style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+                    onClick={copyBeatColor}
+                    disabled={!hasColorAdjustments(b.colorAdjustments)}
+                    title="Copy these color adjustments to clipboard"
+                  >
+                    {colorCopiedToast ? "✓ Copied!" : "📋 Copy Color"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="st-btn ghost"
+                    style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+                    onClick={pasteBeatColor}
+                    disabled={!copiedColor}
+                    title={copiedColor ? "Paste copied color adjustments to this beat" : "Copy a color adjustment first to paste"}
+                  >
+                    📥 Paste Color
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className="st-btn ghost"
+                  style={{ fontSize: 10, padding: "4px 8px", marginTop: 2, alignSelf: "flex-end" }}
+                  onClick={applyColorToAllBeats}
+                  disabled={!hasColorAdjustments(b.colorAdjustments)}
+                  title="Apply these color adjustments to all beats in the cut"
+                >
+                  Apply color to all beats
+                </button>
               </div>
             </div>
           </div>
