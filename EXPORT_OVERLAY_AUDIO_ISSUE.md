@@ -1,6 +1,6 @@
 # 🐞 Working Issue: Export Overlays & Audio (branch `exporting-with-overlays`)
 
-**Status:** 🟡 OPEN — segment audio fixed; overlay compositing stage (`overlaid.mp4`) still failing on some configs.
+**Status:** 🟡 TESTING — `overlaid.mp4` runtime crash root-caused to `tpad` (OOM); fixed with PTS-shift (Fix #13), awaiting retest.
 **Last updated:** 2026-07-22
 **Owner:** Tu Trinh
 
@@ -60,6 +60,7 @@ Core files:
 | 10 | `overlaid.mp4` failure | (see Current Status) safety net: overlay stage never throws — falls back to un-overlaid base video; export always completes | `export.ts` `applyOverlaysToVideo` | 🟡 crash prevented; **overlays may be skipped** — root cause unconfirmed |
 | 11 | Diagnostics | `runIsolated` now surfaces real ffmpeg error lines (prefers lines matching `error/invalid/matches no/option … not/…`) instead of trailing stream banner | `ffmpegEngine.ts` `summarizeFfmpegError` | ✅ next failure will name the offending filter |
 | 12 | Portability | Transparent letterbox color `0x00000000` → `black@0.0` in normal-overlay path | `export.ts` | 🟡 best-guess hardening, unverified |
+| 13 | `overlaid.mp4` crash | **Root cause:** overlay timeline placement used `tpad=start_duration=<st>`, which prepends `st` seconds of real 1080p frames → OOM/abort in ffmpeg.wasm for overlays not starting at t=0. **Fix:** place via PTS shift `setpts=PTS-STARTPTS+<st>/TB` (no frame generation). Common to BOTH blend + normal paths (both were failing). | `export.ts` `applyOverlaysToVideo` | 🟡 TESTING |
 
 Legend: ✅ fixed · 🟡 partial/mitigated · ⚠️ suspected regression · ▶️ led to next issue
 
@@ -67,25 +68,25 @@ Legend: ✅ fixed · 🟡 partial/mitigated · ⚠️ suspected regression · �
 
 ## 4. Current status / open question
 
-**`overlaid.mp4` (stage 5) fails on the voiceover + music + overlay export.**
+**`overlaid.mp4` (stage 5) runtime crash — ROOT-CAUSED (Fix #13), retest pending.**
 
-Key finding: the surfaced error is from the attempt whose `filter_complex` contains
-**only the video overlay chains** (the base-audio-only fallback). So the failure is
-the **video overlay filtergraph**, NOT the audio — the banner only *looked* audio-
-related because ffmpeg failed during filtergraph setup right after listing an input
-audio stream.
-
-Prime suspects (need real error log to confirm):
-- **Blend path:** `format=gbrp` + `blend=all_mode=…` (Fix #3) — this build may not
-  accept `gbrp` for `blend`. Note the pre-`gbrp` version *did* render (the pink frame).
-- **Normal path:** transparent `pad`/`tpad` color (Fix #12 may address).
+Diagnosis path:
+- The surfaced error was from the attempt whose `filter_complex` had **only the video
+  overlay chains**, so the failure was the **video overlay filtergraph**, not audio.
+- Improved logging (Fix #11) showed **both** attempts failing *after* output streams
+  were configured, with **no explicit error line** → a runtime **abort/OOM**, not a
+  parse error.
+- The one filter common to **both** the blend path and the normal path (both failed)
+  was `tpad=start_duration=<st>`. It prepends `st` seconds of real 1080p frames to
+  place the overlay on the timeline — memory-catastrophic in ffmpeg.wasm for overlays
+  that start several seconds in. → **Fix #13: PTS shift instead of tpad.**
 
 ### What to collect on next retest
-1. Does the export **complete**? (Safety net means it should — possibly without overlays.)
-2. Browser DevTools console: look for `Overlay composite attempt … failed` — it now
-   prints the **real ffmpeg error line**. Paste that line here.
-3. What **blend mode** is the overlay (normal / screen / multiply / overlay)? Tells us
-   which filter path (`overlay` filter vs `blend`/`gbrp`) is breaking.
+1. Does the export **complete with overlays visible** at the right time/opacity/blend?
+2. If still failing: DevTools console `Overlay composite attempt … failed` line
+   (Fix #11 surfaces the real ffmpeg error).
+3. The overlay's **blend mode** + its **startTimeSec** (large start = was worst-hit by
+   the tpad bug).
 
 ---
 
@@ -97,6 +98,8 @@ Prime suspects (need real error log to confirm):
 - ❌ Unbounded `apad` + `-shortest` for seg audio — muxer fails to finalize (Fix #9). Use `apad,atrim=0:<dur>`.
 - ❌ Music stage mapping **music-only** when no voiceover — drops beat/overlay audio (Fix #6).
 - ❌ Trusting the ffmpeg "last-N-lines" banner as the error — it's the post-error stream banner (Fix #11).
+- ❌ `tpad=start_duration=<st>` to place an overlay on the timeline — prepends `st`
+  seconds of real frames → OOM/abort in ffmpeg.wasm (Fix #13). Use `setpts=PTS-STARTPTS+<st>/TB`.
 
 ---
 

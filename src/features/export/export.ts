@@ -407,8 +407,12 @@ async function applyOverlaysToVideo(
     const enable = `enable='between(t,${st},${st}+${dur})'`;
     const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
 
-    // tpad prepends `st` seconds so the overlay plays from its first frame exactly
-    // at startTimeSec (and gives blend a frame from t=0 so early frames don't stall).
+    // Place the overlay on the timeline by SHIFTING its PTS to start at
+    // startTimeSec (setpts) — NOT tpad, which prepends `st` seconds of real
+    // padding frames and OOM-crashed ffmpeg.wasm for overlays that don't start at
+    // t=0. `enable` gates compositing to the [start, start+dur) window; the
+    // overlay filter/blend shows the base outside it.
+    const shift = `setpts=PTS-STARTPTS+${st}/TB`;
     if (mode === "screen" || mode === "multiply" || mode === "overlay") {
       // Letterbox pad uses each mode's identity colour so the bars stay invisible:
       // black is a no-op under screen, white under multiply, mid-grey under overlay.
@@ -418,8 +422,7 @@ async function applyOverlaysToVideo(
       // casts the whole frame magenta — force gbrp (planar RGB) on both inputs.
       const baseRgb = `[base_${idx}]`;
       filterChains.push(
-        `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,` +
-        `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor},format=gbrp${scaledOv}`
+        `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${shift},format=gbrp${scaledOv}`
       );
       filterChains.push(`${lastV}format=gbrp${baseRgb}`);
       // Real blend math (matches the browser's CSS mix-blend-mode), time-gated.
@@ -428,8 +431,7 @@ async function applyOverlaysToVideo(
       // Normal: alpha-aware "over" compositing. Transparent letterbox + opacity.
       // (black@0.0 is more portable across ffmpeg builds than 0x00000000.)
       filterChains.push(
-        `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,` +
-        `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=black@0.0,colorchannelmixer=aa=${op}${scaledOv}`
+        `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${shift},colorchannelmixer=aa=${op}${scaledOv}`
       );
       filterChains.push(`${lastV}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${nextV}`);
     }
