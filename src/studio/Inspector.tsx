@@ -23,13 +23,13 @@ interface Props {
   onSelectOverlay?: (id: string | null) => void;
 }
 
-function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
+function sliderTrackStyle(val: number, min = 0, max = 1): React.CSSProperties {
   const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
   return {
     flex: 1,
     width: "100%",
     accentColor: "var(--accent)",
-    background: `linear-gradient(to right, var(--accent, #ffb339) 0%, var(--accent, #ffb339) ${pct}%, var(--line, #282c34) ${pct}%, var(--line, #282c34) 100%)`,
+    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--panel-3) ${pct}%, var(--panel-3) 100%)`,
     height: 6,
     borderRadius: 3,
   };

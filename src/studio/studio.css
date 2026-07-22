@@ -405,46 +405,69 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
 
 /* Custom Styled Range Sliders to match application design theme */
 .studio input[type="range"],
-input[type="range"] {
+input[type="range"],
+.st-range {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
   height: 6px;
-  background: var(--line, #282c34);
   border-radius: 3px;
+  background: var(--panel-3, #333);
   outline: none;
   margin: 6px 0;
   cursor: pointer;
-  accent-color: var(--accent, #ffb339);
+  accent-color: var(--accent);
+}
+
+.studio input[type="range"]::-webkit-slider-runnable-track,
+input[type="range"]::-webkit-slider-runnable-track,
+.st-range::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: transparent;
 }
 
 .studio input[type="range"]::-webkit-slider-thumb,
-input[type="range"]::-webkit-slider-thumb {
+input[type="range"]::-webkit-slider-thumb,
+.st-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  background: var(--accent, #ffb339);
+  background: var(--accent);
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.15s ease;
   border: 2px solid var(--panel, #15171c);
+  margin-top: -4.5px;
 }
 
 .studio input[type="range"]::-webkit-slider-thumb:hover,
-input[type="range"]::-webkit-slider-thumb:hover {
+input[type="range"]::-webkit-slider-thumb:hover,
+.st-range::-webkit-slider-thumb:hover {
   transform: scale(1.2);
-  background: var(--accent-hover, #ffbe57);
-  box-shadow: 0 0 10px rgba(255, 179, 57, 0.6);
+  background: var(--accent-hover, var(--accent));
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.studio input[type="range"]::-moz-range-track,
+input[type="range"]::-moz-range-track,
+.st-range::-moz-range-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
 }
 
 .studio input[type="range"]::-moz-range-thumb,
-input[type="range"]::-moz-range-thumb {
+input[type="range"]::-moz-range-thumb,
+.st-range::-moz-range-thumb {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  background: var(--accent, #ffb339);
+  background: var(--accent);
   cursor: pointer;
   border: 2px solid var(--panel, #15171c);
 }
