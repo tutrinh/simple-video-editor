@@ -1,13 +1,12 @@
+import { EDITOR_DEFAULTS } from "../config/editorDefaults";
+
 // Script-driven pacing (ADR-0004): a Beat's duration derives from its Script
 // segment's spoken length. Words are the master clock; the trim window is chosen
 // within the duration the words dictate.
 
-const WORDS_PER_SEC = 2.5; // ~150 wpm, a natural read/speak rate
-const MIN_SECONDS = 1.5; // readability floor — a caption needs time to land
-
 export function estimateSpokenSeconds(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(MIN_SECONDS, words / WORDS_PER_SEC);
+  return Math.max(EDITOR_DEFAULTS.MIN_BEAT_DURATION_SEC, words / EDITOR_DEFAULTS.WORDS_PER_SEC);
 }
 
 // Per-line caption timing. When the author sets explicit per-line timers

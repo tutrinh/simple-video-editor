@@ -34,9 +34,15 @@ export interface TitleOverlay {
   layers: TitleLayer[];
 }
 
+import { EDITOR_DEFAULTS, type ExportQualityProfile } from "../../config/editorDefaults";
+
+export type ExportQuality = ExportQualityProfile;
+
 export interface ExportOptions {
   /** TTF bytes for burned-in captions (fetched from /caption-font.ttf). */
   fontBytes: Uint8Array;
+  /** Video export quality profile: "standard" (CRF 22), "high" (CRF 18), "max" (CRF 15). */
+  exportQuality?: ExportQuality;
   /** Optional music bed laid over the finished video (looped + trimmed). */
   music?: File | null;
   /** Music bed volume, 0–1 (default 0.5). Also the duck level under voiceover. */
@@ -339,6 +345,10 @@ export async function exportCut(
   const lineHeight = opts.captionLineHeight ?? 1.6;
   const margin = Math.round(h * 0.07);
 
+  const qualityKey = opts.exportQuality ?? EDITOR_DEFAULTS.DEFAULT_EXPORT_QUALITY;
+  const profile = EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES[qualityKey] ?? EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES.high;
+  const { preset, crf, audioBitrate } = profile;
+
   // Render every beat's segment, up to exportConcurrency() at once. Each runs in
   // its own isolated engine, so parallelizing is safe; this overlaps both the
   // per-beat voiceover (TTS) waits and the ffmpeg encodes. Segments/timings are
@@ -491,8 +501,8 @@ export async function exportCut(
        "-map", "0:v:0", "-map", "1:a:0",
        "-vf", vf.join(","),
        ...audioFilter,
-       "-r", "30", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-       "-c:a", "aac", "-ar", "48000", "-ac", "2", "-shortest", "seg.mp4"],
+       "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+       "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "-shortest", "seg.mp4"],
       "seg.mp4",
       (f) => { prog[i] = f; report(); },
     );
@@ -557,7 +567,7 @@ export async function exportCut(
 
     video = await runIsolated(
       inputs,
-      [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "video.mp4"],
+      [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "video.mp4"],
       "video.mp4",
     );
   } else {
@@ -575,7 +585,7 @@ export async function exportCut(
     if (fTr === "fadeblack" || fTr === "fade") {
       video = await runIsolated(
         [{ name: "in.mp4", data: video }],
-        ["-i", "in.mp4", "-vf", `fade=t=in:st=0:d=${fSec.toFixed(2)}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "start_faded.mp4"],
+        ["-i", "in.mp4", "-vf", `fade=t=in:st=0:d=${fSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "start_faded.mp4"],
         "start_faded.mp4",
       );
     }
@@ -591,7 +601,7 @@ export async function exportCut(
       const fadeStart = Math.max(0, totalVideoDur - lSec).toFixed(3);
       video = await runIsolated(
         [{ name: "in.mp4", data: video }],
-        ["-i", "in.mp4", "-vf", `fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "end_faded.mp4"],
+        ["-i", "in.mp4", "-vf", `fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "end_faded.mp4"],
         "end_faded.mp4",
       );
     }
@@ -603,7 +613,7 @@ export async function exportCut(
     const { filterGraph, inputs, inputArgs, outputMap } = await buildTitleFilterGraph(opts.title, w, h, opts.fontBytes);
     video = await runIsolated(
       [{ name: "in.mp4", data: video }, ...inputs],
-      [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
+      [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
       "titled.mp4",
     );
   }

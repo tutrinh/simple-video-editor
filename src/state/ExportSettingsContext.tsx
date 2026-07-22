@@ -3,6 +3,8 @@ import type { Voice } from "../lib/kokoroTts";
 import type { TtsEngine } from "../lib/tts";
 import { DEFAULT_ELEVEN_VOICE } from "../lib/elevenLabs";
 
+import type { ExportQuality } from "../features/export/export";
+
 // Export-page settings live here (not in ExportView) so they survive tab
 // navigation — switching away and back keeps every slider, dropdown, and upload.
 export interface TitleLayerSettings {
@@ -24,6 +26,7 @@ export interface TitleLayerSettings {
 }
 
 export interface ExportSettings {
+  exportQuality: ExportQuality;
   captionScale: number;
   captionOpacity: number;
   captionLineHeight: number;
@@ -107,19 +110,22 @@ const DEFAULT_TITLE_LAYERS: TitleLayerSettings[] = [
   },
 ];
 
+import { EDITOR_DEFAULTS } from "../config/editorDefaults";
+
 const DEFAULTS: ExportSettings = {
-  captionScale: 0.5,
-  captionOpacity: 0,
-  captionLineHeight: 1.0,
+  exportQuality: EDITOR_DEFAULTS.DEFAULT_EXPORT_QUALITY,
+  captionScale: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_SCALE,
+  captionOpacity: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_OPACITY,
+  captionLineHeight: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_LINE_HEIGHT,
   voiceover: true,
   ttsEngine: "elevenlabs",
   voice: "af_heart",
   elevenVoiceId: DEFAULT_ELEVEN_VOICE,
-  voiceoverSpeed: 0.9,
-  voiceoverLeadSec: 0.5,
-  voiceoverGapSec: 0.5,
+  voiceoverSpeed: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_SPEED,
+  voiceoverLeadSec: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_LEAD_SEC,
+  voiceoverGapSec: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_GAP_SEC,
   music: null,
-  musicVolume: 0.2,
+  musicVolume: EDITOR_DEFAULTS.AUDIO.DEFAULT_MUSIC_VOLUME,
   titleLayers: DEFAULT_TITLE_LAYERS,
   titleText: "",
   titleFontId: "outfit",

@@ -56,8 +56,7 @@ export default function StudioApp() {
     if (!cut) return;
     const clip = clipById.get(clipId);
     if (!clip) return;
-    const scriptText = clip.description?.subjectAction?.split(".")[0] ?? clip.name;
-    const beat = makeBeat(clip, scriptText);
+    const beat = makeBeat(clip, "");
     dispatch({ type: "ADD_BEAT", beat });
     setSelectedBeatId(beat.id);
   }

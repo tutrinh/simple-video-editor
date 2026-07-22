@@ -100,7 +100,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
         ...originalBeat,
         id: newBeatId,
         clipId: targetClipId,
-        captionDurations: originalBeat.captionDurations ? [...originalBeat.captionDurations] : undefined,
+        captionText: "",
+        captionDurations: undefined,
       };
 
       const beats = [...state.cut.beats];

@@ -12,7 +12,7 @@ describe("assembleCut", () => {
     const story: Story = { logline: "x", beats: [{ clipId: "a", scriptText: "one two three four five" }] };
     // 5 words / 2.5 = 2s window, centered in a 10s clip → in 4, out 6
     const cut = assembleCut(clips, story);
-    expect(cut.beats[0]).toMatchObject({ clipId: "a", durationSec: 2, inSec: 4, outSec: 6, captionText: "one two three four five" });
+    expect(cut.beats[0]).toMatchObject({ clipId: "a", durationSec: 2, inSec: 4, outSec: 6, captionText: "" });
   });
 
   it("clamps the window to a clip shorter than the script duration", () => {

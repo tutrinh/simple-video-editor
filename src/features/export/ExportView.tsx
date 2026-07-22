@@ -10,6 +10,8 @@ import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./Final
 import { GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded, findFontById, fetchGoogleFontBytes } from "../../lib/googleFonts";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, type TitlePreset } from "../../lib/titlePresets";
 
+import { EDITOR_DEFAULTS } from "../../config/editorDefaults";
+
 const TITLE_SWATCHES = [
   { label: "White", value: "#ffffff" },
   { label: "Black", value: "#000000" },
@@ -60,7 +62,7 @@ export default function ExportView() {
   const clips = state.clips;
   const { settings: es, update } = useExportSettings();
   const {
-    music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
+    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
   } = es;
   // Transient per-render state (fine to reset on navigation).
   const [progress, setProgress] = useState<number | null>(null);
@@ -276,7 +278,7 @@ export default function ExportView() {
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { fontBytes, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
+        { exportQuality, fontBytes, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
         setProgress,
       );
       setVideoUrl(URL.createObjectURL(blob));
@@ -332,6 +334,32 @@ export default function ExportView() {
           <span className="st-chip">{cut.aspect}</span>
           <span className="st-chip">1080p</span>
           <span className="st-chip">Burned-in captions</span>
+
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ink-2)", marginLeft: 6 }}>
+            <span>Quality:</span>
+            <select
+              value={exportQuality}
+              onChange={(e) => update({ exportQuality: e.target.value as any })}
+              style={{
+                background: "var(--panel-3)",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                color: "var(--accent)",
+                fontWeight: 600,
+                fontSize: 12,
+                padding: "3px 8px",
+                outline: "none",
+                cursor: "pointer",
+              }}
+              title="Select video export visual & audio quality level"
+            >
+              {(Object.entries(EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES) as [keyof typeof EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES, any][]).map(([key, profile]) => (
+                <option key={key} value={key}>
+                  {profile.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
