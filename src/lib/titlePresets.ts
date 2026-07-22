@@ -13,9 +13,9 @@ export const BUILT_IN_PRESETS: TitlePreset[] = [
     name: "✨ Cinematic Gold",
     isBuiltIn: true,
     layers: [
-      { id: "layer-1", enabled: true, text: "SUMMER VIBES", fontId: "outfit", weight: 800, sizePx: 140, letterSpacing: 6, arcDeg: 0, shadow: true, color: "#ffd700", posX: 0, posY: -14, scope: "intro", introSec: 3 },
-      { id: "layer-2", enabled: true, text: "OFFICIAL HIGHLIGHT REEL", fontId: "playfair", weight: 400, sizePx: 60, letterSpacing: 2, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: 6, scope: "intro", introSec: 3 },
-      { id: "layer-3", enabled: true, text: "PRESENTED BY VIDSTR", fontId: "inter", weight: 600, sizePx: 40, letterSpacing: 10, arcDeg: 0, shadow: true, color: "#e0e0e0", posX: 0, posY: 22, scope: "intro", introSec: 3 },
+      { id: "layer-1", enabled: true, text: "SUMMER VIBES", fontId: "outfit", weight: 800, sizePx: 140, letterSpacing: 6, arcDeg: 0, shadow: true, color: "#ffd700", posX: 0, posY: -14, scope: "intro", introSec: 3, animation: "fade" },
+      { id: "layer-2", enabled: true, text: "OFFICIAL HIGHLIGHT REEL", fontId: "playfair", weight: 400, sizePx: 60, letterSpacing: 2, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: 6, scope: "intro", introSec: 3, animation: "slide_bottom" },
+      { id: "layer-3", enabled: true, text: "PRESENTED BY VIDSTR", fontId: "inter", weight: 600, sizePx: 40, letterSpacing: 10, arcDeg: 0, shadow: true, color: "#e0e0e0", posX: 0, posY: 22, scope: "intro", introSec: 3, animation: "fade" },
     ],
   },
   {
@@ -23,9 +23,9 @@ export const BUILT_IN_PRESETS: TitlePreset[] = [
     name: "⚪ Minimalist Modern",
     isBuiltIn: true,
     layers: [
-      { id: "layer-1", enabled: true, text: "URBAN EXPLORER", fontId: "inter", weight: 800, sizePx: 130, letterSpacing: 12, arcDeg: 0, shadow: false, color: "#ffffff", posX: 0, posY: -10, scope: "intro", introSec: 3 },
-      { id: "layer-2", enabled: true, text: "VOLUME 01", fontId: "space-grotesk", weight: 400, sizePx: 55, letterSpacing: 4, arcDeg: 0, shadow: false, color: "#a0a0a0", posX: 0, posY: 10, scope: "intro", introSec: 3 },
-      { id: "layer-3", enabled: false, text: "", fontId: "inter", weight: 400, sizePx: 36, letterSpacing: 8, arcDeg: 0, shadow: false, color: "#808080", posX: 0, posY: 24, scope: "intro", introSec: 3 },
+      { id: "layer-1", enabled: true, text: "URBAN EXPLORER", fontId: "inter", weight: 800, sizePx: 130, letterSpacing: 12, arcDeg: 0, shadow: false, color: "#ffffff", posX: 0, posY: -10, scope: "intro", introSec: 3, animation: "slide_left" },
+      { id: "layer-2", enabled: true, text: "VOLUME 01", fontId: "space-grotesk", weight: 400, sizePx: 55, letterSpacing: 4, arcDeg: 0, shadow: false, color: "#a0a0a0", posX: 0, posY: 10, scope: "intro", introSec: 3, animation: "slide_bottom" },
+      { id: "layer-3", enabled: false, text: "", fontId: "inter", weight: 400, sizePx: 36, letterSpacing: 8, arcDeg: 0, shadow: false, color: "#808080", posX: 0, posY: 24, scope: "intro", introSec: 3, animation: "fade" },
     ],
   },
   {
@@ -33,9 +33,9 @@ export const BUILT_IN_PRESETS: TitlePreset[] = [
     name: "⚡ Bold Neon Punch",
     isBuiltIn: true,
     layers: [
-      { id: "layer-1", enabled: true, text: "NEON NIGHTS", fontId: "bebas", weight: 400, sizePx: 160, letterSpacing: 4, arcDeg: 0, shadow: true, color: "#00ffcc", posX: 0, posY: -12, scope: "intro", introSec: 3 },
-      { id: "layer-2", enabled: true, text: "LIVE IN TOKYO", fontId: "montserrat", weight: 800, sizePx: 65, letterSpacing: 2, arcDeg: 0, shadow: true, color: "#ff007f", posX: 0, posY: 8, scope: "intro", introSec: 3 },
-      { id: "layer-3", enabled: false, text: "", fontId: "outfit", weight: 700, sizePx: 42, letterSpacing: 6, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: 24, scope: "intro", introSec: 3 },
+      { id: "layer-1", enabled: true, text: "NEON NIGHTS", fontId: "bebas", weight: 400, sizePx: 160, letterSpacing: 4, arcDeg: 0, shadow: true, color: "#00ffcc", posX: 0, posY: -12, scope: "intro", introSec: 3, animation: "pop" },
+      { id: "layer-2", enabled: true, text: "LIVE IN TOKYO", fontId: "montserrat", weight: 800, sizePx: 65, letterSpacing: 2, arcDeg: 0, shadow: true, color: "#ff007f", posX: 0, posY: 8, scope: "intro", introSec: 3, animation: "slide_left" },
+      { id: "layer-3", enabled: false, text: "", fontId: "outfit", weight: 700, sizePx: 42, letterSpacing: 6, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: 24, scope: "intro", introSec: 3, animation: "fade" },
     ],
   },
   {
@@ -43,9 +43,9 @@ export const BUILT_IN_PRESETS: TitlePreset[] = [
     name: "🏷️ Lower Third Tag",
     isBuiltIn: true,
     layers: [
-      { id: "layer-1", enabled: true, text: "ALEX RIVERS", fontId: "montserrat", weight: 800, sizePx: 90, letterSpacing: 2, arcDeg: 0, shadow: true, color: "#ffffff", posX: -22, posY: 26, scope: "intro", introSec: 3 },
-      { id: "layer-2", enabled: true, text: "Creative Director", fontId: "inter", weight: 500, sizePx: 48, letterSpacing: 1, arcDeg: 0, shadow: true, color: "#ffb339", posX: -22, posY: 36, scope: "intro", introSec: 3 },
-      { id: "layer-3", enabled: false, text: "", fontId: "inter", weight: 400, sizePx: 36, letterSpacing: 3, arcDeg: 0, shadow: true, color: "#cccccc", posX: -22, posY: 44, scope: "intro", introSec: 3 },
+      { id: "layer-1", enabled: true, text: "ALEX RIVERS", fontId: "montserrat", weight: 800, sizePx: 90, letterSpacing: 2, arcDeg: 0, shadow: true, color: "#ffffff", posX: -22, posY: 26, scope: "intro", introSec: 3, animation: "slide_left" },
+      { id: "layer-2", enabled: true, text: "Creative Director", fontId: "inter", weight: 500, sizePx: 48, letterSpacing: 1, arcDeg: 0, shadow: true, color: "#ffb339", posX: -22, posY: 36, scope: "intro", introSec: 3, animation: "slide_bottom" },
+      { id: "layer-3", enabled: false, text: "", fontId: "inter", weight: 400, sizePx: 36, letterSpacing: 3, arcDeg: 0, shadow: true, color: "#cccccc", posX: -22, posY: 44, scope: "intro", introSec: 3, animation: "fade" },
     ],
   },
 ];

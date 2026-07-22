@@ -267,6 +267,8 @@ export default function ExportView() {
             posY: l.posY,
             scope: l.scope,
             introSec: l.introSec,
+            animation: l.animation,
+            animDurationSec: l.animDurationSec,
           };
         })
       );
@@ -317,6 +319,8 @@ export default function ExportView() {
       introSec: l.introSec,
       fontFamily: fontObj?.cssFamily,
       fontWeight: l.weight,
+      animation: l.animation,
+      animDurationSec: l.animDurationSec,
     };
   });
 
@@ -660,6 +664,42 @@ export default function ExportView() {
                                     <option value={3}>3s</option>
                                     <option value={4}>4s</option>
                                     <option value={5}>5s</option>
+                                  </select>
+                                </label>
+                              )}
+
+                              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                Motion
+                                <select
+                                  value={curLayer.animation ?? "none"}
+                                  onChange={(e) => updateLayer(activeLayerIndex, { animation: e.target.value as any })}
+                                  style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--accent)", fontWeight: 600, fontSize: 12, padding: "4px 8px", outline: "none", cursor: "pointer" }}
+                                  title="Select title intro entry animation style"
+                                >
+                                  <option value="none">None (Static)</option>
+                                  <option value="fade">✨ Fade In</option>
+                                  <option value="slide_left">➡️ Slide Left</option>
+                                  <option value="slide_bottom">⬆️ Slide Up</option>
+                                  <option value="slide_top">⬇️ Slide Down</option>
+                                  <option value="pop">💥 Pop & Bounce</option>
+                                </select>
+                              </label>
+
+                              {curLayer.animation && curLayer.animation !== "none" && (
+                                <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                  In Speed
+                                  <select
+                                    value={curLayer.animDurationSec ?? 0.5}
+                                    onChange={(e) => updateLayer(activeLayerIndex, { animDurationSec: Number(e.target.value) })}
+                                    style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none", cursor: "pointer" }}
+                                    title="Select title intro entry animation duration"
+                                  >
+                                    <option value={0.2}>0.2s (Fast)</option>
+                                    <option value={0.5}>0.5s (Normal)</option>
+                                    <option value={0.8}>0.8s (Smooth)</option>
+                                    <option value={1.0}>1.0s (Slow)</option>
+                                    <option value={1.5}>1.5s (Cinematic)</option>
+                                    <option value={2.0}>2.0s (Epic)</option>
                                   </select>
                                 </label>
                               )}

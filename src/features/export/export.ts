@@ -12,6 +12,8 @@ import { ffmpegColorFilters } from "../../studio/util";
 // whole thing. Captions use drawtext `textfile=` + `expansion=none`, which reads
 // the caption from a file in the FS and sidesteps inline-escaping entirely.
 
+export type TitleAnimation = "none" | "fade" | "slide_left" | "slide_bottom" | "slide_top" | "pop";
+
 export interface TitleLayer {
   id: string;
   enabled: boolean;
@@ -28,6 +30,8 @@ export interface TitleLayer {
   posY: number; // -50 .. +50 (% vertical offset from center)
   scope: "intro" | "entire";
   introSec?: number;
+  animation?: TitleAnimation;
+  animDurationSec?: number;
 }
 
 export interface TitleOverlay {
@@ -206,19 +210,47 @@ async function buildTitleFilterGraph(
 
     const xOffset = Math.round(w * (l.posX / 100));
     const yOffset = Math.round(h * (l.posY / 100));
-    const x = `(w-text_w)/2+${xOffset}`;
-    const y = `(h-text_h)/2+${yOffset}`;
     const color = "0x" + l.color.replace(/^#/, "");
     const tracking = l.letterSpacing ? `:tracking=${Math.round(l.letterSpacing)}` : "";
     const shadowFilter = l.shadow !== false ? ":shadowcolor=black@0.5:shadowx=2:shadowy=2" : "";
 
-    const alpha = l.scope === "intro" ? `:alpha='if(lt(t,${fadeStart}),1,if(lt(t,${dur}),(${dur}-t)/${fade},0))'` : "";
-    const enable = l.scope === "intro" ? `:enable='between(t,0,${dur})'` : "";
+    const anim = l.animation ?? "none";
+    const animDur = (l.animDurationSec ?? 0.5).toFixed(2);
+    let xExpr = `(w-text_w)/2+${xOffset}`;
+    let yExpr = `(h-text_h)/2+${yOffset}`;
+
+    if (anim === "slide_left") {
+      xExpr = `(w-text_w)/2+${xOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-250,0)`;
+    } else if (anim === "slide_bottom") {
+      yExpr = `(h-text_h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*150,0)`;
+    } else if (anim === "slide_top") {
+      yExpr = `(h-text_h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-150,0)`;
+    } else if (anim === "pop") {
+      yExpr = `(h-text_h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*35,0)`;
+    }
+
+    let alphaExpr = "1";
+    const needsIntroFade = anim === "fade" || anim === "pop" || anim === "slide_left" || anim === "slide_bottom" || anim === "slide_top";
+
+    if (l.scope === "intro") {
+      if (needsIntroFade) {
+        alphaExpr = `if(lt(t,${animDur}),t/${animDur},if(lt(t,${fadeStart}),1,if(lt(t,${dur}),(${dur}-t)/${fade},0)))`;
+      } else {
+        alphaExpr = `if(lt(t,${fadeStart}),1,if(lt(t,${dur}),(${dur}-t)/${fade},0))`;
+      }
+    } else {
+      if (needsIntroFade) {
+        alphaExpr = `if(lt(t,${animDur}),t/${animDur},1)`;
+      }
+    }
+
+    const alphaParam = alphaExpr !== "1" ? `:alpha='${alphaExpr}'` : "";
+    const enableParam = l.scope === "intro" ? `:enable='between(t,0,${dur})'` : "";
 
     const drawFilter =
       `drawtext=fontfile=/${fontName}:textfile=/${textName}:expansion=none:` +
       `fontcolor=${color}:fontsize=${Math.round(l.sizePx)}${tracking}${shadowFilter}:` +
-      `x=${x}:y=${y}${alpha}${enable}`;
+      `x=${xExpr}:y=${yExpr}${alphaParam}${enableParam}`;
 
     filterChains.push(`${lastV}${drawFilter}${nextV}`);
     lastV = nextV;

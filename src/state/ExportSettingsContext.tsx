@@ -3,7 +3,7 @@ import type { Voice } from "../lib/kokoroTts";
 import type { TtsEngine } from "../lib/tts";
 import { DEFAULT_ELEVEN_VOICE } from "../lib/elevenLabs";
 
-import type { ExportQuality } from "../features/export/export";
+import type { ExportQuality, TitleAnimation } from "../features/export/export";
 
 // Export-page settings live here (not in ExportView) so they survive tab
 // navigation — switching away and back keeps every slider, dropdown, and upload.
@@ -23,6 +23,8 @@ export interface TitleLayerSettings {
   posY: number;
   scope: "intro" | "entire";
   introSec: number;
+  animation?: TitleAnimation;
+  animDurationSec?: number;
 }
 
 export interface ExportSettings {
@@ -73,6 +75,7 @@ const DEFAULT_TITLE_LAYERS: TitleLayerSettings[] = [
     posY: -12,
     scope: "intro",
     introSec: 3,
+    animation: "fade",
   },
   {
     id: "layer-2",
@@ -90,6 +93,7 @@ const DEFAULT_TITLE_LAYERS: TitleLayerSettings[] = [
     posY: 5,
     scope: "intro",
     introSec: 3,
+    animation: "slide_left",
   },
   {
     id: "layer-3",
@@ -107,6 +111,7 @@ const DEFAULT_TITLE_LAYERS: TitleLayerSettings[] = [
     posY: 20,
     scope: "intro",
     introSec: 3,
+    animation: "slide_bottom",
   },
 ];
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip, Cut } from "../../domain/types";
-import { canvasDims } from "./export";
+import { canvasDims, type TitleAnimation } from "./export";
 import { activeCaptionText } from "../../lib/pacing";
 import { cssFilterFor } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -28,6 +28,8 @@ export interface PreviewTitleLayer {
   introSec?: number;
   fontFamily?: string;
   fontWeight?: number;
+  animation?: TitleAnimation;
+  animDurationSec?: number;
 }
 
 export interface PreviewTitle {
@@ -431,6 +433,31 @@ export default function FinalPreview({
           const fontSize = PREVIEW_H * (layer.sizePx / canvasH);
           const curvature = layer.arcDeg ?? 0;
 
+          const anim = layer.animation ?? "none";
+          const animDur = layer.animDurationSec ?? 0.5;
+          let animTransform = "";
+          let animOpacity = opacity;
+
+          if (elapsed < animDur && anim !== "none") {
+            const p = Math.min(1, Math.max(0, elapsed / animDur));
+            if (anim === "fade") {
+              animOpacity = opacity * p;
+            } else if (anim === "slide_left") {
+              animOpacity = opacity * p;
+              animTransform = ` translateX(${(1 - p) * -120}px)`;
+            } else if (anim === "slide_bottom") {
+              animOpacity = opacity * p;
+              animTransform = ` translateY(${(1 - p) * 60}px)`;
+            } else if (anim === "slide_top") {
+              animOpacity = opacity * p;
+              animTransform = ` translateY(${(1 - p) * -60}px)`;
+            } else if (anim === "pop") {
+              animOpacity = opacity * p;
+              const scaleVal = 0.75 + p * 0.25;
+              animTransform = ` scale(${scaleVal})`;
+            }
+          }
+
           if (curvature !== 0) {
             const hOffset = (curvature / 180) * 420;
             const svgW = 1000;
@@ -447,11 +474,11 @@ export default function FinalPreview({
                   position: "absolute",
                   left: `${50 + layer.posX}%`,
                   top: `${50 + layer.posY}%`,
-                  transform: "translate(-50%, -50%)",
+                  transform: `translate(-50%, -50%)${animTransform}`,
                   width: "95%",
                   textAlign: "center",
                   pointerEvents: "none",
-                  opacity,
+                  opacity: animOpacity,
                   transition: "opacity 0.05s linear",
                 }}
               >
@@ -485,11 +512,11 @@ export default function FinalPreview({
                 position: "absolute",
                 left: `${50 + layer.posX}%`,
                 top: `${50 + layer.posY}%`,
-                transform: "translate(-50%, -50%)",
+                transform: `translate(-50%, -50%)${animTransform}`,
                 width: "90%",
                 textAlign: "center",
                 pointerEvents: "none",
-                opacity,
+                opacity: animOpacity,
                 transition: "opacity 0.05s linear",
               }}
             >
