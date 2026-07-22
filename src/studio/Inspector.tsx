@@ -24,13 +24,37 @@ interface Props {
   onSelectOverlay?: (id: string | null) => void;
 }
 
-function sliderTrackStyle(val: number, min = 0, max = 1): React.CSSProperties {
-  const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
+  const thumbPct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+
+  if (min < 0) {
+    const centerPct = Math.max(0, Math.min(100, ((0 - min) / (max - min)) * 100));
+    if (val >= 0) {
+      return {
+        flex: 1,
+        width: "100%",
+        accentColor: "var(--accent)",
+        background: `linear-gradient(to right, var(--panel-3) 0%, var(--panel-3) ${centerPct}%, var(--accent) ${centerPct}%, var(--accent) ${thumbPct}%, var(--panel-3) ${thumbPct}%, var(--panel-3) 100%)`,
+        height: 6,
+        borderRadius: 3,
+      };
+    } else {
+      return {
+        flex: 1,
+        width: "100%",
+        accentColor: "var(--accent)",
+        background: `linear-gradient(to right, var(--panel-3) 0%, var(--panel-3) ${thumbPct}%, var(--accent) ${thumbPct}%, var(--accent) ${centerPct}%, var(--panel-3) ${centerPct}%, var(--panel-3) 100%)`,
+        height: 6,
+        borderRadius: 3,
+      };
+    }
+  }
+
   return {
     flex: 1,
     width: "100%",
     accentColor: "var(--accent)",
-    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--panel-3) ${pct}%, var(--panel-3) 100%)`,
+    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${thumbPct}%, var(--panel-3) ${thumbPct}%, var(--panel-3) 100%)`,
     height: 6,
     borderRadius: 3,
   };

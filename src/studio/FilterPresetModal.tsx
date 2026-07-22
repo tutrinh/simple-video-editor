@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getAllFilterPresets, saveCustomPreset, deleteCustomPreset, type FilterPreset } from "../lib/customPresets";
 import type { ColorAdjustments } from "../domain/types";
+import { sliderTrackStyle } from "./Inspector";
 
 interface Props {
   activeFilterId?: string;
@@ -170,8 +171,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                 step={5}
                 value={intensity}
                 onChange={(e) => handleIntensityChange(Number(e.target.value))}
-                className="st-range"
-                style={{ flex: 1 }}
+                style={sliderTrackStyle(intensity, 10, 100)}
               />
               <button
                 className="st-btn ghost"
@@ -211,7 +211,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       max={100}
                       value={fineTuneAdj.exposure ?? 0}
                       onChange={(e) => handleAdjChange("exposure", Number(e.target.value))}
-                      className="st-range"
+                      style={sliderTrackStyle(fineTuneAdj.exposure ?? 0, -100, 100)}
                     />
                   </div>
 
@@ -223,7 +223,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       max={100}
                       value={fineTuneAdj.contrast ?? 0}
                       onChange={(e) => handleAdjChange("contrast", Number(e.target.value))}
-                      className="st-range"
+                      style={sliderTrackStyle(fineTuneAdj.contrast ?? 0, -100, 100)}
                     />
                   </div>
 
@@ -235,7 +235,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       max={100}
                       value={fineTuneAdj.colorTone ?? 0}
                       onChange={(e) => handleAdjChange("colorTone", Number(e.target.value))}
-                      className="st-range"
+                      style={sliderTrackStyle(fineTuneAdj.colorTone ?? 0, -100, 100)}
                     />
                   </div>
 
@@ -247,7 +247,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       max={100}
                       value={fineTuneAdj.warmth ?? 0}
                       onChange={(e) => handleAdjChange("warmth", Number(e.target.value))}
-                      className="st-range"
+                      style={sliderTrackStyle(fineTuneAdj.warmth ?? 0, -100, 100)}
                     />
                   </div>
 
@@ -259,7 +259,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       max={100}
                       value={fineTuneAdj.saturation ?? 0}
                       onChange={(e) => handleAdjChange("saturation", Number(e.target.value))}
-                      className="st-range"
+                      style={sliderTrackStyle(fineTuneAdj.saturation ?? 0, -100, 100)}
                     />
                   </div>
                 </div>
