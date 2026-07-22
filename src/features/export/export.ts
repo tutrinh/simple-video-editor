@@ -368,6 +368,7 @@ async function applyOverlaysToVideo(
   h: number,
   preset: string,
   crf: number,
+  onProgress?: (fraction: number) => void,
 ): Promise<Uint8Array> {
   const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
   if (activeOverlays.length === 0) return videoBytes;
@@ -424,7 +425,7 @@ async function applyOverlaysToVideo(
     "overlaid.mp4"
   );
 
-  return runIsolated(engineInputs, ffmpegArgs, "overlaid.mp4");
+  return runIsolated(engineInputs, ffmpegArgs, "overlaid.mp4", onProgress);
 }
 
 export async function exportCut(
@@ -447,6 +448,8 @@ export async function exportCut(
 
   // Render every beat's segment, up to exportConcurrency() at once. Each runs in
   // its own isolated engine, so parallelizing is safe; this overlaps both the
+  // Render every beat's segment, up to exportConcurrency() at once. Each runs in
+  // its own isolated engine, so parallelizing is safe; this overlaps both the
   // per-beat voiceover (TTS) waits and the ffmpeg encodes. Segments/timings are
   // written into fixed slots so the concat below stays in beat order regardless
   // of which finishes first.
@@ -454,19 +457,15 @@ export async function exportCut(
   const segSlots: (Uint8Array | null)[] = new Array(n).fill(null);
   const timingSlots: (BeatTiming | null)[] = new Array(n).fill(null);
   const prog = new Array<number>(n).fill(0);
-  const scale = opts.music ? 0.9 : 1;
-  const report = () => onProgress?.((prog.reduce((a, x) => a + x, 0) / n) * scale);
+  const reportBeatProg = () => onProgress?.((prog.reduce((a, x) => a + x, 0) / n) * 0.55);
 
   await runPool(cut.beats, exportConcurrency(), async (b, i) => {
     const clip = clipById.get(b.clipId);
-    if (!clip) { prog[i] = 1; report(); return; }
+    if (!clip) { prog[i] = 1; reportBeatProg(); return; }
     const data = await bytesOf(clip.normalized ?? clip.file);
     const clipDur = clip.durationSec || b.outSec - b.inSec;
 
     const capLines = b.captionText.split("\n").map((l) => l.trim()).filter(Boolean);
-    // Author-set per-line timers (opt-in): when present the caption lines play in
-    // sequence and the timer sum is the segment's clock. Otherwise, null → today's
-    // stacked / voiceover-driven paths below run unchanged.
     const schedule = captionSchedule(b.captionText, b.captionDurations);
     const inputs: EngineInput[] = [
       { name: sourceName(clip), data },
@@ -481,21 +480,16 @@ export async function exportCut(
 
     const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));
     const footageLen = Math.min(Math.max(0.1, b.outSec - b.inSec), Math.max(0.1, clipDur - inSec));
-    let playFootage = footageLen; // footage actually played before any freeze tail
-    let segDur = footageLen; // total on-screen length of the segment
+    let playFootage = footageLen;
+    let segDur = footageLen;
     let audioInput: string[];
     let audioFilter: string[];
 
     const voOn = !!opts.voiceover && (capLines.length > 0 || b.scriptText.trim() !== "");
 
     if (schedule) {
-      // Timed captions sequence OVER the manually-trimmed footage — they never cut
-      // it short. The full trim window always plays; the caption lines (with their
-      // silent lead-in / tail) run on top. The beat lasts as long as the longer of
-      // the two: if the caption sequence outlasts the footage, the last frame
-      // freezes to cover the overflow (see the "past the footage" indicator).
       const cues = schedule.cues;
-      playFootage = footageLen; // respect the manual trim — always play the whole window
+      playFootage = footageLen;
       segDur = Math.max(footageLen, schedule.total);
       const freeze = segDur - footageLen;
       if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
@@ -508,10 +502,6 @@ export async function exportCut(
       });
 
       if (voOn) {
-        // One narration per line, each padded with silence / cut to fit its own
-        // timer, concatenated, then delayed by the lead-in — so the spoken track
-        // lands under each line's window. Author timers win, so narration bends to
-        // them, not the reverse. The tail silence comes from apad below.
         const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
         const vos = await Promise.all(cues.map((cue) => synthesizeVoiceover(cue.text, ttsOpts)));
         const catInputs = vos.map((vo, k) => ({ name: `p${k}.${vo.ext}`, data: vo.data }));
@@ -530,13 +520,9 @@ export async function exportCut(
         audioFilter = [];
       }
     } else if (voOn) {
-      const lead = Math.max(0, opts.voiceoverLeadSec ?? 0); // silence before the voice
-      const gap = Math.max(0, opts.voiceoverGapSec ?? 0); // silence after the voice
+      const lead = Math.max(0, opts.voiceoverLeadSec ?? 0);
+      const gap = Math.max(0, opts.voiceoverGapSec ?? 0);
       const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
-      // One narration per caption line, read in sequence. Each line's caption
-      // shows ONLY during its own narration (appears, then disappears before the
-      // next). A single line shows for the whole beat. No caption lines → narrate
-      // the script as one line, no on-screen text.
       const lineTexts = capLines.length > 0 ? capLines : [b.scriptText.trim()];
       const vos = await Promise.all(lineTexts.map((t) => synthesizeVoiceover(t, ttsOpts)));
       let cursor = 0;
@@ -545,15 +531,12 @@ export async function exportCut(
         const s = cursor; cursor += d;
         return { start: s, end: cursor, vo, text: lineTexts[k] };
       });
-      // Narration sits at [lead, lead+cursor]; the tail gap follows. The beat lasts
-      // the longer of the footage or the buffered narration.
-      segDur = Math.max(footageLen, lead + cursor) + gap; // cursor = total narration length
+      segDur = Math.max(footageLen, lead + cursor) + gap;
       const freeze = segDur - footageLen;
       if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
 
       if (capLines.length > 0) {
         timed.forEach((t, k) => {
-          // Caption windows follow the (lead-delayed) narration.
           const enable = timed.length > 1 ? `:enable='between(t,${(lead + t.start).toFixed(3)},${(lead + t.end).toFixed(3)})'` : "";
           const c = captionLayers(t.text, w, h, fontsize, bgOpacity, border, margin, lineHeight, `l${k}_`, enable);
           inputs.push(...c.files);
@@ -561,7 +544,6 @@ export async function exportCut(
         });
       }
 
-      // Beat audio = the line narrations concatenated in order.
       if (timed.length === 1) {
         inputs.push({ name: `vo.${timed[0].vo.ext}`, data: timed[0].vo.data });
         audioInput = ["-i", `vo.${timed[0].vo.ext}`];
@@ -575,8 +557,6 @@ export async function exportCut(
         inputs.push({ name: "vo.wav", data: voall });
         audioInput = ["-i", "vo.wav"];
       }
-      // Delay the whole narration by the lead-in; apad fills the trailing gap to
-      // segDur. adelay is a no-op when lead is 0.
       const leadMs = Math.round(lead * 1000);
       audioFilter = ["-af", `${leadMs > 0 ? `adelay=${leadMs}|${leadMs},` : ""}aresample=48000,apad`];
     } else {
@@ -603,11 +583,13 @@ export async function exportCut(
        "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
        "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4"],
       "seg.mp4",
-      (f) => { prog[i] = f; report(); },
+      (f) => { prog[i] = f; reportBeatProg(); },
     );
     prog[i] = 1;
-    report();
+    reportBeatProg();
   });
+
+  onProgress?.(0.60);
 
   // Drop any skipped beats (missing clip), preserving beat order.
   const timings: BeatTiming[] = timingSlots.filter((t): t is BeatTiming => t !== null);
@@ -642,7 +624,6 @@ export async function exportCut(
         rawSec = nextBeat.transitionSec ?? 0.5;
       }
 
-      // If no transition specified for this beat boundary, use 0.1s quick fade (3 frames at 30fps)
       const isCustomTr = !!tr && tr !== "none";
       const finalTr = isCustomTr ? tr : "fade";
       const segDur0 = timings[i]?.durationSec ?? 3;
@@ -668,6 +649,7 @@ export async function exportCut(
       inputs,
       [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "video.mp4"],
       "video.mp4",
+      (f) => onProgress?.(0.60 + f * 0.10),
     );
   } else {
     // Concat (stream copy) → the finished video with silent audio.
@@ -675,6 +657,8 @@ export async function exportCut(
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
     video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
   }
+
+  onProgress?.(0.72);
 
   // Handle intro fade at video start (Beat 0)
   const firstBeat = activeBeats[0];
@@ -706,31 +690,42 @@ export async function exportCut(
     }
   }
 
-  // Burn the title overlay over the concatenated video (re-encode video, copy
-  // audio). Runs before the music mux so the title survives the stream-copy there.
+  onProgress?.(0.80);
+
+  // Burn the title overlay over the concatenated video (re-encode video, copy audio).
   if (opts.title && opts.title.layers.some((l) => l.enabled && l.text.trim())) {
     const { filterGraph, inputs, inputArgs, outputMap } = await buildTitleFilterGraph(opts.title, w, h, opts.fontBytes);
     video = await runIsolated(
       [{ name: "in.mp4", data: video }, ...inputs],
       [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
       "titled.mp4",
+      (f) => onProgress?.(0.80 + f * 0.08),
     );
   }
 
+  onProgress?.(0.88);
+
   // Composite global overlay clips (B-roll & blend transitions) if any
   if (cut.overlays && cut.overlays.length > 0) {
-    video = await applyOverlaysToVideo(video, cut.overlays, clips, w, h, preset, crf);
+    video = await applyOverlaysToVideo(
+      video,
+      cut.overlays,
+      clips,
+      w,
+      h,
+      preset,
+      crf,
+      (f) => onProgress?.(0.88 + f * 0.07),
+    );
   }
 
+  onProgress?.(0.95);
+
   if (!opts.music) {
-    onProgress?.(1);
+    onProgress?.(1.0);
     return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
   }
 
-  // Lay the music bed over the whole video (loop to cover, trim to video length).
-  // With voiceover the video already carries narration, so DUCK the music under
-  // it (amix normalize=0 keeps the VO at full level); otherwise the video audio
-  // is silence and the music simply becomes the track.
   const mExt = opts.music.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() ?? "mp3";
   const vol = Math.min(1, Math.max(0, opts.musicVolume ?? 0.5));
   const musicArgs = opts.voiceover
@@ -744,8 +739,9 @@ export async function exportCut(
     [{ name: "video.mp4", data: video }, { name: `music.${mExt}`, data: await bytesOf(opts.music) }],
     musicArgs,
     "final.mp4",
+    (f) => onProgress?.(0.95 + f * 0.05),
   );
-  onProgress?.(1);
+  onProgress?.(1.0);
   return { blob: new Blob([withMusic], { type: "video/mp4" }), timings };
 }
 
