@@ -19,6 +19,7 @@ interface Props {
 export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
+  const overlayVideoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0); // 0..1 within the beat window
 
@@ -176,6 +177,26 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const beatStartSec = cut.beats.slice(0, Math.max(0, beatIndex)).reduce((sum, b) => sum + b.durationSec, 0);
   const beatElapsed = pos * (beat.outSec - beat.inSec);
   const elapsedCutSec = beatStartSec + beatElapsed;
+  const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec) ?? null;
+  const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
+  const overlayBlobUrl = activeOverlayClip ? clipUrlMap.get(activeOverlayClip.id) : undefined;
+
+  useEffect(() => {
+    const el = overlayVideoRef.current;
+    if (!el || !activeOverlay) return;
+    const targetTime = (elapsedCutSec - activeOverlay.startTimeSec) + activeOverlay.inSec;
+    if (Math.abs(el.currentTime - targetTime) > 0.15) {
+      try { el.currentTime = targetTime; } catch {}
+    }
+    el.volume = activeOverlay.volume ?? 0;
+    el.muted = (activeOverlay.volume ?? 0) === 0;
+    if (playing && el.paused) {
+      el.play().catch(() => {});
+    } else if (!playing && !el.paused) {
+      el.pause();
+    }
+  }, [elapsedCutSec, activeOverlay, playing]);
+
   const caption = activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec));
   const isAtEnd = !playing && pos >= 0.98;
 
@@ -183,43 +204,26 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     <>
       <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
         <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ filter: cssFilterFor(beat.colorAdjustments) }} />
-        {(() => {
-          const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec);
-          const overlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-          if (!activeOverlay || !overlayClip) return null;
-          const blobUrl = clipUrlMap.get(overlayClip.id);
-
-          return (
-            <video
-              key={activeOverlay.id}
-              src={blobUrl}
-              ref={(el) => {
-                if (el) {
-                  const targetTime = (elapsedCutSec - activeOverlay.startTimeSec) + activeOverlay.inSec;
-                  if (Math.abs(el.currentTime - targetTime) > 0.15) {
-                    el.currentTime = targetTime;
-                  }
-                  if (playing && el.paused) el.play().catch(() => {});
-                  else if (!playing && !el.paused) el.pause();
-                  el.volume = activeOverlay.volume;
-                }
-              }}
-              muted={activeOverlay.volume === 0}
-              playsInline
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                pointerEvents: "none",
-                opacity: activeOverlay.opacity,
-                mixBlendMode: activeOverlay.blendMode as any,
-                zIndex: 5,
-              }}
-            />
-          );
-        })()}
+        {activeOverlay && activeOverlayClip && overlayBlobUrl && (
+          <video
+            key={activeOverlay.id}
+            ref={overlayVideoRef}
+            src={overlayBlobUrl}
+            muted={(activeOverlay.volume ?? 0) === 0}
+            playsInline
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              pointerEvents: "none",
+              opacity: activeOverlay.opacity,
+              mixBlendMode: activeOverlay.blendMode as any,
+              zIndex: 5,
+            }}
+          />
+        )}
         <div className="st-badgeTL st-num">Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}</div>
         <div className="cap"><span>{caption}</span></div>
       </div>

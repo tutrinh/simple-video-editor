@@ -59,6 +59,7 @@ export default function FinalPreview({
   voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec = 0,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const overlayVideoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const voCacheRef = useRef<Map<string, string>>(new Map());
   const [index, setIndex] = useState(0);
@@ -97,6 +98,26 @@ export default function FinalPreview({
     return t;
   }, [cut.beats, index]);
   const elapsed = beatStart + beatElapsed;
+
+  const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec) ?? null;
+  const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
+  const overlayBlobUrl = activeOverlayClip ? clipUrlMap.get(activeOverlayClip.id) : undefined;
+
+  useEffect(() => {
+    const el = overlayVideoRef.current;
+    if (!el || !activeOverlay) return;
+    const targetTime = (elapsed - activeOverlay.startTimeSec) + activeOverlay.inSec;
+    if (Math.abs(el.currentTime - targetTime) > 0.15) {
+      try { el.currentTime = targetTime; } catch {}
+    }
+    el.volume = activeOverlay.volume ?? 0;
+    el.muted = (activeOverlay.volume ?? 0) === 0;
+    if (playing && el.paused) {
+      el.play().catch(() => {});
+    } else if (!playing && !el.paused) {
+      el.pause();
+    }
+  }, [elapsed, activeOverlay, playing]);
 
   // Load the current beat's footage and seek to its in-point
   useEffect(() => {
@@ -430,43 +451,26 @@ export default function FinalPreview({
           />
         )}
 
-        {(() => {
-          const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec);
-          const overlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-          if (!activeOverlay || !overlayClip) return null;
-          const blobUrl = clipUrlMap.get(overlayClip.id);
-
-          return (
-            <video
-              key={activeOverlay.id}
-              src={blobUrl}
-              ref={(el) => {
-                if (el) {
-                  const targetTime = (elapsed - activeOverlay.startTimeSec) + activeOverlay.inSec;
-                  if (Math.abs(el.currentTime - targetTime) > 0.15) {
-                    el.currentTime = targetTime;
-                  }
-                  if (playing && el.paused) el.play().catch(() => {});
-                  else if (!playing && !el.paused) el.pause();
-                  el.volume = activeOverlay.volume;
-                }
-              }}
-              muted={activeOverlay.volume === 0}
-              playsInline
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                pointerEvents: "none",
-                opacity: activeOverlay.opacity,
-                mixBlendMode: activeOverlay.blendMode as any,
-                zIndex: 5,
-              }}
-            />
-          );
-        })()}
+        {activeOverlay && activeOverlayClip && overlayBlobUrl && (
+          <video
+            key={activeOverlay.id}
+            ref={overlayVideoRef}
+            src={overlayBlobUrl}
+            muted={(activeOverlay.volume ?? 0) === 0}
+            playsInline
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              pointerEvents: "none",
+              opacity: activeOverlay.opacity,
+              mixBlendMode: activeOverlay.blendMode as any,
+              zIndex: 5,
+            }}
+          />
+        )}
 
         {title && title.layers.map((layer) => {
           if (!layer.enabled || !layer.text.trim()) return null;
