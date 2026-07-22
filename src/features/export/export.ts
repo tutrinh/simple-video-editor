@@ -372,7 +372,11 @@ async function applyOverlaysToVideo(
   const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
   if (activeOverlays.length === 0) return videoBytes;
 
-  let currentVideo = videoBytes;
+  const engineInputs: EngineInput[] = [{ name: "in.mp4", data: videoBytes }];
+  const ffmpegArgs: string[] = ["-i", "in.mp4"];
+  const filterChains: string[] = [];
+
+  let lastV = "[0:v]";
 
   for (let idx = 0; idx < activeOverlays.length; idx++) {
     const o = activeOverlays[idx];
@@ -381,51 +385,46 @@ async function applyOverlaysToVideo(
 
     const overlayData = await bytesOf(clip.normalized ?? clip.file);
     const ovName = `overlay_${idx}.mp4`;
+    engineInputs.push({ name: ovName, data: overlayData });
+
     const st = o.startTimeSec.toFixed(3);
     const dur = o.durationSec.toFixed(3);
     const inS = o.inSec.toFixed(3);
+    const inputIdx = idx + 1;
+
+    ffmpegArgs.push("-ss", inS, "-t", dur, "-i", ovName);
 
     const mode = o.blendMode ?? "normal";
     const op = (o.opacity ?? 1).toFixed(2);
+    const scaledOv = `[ov_${idx}]`;
+    const nextV = idx === activeOverlays.length - 1 ? "[v_out]" : `[v_step_${idx}]`;
 
-    let filterGraph = "";
     if (mode === "screen") {
-      filterGraph =
-        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1[ov];` +
-        `[0:v][ov]blend=all_mode=screen:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'[v]`;
+      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1${scaledOv}`);
+      filterChains.push(`${lastV}${scaledOv}blend=all_mode=screen:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'${nextV}`);
     } else if (mode === "multiply") {
-      filterGraph =
-        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1[ov];` +
-        `[0:v][ov]blend=all_mode=multiply:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'[v]`;
+      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1${scaledOv}`);
+      filterChains.push(`${lastV}${scaledOv}blend=all_mode=multiply:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'${nextV}`);
     } else if (mode === "overlay") {
-      filterGraph =
-        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1[ov];` +
-        `[0:v][ov]blend=all_mode=overlay:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'[v]`;
+      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1${scaledOv}`);
+      filterChains.push(`${lastV}${scaledOv}blend=all_mode=overlay:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'${nextV}`);
     } else {
-      filterGraph =
-        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=rgba,colorchannelmixer=aa=${op}[ov];` +
-        `[0:v][ov]overlay=x=0:y=0:enable='between(t,${st},${st}+${dur})'[v]`;
+      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=rgba,colorchannelmixer=aa=${op}${scaledOv}`);
+      filterChains.push(`${lastV}${scaledOv}overlay=x=0:y=0:enable='between(t,${st},${st}+${dur})'${nextV}`);
     }
 
-    currentVideo = await runIsolated(
-      [
-        { name: "in.mp4", data: currentVideo },
-        { name: ovName, data: overlayData },
-      ],
-      [
-        "-i", "in.mp4",
-        "-ss", inS, "-t", dur, "-i", ovName,
-        "-filter_complex", filterGraph,
-        "-map", "[v]", "-map", "0:a:0?",
-        "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-        "-c:a", "copy",
-        "overlaid.mp4",
-      ],
-      "overlaid.mp4",
-    );
+    lastV = nextV;
   }
 
-  return currentVideo;
+  ffmpegArgs.push(
+    "-filter_complex", filterChains.join(";"),
+    "-map", lastV, "-map", "0:a:0?",
+    "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+    "-c:a", "copy",
+    "overlaid.mp4"
+  );
+
+  return runIsolated(engineInputs, ffmpegArgs, "overlaid.mp4");
 }
 
 export async function exportCut(

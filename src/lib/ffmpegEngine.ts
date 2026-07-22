@@ -84,7 +84,7 @@ export async function runIsolated(
   if (onProgress) ff.on("progress", ({ progress }) => onProgress(Math.min(1, Math.max(0, progress))));
   await ff.load(urls);
   try {
-    for (const input of inputs) await ff.writeFile(input.name, input.data.slice());
+    for (const input of inputs) await ff.writeFile(input.name, input.data);
     const code = await ff.exec(args);
     if (code !== 0) {
       const logTail = logs.slice(-8).join(" | ");
