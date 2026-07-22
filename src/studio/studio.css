@@ -403,3 +403,49 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
   100% { transform: translateX(0); }
 }
 
+/* Custom Styled Range Sliders to match application design theme */
+.studio input[type="range"],
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--line, #282c34);
+  border-radius: 3px;
+  outline: none;
+  margin: 6px 0;
+  cursor: pointer;
+  accent-color: var(--accent, #ffb339);
+}
+
+.studio input[type="range"]::-webkit-slider-thumb,
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent, #ffb339);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.15s ease;
+  border: 2px solid var(--panel, #15171c);
+}
+
+.studio input[type="range"]::-webkit-slider-thumb:hover,
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: var(--accent-hover, #ffbe57);
+  box-shadow: 0 0 10px rgba(255, 179, 57, 0.6);
+}
+
+.studio input[type="range"]::-moz-range-thumb,
+input[type="range"]::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--accent, #ffb339);
+  cursor: pointer;
+  border: 2px solid var(--panel, #15171c);
+}
+
