@@ -107,6 +107,9 @@ export default function FinalPreview({
     if (!v || !b || !src) return;
     const url = URL.createObjectURL(src);
     v.src = url;
+    const vol = b.volume ?? 1;
+    v.volume = vol;
+    v.muted = vol === 0;
     const onMeta = () => {
       v.currentTime = b.inSec;
       if (playingRef.current) v.play().catch(() => {});
@@ -402,7 +405,7 @@ export default function FinalPreview({
       >
         <video
           ref={videoRef}
-          muted
+          muted={(beat?.volume ?? 1) === 0}
           playsInline
           style={{
             width: "100%",

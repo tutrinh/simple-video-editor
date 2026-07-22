@@ -145,6 +145,14 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     );
   }
 
+  // Update beat video volume and muted state dynamically
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !beat) return;
+    v.volume = beat.volume ?? 1;
+    v.muted = (beat.volume ?? 1) === 0;
+  }, [beat?.volume]);
+
   const clipUrlMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of clips) {
@@ -174,7 +182,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   return (
     <>
       <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
-        <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted playsInline style={{ filter: cssFilterFor(beat.colorAdjustments) }} />
+        <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ filter: cssFilterFor(beat.colorAdjustments) }} />
         {(() => {
           const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec);
           const overlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;

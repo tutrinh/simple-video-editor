@@ -522,6 +522,26 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
               </div>
             )}
 
+            {/* Beat Audio Volume Settings */}
+            <div className="st-sec" style={{ marginTop: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>🔊 Beat Audio Volume</span>
+                <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{Math.round((b.volume ?? 1) * 100)}%</span>
+              </div>
+              <div style={{ marginTop: 6 }}>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={b.volume ?? 1}
+                  onChange={(e) => update({ ...b, volume: Number(e.target.value) })}
+                  style={sliderTrackStyle(b.volume ?? 1, 0, 1)}
+                  title="Adjust the original audio volume of this beat's video clip"
+                />
+              </div>
+            </div>
+
             {/* Overlay Clip Inspector Card */}
             {selectedOverlay && (
               <div className="st-sec" style={{ marginTop: 10, background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--accent)" }}>

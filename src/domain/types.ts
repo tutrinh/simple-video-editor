@@ -84,6 +84,8 @@ export interface Beat {
   transitionSec?: number;
   /** Position of the transition relative to beat timing ("start" for entering beat, "end" for exiting beat). */
   transitionPosition?: "start" | "end";
+  /** Audio volume multiplier for original clip audio (0 to 1, default 1.0 = 100%). */
+  volume?: number;
 }
 
 export interface ColorAdjustments {

@@ -586,20 +586,23 @@ export async function exportCut(
         inputs.push(...c.files);
         vf.push(...c.filters);
       }
-      audioInput = ["-f", "lavfi", "-t", String(segDur), "-i", "anullsrc=r=48000:cl=stereo"];
+      audioInput = [];
       audioFilter = [];
     }
     timingSlots[i] = { id: b.id, inSec, outSec: inSec + playFootage, durationSec: segDur };
 
+    const beatVol = (b.volume ?? 1);
+    const audioParams = voOn
+      ? [...audioInput, "-map", "0:v:0", "-map", "1:a:0", ...audioFilter]
+      : ["-map", "0:v:0", "-map", "0:a:0?", "-af", `volume=${beatVol.toFixed(2)},aresample=48000,apad`];
+
     segSlots[i] = await runIsolated(
       inputs,
       ["-ss", String(inSec), "-t", String(playFootage), "-i", sourceName(clip),
-       ...audioInput,
-       "-map", "0:v:0", "-map", "1:a:0",
+       ...audioParams,
        "-vf", vf.join(","),
-       ...audioFilter,
        "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-       "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "-shortest", "seg.mp4"],
+       "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4"],
       "seg.mp4",
       (f) => { prog[i] = f; report(); },
     );
