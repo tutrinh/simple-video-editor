@@ -231,6 +231,7 @@ export default function Timeline({
 
                   <button
                     type="button"
+                    onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => {
                       e.stopPropagation();
                       dispatch({ type: "REMOVE_OVERLAY", id: ov.id });
