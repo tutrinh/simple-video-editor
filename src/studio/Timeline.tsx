@@ -284,17 +284,17 @@ export default function Timeline({
 
       {/* Overlay Track Lane */}
       {overlays.length > 0 && (
-        <div style={{ padding: "6px 12px", background: "var(--panel-2)", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ padding: "8px 12px", background: "var(--panel-2)", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span>🎞️ Overlay Track (Drag to Reposition / Resize Edges)</span>
           </div>
           <div
             ref={trackRef}
-            style={{ position: "relative", height: 34, background: "var(--panel-3)", borderRadius: 6, overflow: "hidden", border: "1px solid var(--line)", userSelect: "none" }}
+            style={{ position: "relative", height: 38, background: "var(--panel-3)", borderRadius: 8, overflow: "hidden", border: "1px solid var(--line)", userSelect: "none" }}
           >
             {overlays.map((ov) => {
               const leftPct = (ov.startTimeSec / totalDur) * 100;
-              const widthPct = Math.max(4, (ov.durationSec / totalDur) * 100);
+              const widthPct = Math.max(8, (ov.durationSec / totalDur) * 100);
               const ovClip = clipById.get(ov.clipId);
               const isSel = ov.id === selectedOverlayId;
 
@@ -308,35 +308,37 @@ export default function Timeline({
                     position: "absolute",
                     left: `${leftPct}%`,
                     width: `${widthPct}%`,
-                    top: 2,
-                    bottom: 2,
+                    minWidth: 100,
+                    top: 3,
+                    bottom: 3,
                     background: isSel ? "var(--accent)" : "rgba(255, 179, 57, 0.35)",
                     border: isSel ? "2px solid #fff" : "1px solid var(--accent)",
-                    borderRadius: 4,
+                    borderRadius: 5,
                     color: isSel ? "#111" : "var(--accent)",
                     fontWeight: 600,
-                    fontSize: 10,
-                    padding: "0 4px",
+                    fontSize: 11,
+                    padding: "0 6px",
                     cursor: "grab",
                     userSelect: "none",
                     touchAction: "none",
                     zIndex: isSel ? 10 : 2,
                     display: "flex",
                     alignItems: "center",
-                    gap: 4,
+                    gap: 6,
+                    boxSizing: "border-box",
                   }}
                   title={`Drag to reposition on timeline · Start: ${ov.startTimeSec.toFixed(1)}s · Dur: ${ov.durationSec.toFixed(1)}s`}
                 >
                   {/* Left Resize Handle */}
                   <div
                     onPointerDown={(e) => startOverlayDrag(e, ov, "resize-left")}
-                    style={{ width: 6, height: "100%", cursor: "ew-resize", background: "rgba(0,0,0,0.25)", borderRadius: "2px 0 0 2px" }}
+                    style={{ width: 4, height: "100%", cursor: "ew-resize", background: "rgba(0,0,0,0.3)", borderRadius: "3px 0 0 3px", flexShrink: 0 }}
                     title="Drag left edge to adjust start time"
                   />
 
-                  <span>{ov.blendMode.toUpperCase()}</span>
-                  <span>·</span>
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 10, letterSpacing: 0.5, flexShrink: 0 }}>{ov.blendMode.toUpperCase()}</span>
+                  <span style={{ opacity: 0.6, flexShrink: 0 }}>·</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10 }}>
                     {ovClip?.name ?? "Overlay"} ({ov.startTimeSec.toFixed(1)}s)
                   </span>
 
@@ -348,32 +350,33 @@ export default function Timeline({
                       if (selectedOverlayId === ov.id) onSelectOverlay?.(null);
                     }}
                     style={{
-                      background: isSel ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.25)",
+                      background: isSel ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.3)",
                       border: "none",
                       color: isSel ? "#fff" : "var(--accent)",
                       borderRadius: "50%",
-                      width: 16,
-                      height: 16,
+                      width: 18,
+                      height: 18,
+                      minWidth: 18,
+                      flexShrink: 0,
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
                       cursor: "pointer",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      lineHeight: 1,
-                      marginLeft: 2,
-                      marginRight: 2,
+                      marginLeft: "auto",
                       padding: 0,
                     }}
                     title="Remove overlay clip"
                   >
-                    ✕
+                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                      <line x1="2" y1="2" x2="10" y2="10" />
+                      <line x1="10" y1="2" x2="2" y2="10" />
+                    </svg>
                   </button>
 
                   {/* Right Resize Handle */}
                   <div
                     onPointerDown={(e) => startOverlayDrag(e, ov, "resize-right")}
-                    style={{ width: 6, height: "100%", cursor: "ew-resize", background: "rgba(0,0,0,0.25)", borderRadius: "0 2px 2px 0" }}
+                    style={{ width: 4, height: "100%", cursor: "ew-resize", background: "rgba(0,0,0,0.3)", borderRadius: "0 3px 3px 0", flexShrink: 0 }}
                     title="Drag right edge to adjust duration"
                   />
                 </div>
