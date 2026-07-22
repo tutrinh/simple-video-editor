@@ -52,24 +52,44 @@ export function findFontById(id: string): (GoogleFontOption & { isGoogle?: boole
 
 /** Fetch TTF binary bytes for FFmpeg drawtext encoding. */
 export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400): Promise<Uint8Array> {
+  // Tier 1: Try local bundled font file first (/fonts/<id>.ttf) for 0ms instant offline rendering
+  try {
+    const localUrl = `/fonts/${font.id}.ttf`;
+    const localRes = await fetch(localUrl);
+    if (localRes.ok && localRes.headers.get("content-type") !== "text/html") {
+      const bytes = new Uint8Array(await localRes.arrayBuffer());
+      if (bytes.length > 1000 && !(bytes[0] === 0x77 && bytes[1] === 0x4f)) {
+        return bytes;
+      }
+    }
+  } catch {}
+
+  // Tier 2: Fetch uncompressed TTF bytes from Google Fonts using legacy Firefox User-Agent
   try {
     const cssUrl = `https://fonts.googleapis.com/css2?family=${font.googleFontName}:wght@${weight}&display=swap`;
     const cssRes = await fetch(cssUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.0) Gecko/20100101 Firefox/27.0",
       },
     });
-    if (!cssRes.ok) throw new Error(`Google Font CSS error ${cssRes.status}`);
-    const cssText = await cssRes.text();
-    const match = cssText.match(/url\((https:\/\/[^)]+\.(?:ttf|woff2|otf))\)/) || cssText.match(/url\((https:\/\/[^)]+)\)/);
-    if (!match) throw new Error("Font binary URL not found in CSS");
+    if (cssRes.ok) {
+      const cssText = await cssRes.text();
+      const match = cssText.match(/url\((https:\/\/[^)]+\.(?:ttf|otf))\)/) || cssText.match(/url\((https:\/\/[^)]+)\)/);
+      if (match) {
+        const fontRes = await fetch(match[1]);
+        if (fontRes.ok) {
+          const bytes = new Uint8Array(await fontRes.arrayBuffer());
+          // Reject compressed WOFF / WOFF2 ('wOF' magic bytes)
+          if (bytes.length > 4 && !(bytes[0] === 0x77 && bytes[1] === 0x4f && bytes[2] === 0x46)) {
+            return bytes;
+          }
+        }
+      }
+    }
+  } catch {}
 
-    const fontRes = await fetch(match[1]);
-    if (!fontRes.ok) throw new Error(`Font download error ${fontRes.status}`);
-    return new Uint8Array(await fontRes.arrayBuffer());
-  } catch (err) {
-    console.warn("[googleFonts] Falling back to default title-sans.ttf due to:", err);
-    const fallbackRes = await fetch("/fonts/title-sans.ttf");
-    return new Uint8Array(await fallbackRes.arrayBuffer());
-  }
+  // Tier 3: Guaranteed local fallback to title-sans.ttf or title-serif.ttf
+  const fallbackUrl = font.category === "serif" ? "/fonts/title-serif.ttf" : "/fonts/title-sans.ttf";
+  const fallbackRes = await fetch(fallbackUrl);
+  return new Uint8Array(await fallbackRes.arrayBuffer());
 }

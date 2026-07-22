@@ -53,6 +53,16 @@ export interface Story {
   beats: StoryBeat[];
 }
 
+export type VideoTransitionType =
+  | "none"
+  | "fade"
+  | "fadeblack"
+  | "fadewhite"
+  | "wipeleft"
+  | "wiperight"
+  | "slideleft"
+  | "slideright";
+
 /**
  * One entry in the Cut: a trimmed Clip plus the Script segment shown as a
  * Caption. Duration derives from the Script segment's spoken length (ADR-0004).
@@ -63,32 +73,17 @@ export interface Beat {
   clipId: string;
   inSec: number;
   outSec: number;
-  /**
-   * On-screen length. Normally equals outSec - inSec. After a voiceover export it
-   * equals the narration's length; if that exceeds the trimmed footage the export
-   * freezes the last frame for the remainder, so durationSec > outSec - inSec.
-   * When `captionDurations` is set it equals the sum of those per-line timers.
-   */
   durationSec: number;
-  /**
-   * The Script segment (spoken as Voiceover) and the Caption (shown on-screen)
-   * are two distinct roles, kept identical in v1 — do NOT collapse them into one
-   * field. Voiceover reads `scriptText`; the burned-in caption + `.srt` read
-   * `captionText`. Keeping both is the seam that lets them diverge later.
-   */
   scriptText: string;
   captionText: string;
-  /**
-   * Optional author-set per-line caption timers, in seconds, aligned to
-   * `captionText`'s raw lines (row i ↔ captionDurations[i]). When present, the
-   * caption lines stop stacking and instead play in sequence — each line on
-   * screen for its own timer — and the beat's on-screen clock becomes the sum of
-   * the timers (see pacing.captionSchedule). Undefined = today's behavior: lines
-   * stack for the whole beat and duration comes from the spoken-length estimate.
-   */
   captionDurations?: number[];
-  /** Optional minor color adjustments for exposure, contrast, color tone, and saturation. */
   colorAdjustments?: ColorAdjustments;
+  /** Video transition into this beat from the preceding beat. */
+  transition?: VideoTransitionType;
+  /** Duration of the transition in seconds (default 0.5s). */
+  transitionSec?: number;
+  /** Position of the transition relative to beat timing ("start" for entering beat, "end" for exiting beat). */
+  transitionPosition?: "start" | "end";
 }
 
 export interface ColorAdjustments {

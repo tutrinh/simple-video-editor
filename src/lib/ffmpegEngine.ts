@@ -79,22 +79,24 @@ export async function runIsolated(
 ): Promise<Uint8Array<ArrayBuffer>> {
   const urls = await coreUrls();
   const ff = new FFmpeg();
+  const logs: string[] = [];
+  ff.on("log", ({ message }) => { logs.push(message); });
   if (onProgress) ff.on("progress", ({ progress }) => onProgress(Math.min(1, Math.max(0, progress))));
   await ff.load(urls);
   try {
-    // writeFile hands the buffer to the worker as a transferable, which DETACHES
-    // the caller's ArrayBuffer. A buffer reused across engines (e.g. the shared
-    // caption font, written once per beat) would be detached after its first use
-    // and throw "ArrayBuffer at index 0 is already detached" on the next. Write a
-    // private copy (.slice() allocates a fresh buffer) so callers keep theirs.
     for (const input of inputs) await ff.writeFile(input.name, input.data.slice());
-    await ff.exec(args);
+    const code = await ff.exec(args);
+    if (code !== 0) {
+      const logTail = logs.slice(-8).join(" | ");
+      throw new Error(`FFmpeg processing failed (code ${code}): ${logTail || "Command execution error"}`);
+    }
     const out = (await ff.readFile(outputName)) as Uint8Array;
-    // Copy into a fresh (non-shared) buffer so it survives terminate().
     const copy = new Uint8Array(out.byteLength);
     copy.set(out);
     return copy;
   } finally {
-    ff.terminate();
+    try {
+      ff.terminate();
+    } catch {}
   }
 }

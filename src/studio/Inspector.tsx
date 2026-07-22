@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
-import type { Beat, Clip, ColorAdjustments } from "../domain/types";
+import type { Beat, Clip, ColorAdjustments, VideoTransitionType } from "../domain/types";
 import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
@@ -30,8 +30,9 @@ function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperti
 }
 
 export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat }: Props) {
-  const { dispatch } = useProject();
+  const { state, dispatch } = useProject();
   const { settings } = useSettings();
+  const cut = state.cut;
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   // Per-line caption alternatives: model + mood chosen here (seeded from settings),
@@ -41,6 +42,21 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const [altBusy, setAltBusy] = useState(false);
   const [altErr, setAltErr] = useState<string | null>(null);
   const [alts, setAlts] = useState<string[][]>([]);
+  const [transitionOpen, setTransitionOpen] = useState(false);
+
+  function applyTransitionToAllBeats() {
+    if (!cut || !beat) return;
+    const tr = beat.transition ?? "none";
+    const sec = beat.transitionSec ?? 0.5;
+    const pos = beat.transitionPosition ?? "start";
+    const updatedBeats = cut.beats.map((b) => ({
+      ...b,
+      transition: tr,
+      transitionSec: sec,
+      transitionPosition: pos,
+    }));
+    dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
+  }
 
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
@@ -416,6 +432,90 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Video Transition Collapsible Section */}
+        <div className="st-field" style={{ marginTop: 8 }}>
+          <div className="st-color-collapsible">
+            <button
+              type="button"
+              className="st-color-collapsible-btn"
+              onClick={() => setTransitionOpen(!transitionOpen)}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 10px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", cursor: "pointer" }}
+            >
+              <span style={{ fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                🎬 Video Transition
+                {b.transition && b.transition !== "none" && (
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "var(--accent-glow)", color: "var(--accent)", fontWeight: 700 }}>
+                    {b.transition} ({b.transitionSec ?? 0.5}s)
+                  </span>
+                )}
+              </span>
+              <span style={{ fontSize: 10, color: "var(--ink-3)" }}>{transitionOpen ? "▲" : "▼"}</span>
+            </button>
+
+            {transitionOpen && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6, padding: "8px 10px", background: "var(--panel-3)", borderRadius: 6, border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Effect</span>
+                  <select
+                    value={b.transition ?? "none"}
+                    onChange={(e) => update({ ...b, transition: e.target.value as VideoTransitionType })}
+                    style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
+                  >
+                    <option value="none">🚫 Cut (None)</option>
+                    <option value="fade">✨ Crossfade</option>
+                    <option value="fadeblack">🌑 Fade to Black</option>
+                    <option value="fadewhite">☀️ Fade to White</option>
+                    <option value="wipeleft">👈 Wipe Left</option>
+                    <option value="wiperight">👉 Wipe Right</option>
+                    <option value="slideleft">◀ Slide Left</option>
+                    <option value="slideright">▶ Slide Right</option>
+                  </select>
+                </div>
+
+                {b.transition && b.transition !== "none" && (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Position</span>
+                      <select
+                        value={b.transitionPosition ?? "start"}
+                        onChange={(e) => update({ ...b, transitionPosition: e.target.value as "start" | "end" })}
+                        style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
+                      >
+                        <option value="start">🚀 Beginning of Beat (In)</option>
+                        <option value="end">🏁 End of Beat (Out)</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Duration</span>
+                      <select
+                        value={b.transitionSec ?? 0.5}
+                        onChange={(e) => update({ ...b, transitionSec: Number(e.target.value) })}
+                        style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
+                      >
+                        <option value={0.3}>0.3s (Fast)</option>
+                        <option value={0.5}>0.5s (Standard)</option>
+                        <option value={0.8}>0.8s (Smooth)</option>
+                        <option value={1.0}>1.0s (Slow)</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="st-btn ghost"
+                      style={{ fontSize: 10, padding: "4px 8px", marginTop: 2, alignSelf: "flex-end" }}
+                      onClick={applyTransitionToAllBeats}
+                      title="Apply this transition effect to all beats in the cut"
+                    >
+                      Apply to all beats
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

@@ -334,3 +334,49 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+/* Video Transition Animations */
+.st-tr-overlay-black {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+  z-index: 10;
+  animation: st-tr-dip-black 0.5s ease-in-out forwards;
+}
+
+.st-tr-overlay-white {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  z-index: 10;
+  animation: st-tr-dip-white 0.5s ease-in-out forwards;
+}
+
+@keyframes st-tr-dip-black {
+  0% { opacity: 1; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes st-tr-dip-white {
+  0% { opacity: 1; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes st-tr-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes st-tr-slideleft {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes st-tr-slideright {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(0); }
+}
+

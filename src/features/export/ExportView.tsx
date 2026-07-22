@@ -233,11 +233,14 @@ export default function ExportView() {
               }
             }
           }
+          const fontObj = findFontById(l.fontId);
           return {
             id: l.id,
             enabled: l.enabled,
             text: l.text,
             fontBytes: fBytes,
+            fontCssFamily: fontObj?.cssFamily,
+            weight: l.weight,
             sizePx: l.sizePx,
             letterSpacing: l.letterSpacing,
             arcDeg: l.arcDeg,
@@ -323,8 +326,14 @@ export default function ExportView() {
           <button className="st-btn ghost" style={{ padding: "8px 14px", fontSize: 12 }} onClick={() => download(`${fileBase}.srt`, buildSrt(cut))}>
             Captions (.srt)
           </button>
+          {videoUrl && (
+            <button className="st-btn ghost" style={{ padding: "8px 14px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }} onClick={runExport} disabled={busy} title="Re-run video export pipeline from scratch">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Re-export
+            </button>
+          )}
           <button className="st-btn primary" style={{ padding: "8px 20px", fontSize: 13, minWidth: 140, justifyContent: "center" }} onClick={runExport} disabled={busy}>
-            {busy ? "Exporting…" : "Export video"}
+            {busy ? "Exporting…" : videoUrl ? "Re-export video" : "Export video"}
           </button>
         </div>
       </div>
@@ -336,7 +345,15 @@ export default function ExportView() {
         </div>
       )}
 
-      {error && <p style={{ color: "var(--danger)", background: "rgba(229,105,95,0.1)", borderBottom: "1px solid rgba(229,105,95,0.25)", padding: "8px 24px", fontSize: 12, margin: 0 }}>{error}</p>}
+      {error && (
+        <div style={{ color: "var(--danger)", background: "rgba(229,105,95,0.1)", borderBottom: "1px solid rgba(229,105,95,0.25)", padding: "8px 24px", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span>{error}</span>
+          <button className="st-btn danger" style={{ padding: "4px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }} onClick={runExport} disabled={busy}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Retry Export
+          </button>
+        </div>
+      )}
 
       {/* Main 3-Column Split Area */}
       <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr 420px 400px", gap: 0 }}>
@@ -362,13 +379,29 @@ export default function ExportView() {
           </div>
 
           {videoUrl && (
-            <div style={{ position: "absolute", bottom: 16, left: 24, right: 24, padding: 12, background: "var(--panel-2)", borderRadius: 10, border: "1px solid var(--line)", display: "flex", gap: 16, alignItems: "center" }}>
-              <video src={videoUrl} controls style={{ height: 60, borderRadius: 6, background: "#000", border: "1px solid var(--line)", objectFit: "contain" }} />
+            <div style={{ position: "absolute", bottom: 16, left: 24, right: 24, padding: "10px 16px", background: "var(--panel-2)", borderRadius: 10, border: "1px solid var(--line)", display: "flex", gap: 16, alignItems: "center", boxShadow: "0 12px 32px rgba(0,0,0,0.4)" }}>
+              <video
+                src={videoUrl}
+                controls
+                controlsList="nodownload noremoteplayback noplaybackrate"
+                disablePictureInPicture
+                style={{ height: 64, width: 110, borderRadius: 6, background: "#000", border: "1px solid var(--line)", objectFit: "contain", flexShrink: 0 }}
+              />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--good)" }}>Export Ready ✓</div>
-                <div style={{ fontSize: 11, color: "var(--ink-2)" }}>{fileBase}.mp4</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--good)", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>Export Ready</span>
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(107, 203, 119, 0.15)", color: "var(--good)" }}>1080p MP4</span>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{fileBase}.mp4</div>
               </div>
-              <a className="st-btn primary" style={{ textDecoration: "none", padding: "8px 16px" }} href={videoUrl} download={`${fileBase}.mp4`}>Download MP4 ⬇</a>
+              <button className="st-btn ghost" style={{ padding: "8px 14px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }} onClick={runExport} disabled={busy} title="Re-run video export pipeline">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                Re-export
+              </button>
+              <a className="st-btn primary" style={{ textDecoration: "none", padding: "10px 20px", fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 8 }} href={videoUrl} download={`${fileBase}.mp4`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download MP4
+              </a>
             </div>
           )}
         </div>

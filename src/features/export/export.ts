@@ -17,6 +17,8 @@ export interface TitleLayer {
   enabled: boolean;
   text: string;
   fontBytes?: Uint8Array;
+  fontCssFamily?: string;
+  weight?: number;
   sizePx: number;
   letterSpacing?: number;
   arcDeg?: number;
@@ -69,13 +71,128 @@ export interface ExportOptions {
   captionLineHeight?: number;
 }
 
-/** Build drawtext filters and input files for stacked title layers. */
-function buildTitleFilterGraph(title: TitleOverlay, w: number, h: number, defaultFontBytes: Uint8Array): { filterGraph: string; inputs: EngineInput[] } {
+export function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+export async function renderTitleLayerPng(
+  layer: TitleLayer,
+  w: number,
+  h: number
+): Promise<Uint8Array | null> {
+  if (typeof document === "undefined") return null;
+  const curvature = layer.arcDeg ?? 0;
+  if (!layer.enabled || !layer.text.trim() || curvature === 0) return null;
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    const fontSize = layer.sizePx;
+    const hOffset = (curvature / 180) * (h * 0.45);
+    const svgW = w;
+    const svgH = h;
+    const startY = h / 2 + hOffset * 0.4;
+    const controlY = h / 2 - hOffset;
+    const pathD = `M 40,${startY} Q ${svgW / 2},${controlY} ${svgW - 40},${startY}`;
+    const pathId = `arc_${layer.id}_${Math.random().toString(36).slice(2, 6)}`;
+
+    const fontFam = layer.fontCssFamily || "system-ui, sans-serif";
+    const shadowFilter = layer.shadow !== false ? 'filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.7))"' : "";
+    const letterSpace = layer.letterSpacing ? `letter-spacing="${layer.letterSpacing}px"` : "";
+
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${svgW} ${svgH}">
+        <defs>
+          <path id="${pathId}" d="${pathD}" fill="none" />
+        </defs>
+        <text fill="${layer.color}" font-weight="${layer.weight ?? 400}" font-family="${fontFam.replace(/"/g, "'")}" font-size="${fontSize}px" ${letterSpace} ${shadowFilter}>
+          <textPath href="#${pathId}" startOffset="50%" text-anchor="middle">
+            ${escapeXml(layer.text)}
+          </textPath>
+        </text>
+      </svg>
+    `;
+
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+
+    await new Promise((resolve) => {
+      img.onload = resolve;
+      img.onerror = resolve;
+      img.src = url;
+    });
+
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+
+    return new Promise((resolve) => {
+      canvas.toBlob((b) => {
+        if (!b) return resolve(null);
+        b.arrayBuffer().then((buf) => resolve(new Uint8Array(buf))).catch(() => resolve(null));
+      }, "image/png");
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Build drawtext and overlay filters for stacked title layers. */
+async function buildTitleFilterGraph(
+  title: TitleOverlay,
+  w: number,
+  h: number,
+  defaultFontBytes: Uint8Array
+): Promise<{ filterGraph: string; inputs: EngineInput[]; inputArgs: string[]; outputMap: string }> {
   const activeLayers = title.layers.filter((l) => l.enabled && l.text.trim());
   const inputs: EngineInput[] = [];
-  const filters: string[] = [];
+  const inputArgs: string[] = ["-i", "in.mp4"];
+  const filterChains: string[] = [];
 
-  activeLayers.forEach((l, k) => {
+  let lastV = "[0:v]";
+  let inputIndex = 1;
+
+  for (let k = 0; k < activeLayers.length; k++) {
+    const l = activeLayers[k];
+    const dur = l.introSec ?? 3;
+    const fade = Math.min(0.8, dur / 2);
+    const fadeStart = (dur - fade).toFixed(3);
+    const nextV = k === activeLayers.length - 1 ? "[titled_v]" : `[v_title_${k}]`;
+
+    if (l.arcDeg && l.arcDeg !== 0) {
+      const pngData = await renderTitleLayerPng(l, w, h);
+      if (pngData) {
+        const pngName = `title_curved_${k}.png`;
+        inputs.push({ name: pngName, data: pngData });
+        inputArgs.push("-i", pngName);
+
+        const xOffset = Math.round(w * (l.posX / 100));
+        const yOffset = Math.round(h * (l.posY / 100));
+        const x = `(W-w)/2+${xOffset}`;
+        const y = `(H-h)/2+${yOffset}`;
+        const currPngIdx = inputIndex++;
+
+        if (l.scope === "intro") {
+          const fadeLabel = `[ol_fade_${k}]`;
+          filterChains.push(`[${currPngIdx}:v]fade=t=out:st=${fadeStart}:d=${fade.toFixed(2)}:alpha=1${fadeLabel}`);
+          filterChains.push(`${lastV}${fadeLabel}overlay=x=${x}:y=${y}:enable='between(t,0,${dur})'${nextV}`);
+        } else {
+          filterChains.push(`${lastV}[${currPngIdx}:v]overlay=x=${x}:y=${y}${nextV}`);
+        }
+        lastV = nextV;
+        continue;
+      }
+    }
+
     const fontName = `title_font_${k}.ttf`;
     const textName = `title_text_${k}.txt`;
     inputs.push({ name: fontName, data: l.fontBytes ?? defaultFontBytes });
@@ -88,20 +205,25 @@ function buildTitleFilterGraph(title: TitleOverlay, w: number, h: number, defaul
     const color = "0x" + l.color.replace(/^#/, "");
     const tracking = l.letterSpacing ? `:tracking=${Math.round(l.letterSpacing)}` : "";
     const shadowFilter = l.shadow !== false ? ":shadowcolor=black@0.5:shadowx=2:shadowy=2" : "";
-    const dur = l.introSec ?? 3;
-    const fade = Math.min(0.8, dur / 2);
-    const fadeStart = (dur - fade).toFixed(3);
+
     const alpha = l.scope === "intro" ? `:alpha='if(lt(t,${fadeStart}),1,if(lt(t,${dur}),(${dur}-t)/${fade},0))'` : "";
     const enable = l.scope === "intro" ? `:enable='between(t,0,${dur})'` : "";
 
-    filters.push(
+    const drawFilter =
       `drawtext=fontfile=/${fontName}:textfile=/${textName}:expansion=none:` +
       `fontcolor=${color}:fontsize=${Math.round(l.sizePx)}${tracking}${shadowFilter}:` +
-      `x=${x}:y=${y}${alpha}${enable}`
-    );
-  });
+      `x=${x}:y=${y}${alpha}${enable}`;
 
-  return { filterGraph: filters.join(","), inputs };
+    filterChains.push(`${lastV}${drawFilter}${nextV}`);
+    lastV = nextV;
+  }
+
+  return {
+    filterGraph: filterChains.join(";"),
+    inputs,
+    inputArgs,
+    outputMap: lastV,
+  };
 }
 
 /** The actual on-screen window an exported beat used (voiceover can change it). */
@@ -382,25 +504,113 @@ export async function exportCut(
   const timings: BeatTiming[] = timingSlots.filter((t): t is BeatTiming => t !== null);
   const segments: Uint8Array[] = segSlots.filter((s): s is Uint8Array => s !== null);
 
-  // Concat (stream copy) → the finished video with silent audio.
-  const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
-  concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
-  let video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
+  const activeBeats = cut.beats.filter((b) => clips.some((c) => c.id === b.clipId));
+
+  // Check if any beats have active transitions
+  const hasTransitions = activeBeats.some((b) => b.transition && b.transition !== "none");
+  let video: Uint8Array;
+
+  if (hasTransitions && segments.length > 1) {
+    const inputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
+    const ffmpegArgs: string[] = [];
+    segments.forEach((_, i) => ffmpegArgs.push("-i", `seg_${i}.mp4`));
+
+    let filterGraph = "";
+    let currentOffset = 0;
+
+    for (let i = 0; i < segments.length - 1; i++) {
+      const currBeat = activeBeats[i];
+      const nextBeat = activeBeats[i + 1];
+
+      let tr: string | undefined = undefined;
+      let rawSec = 0.5;
+
+      if (currBeat?.transition && currBeat.transition !== "none" && currBeat.transitionPosition === "end") {
+        tr = currBeat.transition;
+        rawSec = currBeat.transitionSec ?? 0.5;
+      } else if (nextBeat?.transition && nextBeat.transition !== "none" && (nextBeat.transitionPosition ?? "start") === "start") {
+        tr = nextBeat.transition;
+        rawSec = nextBeat.transitionSec ?? 0.5;
+      }
+
+      // If no transition specified for this beat boundary, use 0.1s quick fade (3 frames at 30fps)
+      const isCustomTr = !!tr && tr !== "none";
+      const finalTr = isCustomTr ? tr : "fade";
+      const segDur0 = timings[i]?.durationSec ?? 3;
+      const segDur1 = timings[i + 1]?.durationSec ?? 3;
+      const maxAllowedDur = Math.min(segDur0 / 2, segDur1 / 2, 0.8);
+      const dur = isCustomTr ? Math.min(maxAllowedDur, Math.max(0.1, rawSec)) : 0.1;
+
+      currentOffset += segDur0 - dur;
+
+      const vIn1 = i === 0 ? "[0:v]" : `[v${i}]`;
+      const vIn2 = `[${i + 1}:v]`;
+      const vOut = i === segments.length - 2 ? "[v]" : `[v${i + 1}]`;
+
+      const aIn1 = i === 0 ? "[0:a]" : `[a${i}]`;
+      const aIn2 = `[${i + 1}:a]`;
+      const aOut = i === segments.length - 2 ? "[a]" : `[a${i + 1}]`;
+
+      filterGraph += `${vIn1}${vIn2}xfade=transition=${finalTr}:duration=${dur.toFixed(2)}:offset=${Math.max(0, currentOffset).toFixed(2)}${vOut};`;
+      filterGraph += `${aIn1}${aIn2}acrossfade=d=${dur.toFixed(2)}${aOut}${i < segments.length - 2 ? ";" : ""}`;
+    }
+
+    video = await runIsolated(
+      inputs,
+      [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "video.mp4"],
+      "video.mp4",
+    );
+  } else {
+    // Concat (stream copy) → the finished video with silent audio.
+    const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
+    concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
+    video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
+  }
+
+  // Handle intro fade at video start (Beat 0)
+  const firstBeat = activeBeats[0];
+  if (firstBeat?.transition && firstBeat.transition !== "none" && (firstBeat.transitionPosition ?? "start") === "start") {
+    const fTr = firstBeat.transition;
+    const fSec = Math.min(1.0, firstBeat.transitionSec ?? 0.5);
+    if (fTr === "fadeblack" || fTr === "fade") {
+      video = await runIsolated(
+        [{ name: "in.mp4", data: video }],
+        ["-i", "in.mp4", "-vf", `fade=t=in:st=0:d=${fSec.toFixed(2)}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "start_faded.mp4"],
+        "start_faded.mp4",
+      );
+    }
+  }
+
+  // Handle outro fade at video end (Last Beat)
+  const lastBeat = activeBeats[activeBeats.length - 1];
+  if (lastBeat?.transition && lastBeat.transition !== "none" && lastBeat.transitionPosition === "end") {
+    const lTr = lastBeat.transition;
+    const lSec = Math.min(1.0, lastBeat.transitionSec ?? 0.5);
+    const totalVideoDur = timings.reduce((sum, t) => sum + t.durationSec, 0);
+    if (lTr === "fadeblack" || lTr === "fade") {
+      const fadeStart = Math.max(0, totalVideoDur - lSec).toFixed(3);
+      video = await runIsolated(
+        [{ name: "in.mp4", data: video }],
+        ["-i", "in.mp4", "-vf", `fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "end_faded.mp4"],
+        "end_faded.mp4",
+      );
+    }
+  }
 
   // Burn the title overlay over the concatenated video (re-encode video, copy
   // audio). Runs before the music mux so the title survives the stream-copy there.
   if (opts.title && opts.title.layers.some((l) => l.enabled && l.text.trim())) {
-    const { filterGraph, inputs } = buildTitleFilterGraph(opts.title, w, h, opts.fontBytes);
+    const { filterGraph, inputs, inputArgs, outputMap } = await buildTitleFilterGraph(opts.title, w, h, opts.fontBytes);
     video = await runIsolated(
       [{ name: "in.mp4", data: video }, ...inputs],
-      ["-i", "in.mp4", "-vf", filterGraph, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
+      [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
       "titled.mp4",
     );
   }
 
   if (!opts.music) {
     onProgress?.(1);
-    return { blob: new Blob([video], { type: "video/mp4" }), timings };
+    return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
   }
 
   // Lay the music bed over the whole video (loop to cover, trim to video length).

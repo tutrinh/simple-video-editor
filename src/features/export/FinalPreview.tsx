@@ -239,6 +239,64 @@ export default function FinalPreview({
   const caption = beat ? activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec)) : "";
   const capFont = PREVIEW_H * CAPTION_H_FRACTION * captionScale;
 
+  const [trAnimKey, setTrAnimKey] = useState(0);
+
+  useEffect(() => {
+    setTrAnimKey((k) => k + 1);
+  }, [index]);
+
+  const currentTr = beat?.transition;
+  const currentTrSec = beat?.transitionSec ?? 0.5;
+
+  const nextBeat = cut.beats[index + 1];
+  const nextTr = nextBeat?.transition;
+  const nextTrSec = nextBeat?.transitionSec ?? 0.5;
+  const currentBeatDur = beat ? (beat.durationSec || (beat.outSec - beat.inSec)) : 3;
+  const timeRemaining = Math.max(0, currentBeatDur - beatElapsed);
+
+  const currentTrPos = beat?.transitionPosition ?? "start";
+  const nextTrPos = nextBeat?.transitionPosition ?? "start";
+  const prevBeat = index > 0 ? cut.beats[index - 1] : undefined;
+  const prevTr = prevBeat?.transition;
+  const prevTrSec = prevBeat?.transitionSec ?? 0.5;
+  const prevTrPos = prevBeat?.transitionPosition ?? "start";
+
+  // Determine active outgoing and incoming transition effects
+  const activeOutTr = (nextTr && nextTr !== "none" && nextTrPos === "start")
+    ? { tr: nextTr, sec: nextTrSec }
+    : (currentTr && currentTr !== "none" && currentTrPos === "end")
+    ? { tr: currentTr, sec: currentTrSec }
+    : undefined;
+
+  const activeInTr = (currentTr && currentTr !== "none" && currentTrPos === "start")
+    ? { tr: currentTr, sec: currentTrSec }
+    : (prevTr && prevTr !== "none" && prevTrPos === "end")
+    ? { tr: prevTr, sec: prevTrSec }
+    : undefined;
+
+  let transitionOverlayOpacity = 0;
+  let transitionOverlayBg = "#000";
+
+  // 1. Outgoing beat fading down near the end of beat duration
+  if (activeOutTr && (activeOutTr.tr === "fadeblack" || activeOutTr.tr === "fade" || activeOutTr.tr === "fadewhite") && timeRemaining < activeOutTr.sec) {
+    const fadeProgress = 1 - timeRemaining / activeOutTr.sec;
+    transitionOverlayOpacity = Math.min(1, Math.max(0, fadeProgress));
+    transitionOverlayBg = activeOutTr.tr === "fadewhite" ? "#fff" : "#000";
+  }
+  // 2. Incoming beat fading up at the start of new beat duration
+  else if (activeInTr && (activeInTr.tr === "fadeblack" || activeInTr.tr === "fade" || activeInTr.tr === "fadewhite") && beatElapsed < activeInTr.sec) {
+    const fadeProgress = 1 - beatElapsed / activeInTr.sec;
+    transitionOverlayOpacity = Math.min(1, Math.max(0, fadeProgress));
+    transitionOverlayBg = activeInTr.tr === "fadewhite" ? "#fff" : "#000";
+  }
+
+  const videoAnimStyle = useMemo(() => {
+    if (!currentTr || currentTr === "none" || index === 0) return undefined;
+    if (currentTr === "slideleft" || currentTr === "wipeleft") return `st-tr-slideleft ${currentTrSec}s ease-out`;
+    if (currentTr === "slideright" || currentTr === "wiperight") return `st-tr-slideright ${currentTrSec}s ease-out`;
+    return undefined;
+  }, [currentTr, currentTrSec, trAnimKey, index]);
+
   return (
     <div>
       <div
@@ -253,7 +311,32 @@ export default function FinalPreview({
           overflow: "hidden",
         }}
       >
-        <video ref={videoRef} muted playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat?.colorAdjustments) }} />
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            filter: cssFilterFor(beat?.colorAdjustments),
+            animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
+          }}
+        />
+
+        {transitionOverlayOpacity > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: transitionOverlayBg,
+              opacity: transitionOverlayOpacity,
+              pointerEvents: "none",
+              zIndex: 10,
+              transition: "opacity 0.03s linear",
+            }}
+          />
+        )}
 
         {title && title.layers.map((layer) => {
           if (!layer.enabled || !layer.text.trim()) return null;
