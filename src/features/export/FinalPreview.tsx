@@ -119,28 +119,30 @@ export default function FinalPreview({
     }
   }, [elapsed, activeOverlay, playing]);
 
+  const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
+  const mainBeatBlobUrl = currentBeatClip ? clipUrlMap.get(currentBeatClip.id) : undefined;
+
   // Load the current beat's footage and seek to its in-point
   useEffect(() => {
     const v = videoRef.current;
-    const b = cut.beats[index];
-    const clip = b && clipById.get(b.clipId);
-    const src = clip?.normalized ?? clip?.file;
-    if (!v || !b || !src) return;
-    const url = URL.createObjectURL(src);
-    v.src = url;
-    const vol = b.volume ?? 1;
+    if (!v || !beat || !mainBeatBlobUrl) return;
+    const vol = beat.volume ?? 1;
     v.volume = vol;
     v.muted = vol === 0;
     const onMeta = () => {
-      v.currentTime = b.inSec;
+      v.currentTime = beat.inSec;
       if (playingRef.current) v.play().catch(() => {});
     };
-    v.addEventListener("loadedmetadata", onMeta, { once: true });
+    if (v.readyState >= 1) {
+      v.currentTime = beat.inSec;
+      if (playingRef.current) v.play().catch(() => {});
+    } else {
+      v.addEventListener("loadedmetadata", onMeta, { once: true });
+    }
     return () => {
       v.removeEventListener("loadedmetadata", onMeta);
-      URL.revokeObjectURL(url);
     };
-  }, [index, cut.beats, clipById]);
+  }, [index, beat, mainBeatBlobUrl]);
 
   // Play/pause the loaded video in step with the transport.
   useEffect(() => {
@@ -426,6 +428,7 @@ export default function FinalPreview({
       >
         <video
           ref={videoRef}
+          src={mainBeatBlobUrl}
           muted={(beat?.volume ?? 1) === 0}
           playsInline
           style={{
