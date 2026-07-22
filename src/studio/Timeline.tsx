@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Cut, Clip, OverlayBlendMode } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
@@ -23,6 +24,7 @@ export default function Timeline({
   onSelectOverlay,
 }: Props) {
   const { dispatch } = useProject();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const beats = cut.beats;
   const overlays = cut.overlays ?? [];
   const totalDur = cutDuration(cut) || 1;
@@ -36,12 +38,7 @@ export default function Timeline({
     dispatch({ type: "REORDER_BEATS", order: ids });
   }
 
-  function handleAddOverlay() {
-    if (clips.length === 0) return;
-    // Prefer clips not used in main beats first (e.g. stock overlays)
-    const usedBeatClipIds = new Set(beats.map((b) => b.clipId));
-    const targetClip = clips.find((c) => !usedBeatClipIds.has(c.id)) ?? clips[0];
-
+  function addOverlayWithClip(targetClip: Clip) {
     const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
     const nameLower = targetClip.name.toLowerCase();
     const isBlend = nameLower.includes("overlay") || nameLower.includes("leak") || nameLower.includes("grain") || nameLower.includes("glitch");
@@ -59,6 +56,7 @@ export default function Timeline({
     };
     dispatch({ type: "ADD_OVERLAY", overlay: newOverlay });
     onSelectOverlay?.(newOverlay.id);
+    setPickerOpen(false);
   }
 
   const playheadLeft = selIndex >= 0 ? `${((selIndex + 0.5) / beats.length) * 100}%` : "-999px";
@@ -70,15 +68,74 @@ export default function Timeline({
         <span className="meta st-num">
           {beats.length} beats · {overlays.length} overlays · {fmtSecs(totalDur)} · {cut.aspect}
         </span>
-        <button
-          className="st-btn ghost"
-          style={{ marginLeft: "auto", padding: "2px 8px", fontSize: 11 }}
-          onClick={handleAddOverlay}
-          disabled={clips.length === 0}
-          title="Add a video overlay / B-roll transition layer across beats"
-        >
-          + Add Overlay Clip
-        </button>
+        <div style={{ position: "relative", marginLeft: "auto" }}>
+          <button
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11, borderColor: pickerOpen ? "var(--accent)" : undefined }}
+            onClick={() => setPickerOpen(!pickerOpen)}
+            disabled={clips.length === 0}
+            title="Choose a clip to add as a video overlay / B-roll layer"
+          >
+            + Add Overlay Clip
+          </button>
+
+          {pickerOpen && (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "100%",
+                marginTop: 4,
+                zIndex: 100,
+                background: "var(--panel-2)",
+                border: "1px solid var(--accent)",
+                borderRadius: 8,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                padding: 8,
+                width: 240,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", padding: "2px 4px", display: "flex", justifyContent: "space-between" }}>
+                <span>Select Clip for Overlay</span>
+                <span style={{ cursor: "pointer", opacity: 0.7 }} onClick={() => setPickerOpen(false)}>✕</span>
+              </div>
+
+              <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+                {clips.map((c) => {
+                  const usedInBeat = beats.some((b) => b.clipId === c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => addOverlayWithClip(c)}
+                      style={{
+                        padding: "5px 8px",
+                        background: "var(--panel-3)",
+                        borderRadius: 4,
+                        fontSize: 11,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        transition: "background 0.1s",
+                      }}
+                      title={c.name}
+                    >
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, marginRight: 6, color: "var(--ink)" }}>
+                        🎬 {c.name}
+                      </span>
+                      <span style={{ fontSize: 9, color: usedInBeat ? "var(--ink-2)" : "var(--accent)", fontWeight: usedInBeat ? 400 : 700 }}>
+                        {usedInBeat ? "In Beat" : "⭐ Not in cut"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Overlay Track Lane */}
