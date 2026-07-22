@@ -119,7 +119,35 @@ export default function Timeline({
                 >
                   <span>{ov.blendMode.toUpperCase()}</span>
                   <span>·</span>
-                  <span>{ovClip?.name ?? "Overlay"}</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{ovClip?.name ?? "Overlay"}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dispatch({ type: "REMOVE_OVERLAY", id: ov.id });
+                      if (selectedOverlayId === ov.id) onSelectOverlay?.(null);
+                    }}
+                    style={{
+                      background: isSel ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.25)",
+                      border: "none",
+                      color: isSel ? "#fff" : "var(--accent)",
+                      borderRadius: "50%",
+                      width: 16,
+                      height: 16,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      marginLeft: "auto",
+                      padding: 0,
+                    }}
+                    title="Remove overlay clip"
+                  >
+                    ✕
+                  </button>
                 </div>
               );
             })}

@@ -42,6 +42,22 @@ export default function StudioApp() {
     if (!beats.some((b) => b.id === selectedBeatId)) setSelectedBeatId(beats[0].id);
   }, [beats, selectedBeatId]);
 
+  // Delete key shortcut for removing selected overlay
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        if (selectedOverlayId) {
+          dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlayId });
+          setSelectedOverlayId(null);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedOverlayId, dispatch]);
+
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
   const selectedBeat = selIndex >= 0 ? beats[selIndex] : null;
   const selectedClip = selectedBeat ? clipById.get(selectedBeat.clipId) : undefined;
