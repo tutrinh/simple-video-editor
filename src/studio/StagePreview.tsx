@@ -1,8 +1,9 @@
-import React, { Component, useEffect, useRef, useState, useMemo, type ReactNode } from "react";
+import React, { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview from "../features/export/FinalPreview";
 import { activeCaptionText } from "../lib/pacing";
 import { fmtClock, cssFilterFor } from "./util";
+import { getClipBlobUrl } from "../lib/blobUrlCache";
 
 interface ErrorBoundaryProps {
   fallback: (reset: () => void) => ReactNode;
@@ -55,40 +56,26 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const [pos, setPos] = useState(0); // 0..1 within the beat window
   const [isScrubbing, setIsScrubbing] = useState(false);
 
-  // 1. Clip URL map for overlays
-  const clipUrlMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of clips) {
-      const src = c.normalized ?? c.file;
-      if (src) map.set(c.id, URL.createObjectURL(src));
-    }
-    return map;
-  }, [clips]);
-
-  useEffect(() => {
-    return () => {
-      for (const url of clipUrlMap.values()) {
-        URL.revokeObjectURL(url);
-      }
-    };
-  }, [clipUrlMap]);
-
-  // 2. Load the selected clip's source; object URL lifetime matches the <video> src.
+  // 1. Load the selected clip's source using permanent blob cache
   useEffect(() => {
     if (mode !== "beat") return;
     const v = videoRef.current;
     if (!v || !clip || !beat) return;
-    const url = URL.createObjectURL(clip.normalized ?? clip.file);
-    v.src = url;
+    const url = getClipBlobUrl(clip.normalized ?? clip.file);
+    if (url && v.src !== url) v.src = url;
     setPos(0);
     setPlaying(false);
     const onMeta = () => { v.currentTime = beat.inSec; };
-    v.addEventListener("loadedmetadata", onMeta, { once: true });
-    return () => { v.removeEventListener("loadedmetadata", onMeta); URL.revokeObjectURL(url); };
+    if (v.readyState >= 1) {
+      v.currentTime = beat.inSec;
+    } else {
+      v.addEventListener("loadedmetadata", onMeta, { once: true });
+    }
+    return () => { v.removeEventListener("loadedmetadata", onMeta); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clip?.id, beat?.id, mode]);
 
-  // 3. Update beat video volume and muted state dynamically
+  // 2. Update beat video volume and muted state dynamically
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !beat) return;
@@ -96,14 +83,14 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     v.muted = (beat.volume ?? 1) === 0;
   }, [beat?.volume]);
 
-  // 4. Calculations for active beat & overlay
+  // 3. Calculations for active beat & overlay
   const beatIndex = beat ? cut.beats.indexOf(beat) : -1;
   const beatStartSec = (beat && beatIndex >= 0) ? cut.beats.slice(0, beatIndex).reduce((sum, b) => sum + b.durationSec, 0) : 0;
   const beatElapsed = beat ? pos * (beat.outSec - beat.inSec) : 0;
   const elapsedCutSec = beatStartSec + beatElapsed;
   const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec) ?? null;
   const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-  const overlayBlobUrl = activeOverlayClip ? clipUrlMap.get(activeOverlayClip.id) : undefined;
+  const overlayBlobUrl = getClipBlobUrl(activeOverlayClip?.normalized ?? activeOverlayClip?.file);
 
   // 5. Active overlay sync effect
   useEffect(() => {

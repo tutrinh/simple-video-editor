@@ -5,6 +5,7 @@ import { activeCaptionText } from "../../lib/pacing";
 import { cssFilterFor } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
+import { getClipBlobUrl } from "../../lib/blobUrlCache";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -69,22 +70,6 @@ export default function FinalPreview({
   const playingRef = useRef(false);
 
   const clipById = useMemo(() => new Map(clips.map((c) => [c.id, c])), [clips]);
-  const clipUrlMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of clips) {
-      const src = c.normalized ?? c.file;
-      if (src) map.set(c.id, URL.createObjectURL(src));
-    }
-    return map;
-  }, [clips]);
-
-  useEffect(() => {
-    return () => {
-      for (const url of clipUrlMap.values()) {
-        URL.revokeObjectURL(url);
-      }
-    };
-  }, [clipUrlMap]);
 
   const beat = cut.beats[index];
   const [, canvasH] = canvasDims(cut.aspect);
@@ -101,7 +86,7 @@ export default function FinalPreview({
 
   const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec) ?? null;
   const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-  const overlayBlobUrl = activeOverlayClip ? clipUrlMap.get(activeOverlayClip.id) : undefined;
+  const overlayBlobUrl = getClipBlobUrl(activeOverlayClip?.normalized ?? activeOverlayClip?.file);
 
   useEffect(() => {
     const el = overlayVideoRef.current;
@@ -120,7 +105,7 @@ export default function FinalPreview({
   }, [elapsed, activeOverlay, playing]);
 
   const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
-  const mainBeatBlobUrl = currentBeatClip ? clipUrlMap.get(currentBeatClip.id) : undefined;
+  const mainBeatBlobUrl = getClipBlobUrl(currentBeatClip?.normalized ?? currentBeatClip?.file);
 
   // Load the current beat's footage and seek to its in-point
   useEffect(() => {
