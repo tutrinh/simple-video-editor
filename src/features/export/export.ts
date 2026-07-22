@@ -4,6 +4,7 @@ import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
+import { ffmpegColorFilters } from "../../studio/util";
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
 // isolated engine — trim → scale/letterbox → BURN caption → uniform-silent
@@ -221,6 +222,7 @@ export async function exportCut(
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
       `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
       "setsar=1",
+      ...ffmpegColorFilters(b.colorAdjustments),
     ];
 
     const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));

@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip, Cut } from "../../domain/types";
 import { canvasDims } from "./export";
-import { captionSchedule, cueAt } from "../../lib/pacing";
+import { activeCaptionText } from "../../lib/pacing";
+import { cssFilterFor } from "../../studio/util";
+import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
+import type { Voice } from "../../lib/kokoroTts";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
-// timed title overlay, correct aspect — plus optional music/voiceover. It's a
-// browser approximation (system fonts, un-ducked audio), not a pixel render.
-//
-// A per-beat wall clock (`beatElapsed`), not the video's currentTime, is the
-// source of truth for advancing beats and switching captions. That lets a beat
-// outlast its footage: when the author sets per-line caption timers the beat runs
-// for the timer sum (beat.durationSec), freezing the last video frame once the
-// footage is spent — the same shape the export produces.
+// timed title overlay, correct aspect — plus optional music/voiceover.
 const ASPECT_RATIO = { "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1 } as const;
 const CAPTION_H_FRACTION = 0.045; // caption font ≈ 4.5% of frame height (matches export)
 const PREVIEW_H = 360;
@@ -37,13 +33,21 @@ interface Props {
   music: File | null;
   musicVolume: number;
   voiceover: boolean;
+  ttsEngine?: TtsEngine;
+  voice?: Voice;
+  elevenVoiceId?: string;
+  voiceoverSpeed?: number;
   /** Silent lead-in before the beat's narration starts (mirrors the export). */
   voiceoverLeadSec?: number;
 }
 
-export default function FinalPreview({ cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume, voiceover, voiceoverLeadSec = 0 }: Props) {
+export default function FinalPreview({
+  cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
+  voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec = 0,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const voCacheRef = useRef<Map<string, string>>(new Map());
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [beatElapsed, setBeatElapsed] = useState(0); // seconds into the current beat
@@ -64,9 +68,7 @@ export default function FinalPreview({ cut, clips, captionScale, captionOpacity,
   }, [cut.beats, index]);
   const elapsed = beatStart + beatElapsed;
 
-  // Load the current beat's footage and seek to its in-point (object URL
-  // created+revoked here → StrictMode-safe). Deliberately NOT keyed on `playing`
-  // so pausing/resuming doesn't reload and restart the clip.
+  // Load the current beat's footage and seek to its in-point
   useEffect(() => {
     const v = videoRef.current;
     const b = cut.beats[index];
@@ -149,18 +151,65 @@ export default function FinalPreview({ cut, clips, captionScale, captionOpacity,
     else a.pause();
   }, [playing, music]);
 
-  // Voiceover narration per beat (browser TTS — the preview's stand-in for Kokoro).
+  // Synthesize and play neural AI voiceover per beat (Kokoro or ElevenLabs), matching the export.
   useEffect(() => {
-    const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-    if (!synth) return;
-    synth.cancel();
-    if (!playing || !voiceover) return;
     const text = cut.beats[index]?.scriptText?.trim();
-    if (!text) return;
-    // Ease the voice in after the lead-in, matching the export.
-    const t = setTimeout(() => synth.speak(new SpeechSynthesisUtterance(text)), Math.round(voiceoverLeadSec * 1000));
-    return () => { clearTimeout(t); synth.cancel(); };
-  }, [index, playing, voiceover, cut.beats, voiceoverLeadSec]);
+    if (!playing || !voiceover || !text) return;
+
+    let timer: NodeJS.Timeout;
+    let activeAudio: HTMLAudioElement | null = null;
+    let cancelled = false;
+
+    const key = `${text}_${ttsEngine ?? "kokoro"}_${voice ?? "af_heart"}_${elevenVoiceId ?? ""}_${voiceoverSpeed ?? 1}`;
+
+    async function playVo() {
+      try {
+        let url = voCacheRef.current.get(key);
+        if (!url) {
+          const narration = await synthesizeVoiceover(text, {
+            engine: ttsEngine ?? "kokoro",
+            voice,
+            elevenVoiceId,
+            speed: voiceoverSpeed,
+          });
+          if (cancelled) return;
+          const blob = new Blob([new Uint8Array(narration.data)], { type: narration.ext === "mp3" ? "audio/mpeg" : "audio/wav" });
+          url = URL.createObjectURL(blob);
+          voCacheRef.current.set(key, url);
+        }
+
+        if (cancelled) return;
+
+        timer = setTimeout(() => {
+          if (cancelled) return;
+          const a = new Audio(url);
+          activeAudio = a;
+          a.play().catch(() => {});
+        }, Math.round(voiceoverLeadSec * 1000));
+      } catch {
+        // Fallback to SpeechSynthesis if AI voice is offline / generating
+        if (cancelled) return;
+        const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+        if (synth) {
+          synth.cancel();
+          timer = setTimeout(() => {
+            const ut = new SpeechSynthesisUtterance(text);
+            if (voiceoverSpeed) ut.rate = voiceoverSpeed;
+            synth.speak(ut);
+          }, Math.round(voiceoverLeadSec * 1000));
+        }
+      }
+    }
+
+    playVo();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (activeAudio) { activeAudio.pause(); activeAudio.src = ""; }
+      if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+    };
+  }, [index, playing, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, cut.beats]);
 
   const play = () => setPlaying(true);
   const pause = () => setPlaying(false);
@@ -176,8 +225,7 @@ export default function FinalPreview({ cut, clips, captionScale, captionOpacity,
 
   // Timed beats show one line at a time (the cue live at beatElapsed); untimed
   // beats show the whole stacked caption, as before.
-  const schedule = beat ? captionSchedule(beat.captionText, beat.captionDurations) : null;
-  const caption = schedule ? cueAt(schedule, beatElapsed)?.text ?? "" : beat?.captionText ?? "";
+  const caption = beat ? activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec)) : "";
   const capFont = PREVIEW_H * CAPTION_H_FRACTION * captionScale;
   const titleVisible = !!title && title.text.trim() !== "" && (title.scope === "entire" || elapsed < (title.introSec ?? 3));
   const titleFont = title ? PREVIEW_H * (title.sizePx / canvasH) : 0;
@@ -196,7 +244,7 @@ export default function FinalPreview({ cut, clips, captionScale, captionOpacity,
           overflow: "hidden",
         }}
       >
-        <video ref={videoRef} muted playsInline style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        <video ref={videoRef} muted playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat?.colorAdjustments) }} />
 
         {titleVisible && title && (
           <div

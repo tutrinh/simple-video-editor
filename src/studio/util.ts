@@ -1,4 +1,4 @@
-import type { Clip } from "../domain/types";
+import type { Clip, ColorAdjustments } from "../domain/types";
 
 /** m:ss from seconds. */
 export function fmtClock(sec: number): string {
@@ -19,4 +19,62 @@ export function isIncluded(clip: Clip): boolean {
 /** CSS background value for a clip's poster (data URL), or a neutral fallback. */
 export function posterBg(clip: Clip | undefined): string | undefined {
   return clip?.poster ? `#0a0b0d url(${JSON.stringify(clip.poster)}) center/cover no-repeat` : undefined;
+}
+
+/** Generate SVG data URL for RGB color temperature (warmth). */
+function warmthSvgFilter(warm: number): string {
+  const w = warm / 100;
+  const r = (1 + 0.25 * w).toFixed(3);
+  const g = (1 + 0.08 * w).toFixed(3);
+  const b = (1 - 0.25 * w).toFixed(3);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="w"><feColorMatrix type="matrix" values="${r} 0 0 0 0  0 ${g} 0 0 0  0 0 ${b} 0 0  0 0 0 1 0"/></filter></svg>`;
+  return `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}#w')`;
+}
+
+/** Convert Beat color adjustments to a CSS filter string for live HTML video/poster preview. */
+export function cssFilterFor(adj?: ColorAdjustments): string {
+  if (!adj) return "none";
+  const exp = adj.exposure ?? 0;
+  const con = adj.contrast ?? 0;
+  const tone = adj.colorTone ?? 0;
+  const warm = adj.warmth ?? 0;
+  const sat = adj.saturation ?? 0;
+  if (!exp && !con && !tone && !warm && !sat) return "none";
+  const filters: string[] = [];
+  if (exp !== 0) filters.push(`brightness(${(1 + exp / 100).toFixed(2)})`);
+  if (con !== 0) filters.push(`contrast(${(1 + con / 100).toFixed(2)})`);
+  if (sat !== 0) filters.push(`saturate(${(1 + sat / 100).toFixed(2)})`);
+  if (tone !== 0) filters.push(`hue-rotate(${(tone * 1.8).toFixed(1)}deg)`);
+  if (warm !== 0) filters.push(warmthSvgFilter(warm));
+  return filters.join(" ");
+}
+
+/** Convert Beat color adjustments to FFmpeg filtergraph strings for export encoding. */
+export function ffmpegColorFilters(adj?: ColorAdjustments): string[] {
+  if (!adj) return [];
+  const exp = adj.exposure ?? 0;
+  const con = adj.contrast ?? 0;
+  const tone = adj.colorTone ?? 0;
+  const warm = adj.warmth ?? 0;
+  const sat = adj.saturation ?? 0;
+  if (!exp && !con && !tone && !warm && !sat) return [];
+  const filters: string[] = [];
+  if (exp !== 0 || con !== 0 || sat !== 0) {
+    const brightness = (exp / 200).toFixed(3);
+    const contrast = (1 + con / 100).toFixed(3);
+    const saturation = (1 + sat / 100).toFixed(3);
+    filters.push(`eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}`);
+  }
+  if (tone !== 0) {
+    const hue = (tone * 1.8).toFixed(1);
+    filters.push(`hue=h=${hue}`);
+  }
+  if (warm !== 0) {
+    const w = warm / 100;
+    const rm = (0.25 * w).toFixed(3);
+    const gm = (0.08 * w).toFixed(3);
+    const bm = (-0.25 * w).toFixed(3);
+    filters.push(`colorbalance=rm=${rm}:gm=${gm}:bm=${bm}`);
+  }
+  return filters;
 }

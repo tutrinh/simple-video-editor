@@ -21,13 +21,14 @@ export async function rewriteCaption(
   return text.trim().replace(/^["']|["']$/g, "").split("\n")[0];
 }
 
-/** Strip list bullets/numbering and wrapping quotes from a model reply, then
+/** Strip list bullets/numbering, preamble intros, and wrapping quotes from a model reply, then
  *  keep up to `count` non-empty lines. Pure — the network call lives elsewhere. */
 export function parseAlternatives(text: string, count: number): string[] {
+  const PREAMBLE_RE = /^(?:here (?:are|is)|certainly|sure|options|alternatives|captions?:|below|```)/i;
   return text
     .split("\n")
     .map((s) => s.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/^["']|["']$/g, "").trim())
-    .filter(Boolean)
+    .filter((s) => Boolean(s) && !PREAMBLE_RE.test(s))
     .slice(0, count);
 }
 
@@ -40,22 +41,21 @@ export async function suggestLineAlternatives(
   count = 3,
 ): Promise<string[]> {
   const prompt =
-    `Suggest ${count} alternative on-screen captions for one beat of a highlight reel. ` +
-    `Each must be punchy, present-tense, short (max ~8 words), no quotes/emoji/numbering, ` +
-    `and keep the same meaning as the current line. Return EXACTLY ${count} lines — one caption ` +
-    `per line, nothing else.\n\n` +
+    `Suggest EXACTLY ${count} alternative on-screen captions for one beat of a highlight reel. ` +
+    `Each must be punchy, present-tense, short (max ~8 words), no quotes, no emoji, no numbering, no preamble. ` +
+    `Output ONLY the ${count} caption lines (one per line). Nothing else.\n\n` +
     (cfg.tone ? `Tone/voice: ${cfg.tone}.\n` : "") +
-    `Reel logline: ${logline}\n` +
-    `Clip: ${clip?.description?.subjectAction ?? clip?.name ?? "unknown"}\n` +
-    `Current caption: ${line}`;
+    `Reel logline: ${logline || "Highlight reel"}\n` +
+    `Clip: ${clip?.description?.subjectAction ?? clip?.name ?? "raw footage"}\n` +
+    `Current caption: ${line.trim() || "(blank line - generate a fresh caption line for this footage)"}`;
   const text = await callClaude(prompt, cfg);
   return parseAlternatives(text, count);
 }
 
 /**
  * Alternative captions for every caption line in a beat, generated line by line.
- * Returns an array aligned to `lines` (row i → its alternatives); blank lines
- * yield no alternatives. Lines are requested in parallel.
+ * Returns an array aligned to `lines` (row i → its alternatives).
+ * Lines are requested in parallel.
  */
 export async function suggestCaptionAlternatives(
   clip: Clip | undefined,
@@ -64,7 +64,8 @@ export async function suggestCaptionAlternatives(
   cfg: ClaudeConfig,
   count = 3,
 ): Promise<string[][]> {
+  const targetLines = lines.length > 0 ? lines : [""];
   return Promise.all(
-    lines.map((line) => (line.trim() ? suggestLineAlternatives(clip, line, logline, cfg, count) : Promise.resolve<string[]>([]))),
+    targetLines.map((line) => suggestLineAlternatives(clip, line, logline, cfg, count)),
   );
 }

@@ -31,22 +31,47 @@ async function mp3Duration(buf: ArrayBuffer): Promise<number> {
   }
 }
 
-export async function synthesizeEleven(text: string, voiceId: string, speed = 1): Promise<{ data: Uint8Array; durationSec: number }> {
-  const res = await fetch("/api/tts", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, voiceId, speed }),
-  });
-  if (!res.ok) {
-    let msg = `ElevenLabs failed (${res.status})`;
-    try {
-      const j = (await res.json()) as { error?: string };
-      if (j?.error) msg = j.error;
-    } catch {
-      /* non-JSON error body */
+let elevenQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueEleven<T>(fn: () => Promise<T>): Promise<T> {
+  const next = elevenQueue.then(fn);
+  elevenQueue = next.catch(() => {});
+  return next;
+}
+
+async function fetchElevenWithRetry(text: string, voiceId: string, speed: number, retries = 3): Promise<Response> {
+  let delay = 1000;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text, voiceId, speed }),
+    });
+
+    if (res.status === 429 && attempt < retries) {
+      await new Promise((r) => setTimeout(r, delay));
+      delay *= 2;
+      continue;
     }
-    throw new Error(msg);
+    return res;
   }
-  const buf = await res.arrayBuffer();
-  return { data: new Uint8Array(buf), durationSec: await mp3Duration(buf) };
+  throw new Error("ElevenLabs rate limit retries exhausted");
+}
+
+export async function synthesizeEleven(text: string, voiceId: string, speed = 1): Promise<{ data: Uint8Array; durationSec: number }> {
+  return enqueueEleven(async () => {
+    const res = await fetchElevenWithRetry(text, voiceId, speed);
+    if (!res.ok) {
+      let msg = `ElevenLabs failed (${res.status})`;
+      try {
+        const j = (await res.json()) as { error?: string };
+        if (j?.error) msg = j.error;
+      } catch {
+        /* non-JSON error body */
+      }
+      throw new Error(msg);
+    }
+    const buf = await res.arrayBuffer();
+    return { data: new Uint8Array(buf), durationSec: await mp3Duration(buf) };
+  });
 }
