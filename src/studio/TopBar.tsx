@@ -5,6 +5,8 @@ import type { Aspect } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtClock, getFilterPreset } from "./util";
 import FilterPresetModal from "./FilterPresetModal";
+import ProjectManagerModal from "./ProjectManagerModal";
+import { useAutoSaveProject } from "../hooks/useAutoSaveProject";
 
 const ASPECTS: Aspect[] = ["16:9", "9:16", "1:1"];
 
@@ -19,6 +21,8 @@ export default function TopBar({ onExport, onStartOver }: Props) {
   const { clips, cut, title } = state;
   const titleSize = Math.min(40, Math.max(15, (title.length || "Untitled project".length) + 1));
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [projectsModalOpen, setProjectsModalOpen] = useState(false);
+  const { saveStatus } = useAutoSaveProject();
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
 
   // Aspect is a Cut property that doesn't affect beat trims — switch it without
@@ -41,7 +45,30 @@ export default function TopBar({ onExport, onStartOver }: Props) {
           aria-label="Project title"
           title="Click to rename this project"
         />
+
+        {/* Auto-Save Status Badge */}
+        {clips.length > 0 && (
+          <span
+            style={{
+              fontSize: 10,
+              color: saveStatus === "saving" ? "var(--accent)" : saveStatus === "saved" ? "var(--ink-3)" : "transparent",
+              transition: "color 0.2s ease",
+              marginLeft: 4,
+            }}
+          >
+            {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "✓ Saved" : ""}
+          </span>
+        )}
       </div>
+
+      <button
+        className="st-btn ghost"
+        style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999 }}
+        onClick={() => setProjectsModalOpen(true)}
+        title="View saved project drafts or export/import project files"
+      >
+        💾 Projects
+      </button>
       {cut && (
         <span className="st-aspect" title="Aspect ratio of the cut">
           {ASPECTS.map((a) => (
@@ -115,6 +142,11 @@ export default function TopBar({ onExport, onStartOver }: Props) {
           onClose={() => setFilterModalOpen(false)}
         />
       )}
+
+      <ProjectManagerModal
+        isOpen={projectsModalOpen}
+        onClose={() => setProjectsModalOpen(false)}
+      />
     </header>
   );
 }

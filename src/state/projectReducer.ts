@@ -34,6 +34,7 @@ export type Action =
   | { type: "REMOVE_OVERLAY"; id: string }
   | { type: "DUPLICATE_OVERLAY"; id: string; newOverlayId?: string }
   | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number; adjustments?: ColorAdjustments }
+  | { type: "LOAD_PROJECT"; state: ProjectState }
   | { type: "RESET" };
 
 function patchClip(clips: Clip[], id: string, patch: Partial<Clip>): Clip[] {
@@ -42,6 +43,8 @@ function patchClip(clips: Clip[], id: string, patch: Partial<Clip>): Clip[] {
 
 export function projectReducer(state: ProjectState, action: Action): ProjectState {
   switch (action.type) {
+    case "LOAD_PROJECT":
+      return { ...action.state };
     case "SET_TITLE":
       return { ...state, title: action.title };
     case "ADD_CLIPS":
