@@ -163,7 +163,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                   }}
                 >
                   <span style={{ fontSize: 24, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
-                    {preset.id === "none" ? "🎬" : preset.id === "teal-orange" ? "🎥" : preset.id === "vintage-film" ? "🎞️" : preset.id === "cyberpunk" ? "⚡" : preset.id === "bw-noir" ? "♟️" : preset.id === "vibrant-pop" ? "💥" : preset.id === "nordic-cool" ? "❄️" : "🌅"}
+                    {preset.id === "none" ? "🎬" : preset.id === "teal-orange" ? "🎥" : preset.id === "kodak-portra" ? "📸" : preset.id === "wes-anderson" ? "🎨" : preset.id === "matrix-green" ? "🟢" : preset.id === "fuji-eterna" ? "📽️" : preset.id === "bleach-bypass" ? "⚔️" : preset.id === "vintage-film" ? "🎞️" : preset.id === "cyberpunk" ? "⚡" : preset.id === "bw-noir" ? "♟️" : preset.id === "moody-matte" ? "🌫️" : preset.id === "vibrant-pop" ? "💥" : preset.id === "nordic-cool" ? "❄️" : "🌅"}
                   </span>
 
                   {isSelected && (
