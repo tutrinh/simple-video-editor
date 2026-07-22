@@ -86,3 +86,14 @@ with the Script segment shown over it as a Caption. The atomic story-and-edit
 unit. A Clip may be dropped (unused) but appears in at most one Beat; Beats are
 not split or reused in v1.
 _Avoid_: segment, shot, scene, track item
+
+## Working docs & known issues
+
+Root-level living docs that track cross-cutting bugs, their fixes, and rules to
+avoid re-introducing them. Check these before re-diagnosing a related problem.
+
+- [EXPORT_OVERLAY_AUDIO_ISSUE.md](./EXPORT_OVERLAY_AUDIO_ISSUE.md) — 🟡 OPEN. Export
+  overlays/audio not matching preview; ffmpeg.wasm filtergraph fixes tried + "do not
+  re-try" list. (Stages: `seg → … → overlaid → final`.)
+- [PREVIEW_BLACK_SCREEN_PREVENTION.md](./PREVIEW_BLACK_SCREEN_PREVENTION.md) — ✅ fixed.
+  Blob-URL lifecycle + async-seek causes of the black preview screen.

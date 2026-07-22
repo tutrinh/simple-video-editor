@@ -66,6 +66,18 @@ export interface EngineInput {
   data: Uint8Array;
 }
 
+// Pull the most diagnostic lines out of ffmpeg's log. ffmpeg prints its stream
+// banner AFTER a filtergraph error, so the naive "last N lines" hides the real
+// cause behind stream-config noise. Prefer lines that look like actual errors.
+function summarizeFfmpegError(logs: string[]): string {
+  const clean = logs
+    .map((l) => l.trim())
+    .filter((l) => l && !l.toLowerCase().includes("called ffmpeg.terminate") && !l.startsWith("frame=") && !l.startsWith("size="));
+  const errorRe = /error|invalid|no such|unable|fail|not found|cannot|unrecognized|does not|no streams|reinit|unconnected|option .* not|matches no/i;
+  const errs = clean.filter((l) => errorRe.test(l));
+  return (errs.length > 0 ? errs : clean).slice(-8).join(" | ");
+}
+
 /**
  * Run one ffmpeg command in an isolated engine and return the output bytes.
  * Inputs are written to the in-memory FS, `args` is the ffmpeg argv (referencing
@@ -93,10 +105,39 @@ export async function runIsolated(
 
   try {
     for (const input of inputs) await ff.writeFile(input.name, input.data.slice());
-    const code = await Promise.race([ff.exec(args), timeoutPromise]);
+    let code: number;
+    try {
+      code = await Promise.race([ff.exec(args), timeoutPromise]);
+    } catch (err) {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      if (rawMsg.includes("timed out")) {
+        throw err;
+      }
+      try {
+        const out = (await ff.readFile(outputName)) as Uint8Array;
+        if (out && out.byteLength > 100) {
+          const copy = new Uint8Array(out.byteLength);
+          copy.set(out);
+          return copy;
+        }
+      } catch {}
+
+      const logTail = summarizeFfmpegError(logs);
+      throw new Error(`FFmpeg failed for ${outputName}: ${logTail || rawMsg}`);
+    }
     if (timeoutTimer) clearTimeout(timeoutTimer);
     if (code !== 0) {
-      const logTail = logs.slice(-8).join(" | ");
+      try {
+        const out = (await ff.readFile(outputName)) as Uint8Array;
+        if (out && out.byteLength > 100) {
+          const copy = new Uint8Array(out.byteLength);
+          copy.set(out);
+          return copy;
+        }
+      } catch {}
+
+      const logTail = summarizeFfmpegError(logs);
       throw new Error(`FFmpeg processing failed (code ${code}): ${logTail || "Command execution error"}`);
     }
     const out = (await ff.readFile(outputName)) as Uint8Array;

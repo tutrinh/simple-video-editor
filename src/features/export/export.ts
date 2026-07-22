@@ -373,10 +373,13 @@ async function applyOverlaysToVideo(
   const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
   if (activeOverlays.length === 0) return videoBytes;
 
+  // Composite each overlay to mirror the preview, which uses the browser's CSS
+  // `mix-blend-mode` + `opacity`. blend=all_mode={screen,multiply,overlay} is the
+  // same per-pixel math; `normal` uses the alpha-aware overlay filter. Each is
+  // time-gated to its [startTimeSec, startTimeSec+durationSec) window.
   const engineInputs: EngineInput[] = [{ name: "in.mp4", data: videoBytes }];
   const ffmpegArgs: string[] = ["-i", "in.mp4"];
   const filterChains: string[] = [];
-
   let lastV = "[0:v]";
 
   for (let idx = 0; idx < activeOverlays.length; idx++) {
@@ -385,47 +388,115 @@ async function applyOverlaysToVideo(
     if (!clip) continue;
 
     const overlayData = await bytesOf(clip.normalized ?? clip.file);
-    const ovName = `overlay_${idx}.mp4`;
+    const ovName = `ov_${idx}.mp4`;
     engineInputs.push({ name: ovName, data: overlayData });
 
+    const mode = o.blendMode ?? "normal";
+    const op = (o.opacity ?? 1).toFixed(2);
     const st = o.startTimeSec.toFixed(3);
     const dur = o.durationSec.toFixed(3);
     const inS = o.inSec.toFixed(3);
     const inputIdx = idx + 1;
 
+    // Trim the overlay to [inSec, inSec+dur]; timeline placement is done in-graph
+    // below via tpad, not -itsoffset (which stalled blend's framesync at t<start).
     ffmpegArgs.push("-ss", inS, "-t", dur, "-i", ovName);
 
-    const mode = o.blendMode ?? "normal";
-    const op = (o.opacity ?? 1).toFixed(2);
     const scaledOv = `[ov_${idx}]`;
     const nextV = idx === activeOverlays.length - 1 ? "[v_out]" : `[v_step_${idx}]`;
+    const enable = `enable='between(t,${st},${st}+${dur})'`;
+    const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
 
-    if (mode === "screen") {
-      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1${scaledOv}`);
-      filterChains.push(`${lastV}${scaledOv}blend=all_mode=screen:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'${nextV}`);
-    } else if (mode === "multiply") {
-      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1${scaledOv}`);
-      filterChains.push(`${lastV}${scaledOv}blend=all_mode=multiply:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'${nextV}`);
-    } else if (mode === "overlay") {
-      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1${scaledOv}`);
-      filterChains.push(`${lastV}${scaledOv}blend=all_mode=overlay:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'${nextV}`);
+    // tpad prepends `st` seconds so the overlay plays from its first frame exactly
+    // at startTimeSec (and gives blend a frame from t=0 so early frames don't stall).
+    if (mode === "screen" || mode === "multiply" || mode === "overlay") {
+      // Letterbox pad uses each mode's identity colour so the bars stay invisible:
+      // black is a no-op under screen, white under multiply, mid-grey under overlay.
+      const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
+      // Blend MUST run in RGB to match the browser's CSS mix-blend-mode. On the
+      // native yuv420p frames the screen/multiply math hits the chroma planes and
+      // casts the whole frame magenta — force gbrp (planar RGB) on both inputs.
+      const baseRgb = `[base_${idx}]`;
+      filterChains.push(
+        `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,` +
+        `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor},format=gbrp${scaledOv}`
+      );
+      filterChains.push(`${lastV}format=gbrp${baseRgb}`);
+      // Real blend math (matches the browser's CSS mix-blend-mode), time-gated.
+      filterChains.push(`${baseRgb}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
     } else {
-      filterChains.push(`[${inputIdx}:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=rgba,colorchannelmixer=aa=${op}${scaledOv}`);
-      filterChains.push(`${lastV}${scaledOv}overlay=x=0:y=0:enable='between(t,${st},${st}+${dur})'${nextV}`);
+      // Normal: alpha-aware "over" compositing. Transparent letterbox + opacity.
+      // (black@0.0 is more portable across ffmpeg builds than 0x00000000.)
+      filterChains.push(
+        `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,` +
+        `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=black@0.0,colorchannelmixer=aa=${op}${scaledOv}`
+      );
+      filterChains.push(`${lastV}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${nextV}`);
     }
-
     lastV = nextV;
   }
 
-  ffmpegArgs.push(
-    "-filter_complex", filterChains.join(";"),
-    "-map", lastV, "-map", "0:a:0?",
-    "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-    "-c:a", "copy",
-    "overlaid.mp4"
-  );
+  // Mix each audible overlay's audio over the base track — the preview plays
+  // overlay audio at `volume`, so the export must too. Each overlay stream is
+  // trimmed to [inSec, inSec+dur] by its -ss/-t input flags; here we set its
+  // volume and adelay it onto the timeline at startTimeSec, then amix them all.
+  // Overlays at zero/absent volume are skipped, so a silent or audio-less overlay
+  // never reaches the mix.
+  const audioOverlays = activeOverlays
+    .map((o, idx) => ({ o, inputIdx: idx + 1 }))
+    .filter(({ o }) => (o.volume ?? 0) > 0);
 
-  return runIsolated(engineInputs, ffmpegArgs, "overlaid.mp4", onProgress);
+  const inputArgs = ffmpegArgs; // -i flags built above; audio tail differs per attempt.
+
+  // withOverlayAudio=false just copies the base audio (handles no-audio overlays).
+  const buildArgs = (withOverlayAudio: boolean): string[] => {
+    const audioChains: string[] = [];
+    let audioArgs: string[];
+    if (withOverlayAudio && audioOverlays.length > 0) {
+      const mixLabels: string[] = ["[abase]"];
+      audioChains.push(`[0:a]aresample=48000[abase]`);
+      for (const { o, inputIdx } of audioOverlays) {
+        const vol = (o.volume ?? 0).toFixed(2);
+        const delayMs = Math.round(o.startTimeSec * 1000);
+        const lbl = `[oa_${inputIdx}]`;
+        audioChains.push(
+          `[${inputIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${delayMs}|${delayMs}${lbl}`
+        );
+        mixLabels.push(lbl);
+      }
+      // duration=first keeps the output as long as the base; normalize=0 stops
+      // amix from ducking every track by the input count when they don't overlap.
+      audioChains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[aout]`);
+      audioArgs = ["-map", "[aout]", "-c:a", "aac", "-b:a", "192k"];
+    } else {
+      audioArgs = ["-map", "0:a:0?", "-c:a", "copy"];
+    }
+    return [
+      ...inputArgs,
+      "-filter_complex", [...filterChains, ...audioChains].join(";"),
+      "-map", lastV,
+      ...audioArgs,
+      "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+      "overlaid.mp4",
+    ];
+  };
+
+  // Try, in order: full overlay video + mixed audio → overlay video + base audio
+  // only (if an overlay clip has no audio stream) → the un-overlaid base video (if
+  // the overlay video filtergraph itself fails). Each runs in a fresh engine, so a
+  // failed attempt never taints the next, and the export can always complete.
+  const attempts: string[][] =
+    audioOverlays.length > 0 ? [buildArgs(true), buildArgs(false)] : [buildArgs(false)];
+
+  for (let a = 0; a < attempts.length; a++) {
+    try {
+      return await runIsolated(engineInputs, attempts[a], "overlaid.mp4", onProgress);
+    } catch (err) {
+      console.warn(`Overlay composite attempt ${a + 1}/${attempts.length} failed for overlaid.mp4.`, err);
+    }
+  }
+  console.warn("All overlay composite attempts failed; exporting without overlays.");
+  return videoBytes;
 }
 
 export async function exportCut(
@@ -472,6 +543,7 @@ export async function exportCut(
       { name: "font.ttf", data: opts.fontBytes },
     ];
     const vf = [
+      "setpts=PTS-STARTPTS",
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
       `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
       "setsar=1",
@@ -483,7 +555,10 @@ export async function exportCut(
     let playFootage = footageLen;
     let segDur = footageLen;
     let audioInput: string[];
-    let audioFilter: string[];
+    // Silence prepended before non-schedule voiceover so it eases in after the
+    // lead-in; folded into the filter_complex below. Schedule-path leads are
+    // already baked into voall.wav, so this stays 0 there.
+    let voiceLeadMs = 0;
 
     const voOn = !!opts.voiceover && (capLines.length > 0 || b.scriptText.trim() !== "");
 
@@ -514,10 +589,8 @@ export async function exportCut(
         const voall = await runIsolated(catInputs, [...catArgs, "-filter_complex", filt, "-map", "[a]", "voall.wav"], "voall.wav");
         inputs.push({ name: "vo.wav", data: voall });
         audioInput = ["-i", "vo.wav"];
-        audioFilter = ["-af", "aresample=48000,apad"];
       } else {
         audioInput = ["-f", "lavfi", "-t", String(segDur), "-i", "anullsrc=r=48000:cl=stereo"];
-        audioFilter = [];
       }
     } else if (voOn) {
       const lead = Math.max(0, opts.voiceoverLeadSec ?? 0);
@@ -557,8 +630,7 @@ export async function exportCut(
         inputs.push({ name: "vo.wav", data: voall });
         audioInput = ["-i", "vo.wav"];
       }
-      const leadMs = Math.round(lead * 1000);
-      audioFilter = ["-af", `${leadMs > 0 ? `adelay=${leadMs}|${leadMs},` : ""}aresample=48000,apad`];
+      voiceLeadMs = Math.round(lead * 1000);
     } else {
       if (capLines.length > 0) {
         const c = captionLayers(b.captionText, w, h, fontsize, bgOpacity, border, margin, lineHeight);
@@ -566,25 +638,61 @@ export async function exportCut(
         vf.push(...c.filters);
       }
       audioInput = [];
-      audioFilter = [];
     }
     timingSlots[i] = { id: b.id, inSec, outSec: inSec + playFootage, durationSec: segDur };
 
     const beatVol = (b.volume ?? 1);
-    const audioParams = voOn
-      ? [...audioInput, "-map", "0:v:0", "-map", "1:a:0", ...audioFilter]
-      : ["-map", "0:v:0", "-map", "0:a:0?", "-af", `volume=${beatVol.toFixed(2)},aresample=48000,apad`];
+    // Audio source per beat: voiceover when narrating; otherwise the beat's own
+    // footage audio at beat volume (matching the preview's v.volume=beat.volume);
+    // silence when the beat is muted (volume 0).
+    const strategy: "vo" | "source" | "silent" = voOn ? "vo" : beatVol > 0 ? "source" : "silent";
 
-    segSlots[i] = await runIsolated(
-      inputs,
-      ["-ss", String(inSec), "-t", String(playFootage), "-i", sourceName(clip),
-       ...audioParams,
-       "-vf", vf.join(","),
-       "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-       "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4"],
-      "seg.mp4",
-      (f) => { prog[i] = f; reportBeatProg(); },
-    );
+    const videoFilterString = `[0:v]${vf.join(",")}[v]`;
+    const leadPrefix = voiceLeadMs > 0 ? `adelay=${voiceLeadMs}|${voiceLeadMs},` : "";
+
+    // Build the seg args for a given audio strategy so we can fall back to silence
+    // if a "source" clip turns out to have no audio track (a bare [0:a] reference
+    // would make ffmpeg error otherwise).
+    // Pin every strategy's audio to exactly segDur: apad extends short audio, then
+    // atrim clips it to length. This avoids an unbounded apad stream + -shortest,
+    // which can make the muxer fail to finalize the segment.
+    const segDurStr = segDur.toFixed(3);
+    const buildSegArgs = (strat: "vo" | "source" | "silent"): string[] => {
+      let audioInputArgs: string[];
+      let audioFilterString: string;
+      if (strat === "vo") {
+        audioInputArgs = audioInput;
+        audioFilterString = `[1:a]aformat=sample_rates=48000:channel_layouts=stereo,${leadPrefix}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
+      } else if (strat === "source") {
+        // The footage's own audio ([0:a]) at beat volume, over any caption freeze.
+        audioInputArgs = [];
+        audioFilterString = `[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
+      } else {
+        audioInputArgs = ["-f", "lavfi", "-t", segDurStr, "-i", "anullsrc=r=48000:cl=stereo"];
+        audioFilterString = `[1:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a]`;
+      }
+      return ["-ss", String(inSec), "-t", String(playFootage), "-i", sourceName(clip),
+        ...audioInputArgs,
+        "-filter_complex", `${videoFilterString};${audioFilterString}`,
+        "-map", "[v]", "-map", "[a]",
+        "-shortest",
+        "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4"];
+    };
+
+    const renderSeg = (strat: "vo" | "source" | "silent") =>
+      runIsolated(inputs, buildSegArgs(strat), "seg.mp4", (f) => { prog[i] = f; reportBeatProg(); });
+
+    if (strategy === "source") {
+      try {
+        segSlots[i] = await renderSeg("source");
+      } catch (err) {
+        console.warn(`Beat ${b.id}: source clip has no audio track; rendering this beat silent.`, err);
+        segSlots[i] = await renderSeg("silent");
+      }
+    } else {
+      segSlots[i] = await renderSeg(strategy);
+    }
     prog[i] = 1;
     reportBeatProg();
   });
@@ -666,7 +774,7 @@ export async function exportCut(
     if (fTr === "fadeblack" || fTr === "fade") {
       video = await runIsolated(
         [{ name: "in.mp4", data: video }],
-        ["-i", "in.mp4", "-vf", `fade=t=in:st=0:d=${fSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "start_faded.mp4"],
+        ["-i", "in.mp4", "-map", "0:v:0", "-map", "0:a:0?", "-vf", `fade=t=in:st=0:d=${fSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "start_faded.mp4"],
         "start_faded.mp4",
       );
     }
@@ -682,7 +790,7 @@ export async function exportCut(
       const fadeStart = Math.max(0, totalVideoDur - lSec).toFixed(3);
       video = await runIsolated(
         [{ name: "in.mp4", data: video }],
-        ["-i", "in.mp4", "-vf", `fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "end_faded.mp4"],
+        ["-i", "in.mp4", "-map", "0:v:0", "-map", "0:a:0?", "-vf", `fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "end_faded.mp4"],
         "end_faded.mp4",
       );
     }
@@ -726,21 +834,36 @@ export async function exportCut(
 
   const mExt = opts.music.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() ?? "mp3";
   const vol = Math.min(1, Math.max(0, opts.musicVolume ?? 0.5));
-  const musicArgs = opts.voiceover
-    ? ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
-       "-filter_complex", `[1:a]volume=${vol}[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]`,
-       "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"]
-    : ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
-       "-filter_complex", `[1:a]volume=${vol}[a]`,
-       "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
-  const withMusic = await runIsolated(
-    [{ name: "video.mp4", data: video }, { name: `music.${mExt}`, data: await bytesOf(opts.music) }],
-    musicArgs,
-    "final.mp4",
-    (f) => onProgress?.(0.95 + f * 0.05),
-  );
+  const musicInputs = [
+    { name: "video.mp4", data: video },
+    { name: `music.${mExt}`, data: await bytesOf(opts.music) },
+  ];
+  const muxWith = (args: string[]) =>
+    runIsolated(musicInputs, args, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05));
+
+  // Amix the video's existing audio (voiceover AND/OR overlay audio) under the
+  // music bed. A silent base amixes to just music, so this is safe with no
+  // voiceover — and it stops the music stage from dropping overlay audio.
+  const amixArgs =
+    ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
+     "-filter_complex", `[1:a]volume=${vol}[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]`,
+     "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
+  // Fallback if the base has no audio stream at all ([0:a] won't resolve): a
+  // music-only track, so the export still completes instead of crashing.
+  const musicOnlyArgs =
+    ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
+     "-filter_complex", `[1:a]volume=${vol}[a]`,
+     "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
+
+  let withMusic: Uint8Array;
+  try {
+    withMusic = await muxWith(amixArgs);
+  } catch (err) {
+    console.warn("Music amix with base audio failed (base may have no audio track); using a music-only track.", err);
+    withMusic = await muxWith(musicOnlyArgs);
+  }
   onProgress?.(1.0);
-  return { blob: new Blob([withMusic], { type: "video/mp4" }), timings };
+  return { blob: new Blob([new Uint8Array(withMusic)], { type: "video/mp4" }), timings };
 }
 
 // --- Portable Script export (ADR-0003). ---
