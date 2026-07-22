@@ -1,0 +1,65 @@
+[
+  {
+    "id": "none",
+    "name": "Original (No Filter)",
+    "description": "Natural camera footage without global adjustments",
+    "colorAdjustments": { "exposure": 0, "contrast": 0, "colorTone": 0, "warmth": 0, "saturation": 0 },
+    "previewGradient": "linear-gradient(135deg, #444, #222)"
+  },
+  {
+    "id": "teal-orange",
+    "name": "Blockbuster Teal & Orange",
+    "description": "Cinematic Hollywood contrast with rich teal shadows and warm orange skin tones",
+    "colorAdjustments": { "exposure": 5, "contrast": 22, "colorTone": -8, "warmth": 18, "saturation": 15 },
+    "previewGradient": "linear-gradient(135deg, #0d4b56 0%, #d87d2a 100%)"
+  },
+  {
+    "id": "vintage-film",
+    "name": "35mm Vintage Film",
+    "description": "Warm retro analog vibe with soft contrast and golden nostalgia",
+    "colorAdjustments": { "exposure": -4, "contrast": -12, "colorTone": 12, "warmth": 25, "saturation": -10 },
+    "previewGradient": "linear-gradient(135deg, #8a6a43 0%, #dca864 100%)"
+  },
+  {
+    "id": "cyberpunk",
+    "name": "Cyberpunk Neon",
+    "description": "High-contrast night city look with electric blues and magenta hues",
+    "colorAdjustments": { "exposure": 8, "contrast": 30, "colorTone": -25, "warmth": -15, "saturation": 35 },
+    "previewGradient": "linear-gradient(135deg, #10062b 0%, #e024a5 50%, #00e5ff 100%)"
+  },
+  {
+    "id": "bw-noir",
+    "name": "Classic B&W Noir",
+    "description": "Monochrome contrast with deep dramatic shadows",
+    "colorAdjustments": { "exposure": 2, "contrast": 35, "colorTone": 0, "warmth": 0, "saturation": -100 },
+    "previewGradient": "linear-gradient(135deg, #111 0%, #888 50%, #eee 100%)"
+  },
+  {
+    "id": "moody-matte",
+    "name": "Moody Matte",
+    "description": "Subdued desaturated look with lifted dark tones for aesthetic vlogs",
+    "colorAdjustments": { "exposure": -6, "contrast": -20, "colorTone": -5, "warmth": -8, "saturation": -25 },
+    "previewGradient": "linear-gradient(135deg, #2b3036 0%, #525a66 100%)"
+  },
+  {
+    "id": "vibrant-pop",
+    "name": "High-Vibe Pop",
+    "description": "Bright, punchy colors and crisp detail for modern social media",
+    "colorAdjustments": { "exposure": 10, "contrast": 15, "colorTone": 4, "warmth": 8, "saturation": 30 },
+    "previewGradient": "linear-gradient(135deg, #ff4081 0%, #ffab40 100%)"
+  },
+  {
+    "id": "nordic-cool",
+    "name": "Nordic Cool",
+    "description": "Crisp, clean Scandinavian feel with icy blue undertones",
+    "colorAdjustments": { "exposure": 4, "contrast": 10, "colorTone": -15, "warmth": -20, "saturation": -12 },
+    "previewGradient": "linear-gradient(135deg, #23394a 0%, #7ca1b8 100%)"
+  },
+  {
+    "id": "warm-sunshine",
+    "name": "Golden Hour Sunshine",
+    "description": "Soft golden warmth and glowing highlights for travel and lifestyle clips",
+    "colorAdjustments": { "exposure": 8, "contrast": 6, "colorTone": 15, "warmth": 32, "saturation": 12 },
+    "previewGradient": "linear-gradient(135deg, #e67e22 0%, #f1c40f 100%)"
+  }
+]

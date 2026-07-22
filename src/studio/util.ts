@@ -31,14 +31,32 @@ function warmthSvgFilter(warm: number): string {
   return `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}#w')`;
 }
 
-/** Convert Beat color adjustments to a CSS filter string for live HTML video/poster preview. */
-export function cssFilterFor(adj?: ColorAdjustments): string {
-  if (!adj) return "none";
-  const exp = adj.exposure ?? 0;
-  const con = adj.contrast ?? 0;
-  const tone = adj.colorTone ?? 0;
-  const warm = adj.warmth ?? 0;
-  const sat = adj.saturation ?? 0;
+import filterPresets from "../data/filterPresets.json";
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  description: string;
+  colorAdjustments: ColorAdjustments;
+  previewGradient: string;
+}
+
+export function getFilterPreset(id?: string | null): FilterPreset | undefined {
+  if (!id) return undefined;
+  return (filterPresets as FilterPreset[]).find((p) => p.id === id);
+}
+
+/** Convert Beat color adjustments & optional Global Filter to a CSS filter string for live HTML video preview. */
+export function cssFilterFor(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1): string {
+  const preset = getFilterPreset(globalFilterId);
+  const globalAdj = preset ? preset.colorAdjustments : undefined;
+
+  const exp = (adj?.exposure ?? 0) + (globalAdj?.exposure ?? 0) * globalIntensity;
+  const con = (adj?.contrast ?? 0) + (globalAdj?.contrast ?? 0) * globalIntensity;
+  const tone = (adj?.colorTone ?? 0) + (globalAdj?.colorTone ?? 0) * globalIntensity;
+  const warm = (adj?.warmth ?? 0) + (globalAdj?.warmth ?? 0) * globalIntensity;
+  const sat = (adj?.saturation ?? 0) + (globalAdj?.saturation ?? 0) * globalIntensity;
+
   if (!exp && !con && !tone && !warm && !sat) return "none";
   const filters: string[] = [];
   if (exp !== 0) filters.push(`brightness(${(1 + exp / 100).toFixed(2)})`);
@@ -49,14 +67,17 @@ export function cssFilterFor(adj?: ColorAdjustments): string {
   return filters.join(" ");
 }
 
-/** Convert Beat color adjustments to FFmpeg filtergraph strings for export encoding. */
-export function ffmpegColorFilters(adj?: ColorAdjustments): string[] {
-  if (!adj) return [];
-  const exp = adj.exposure ?? 0;
-  const con = adj.contrast ?? 0;
-  const tone = adj.colorTone ?? 0;
-  const warm = adj.warmth ?? 0;
-  const sat = adj.saturation ?? 0;
+/** Convert Beat color adjustments & optional Global Filter to FFmpeg filtergraph strings for export encoding. */
+export function ffmpegColorFilters(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1): string[] {
+  const preset = getFilterPreset(globalFilterId);
+  const globalAdj = preset ? preset.colorAdjustments : undefined;
+
+  const exp = (adj?.exposure ?? 0) + (globalAdj?.exposure ?? 0) * globalIntensity;
+  const con = (adj?.contrast ?? 0) + (globalAdj?.contrast ?? 0) * globalIntensity;
+  const tone = (adj?.colorTone ?? 0) + (globalAdj?.colorTone ?? 0) * globalIntensity;
+  const warm = (adj?.warmth ?? 0) + (globalAdj?.warmth ?? 0) * globalIntensity;
+  const sat = (adj?.saturation ?? 0) + (globalAdj?.saturation ?? 0) * globalIntensity;
+
   if (!exp && !con && !tone && !warm && !sat) return [];
   const filters: string[] = [];
   if (exp !== 0 || con !== 0 || sat !== 0) {

@@ -6,7 +6,8 @@ import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
 import { cutDuration } from "../features/assemble/assemble";
-import { fmtSecs, cssFilterFor } from "./util";
+import { fmtSecs, cssFilterFor, getFilterPreset } from "./util";
+import FilterPresetModal from "./FilterPresetModal";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
 const modelLabel = (m: string) => m.replace(/^claude-/, "");
@@ -43,6 +44,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
   // Per-line caption alternatives: model + mood chosen here (seeded from settings),
   // results aligned to caption rows (row i → its suggestions).
   const [altModel, setAltModel] = useState<string>(settings.authorModel);
@@ -544,6 +547,62 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                 />
               </div>
             </div>
+
+            {/* Global Cut Color Filter Card */}
+            <div className="st-sec" style={{ marginTop: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, fontWeight: 600 }}>🎨 Global Look & Feel Filter</span>
+                <button
+                  type="button"
+                  className="st-btn ghost"
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: 11,
+                    borderColor: activeGlobalFilter ? "var(--accent)" : undefined,
+                    color: activeGlobalFilter ? "var(--accent)" : undefined,
+                  }}
+                  onClick={() => setFilterModalOpen(true)}
+                  title="Choose a global color grading filter preset for the entire cut"
+                >
+                  {activeGlobalFilter ? `✨ ${activeGlobalFilter.name}` : "Choose Preset..."}
+                </button>
+              </div>
+
+              {activeGlobalFilter && (
+                <div style={{ marginTop: 8, padding: 8, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                      onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
+                    >
+                      Remove Filter
+                    </button>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1"
+                    step="0.05"
+                    value={cut?.globalFilterIntensity ?? 1}
+                    onChange={(e) => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: Number(e.target.value) })}
+                    style={sliderTrackStyle(cut?.globalFilterIntensity ?? 1, 0.1, 1)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {filterModalOpen && (
+              <FilterPresetModal
+                activeFilterId={cut?.globalFilterId}
+                activeIntensity={cut?.globalFilterIntensity}
+                onSelectFilter={(filterId, intensity) => {
+                  dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity });
+                }}
+                onClose={() => setFilterModalOpen(false)}
+              />
+            )}
 
             {/* Overlay Clip Inspector Card */}
             {selectedOverlay && (

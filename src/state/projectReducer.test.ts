@@ -87,6 +87,19 @@ describe("projectReducer", () => {
     expect(s.cut?.overlays).toHaveLength(1);
   });
 
+  it("sets and resets global look and feel filter on cut", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    expect(s.cut?.globalFilterId).toBeUndefined();
+
+    s = projectReducer(s, { type: "SET_GLOBAL_FILTER", filterId: "teal-orange", intensity: 0.8 });
+    expect(s.cut?.globalFilterId).toBe("teal-orange");
+    expect(s.cut?.globalFilterIntensity).toBe(0.8);
+
+    s = projectReducer(s, { type: "SET_GLOBAL_FILTER", filterId: null });
+    expect(s.cut?.globalFilterId).toBeUndefined();
+  });
+
   it("resets to initial", () => {
     let s = projectReducer(initialState, { type: "ADD_CLIPS", clips: [clip("a")] });
     s = projectReducer(s, { type: "SET_DIRECTION", direction: "funnier" });

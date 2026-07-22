@@ -33,6 +33,7 @@ export type Action =
   | { type: "UPDATE_OVERLAY"; overlay: OverlayClip }
   | { type: "REMOVE_OVERLAY"; id: string }
   | { type: "DUPLICATE_OVERLAY"; id: string; newOverlayId?: string }
+  | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number }
   | { type: "RESET" };
 
 function patchClip(clips: Clip[], id: string, patch: Partial<Clip>): Clip[] {
@@ -107,6 +108,17 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
 
       const overlays = [...(state.cut.overlays ?? []), duplicated];
       return { ...state, cut: { ...state.cut, overlays } };
+    }
+    case "SET_GLOBAL_FILTER": {
+      if (!state.cut) return state;
+      return {
+        ...state,
+        cut: {
+          ...state.cut,
+          globalFilterId: action.filterId ?? undefined,
+          globalFilterIntensity: action.intensity ?? state.cut.globalFilterIntensity ?? 1,
+        },
+      };
     }
     case "DUPLICATE_BEAT": {
       if (!state.cut) return state;

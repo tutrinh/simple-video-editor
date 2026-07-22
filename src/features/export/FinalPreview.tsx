@@ -444,7 +444,7 @@ export default function FinalPreview({
             width: "100%",
             height: "100%",
             objectFit: "contain",
-            filter: cssFilterFor(beat?.colorAdjustments),
+            filter: cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity),
             animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
           }}
         />

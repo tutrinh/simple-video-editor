@@ -120,4 +120,8 @@ export interface Cut {
   beats: Beat[];
   overlays?: OverlayClip[];
   aspect: Aspect;
+  /** Non-destructive global look & feel color filter preset ID. */
+  globalFilterId?: string;
+  /** Global filter intensity scale (0..1, default 1). */
+  globalFilterIntensity?: number;
 }

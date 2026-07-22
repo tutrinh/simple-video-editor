@@ -242,7 +242,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   return (
     <>
       <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
-        <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ filter: cssFilterFor(beat.colorAdjustments) }} />
+        <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity) }} />
         {activeOverlay && activeOverlayClip && overlayBlobUrl && (
           <video
             key={activeOverlay.id}
