@@ -2,9 +2,13 @@ import { useProject } from "../state/ProjectContext";
 import { useSettings, TONE_OPTIONS } from "../state/SettingsContext";
 import { isIncluded } from "./util";
 
-/** Surfaces the Story in the workspace: logline + the Direction and Tone steers
- *  that shape the next Regenerate. */
-export default function StoryBar() {
+interface Props {
+  onAuthor?: () => void;
+  busy?: boolean;
+}
+
+/** Surfaces the Story in the workspace: logline + Direction & Tone steers + Step 2 Author action. */
+export default function StoryBar({ onAuthor, busy }: Props) {
   const { state, dispatch } = useProject();
   const { settings, update } = useSettings();
   const includedCount = state.clips.filter(isIncluded).length;
@@ -12,10 +16,10 @@ export default function StoryBar() {
 
   return (
     <div className="st-storybar">
-      <div className="st-story-lab">Story</div>
+      <div className="st-story-lab">Step 2</div>
       <div className="st-story-main">
         <div className={"st-logline" + (state.story ? "" : " empty")}>
-          {state.story?.logline ?? "No story yet — Regenerate to let Claude find one across your clips."}
+          {state.story?.logline ?? "No story yet — click '2. Author Story & Script' to generate a vlog script across your clips."}
         </div>
         <div className="st-dirrow">
           <input
@@ -28,10 +32,22 @@ export default function StoryBar() {
             className="st-tone"
             value={settings.tone}
             onChange={(e) => update({ tone: e.target.value })}
-            title="Tone that steers the script voice and clip coaching on the next Regenerate"
+            title="Tone that steers the script voice and clip coaching"
           >
             {TONE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
+          {onAuthor && (
+            <button
+              type="button"
+              className="st-btn primary"
+              style={{ padding: "6px 12px", fontSize: 12, flexShrink: 0 }}
+              onClick={onAuthor}
+              disabled={busy}
+              title="Step 2: Use Claude to write story logline & beat scripts"
+            >
+              2. Author Story & Script
+            </button>
+          )}
           {state.cut && <span className="st-chipcount st-num">{usedCount} of {includedCount} clips used</span>}
         </div>
       </div>

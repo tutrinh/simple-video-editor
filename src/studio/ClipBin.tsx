@@ -48,9 +48,11 @@ interface Props {
   onPickClip: (clipId: string) => void;
   onAddClip: (clipId: string) => void;
   onDuplicateBeat: (beatId: string) => void;
+  onAnalyzeClips?: (clipId?: string) => void;
+  busy?: boolean;
 }
 
-export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, onPickClip, onAddClip, onDuplicateBeat }: Props) {
+export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, onPickClip, onAddClip, onDuplicateBeat, onAnalyzeClips, busy }: Props) {
   const { state, dispatch } = useProject();
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [dragging, setDragging] = useState(false);
@@ -129,6 +131,18 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
             {addable ? <span className="st-tag add">+ add</span>
               : described ? <UsabilityDots score={clip.description!.usability} />
               : null}
+            {onAnalyzeClips && (
+              <button
+                type="button"
+                className="st-btn ghost"
+                style={{ fontSize: 9, padding: "1px 5px", marginLeft: "auto" }}
+                onClick={(e) => { e.stopPropagation(); onAnalyzeClips(clip.id); }}
+                disabled={busy}
+                title="Analyze this single clip with Claude vision model"
+              >
+                {described ? "Re-analyze" : "Analyze"}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -137,7 +151,22 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
 
   return (
     <aside className="st-col bin">
-      <div className="st-colhead">Clips {state.clips.length > 0 && <span className="cnt st-num">{state.clips.length}</span>}</div>
+      <div className="st-colhead" style={{ display: "flex", alignItems: "center" }}>
+        <span>Clips</span>
+        {state.clips.length > 0 && <span className="cnt st-num" style={{ marginLeft: 6 }}>{state.clips.length}</span>}
+        {onAnalyzeClips && state.clips.length > 0 && (
+          <button
+            type="button"
+            className="st-btn ghost"
+            style={{ marginLeft: "auto", fontSize: 11, padding: "3px 8px", textTransform: "none", letterSpacing: 0 }}
+            onClick={() => onAnalyzeClips()}
+            disabled={busy}
+            title="Step 1: Analyze all footage with Claude vision model"
+          >
+            1. Analyze Clips
+          </button>
+        )}
+      </div>
 
       <div
         className={"st-drop" + (dragging ? " drag" : "")}

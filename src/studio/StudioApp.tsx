@@ -10,6 +10,7 @@ import StagePreview from "./StagePreview";
 import Inspector from "./Inspector";
 import ExportDrawer from "./ExportDrawer";
 import { seedProject } from "./devSeed";
+import StoryBar from "./StoryBar";
 import "./studio.css";
 
 export default function StudioApp() {
@@ -104,6 +105,8 @@ export default function StudioApp() {
           onPickClip={pickClip}
           onAddClip={addClipToCut}
           onDuplicateBeat={duplicateBeat}
+          onAnalyzeClips={regen.analyzeClips}
+          busy={regen.busy}
         />
 
         <section className="st-col stage" style={{ position: "relative" }}>
@@ -121,7 +124,7 @@ export default function StudioApp() {
                 <h2>{clips.length ? "Ready when you are" : "Start with your footage"}</h2>
                 <p>
                   {clips.length
-                    ? "Press Regenerate cut to let Claude build a first draft — or arrange the clips yourself."
+                    ? "Click '1. Analyze Clips' to describe scenes with Claude, or '2. Author Story & Script' to build your Vlog story."
                     : "Drop clips into the bin on the left. Claude reads them, finds a story, and builds a captioned cut you refine here."}
                 </p>
                 {clips.length > 0 && (
@@ -132,6 +135,9 @@ export default function StudioApp() {
               </div>
             )}
 
+            {clips.length > 0 && (
+              <StoryBar onAuthor={regen.authorScript} busy={regen.busy} />
+            )}
           </div>
 
           {regen.busy && (
