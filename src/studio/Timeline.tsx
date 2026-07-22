@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Cut, Clip, OverlayBlendMode } from "../domain/types";
+import type { Cut, Clip, OverlayClip, OverlayBlendMode } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { createClip } from "../features/ingest/ingest";
 import { fmtSecs, posterBg } from "./util";
@@ -94,6 +94,62 @@ export default function Timeline({
     } finally {
       setLoadingStock(false);
       setPickerOpen(false);
+    }
+  }
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [draggingOverlayId, setDraggingOverlayId] = useState<string | null>(null);
+  const dragStartRef = useRef<{ startX: number; initialStartSec: number; initialDurationSec: number; mode: "move" | "resize-left" | "resize-right" } | null>(null);
+
+  function startOverlayDrag(e: React.PointerEvent, overlay: OverlayClip, mode: "move" | "resize-left" | "resize-right") {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSelectOverlay?.(overlay.id);
+    setDraggingOverlayId(overlay.id);
+    dragStartRef.current = {
+      startX: e.clientX,
+      initialStartSec: overlay.startTimeSec,
+      initialDurationSec: overlay.durationSec,
+      mode,
+    };
+  }
+
+  function handleOverlayPointerMove(e: React.PointerEvent, overlay: OverlayClip) {
+    if (draggingOverlayId !== overlay.id || !dragStartRef.current || !trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+
+    const deltaX = e.clientX - dragStartRef.current.startX;
+    const deltaSec = (deltaX / rect.width) * totalDur;
+
+    if (dragStartRef.current.mode === "move") {
+      const newStartSec = Math.max(0, Math.min(totalDur - overlay.durationSec, dragStartRef.current.initialStartSec + deltaSec));
+      const roundedStart = Math.round(newStartSec * 10) / 10;
+      if (roundedStart !== overlay.startTimeSec) {
+        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: roundedStart } });
+      }
+    } else if (dragStartRef.current.mode === "resize-right") {
+      const newDur = Math.max(0.5, Math.min(totalDur - overlay.startTimeSec, dragStartRef.current.initialDurationSec + deltaSec));
+      const roundedDur = Math.round(newDur * 10) / 10;
+      if (roundedDur !== overlay.durationSec) {
+        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, durationSec: roundedDur } });
+      }
+    } else if (dragStartRef.current.mode === "resize-left") {
+      const maxDelta = dragStartRef.current.initialDurationSec - 0.5;
+      const actualDelta = Math.max(-dragStartRef.current.initialStartSec, Math.min(maxDelta, deltaSec));
+      const newStartSec = Math.round((dragStartRef.current.initialStartSec + actualDelta) * 10) / 10;
+      const newDur = Math.round((dragStartRef.current.initialDurationSec - actualDelta) * 10) / 10;
+      if (newStartSec !== overlay.startTimeSec || newDur !== overlay.durationSec) {
+        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: newStartSec, durationSec: newDur } });
+      }
+    }
+  }
+
+  function endOverlayDrag(e: React.PointerEvent) {
+    if (draggingOverlayId) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      setDraggingOverlayId(null);
+      dragStartRef.current = null;
     }
   }
 
@@ -230,9 +286,12 @@ export default function Timeline({
       {overlays.length > 0 && (
         <div style={{ padding: "6px 12px", background: "var(--panel-2)", borderBottom: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span>🎞️ Overlay Track (B-Roll / Blend Transitions)</span>
+            <span>🎞️ Overlay Track (Drag to Reposition / Resize Edges)</span>
           </div>
-          <div style={{ position: "relative", height: 32, background: "var(--panel-3)", borderRadius: 6, overflow: "hidden", border: "1px solid var(--line)" }}>
+          <div
+            ref={trackRef}
+            style={{ position: "relative", height: 34, background: "var(--panel-3)", borderRadius: 6, overflow: "hidden", border: "1px solid var(--line)", userSelect: "none" }}
+          >
             {overlays.map((ov) => {
               const leftPct = (ov.startTimeSec / totalDur) * 100;
               const widthPct = Math.max(4, (ov.durationSec / totalDur) * 100);
@@ -242,36 +301,45 @@ export default function Timeline({
               return (
                 <div
                   key={ov.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectOverlay?.(ov.id);
-                  }}
+                  onPointerDown={(e) => startOverlayDrag(e, ov, "move")}
+                  onPointerMove={(e) => handleOverlayPointerMove(e, ov)}
+                  onPointerUp={endOverlayDrag}
                   style={{
                     position: "absolute",
                     left: `${leftPct}%`,
                     width: `${widthPct}%`,
                     top: 2,
                     bottom: 2,
-                    background: isSel ? "var(--accent)" : "rgba(255, 179, 57, 0.25)",
+                    background: isSel ? "var(--accent)" : "rgba(255, 179, 57, 0.35)",
                     border: isSel ? "2px solid #fff" : "1px solid var(--accent)",
                     borderRadius: 4,
                     color: isSel ? "#111" : "var(--accent)",
                     fontWeight: 600,
                     fontSize: 10,
-                    padding: "2px 6px",
-                    cursor: "pointer",
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
-                    textOverflow: "ellipsis",
+                    padding: "0 4px",
+                    cursor: "grab",
+                    userSelect: "none",
+                    touchAction: "none",
+                    zIndex: isSel ? 10 : 2,
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
                   }}
-                  title={`Overlay: ${ovClip?.name ?? "Clip"} (${ov.blendMode}, Vol ${Math.round(ov.volume * 100)}%, Opacity ${Math.round(ov.opacity * 100)}%)`}
+                  title={`Drag to reposition on timeline · Start: ${ov.startTimeSec.toFixed(1)}s · Dur: ${ov.durationSec.toFixed(1)}s`}
                 >
+                  {/* Left Resize Handle */}
+                  <div
+                    onPointerDown={(e) => startOverlayDrag(e, ov, "resize-left")}
+                    style={{ width: 6, height: "100%", cursor: "ew-resize", background: "rgba(0,0,0,0.25)", borderRadius: "2px 0 0 2px" }}
+                    title="Drag left edge to adjust start time"
+                  />
+
                   <span>{ov.blendMode.toUpperCase()}</span>
                   <span>·</span>
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{ovClip?.name ?? "Overlay"}</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {ovClip?.name ?? "Overlay"} ({ov.startTimeSec.toFixed(1)}s)
+                  </span>
+
                   <button
                     type="button"
                     onClick={(e) => {
@@ -293,13 +361,21 @@ export default function Timeline({
                       fontSize: 10,
                       fontWeight: 700,
                       lineHeight: 1,
-                      marginLeft: "auto",
+                      marginLeft: 2,
+                      marginRight: 2,
                       padding: 0,
                     }}
                     title="Remove overlay clip"
                   >
                     ✕
                   </button>
+
+                  {/* Right Resize Handle */}
+                  <div
+                    onPointerDown={(e) => startOverlayDrag(e, ov, "resize-right")}
+                    style={{ width: 6, height: "100%", cursor: "ew-resize", background: "rgba(0,0,0,0.25)", borderRadius: "0 2px 2px 0" }}
+                    title="Drag right edge to adjust duration"
+                  />
                 </div>
               );
             })}
