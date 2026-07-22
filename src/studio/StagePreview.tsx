@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview from "../features/export/FinalPreview";
 import { activeCaptionText } from "../lib/pacing";
@@ -145,16 +145,73 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     );
   }
 
+  const clipUrlMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of clips) {
+      const src = c.normalized ?? c.file;
+      if (src) map.set(c.id, URL.createObjectURL(src));
+    }
+    return map;
+  }, [clips]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of clipUrlMap.values()) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [clipUrlMap]);
+
   const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
 
+  const beatIndex = cut.beats.indexOf(beat);
+  const beatStartSec = cut.beats.slice(0, Math.max(0, beatIndex)).reduce((sum, b) => sum + b.durationSec, 0);
   const beatElapsed = pos * (beat.outSec - beat.inSec);
+  const elapsedCutSec = beatStartSec + beatElapsed;
   const caption = activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec));
   const isAtEnd = !playing && pos >= 0.98;
 
   return (
     <>
-      <div className="st-preview" style={{ aspectRatio, cursor: "pointer" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
+      <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
         <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted playsInline style={{ filter: cssFilterFor(beat.colorAdjustments) }} />
+        {(() => {
+          const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec);
+          const overlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
+          if (!activeOverlay || !overlayClip) return null;
+          const blobUrl = clipUrlMap.get(overlayClip.id);
+
+          return (
+            <video
+              key={activeOverlay.id}
+              src={blobUrl}
+              ref={(el) => {
+                if (el) {
+                  const targetTime = (elapsedCutSec - activeOverlay.startTimeSec) + activeOverlay.inSec;
+                  if (Math.abs(el.currentTime - targetTime) > 0.15) {
+                    el.currentTime = targetTime;
+                  }
+                  if (playing && el.paused) el.play().catch(() => {});
+                  else if (!playing && !el.paused) el.pause();
+                  el.volume = activeOverlay.volume;
+                }
+              }}
+              muted={activeOverlay.volume === 0}
+              playsInline
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                pointerEvents: "none",
+                opacity: activeOverlay.opacity,
+                mixBlendMode: activeOverlay.blendMode as any,
+                zIndex: 5,
+              }}
+            />
+          );
+        })()}
         <div className="st-badgeTL st-num">Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}</div>
         <div className="cap"><span>{caption}</span></div>
       </div>
