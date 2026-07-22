@@ -20,6 +20,7 @@ export default function StudioApp() {
   const regen = useRegenerate();
 
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
 
   // Dev-only fixture (?seed) to exercise the populated workspace without footage/AI.
@@ -155,6 +156,8 @@ export default function StudioApp() {
           index={selIndex}
           total={beats.length}
           onDuplicateBeat={duplicateBeat}
+          selectedOverlayId={selectedOverlayId}
+          onSelectOverlay={setSelectedOverlayId}
         />
       </div>
 

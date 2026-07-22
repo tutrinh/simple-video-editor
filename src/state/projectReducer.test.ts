@@ -56,6 +56,32 @@ describe("projectReducer", () => {
     expect(s.cut?.beats.map((b) => b.id)).toEqual(["1-dup", "2"]);
   });
 
+  it("adds, updates, and removes overlays on the cut", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const ov = {
+      id: "ov1",
+      clipId: "a",
+      startTimeSec: 1,
+      durationSec: 3,
+      inSec: 0,
+      outSec: 3,
+      blendMode: "normal" as const,
+      opacity: 0.8,
+      volume: 0.5,
+    };
+    s = projectReducer(s, { type: "ADD_OVERLAY", overlay: ov });
+    expect(s.cut?.overlays).toHaveLength(1);
+    expect(s.cut?.overlays?.[0].blendMode).toBe("normal");
+
+    s = projectReducer(s, { type: "UPDATE_OVERLAY", overlay: { ...ov, blendMode: "screen", opacity: 0.9 } });
+    expect(s.cut?.overlays?.[0].blendMode).toBe("screen");
+    expect(s.cut?.overlays?.[0].opacity).toBe(0.9);
+
+    s = projectReducer(s, { type: "REMOVE_OVERLAY", id: "ov1" });
+    expect(s.cut?.overlays).toHaveLength(0);
+  });
+
   it("resets to initial", () => {
     let s = projectReducer(initialState, { type: "ADD_CLIPS", clips: [clip("a")] });
     s = projectReducer(s, { type: "SET_DIRECTION", direction: "funnier" });
@@ -63,3 +89,4 @@ describe("projectReducer", () => {
     expect(s).toEqual(initialState);
   });
 });
+

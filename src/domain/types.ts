@@ -99,8 +99,23 @@ export interface ColorAdjustments {
   saturation?: number;
 }
 
-/** The assembled, editable draft — the ordered sequence of Beats. */
+export type OverlayBlendMode = "normal" | "screen" | "multiply" | "overlay";
+
+export interface OverlayClip {
+  id: string;
+  clipId: string;
+  startTimeSec: number;
+  durationSec: number;
+  inSec: number;
+  outSec: number;
+  blendMode: OverlayBlendMode;
+  opacity: number; // 0..1
+  volume: number; // 0..1
+}
+
+/** The assembled, editable draft — the ordered sequence of Beats and Overlays. */
 export interface Cut {
   beats: Beat[];
+  overlays?: OverlayClip[];
   aspect: Aspect;
 }

@@ -1,4 +1,4 @@
-import type { Clip, Cut, Aspect } from "../../domain/types";
+import type { Clip, Cut, Aspect, OverlayClip } from "../../domain/types";
 import { runIsolated, multithreadReady, type EngineInput } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -354,13 +354,78 @@ function captionLayers(
 // 1080p and short (much lighter than a 4K normalize), so 2 is comfortable, 3 on
 // high-RAM machines, 1 on very low-RAM. Each runs in its own isolated engine.
 function exportConcurrency(): number {
-  // With MT, run ONE engine at a time: each mt instance reserves a big
-  // SharedArrayBuffer thread pool, so two concurrent mt encodes can exhaust
-  // memory and crash the tab. Sequential + mt is still ~2-4x faster per encode.
   if (multithreadReady()) return 1;
   const mem = typeof navigator !== "undefined" ? (navigator as { deviceMemory?: number }).deviceMemory : undefined;
   if (typeof mem === "number") return mem <= 2 ? 1 : mem >= 8 ? 3 : 2;
   return 2;
+}
+
+async function applyOverlaysToVideo(
+  videoBytes: Uint8Array,
+  overlays: OverlayClip[],
+  clips: Clip[],
+  w: number,
+  h: number,
+  preset: string,
+  crf: number,
+): Promise<Uint8Array> {
+  const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
+  if (activeOverlays.length === 0) return videoBytes;
+
+  let currentVideo = videoBytes;
+
+  for (let idx = 0; idx < activeOverlays.length; idx++) {
+    const o = activeOverlays[idx];
+    const clip = clips.find((c) => c.id === o.clipId);
+    if (!clip) continue;
+
+    const overlayData = await bytesOf(clip.normalized ?? clip.file);
+    const ovName = `overlay_${idx}.mp4`;
+    const st = o.startTimeSec.toFixed(3);
+    const dur = o.durationSec.toFixed(3);
+    const inS = o.inSec.toFixed(3);
+
+    const mode = o.blendMode ?? "normal";
+    const op = (o.opacity ?? 1).toFixed(2);
+
+    let filterGraph = "";
+    if (mode === "screen") {
+      filterGraph =
+        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1[ov];` +
+        `[0:v][ov]blend=all_mode=screen:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'[v]`;
+    } else if (mode === "multiply") {
+      filterGraph =
+        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1[ov];` +
+        `[0:v][ov]blend=all_mode=multiply:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'[v]`;
+    } else if (mode === "overlay") {
+      filterGraph =
+        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1[ov];` +
+        `[0:v][ov]blend=all_mode=overlay:all_opacity=${op}:enable='between(t,${st},${st}+${dur})'[v]`;
+    } else {
+      filterGraph =
+        `[1:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=rgba,colorchannelmixer=aa=${op}[ov];` +
+        `[0:v][ov]overlay=x=0:y=0:enable='between(t,${st},${st}+${dur})'[v]`;
+    }
+
+    currentVideo = await runIsolated(
+      [
+        { name: "in.mp4", data: currentVideo },
+        { name: ovName, data: overlayData },
+      ],
+      [
+        "-i", "in.mp4",
+        "-ss", inS, "-t", dur, "-i", ovName,
+        "-filter_complex", filterGraph,
+        "-map", "[v]", "-map", "0:a:0?",
+        "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+        "-c:a", "copy",
+        "overlaid.mp4",
+      ],
+      "overlaid.mp4",
+    );
+  }
+
+  return currentVideo;
 }
 
 export async function exportCut(
@@ -648,6 +713,11 @@ export async function exportCut(
       [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
       "titled.mp4",
     );
+  }
+
+  // Composite global overlay clips (B-roll & blend transitions) if any
+  if (cut.overlays && cut.overlays.length > 0) {
+    video = await applyOverlaysToVideo(video, cut.overlays, clips, w, h, preset, crf);
   }
 
   if (!opts.music) {

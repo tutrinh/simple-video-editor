@@ -68,6 +68,23 @@ export default function FinalPreview({
   const playingRef = useRef(false);
 
   const clipById = useMemo(() => new Map(clips.map((c) => [c.id, c])), [clips]);
+  const clipUrlMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of clips) {
+      const src = c.normalized ?? c.file;
+      if (src) map.set(c.id, URL.createObjectURL(src));
+    }
+    return map;
+  }, [clips]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of clipUrlMap.values()) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [clipUrlMap]);
+
   const beat = cut.beats[index];
   const [, canvasH] = canvasDims(cut.aspect);
 
@@ -409,6 +426,44 @@ export default function FinalPreview({
             }}
           />
         )}
+
+        {(() => {
+          const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec);
+          const overlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
+          if (!activeOverlay || !overlayClip) return null;
+          const blobUrl = clipUrlMap.get(overlayClip.id);
+
+          return (
+            <video
+              key={activeOverlay.id}
+              src={blobUrl}
+              ref={(el) => {
+                if (el) {
+                  const targetTime = (elapsed - activeOverlay.startTimeSec) + activeOverlay.inSec;
+                  if (Math.abs(el.currentTime - targetTime) > 0.15) {
+                    el.currentTime = targetTime;
+                  }
+                  if (playing && el.paused) el.play().catch(() => {});
+                  else if (!playing && !el.paused) el.pause();
+                  el.volume = activeOverlay.volume;
+                }
+              }}
+              muted={activeOverlay.volume === 0}
+              playsInline
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                pointerEvents: "none",
+                opacity: activeOverlay.opacity,
+                mixBlendMode: activeOverlay.blendMode as any,
+                zIndex: 5,
+              }}
+            />
+          );
+        })()}
 
         {title && title.layers.map((layer) => {
           if (!layer.enabled || !layer.text.trim()) return null;

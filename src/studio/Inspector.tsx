@@ -18,6 +18,8 @@ interface Props {
   index: number;
   total: number;
   onDuplicateBeat: (beatId: string) => void;
+  selectedOverlayId?: string | null;
+  onSelectOverlay?: (id: string | null) => void;
 }
 
 function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
@@ -29,10 +31,12 @@ function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperti
   };
 }
 
-export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat }: Props) {
+export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay }: Props) {
   const { state, dispatch } = useProject();
   const { settings } = useSettings();
   const cut = state.cut;
+  const overlays = cut?.overlays ?? [];
+  const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   // Per-line caption alternatives: model + mood chosen here (seeded from settings),
@@ -514,6 +518,108 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     </button>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Overlay Clip Inspector Card */}
+            {selectedOverlay && (
+              <div className="st-sec" style={{ marginTop: 10, background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--accent)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎞️ Overlay Clip Settings</span>
+                  <button className="st-btn danger" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => { dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlay.id }); onSelectOverlay?.(null); }}>
+                    Remove
+                  </button>
+                </div>
+
+                {/* Clip Selector */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Overlay Footage Clip</label>
+                  <select
+                    value={selectedOverlay.clipId}
+                    onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, clipId: e.target.value } })}
+                    style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 12 }}
+                  >
+                    {_clips.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Blend Mode Selector */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                  <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Visual Blend Mode</label>
+                  <select
+                    value={selectedOverlay.blendMode}
+                    onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, blendMode: e.target.value as any } })}
+                    style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--accent)", fontWeight: 600, padding: "4px 8px", fontSize: 12 }}
+                  >
+                    <option value="normal">Normal / Overwrite Opacity</option>
+                    <option value="screen">Screen (Lighten Blend)</option>
+                    <option value="multiply">Multiply (Darken Blend)</option>
+                    <option value="overlay">Overlay (Contrast Blend)</option>
+                  </select>
+                </div>
+
+                {/* Opacity Slider */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                    <span>Opacity</span>
+                    <span>{Math.round(selectedOverlay.opacity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={selectedOverlay.opacity}
+                    onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, opacity: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedOverlay.opacity, 0, 1)}
+                  />
+                </div>
+
+                {/* Audio Volume Slider */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                    <span>Audio Volume</span>
+                    <span>{Math.round(selectedOverlay.volume * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={selectedOverlay.volume}
+                    onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, volume: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedOverlay.volume, 0, 1)}
+                  />
+                </div>
+
+                {/* Timing Inputs */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                    <label style={{ fontSize: 10, color: "var(--ink-2)" }}>Timeline Start (s)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={selectedOverlay.startTimeSec}
+                      onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: Number(e.target.value) } })}
+                      style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 11 }}
+                    />
+                  </div>
+
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                    <label style={{ fontSize: 10, color: "var(--ink-2)" }}>Duration (s)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.5"
+                      value={selectedOverlay.durationSec}
+                      onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, durationSec: Number(e.target.value) } })}
+                      style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 11 }}
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>

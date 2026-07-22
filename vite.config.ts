@@ -238,6 +238,8 @@ function defaultMusic(filePath: string): Plugin {
 // them, so Export can offer a pick-from-folder list with preview. Names are
 // basename()'d before joining, so a request can't escape the configured folder.
 const AUDIO_RE = /\.(mp3|m4a|aac|wav|ogg|flac)$/i;
+const VIDEO_RE = /\.(mp4|mov|webm|m4v)$/i;
+
 function musicLibrary(dir: string): Plugin {
   return {
     name: "music-library",
@@ -275,6 +277,57 @@ function musicLibrary(dir: string): Plugin {
   };
 }
 
+function overlayLibrary(dir: string): Plugin {
+  return {
+    name: "overlay-library",
+    configureServer(server) {
+      server.middlewares.use("/api/overlays", (req, res) => {
+        const u = new URL(req.url ?? "/", "http://localhost");
+        if (u.pathname === "/list") {
+          res.setHeader("content-type", "application/json");
+          try {
+            const result: { category: string; files: string[] }[] = [];
+            const entries = readdirSync(dir, { withFileTypes: true });
+            for (const ent of entries) {
+              if (ent.isDirectory()) {
+                const categoryPath = join(dir, ent.name);
+                const files = readdirSync(categoryPath).filter((n) => VIDEO_RE.test(n)).sort();
+                if (files.length > 0) {
+                  result.push({ category: ent.name, files });
+                }
+              } else if (VIDEO_RE.test(ent.name)) {
+                result.push({ category: "general", files: [ent.name] });
+              }
+            }
+            res.end(JSON.stringify({ categories: result }));
+          } catch {
+            res.end(JSON.stringify({ categories: [] }));
+          }
+          return;
+        }
+        if (u.pathname === "/file") {
+          const category = basename(u.searchParams.get("category") ?? "");
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !VIDEO_RE.test(name)) { res.statusCode = 400; res.end(); return; }
+          try {
+            const filePath = category && category !== "general" ? join(dir, category, name) : join(dir, name);
+            const data = readFileSync(filePath);
+            res.statusCode = 200;
+            res.setHeader("content-type", "video/mp4");
+            res.setHeader("content-length", String(data.length));
+            res.setHeader("x-overlay-name", name);
+            res.end(data);
+          } catch {
+            res.statusCode = 404; res.end();
+          }
+          return;
+        }
+        res.statusCode = 404; res.end();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   // Music bed folder + default track live in the project by default (./music).
@@ -282,6 +335,7 @@ export default defineConfig(({ mode }) => {
   const abs = (p: string, fallback: string) =>
     p ? (isAbsolute(p) ? p : resolve(process.cwd(), p)) : fallback;
   const musicDir = abs(env.MUSIC_DIR ?? "", resolve(process.cwd(), "music"));
+  const overlaysDir = abs(env.OVERLAYS_DIR ?? "", resolve(process.cwd(), "overlays"));
   const defaultMusicPath = abs(env.DEFAULT_MUSIC ?? "", join(musicDir, "City Nights.mp3"));
   return {
     plugins: [
@@ -291,6 +345,7 @@ export default defineConfig(({ mode }) => {
       elevenProxy(env.ELEVENLABS_API_KEY ?? ""),
       defaultMusic(defaultMusicPath),
       musicLibrary(musicDir),
+      overlayLibrary(overlaysDir),
     ],
     server: { headers: isolation },
     preview: { headers: isolation },

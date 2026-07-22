@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story } from "../domain/types";
+import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip } from "../domain/types";
 
 /** The whole editing session. One store; every phase reads/writes it. */
 export interface ProjectState {
@@ -29,6 +29,9 @@ export type Action =
   | { type: "REMOVE_BEAT"; id: string }
   | { type: "DUPLICATE_BEAT"; id: string; newBeatId?: string; newClipId?: string }
   | { type: "REORDER_BEATS"; order: string[] }
+  | { type: "ADD_OVERLAY"; overlay: OverlayClip }
+  | { type: "UPDATE_OVERLAY"; overlay: OverlayClip }
+  | { type: "REMOVE_OVERLAY"; id: string }
   | { type: "RESET" };
 
 function patchClip(clips: Clip[], id: string, patch: Partial<Clip>): Clip[] {
@@ -69,6 +72,21 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case "REMOVE_BEAT": {
       if (!state.cut) return state;
       return { ...state, cut: { ...state.cut, beats: state.cut.beats.filter((b) => b.id !== action.id) } };
+    }
+    case "ADD_OVERLAY": {
+      if (!state.cut) return state;
+      const overlays = [...(state.cut.overlays ?? []), action.overlay];
+      return { ...state, cut: { ...state.cut, overlays } };
+    }
+    case "UPDATE_OVERLAY": {
+      if (!state.cut) return state;
+      const overlays = (state.cut.overlays ?? []).map((o) => (o.id === action.overlay.id ? action.overlay : o));
+      return { ...state, cut: { ...state.cut, overlays } };
+    }
+    case "REMOVE_OVERLAY": {
+      if (!state.cut) return state;
+      const overlays = (state.cut.overlays ?? []).filter((o) => o.id !== action.id);
+      return { ...state, cut: { ...state.cut, overlays } };
     }
     case "DUPLICATE_BEAT": {
       if (!state.cut) return state;
