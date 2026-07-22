@@ -27,9 +27,20 @@ function download(name: string, blobOrText: Blob | string, type = "text/plain") 
 }
 
 async function loadFont(): Promise<Uint8Array> {
-  const res = await fetch("/fonts/Inter-Bold.ttf");
-  if (!res.ok) throw new Error("caption font missing");
-  return new Uint8Array(await res.arrayBuffer());
+  const fontCandidates = ["/caption-font.ttf", "/fonts/title-sans.ttf"];
+  for (const url of fontCandidates) {
+    try {
+      const res = await fetch(url);
+      const contentType = res.headers.get("content-type") || "";
+      if (res.ok && !contentType.includes("text/html")) {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.length > 1000 && bytes[0] !== 0x3c && bytes[0] !== 0x7b) {
+          return bytes;
+        }
+      }
+    } catch {}
+  }
+  throw new Error("Caption font file missing or invalid (/caption-font.ttf)");
 }
 
 function sliderTrackStyle(val: number, min: number, max: number) {
@@ -229,7 +240,11 @@ export default function ExportView() {
               else {
                 const url = l.fontId === "serif" ? "/fonts/title-serif.ttf" : "/fonts/title-sans.ttf";
                 const res = await fetch(url);
-                if (res.ok) fBytes = new Uint8Array(await res.arrayBuffer());
+                const contentType = res.headers.get("content-type") || "";
+                if (res.ok && !contentType.includes("text/html")) {
+                  const bytes = new Uint8Array(await res.arrayBuffer());
+                  if (bytes.length > 1000 && bytes[0] !== 0x3c) fBytes = bytes;
+                }
               }
             }
           }

@@ -89,7 +89,19 @@ export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400)
   } catch {}
 
   // Tier 3: Guaranteed local fallback to title-sans.ttf or title-serif.ttf
-  const fallbackUrl = font.category === "serif" ? "/fonts/title-serif.ttf" : "/fonts/title-sans.ttf";
-  const fallbackRes = await fetch(fallbackUrl);
-  return new Uint8Array(await fallbackRes.arrayBuffer());
+  const fallbackUrls = [
+    font.category === "serif" ? "/fonts/title-serif.ttf" : "/fonts/title-sans.ttf",
+    "/caption-font.ttf",
+  ];
+  for (const url of fallbackUrls) {
+    try {
+      const res = await fetch(url);
+      const ct = res.headers.get("content-type") || "";
+      if (res.ok && !ct.includes("text/html")) {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.length > 1000 && bytes[0] !== 0x3c) return bytes;
+      }
+    } catch {}
+  }
+  return new Uint8Array();
 }
