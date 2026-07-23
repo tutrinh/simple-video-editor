@@ -651,11 +651,45 @@ export default function FinalPreview({
 }
 
 /**
+ * Paint a preview canvas at its on-screen size × devicePixelRatio (capped at the
+ * export raster), with the context scaled so the shared renderer still draws in
+ * export coordinates. This rasterizes text at the display's NATIVE resolution
+ * instead of CSS-downscaling a fixed 1080p bitmap — crisp on HiDPI, no softening.
+ * Renders off-screen then blits in one drawImage, so there is no clear/draw flash.
+ */
+async function paintHiDPI(
+  canvas: HTMLCanvasElement,
+  exportW: number,
+  exportH: number,
+  draw: (ctx: CanvasRenderingContext2D) => Promise<void> | void,
+  isCancelled: () => boolean,
+): Promise<void> {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const bw = rect.width > 0 ? Math.min(exportW, Math.round(rect.width * dpr)) : exportW;
+  const bh = rect.height > 0 ? Math.min(exportH, Math.round(rect.height * dpr)) : exportH;
+
+  const off = document.createElement("canvas");
+  off.width = bw;
+  off.height = bh;
+  const offCtx = off.getContext("2d");
+  if (!offCtx) return;
+  offCtx.setTransform(bw / exportW, 0, 0, bh / exportH, 0, 0);
+  await draw(offCtx);
+  if (isCancelled()) return;
+
+  if (canvas.width !== bw) canvas.width = bw;
+  if (canvas.height !== bh) canvas.height = bh;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, bw, bh);
+  ctx.drawImage(off, 0, 0);
+}
+
+/**
  * One title layer, drawn by the SHARED canvas renderer (ADR-0008) — the exact
- * same `drawTitleLayer` the export uses. The canvas is at full export resolution
- * and CSS-scaled to fill the preview box, so the preview is literally a smaller
- * view of the exported bitmap. Animation (opacity/transform) is applied to the
- * canvas element, never baked in.
+ * same `drawTitleLayer` the export uses, at the display's native resolution.
+ * Animation (opacity/transform) is applied to the canvas element, never baked in.
  */
 function TitleLayerCanvas({
   layer,
@@ -676,17 +710,17 @@ function TitleLayerCanvas({
     let cancelled = false;
     (async () => {
       const canvas = ref.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx) return;
+      if (!canvas) return;
       const weight = layer.fontWeight ?? 400;
       const cssFamily = layer.fontFamily || "sans-serif";
       const bytes = await getTitleFontBytes(layer.fontId, weight, layer.fontFile);
       const canvasFamily = await ensureTitleFontFace(titleFontKey(cssFamily, weight, bytes?.length), bytes, cssFamily);
       if (cancelled) return;
-      ctx.clearRect(0, 0, cw, ch);
-      await drawTitleLayer(
-        ctx,
-        {
+      await paintHiDPI(
+        canvas,
+        cw,
+        ch,
+        (ctx) => drawTitleLayer(ctx, {
           text: layer.text,
           canvasFamily,
           cssFamily,
@@ -699,9 +733,8 @@ function TitleLayerCanvas({
           color: layer.color,
           posX: layer.posX,
           posY: layer.posY,
-        },
-        cw,
-        ch,
+        }, cw, ch),
+        () => cancelled,
       );
     })();
     return () => {
@@ -716,8 +749,6 @@ function TitleLayerCanvas({
   return (
     <canvas
       ref={ref}
-      width={cw}
-      height={ch}
       style={{
         position: "absolute",
         inset: 0,
@@ -761,19 +792,14 @@ function CaptionCanvas({
     let cancelled = false;
     (async () => {
       const canvas = ref.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx) return;
-      // Draw off-screen first, then blit, so a re-render mid-async doesn't clear
-      // the visible caption between clear and draw.
-      const off = document.createElement("canvas");
-      off.width = cw;
-      off.height = ch;
-      const offCtx = off.getContext("2d");
-      if (!offCtx) return;
-      await drawCaptionBlock(offCtx, { text, fontSizePx, bgOpacity, lineHeight, marginPx }, cw, ch);
-      if (cancelled) return;
-      ctx.clearRect(0, 0, cw, ch);
-      ctx.drawImage(off, 0, 0);
+      if (!canvas) return;
+      await paintHiDPI(
+        canvas,
+        cw,
+        ch,
+        (ctx) => drawCaptionBlock(ctx, { text, fontSizePx, bgOpacity, lineHeight, marginPx }, cw, ch),
+        () => cancelled,
+      );
     })();
     return () => {
       cancelled = true;
@@ -783,8 +809,6 @@ function CaptionCanvas({
   return (
     <canvas
       ref={ref}
-      width={cw}
-      height={ch}
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
     />
   );
