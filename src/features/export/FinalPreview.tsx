@@ -8,12 +8,12 @@ import type { Voice } from "../../lib/kokoroTts";
 import { getClipBlobUrl } from "../../lib/blobUrlCache";
 import { drawTitleLayer, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { getTitleFontBytes } from "./titleFonts";
+import { drawCaptionBlock } from "./captionCanvas";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
 // timed title overlay, correct aspect — plus optional music/voiceover.
 const ASPECT_RATIO = { "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1 } as const;
-const CAPTION_H_FRACTION = 0.045; // caption font ≈ 4.5% of frame height (matches export)
 const PREVIEW_H = 360;
 
 export interface PreviewTitleLayer {
@@ -297,7 +297,6 @@ export default function FinalPreview({
   // Timed beats show one line at a time (the cue live at beatElapsed); untimed
   // beats show the whole stacked caption, as before.
   const caption = beat ? activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec)) : "";
-  const capFont = PREVIEW_H * CAPTION_H_FRACTION * captionScale;
 
   const [trAnimKey, setTrAnimKey] = useState(0);
 
@@ -537,24 +536,15 @@ export default function FinalPreview({
         })}
 
         {caption && (
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: `${PREVIEW_H * 0.07}px`, textAlign: "center", padding: "0 6px", pointerEvents: "none" }}>
-            <span
-              style={{
-                display: "inline-block",
-                maxWidth: "92%",
-                background: `rgba(0,0,0,${captionOpacity})`,
-                color: "#fff",
-                fontWeight: 700,
-                lineHeight: captionLineHeight,
-                whiteSpace: "pre-line",
-                padding: "2px 8px",
-                borderRadius: 3,
-                fontSize: capFont,
-              }}
-            >
-              {caption}
-            </span>
-          </div>
+          <CaptionCanvas
+            text={caption}
+            cw={canvasW}
+            ch={canvasH}
+            fontSizePx={Math.max(24, canvasH * 0.045) * captionScale}
+            bgOpacity={captionOpacity}
+            lineHeight={captionLineHeight}
+            marginPx={canvasH * 0.07}
+          />
         )}
       </div>
 
@@ -738,6 +728,64 @@ function TitleLayerCanvas({
         transform: transform || undefined,
         transition: "opacity 0.05s linear",
       }}
+    />
+  );
+}
+
+/**
+ * The active caption, drawn by the SHARED caption renderer (ADR-0008) — the same
+ * drawCaptionBlock the export uses. Full-resolution canvas CSS-scaled into the
+ * preview box, so the preview caption's font, wrapping, box, and placement match
+ * the exported caption exactly (the old CSS span used a different font entirely).
+ */
+function CaptionCanvas({
+  text,
+  cw,
+  ch,
+  fontSizePx,
+  bgOpacity,
+  lineHeight,
+  marginPx,
+}: {
+  text: string;
+  cw: number;
+  ch: number;
+  fontSizePx: number;
+  bgOpacity: number;
+  lineHeight: number;
+  marginPx: number;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const canvas = ref.current;
+      const ctx = canvas?.getContext("2d");
+      if (!canvas || !ctx) return;
+      // Draw off-screen first, then blit, so a re-render mid-async doesn't clear
+      // the visible caption between clear and draw.
+      const off = document.createElement("canvas");
+      off.width = cw;
+      off.height = ch;
+      const offCtx = off.getContext("2d");
+      if (!offCtx) return;
+      await drawCaptionBlock(offCtx, { text, fontSizePx, bgOpacity, lineHeight, marginPx }, cw, ch);
+      if (cancelled) return;
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.drawImage(off, 0, 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [text, cw, ch, fontSizePx, bgOpacity, lineHeight, marginPx]);
+
+  return (
+    <canvas
+      ref={ref}
+      width={cw}
+      height={ch}
+      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
     />
   );
 }

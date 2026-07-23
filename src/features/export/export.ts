@@ -6,6 +6,7 @@ import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
 import { ffmpegColorFilters } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
+import { renderCaptionToPng } from "./captionCanvas";
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
 // isolated engine — trim → scale/letterbox → BURN caption → uniform-silent
@@ -232,40 +233,10 @@ export function wrapCaption(text: string, canvasW: number, fontsize: number): st
   return lines.join("\n");
 }
 
-// Centered captions: drawtext left-aligns the lines within a multi-line block
-// (no reliable per-line centering in this ffmpeg-core), so render ONE drawtext
-// per wrapped line, each independently centered (x=(w-text_w)/2) and stacked
-// bottom-up. Each line gets its own text file to sidestep escaping.
-function captionLayers(
-  text: string,
-  w: number,
-  h: number,
-  fontsize: number,
-  bgOpacity: number,
-  border: number,
-  margin: number,
-  lineHeight: number,
-  tag = "",
-  enable = "",
-): { files: EngineInput[]; filters: string[] } {
-  // Wrap the caption to fit the frame; long text becomes several visual rows,
-  // stacked bottom-up. `enable` (e.g. ":enable='between(t,a,b)'") time-gates them.
-  const lines = text.trim() ? wrapCaption(text.replace(/\n/g, " "), w, fontsize).split("\n") : [];
-  const lineH = Math.round(fontsize * lineHeight);
-  const files: EngineInput[] = [];
-  const filters: string[] = [];
-  lines.forEach((ln, i) => {
-    const name = `cap_${tag}${i}.txt`;
-    files.push({ name, data: new TextEncoder().encode(ln) });
-    const y = h - margin - (lines.length - i) * lineH;
-    filters.push(
-      `drawtext=fontfile=/font.ttf:textfile=/${name}:expansion=none:` +
-        `fontcolor=white:fontsize=${fontsize}:box=1:boxcolor=black@${bgOpacity}:boxborderw=${border}:` +
-        `x=(w-text_w)/2:y=${y}${enable}`,
-    );
-  });
-  return { files, filters };
-}
+// Captions are now rendered by the SHARED canvas renderer (captionCanvas.ts,
+// ADR-0008): one full-frame PNG per cue, composited with ffmpeg `overlay` and
+// time-gated with `enable`. This matches the preview exactly (same font,
+// wrapping, box, placement) — drawtext could not.
 
 // Render at most N beat segments at once. Export segments are already-normalized
 // 1080p and short (much lighter than a 4K normalize), so 2 is comfortable, 3 on
@@ -474,7 +445,6 @@ export async function exportCut(
   const [w, h] = canvasDims(cut.aspect);
   const fontsize = Math.round(Math.max(24, h * 0.045) * (opts.captionScale ?? 1));
   const bgOpacity = Math.min(1, Math.max(0, opts.captionBgOpacity ?? 0.5));
-  const border = Math.round(fontsize * 0.3);
   const lineHeight = opts.captionLineHeight ?? 1.6;
   const margin = Math.round(h * 0.07);
 
@@ -503,10 +473,19 @@ export async function exportCut(
 
     const capLines = b.captionText.split("\n").map((l) => l.trim()).filter(Boolean);
     const schedule = captionSchedule(b.captionText, b.captionDurations);
-    const inputs: EngineInput[] = [
-      { name: sourceName(clip), data },
-      { name: "font.ttf", data: opts.fontBytes },
-    ];
+    const inputs: EngineInput[] = [{ name: sourceName(clip), data }];
+    // Captions are rendered by the shared canvas renderer (ADR-0008): one
+    // full-frame PNG per cue, collected here and overlaid (time-gated) below —
+    // no more drawtext. Each cue's PNG becomes ffmpeg input 1..N.
+    const captionCues: { enable: string }[] = [];
+    const addCaption = async (text: string, enable: string) => {
+      if (!text.trim()) return;
+      const png = await renderCaptionToPng({ text, fontSizePx: fontsize, bgOpacity, lineHeight, marginPx: margin }, w, h);
+      if (png) {
+        inputs.push({ name: `cap_${captionCues.length}.png`, data: png });
+        captionCues.push({ enable });
+      }
+    };
     const vf = [
       "setpts=PTS-STARTPTS",
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
@@ -542,12 +521,9 @@ export async function exportCut(
         segDur = footageLen;
       }
 
-      cues.forEach((cue, k) => {
-        const enable = `:enable='between(t,${cue.start.toFixed(3)},${cue.end.toFixed(3)})'`;
-        const c = captionLayers(cue.text, w, h, fontsize, bgOpacity, border, margin, lineHeight, `l${k}_`, enable);
-        inputs.push(...c.files);
-        vf.push(...c.filters);
-      });
+      for (const cue of cues) {
+        await addCaption(cue.text, `between(t,${cue.start.toFixed(3)},${cue.end.toFixed(3)})`);
+      }
 
       if (voOn) {
         const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
@@ -582,12 +558,10 @@ export async function exportCut(
       if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
 
       if (capLines.length > 0) {
-        timed.forEach((t, k) => {
-          const enable = timed.length > 1 ? `:enable='between(t,${(lead + t.start).toFixed(3)},${(lead + t.end).toFixed(3)})'` : "";
-          const c = captionLayers(t.text, w, h, fontsize, bgOpacity, border, margin, lineHeight, `l${k}_`, enable);
-          inputs.push(...c.files);
-          vf.push(...c.filters);
-        });
+        for (const t of timed) {
+          const enable = timed.length > 1 ? `between(t,${(lead + t.start).toFixed(3)},${(lead + t.end).toFixed(3)})` : "";
+          await addCaption(t.text, enable);
+        }
       }
 
       if (timed.length === 1) {
@@ -605,11 +579,7 @@ export async function exportCut(
       }
       voiceLeadMs = Math.round(lead * 1000);
     } else {
-      if (capLines.length > 0) {
-        const c = captionLayers(b.captionText, w, h, fontsize, bgOpacity, border, margin, lineHeight);
-        inputs.push(...c.files);
-        vf.push(...c.filters);
-      }
+      if (capLines.length > 0) await addCaption(b.captionText, "");
       audioInput = [];
     }
     timingSlots[i] = { id: b.id, inSec, outSec: inSec + playFootage, durationSec: segDur };
@@ -620,7 +590,25 @@ export async function exportCut(
     // silence when the beat is muted (volume 0).
     const strategy: "vo" | "source" | "silent" = voOn ? "vo" : beatVol > 0 ? "source" : "silent";
 
-    const videoFilterString = `[0:v]${vf.join(",")}[v]`;
+    // Caption PNGs are ffmpeg inputs 1..capCount (looped to segDur so `-shortest`
+    // and framesync never truncate on a single still); the audio input follows at
+    // index audioIdx. Overlay each caption on the filtered base, time-gated.
+    const capCount = captionCues.length;
+    const audioIdx = 1 + capCount;
+    let videoFilterString: string;
+    if (capCount === 0) {
+      videoFilterString = `[0:v]${vf.join(",")}[v]`;
+    } else {
+      const chains = [`[0:v]${vf.join(",")}[vbase]`];
+      let last = "[vbase]";
+      captionCues.forEach((c, k) => {
+        const out = k === capCount - 1 ? "[v]" : `[vcap${k}]`;
+        const en = c.enable ? `:enable='${c.enable}'` : "";
+        chains.push(`${last}[${k + 1}:v]overlay=x=0:y=0:eof_action=pass${en}${out}`);
+        last = out;
+      });
+      videoFilterString = chains.join(";");
+    }
     const leadPrefix = voiceLeadMs > 0 ? `adelay=${voiceLeadMs}|${voiceLeadMs},` : "";
 
     // Build the seg args for a given audio strategy so we can fall back to silence
@@ -630,21 +618,23 @@ export async function exportCut(
     // atrim clips it to length. This avoids an unbounded apad stream + -shortest,
     // which can make the muxer fail to finalize the segment.
     const segDurStr = segDur.toFixed(3);
+    const capInputArgs = captionCues.flatMap((_, k) => ["-loop", "1", "-t", segDurStr, "-r", "30", "-i", `cap_${k}.png`]);
     const buildSegArgs = (strat: "vo" | "source" | "silent"): string[] => {
       let audioInputArgs: string[];
       let audioFilterString: string;
       if (strat === "vo") {
         audioInputArgs = audioInput;
-        audioFilterString = `[1:a]aformat=sample_rates=48000:channel_layouts=stereo,${leadPrefix}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
+        audioFilterString = `[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${leadPrefix}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
       } else if (strat === "source") {
         // The footage's own audio ([0:a]) at beat volume, over any caption freeze.
         audioInputArgs = [];
         audioFilterString = `[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
       } else {
         audioInputArgs = ["-f", "lavfi", "-t", segDurStr, "-i", "anullsrc=r=48000:cl=stereo"];
-        audioFilterString = `[1:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a]`;
+        audioFilterString = `[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a]`;
       }
       return ["-ss", String(inSec), "-t", String(playFootage), "-i", sourceName(clip),
+        ...capInputArgs,
         ...audioInputArgs,
         "-filter_complex", `${videoFilterString};${audioFilterString}`,
         "-map", "[v]", "-map", "[a]",
