@@ -164,25 +164,12 @@ async function applyOverlaysToVideo(
   preset: string,
   crf: number,
   totalDurationSec: number,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (fraction: number, statusText?: string) => void,
 ): Promise<Uint8Array> {
   const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
   if (activeOverlays.length === 0) return videoBytes;
-  // The RGB composite re-encodes the whole timeline and runs ~0.3x realtime (RGB
-  // conversion + lut2 + libx264), so the default 90s cap kills it mid-encode on
-  // longer cuts → it fell back to YUV → magenta. Budget ~10x realtime with a
-  // generous floor so a healthy-but-slow encode is allowed to finish.
   const compositeTimeoutMs = Math.max(180000, Math.ceil(totalDurationSec) * 10000);
 
-  // Overlay compositing runs as several LEAN ffmpeg passes instead of one heavy
-  // filtergraph. The combined pass (full clips + RGB blend + audio amix, all at
-  // once) OOM-aborted ffmpeg.wasm. See EXPORT_OVERLAY_AUDIO_ISSUE.md.
-  //   1. pre-trim each overlay to its window (drops the full-clip memory cost),
-  //   2. composite overlay VIDEO in one lean pass (RGB blend → matches CSS),
-  //   3. mix overlay AUDIO in a separate pass (copies the video).
-  // Every step degrades gracefully so the export always completes.
-
-  // ---- 1. Pre-trim each overlay to [inSec, inSec+dur] (isolated, small output). ----
   const trimmed: { data: Uint8Array; o: OverlayClip }[] = [];
   for (let idx = 0; idx < activeOverlays.length; idx++) {
     const o = activeOverlays[idx];
@@ -201,24 +188,10 @@ async function applyOverlaysToVideo(
     } catch (err) {
       console.warn(`Overlay ${idx} pre-trim failed; skipping this overlay.`, err);
     }
-    onProgress?.(((idx + 1) / activeOverlays.length) * 0.4);
+    onProgress?.(((idx + 1) / activeOverlays.length) * 0.3, `Preparing B-roll overlay ${idx + 1} of ${activeOverlays.length}…`);
   }
   if (trimmed.length === 0) return videoBytes;
 
-  // ---- 2. Composite overlay VIDEO onto the base (keep base audio via copy). ----
-  // Screen/multiply/overlay MUST be computed in sRGB to match the CSS preview
-  // (`mix-blend-mode`); a YUV blend runs the math on the chroma planes → magenta.
-  // Two strategies, tried in order (first success wins):
-  //   • gbrp (planar RGB) + `blend`: convert both streams to gbrp so the blend
-  //     filter operates on sRGB components. `enable` time-gates the effect; tpad
-  //     aligns the overlay stream. An explicit `format=yuv420p` at the end of the
-  //     chain converts back to YUV with the correct colorspace matrix (leaving the
-  //     output in gbrp made the encoder's sws_scale pick the wrong matrix → full-
-  //     frame magenta — the prior "blend crashes in RGB" were all just the 90s
-  //     timeout, not a filter bug; see Fix #18/#19).
-  //   • YUV `blend` fallback: screen/multiply get a colour tint, but always works.
-  // Each overlay is placed with tpad so its content lands at startTimeSec AND the
-  // stream has a frame from t=0 (else framesync buffers every base frame → OOM).
   const buildVideoArgs = (rgbFormat: string | null): { inputs: EngineInput[]; args: string[] } => {
     const inputs: EngineInput[] = [{ name: "base.mp4", data: videoBytes }];
     const args: string[] = ["-i", "base.mp4"];
@@ -237,12 +210,8 @@ async function applyOverlaysToVideo(
       const enable = `enable='between(t,${st},${st}+${dur})'`;
       const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
       if (mode === "screen" || mode === "multiply" || mode === "overlay") {
-        // Letterbox pad uses each mode's identity colour so bars stay invisible.
         const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
         if (rgbFormat) {
-          // RGB `blend` path: convert both to planar RGB so the blend math runs
-          // on sRGB components (matches CSS mix-blend-mode). The prior "blend
-          // crashes in RGB" were all just the 90s timeout (Fix #18/#19).
           const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
           chains.push(
             `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place},format=${rgbFormat}${scaledOv}`
@@ -251,7 +220,6 @@ async function applyOverlaysToVideo(
           chains.push(`${lastV}format=${rgbFormat}${base}`);
           chains.push(`${base}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
         } else {
-          // YUV `blend` fallback: time-gated with `enable` (magenta tint possible).
           const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
           chains.push(
             `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}${scaledOv}`
@@ -259,7 +227,6 @@ async function applyOverlaysToVideo(
           chains.push(`${lastV}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
         }
       } else {
-        // Normal: alpha-aware "over" compositing. Transparent letterbox + opacity.
         const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=black@0.0`;
         chains.push(
           `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place},colorchannelmixer=aa=${op}${scaledOv}`
@@ -268,11 +235,6 @@ async function applyOverlaysToVideo(
       }
       lastV = nextV;
     });
-    // For RGB paths, explicitly convert back to yuv420p WITHIN the filter graph.
-    // Leaving the output in gbrp for the encoder's sws_scale to convert picks a
-    // default colorspace matrix that can differ from the input's bt709, causing a
-    // full-frame magenta/pink shift. The in-graph `format` filter preserves the
-    // colorspace metadata from the original decode → correct round-trip.
     if (rgbFormat) {
       chains.push(`${lastV}format=yuv420p[v_out]`);
       lastV = "[v_out]";
@@ -286,14 +248,11 @@ async function applyOverlaysToVideo(
     return { inputs, args };
   };
 
-  // Fallback ladder: gbrp (planar RGB, `blend` with correct sRGB math +
-  // explicit yuv420p conversion back) → null (YUV `blend`, always works but
-  // screen/multiply get a colour tint). First success wins.
   let composited: Uint8Array | null = null;
   for (const rgbFormat of ["gbrp", null] as const) {
     try {
       const { inputs, args } = buildVideoArgs(rgbFormat);
-      composited = await runIsolated(inputs, args, "video.mp4", (f) => onProgress?.(0.4 + f * 0.4), compositeTimeoutMs);
+      composited = await runIsolated(inputs, args, "video.mp4", (f) => onProgress?.(0.3 + f * 0.5, "Compositing B-roll & blend overlays…"), compositeTimeoutMs);
       if (!rgbFormat) console.warn("Overlay video composited in YUV (screen/multiply may show a colour tint); RGB blend failed.");
       break;
     } catch (err) {
@@ -305,10 +264,9 @@ async function applyOverlaysToVideo(
     return videoBytes;
   }
 
-  // ---- 3. Mix each audible overlay's audio onto the composited video. ----
   const audible = trimmed.filter(({ o }) => (o.volume ?? 0) > 0);
   if (audible.length === 0) {
-    onProgress?.(1.0);
+    onProgress?.(1.0, "Overlays complete");
     return composited;
   }
   try {
@@ -325,19 +283,17 @@ async function applyOverlaysToVideo(
       chains.push(`[${k + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${delayMs}|${delayMs}${lbl}`);
       mixLabels.push(lbl);
     });
-    // duration=first keeps the output as long as the base; normalize=0 stops amix
-    // from ducking every track by the input count when they don't overlap.
     chains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[aout]`);
     args.push(
       "-filter_complex", chains.join(";"),
       "-map", "0:v:0", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "final.mp4",
     );
-    const withAudio = await runIsolated(inputs, args, "final.mp4", (f) => onProgress?.(0.8 + f * 0.2));
-    onProgress?.(1.0);
+    const withAudio = await runIsolated(inputs, args, "final.mp4", (f) => onProgress?.(0.8 + f * 0.2, "Mixing overlay audio tracks…"));
+    onProgress?.(1.0, "Overlays complete");
     return withAudio;
   } catch (err) {
     console.warn("Overlay audio mix failed (a clip likely has no audio track); keeping overlay video without its audio.", err);
-    onProgress?.(1.0);
+    onProgress?.(1.0, "Overlays complete");
     return composited;
   }
 }
@@ -346,8 +302,9 @@ export async function exportCut(
   cut: Cut,
   clips: Clip[],
   opts: ExportOptions,
-  onProgress?: (fraction: number) => void,
+  onProgress?: (fraction: number, statusText?: string) => void,
 ): Promise<ExportResult> {
+  onProgress?.(0.01, "Initializing export pipeline…");
   const clipById = new Map(clips.map((c) => [c.id, c]));
   const [w, h] = canvasDims(cut.aspect);
   const fontsize = Math.round(Math.max(24, h * 0.045) * (opts.captionScale ?? 1));
@@ -359,7 +316,7 @@ export async function exportCut(
   const profile = EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES[qualityKey] ?? EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES.high;
   const { preset, crf, audioBitrate } = profile;
 
-  // Pre-render title layers once so they can be folded directly into segment rendering.
+  onProgress?.(0.03, "Preparing title overlays…");
   interface RenderedTitleLayer {
     layer: TitleLayer;
     png: Uint8Array;
@@ -397,7 +354,7 @@ export async function exportCut(
     }
   }
 
-  // Pre-compute TTS and segment metadata so beatStartSec and totalDurationSec are known up front.
+  onProgress?.(0.06, "Generating voiceover narration & pacing…");
   interface PrecomputedBeat {
     clip: Clip;
     inSec: number;
@@ -473,7 +430,6 @@ export async function exportCut(
     }),
   );
 
-  // Compute beatStartSec for each beat slot.
   const beatStartSecs: number[] = new Array(cut.beats.length).fill(0);
   let currentTimelineOffset = 0;
   for (let i = 0; i < cut.beats.length; i++) {
@@ -483,16 +439,26 @@ export async function exportCut(
   }
   const totalDurationSec = Math.max(0.1, currentTimelineOffset);
 
-  // Render beat segments in parallel pool.
   const n = cut.beats.length;
   const segSlots: (Uint8Array | null)[] = new Array(n).fill(null);
   const timingSlots: (BeatTiming | null)[] = new Array(n).fill(null);
   const prog = new Array<number>(n).fill(0);
-  const reportBeatProg = () => onProgress?.((prog.reduce((a, x) => a + x, 0) / n) * 0.55);
+  let completedBeats = 0;
+
+  const reportBeatProg = () => {
+    const frac = (prog.reduce((a, x) => a + x, 0) / n) * 0.54 + 0.06;
+    const displayNum = Math.min(n, completedBeats + 1);
+    onProgress?.(frac, `Rendering beat segment ${displayNum} of ${n}…`);
+  };
 
   await runPool(cut.beats, exportConcurrency(), async (b, i) => {
     const pre = preBeats[i];
-    if (!pre) { prog[i] = 1; reportBeatProg(); return; }
+    if (!pre) {
+      prog[i] = 1;
+      completedBeats++;
+      reportBeatProg();
+      return;
+    }
     const { clip, inSec, footageLen, segDur, capLines, schedule, voOn, voData } = pre;
     const bStart = beatStartSecs[i];
     const data = await bytesOf(clip.normalized ?? clip.file);
@@ -518,7 +484,6 @@ export async function exportCut(
       ...ffmpegColorFilters(b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
     ];
 
-    // Fold Intro Fade directly into Beat 0 segment filtergraph (saves full-video re-encode pass).
     if (i === 0 && b.transition && b.transition !== "none" && (b.transitionPosition ?? "start") === "start") {
       const fTr = b.transition;
       const fSec = Math.min(1.0, b.transitionSec ?? 0.5);
@@ -527,7 +492,6 @@ export async function exportCut(
       }
     }
 
-    // Fold Outro Fade directly into Last Beat segment filtergraph (saves full-video re-encode pass).
     if (i === n - 1 && b.transition && b.transition !== "none" && b.transitionPosition === "end") {
       const lTr = b.transition;
       const lSec = Math.min(1.0, b.transitionSec ?? 0.5);
@@ -548,7 +512,6 @@ export async function exportCut(
       const lead = Math.max(0, opts.voiceoverLeadSec ?? 0);
       if (capLines.length > 0) {
         const lineTexts = capLines;
-        // Re-derive caption timings for enable string.
         let cursor = 0;
         for (const t of lineTexts) {
           const s = cursor; cursor += 1.5;
@@ -578,7 +541,6 @@ export async function exportCut(
     const segDurStr = segDur.toFixed(3);
     const capInputArgs = captionCues.flatMap((_, k) => ["-loop", "1", "-t", segDurStr, "-r", "30", "-i", `cap_${k}.png`]);
 
-    // Check which pre-rendered title layers overlap this beat's timeline window [bStart, bStart + segDur].
     interface SegmentTitleOverlay {
       pngName: string;
       filter: string;
@@ -640,7 +602,6 @@ export async function exportCut(
       });
     }
 
-    // Combine video filter, caption overlays, and title overlays.
     const titleCount = segTitles.length;
     const audioIdx = 1 + capCount + titleCount;
 
@@ -716,10 +677,11 @@ export async function exportCut(
       segSlots[i] = await renderSeg(strategy);
     }
     prog[i] = 1;
+    completedBeats++;
     reportBeatProg();
   });
 
-  onProgress?.(0.60);
+  onProgress?.(0.60, "Beat segments rendered");
 
   const timings: BeatTiming[] = timingSlots.filter((t): t is BeatTiming => t !== null);
   const segments: Uint8Array[] = segSlots.filter((s): s is Uint8Array => s !== null);
@@ -774,18 +736,17 @@ export async function exportCut(
       inputs,
       [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "video.mp4"],
       "video.mp4",
-      (f) => onProgress?.(0.60 + f * 0.12),
+      (f) => onProgress?.(0.60 + f * 0.28, "Applying video transitions & concatenating…"),
     );
   } else {
-    // Concat (stream copy) → the finished video. Intro/outro fades and titles are already burned in!
+    onProgress?.(0.75, "Concatenating video segments…");
     const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
     video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
   }
 
-  onProgress?.(0.88);
+  onProgress?.(0.88, "Video concatenation complete");
 
-  // Composite global overlay clips (B-roll & blend transitions) if any
   if (cut.overlays && cut.overlays.length > 0) {
     video = await applyOverlaysToVideo(
       video,
@@ -796,14 +757,14 @@ export async function exportCut(
       preset,
       crf,
       timings.reduce((sum, t) => sum + t.durationSec, 0),
-      (f) => onProgress?.(0.88 + f * 0.07),
+      (f, st) => onProgress?.(0.88 + f * 0.07, st ?? "Compositing B-roll & blend overlays…"),
     );
   }
 
-  onProgress?.(0.95);
+  onProgress?.(0.95, "Preparing final audio mux…");
 
   if (!opts.music) {
-    onProgress?.(1.0);
+    onProgress?.(1.0, "Export complete ✓");
     return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
   }
 
@@ -814,17 +775,12 @@ export async function exportCut(
     { name: `music.${mExt}`, data: await bytesOf(opts.music) },
   ];
   const muxWith = (args: string[]) =>
-    runIsolated(musicInputs, args, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05));
+    runIsolated(musicInputs, args, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing background music bed…"));
 
-  // Amix the video's existing audio (voiceover AND/OR overlay audio) under the
-  // music bed. A silent base amixes to just music, so this is safe with no
-  // voiceover — and it stops the music stage from dropping overlay audio.
   const amixArgs =
     ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
      "-filter_complex", `[1:a]volume=${vol}[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]`,
      "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
-  // Fallback if the base has no audio stream at all ([0:a] won't resolve): a
-  // music-only track, so the export still completes instead of crashing.
   const musicOnlyArgs =
     ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
      "-filter_complex", `[1:a]volume=${vol}[a]`,
@@ -837,7 +793,7 @@ export async function exportCut(
     console.warn("Music amix with base audio failed (base may have no audio track); using a music-only track.", err);
     withMusic = await muxWith(musicOnlyArgs);
   }
-  onProgress?.(1.0);
+  onProgress?.(1.0, "Export complete ✓");
   return { blob: new Blob([new Uint8Array(withMusic)], { type: "video/mp4" }), timings };
 }
 

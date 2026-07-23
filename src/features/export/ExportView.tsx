@@ -40,6 +40,12 @@ function sliderTrackStyle(val: number, min: number, max: number) {
   };
 }
 
+function formatElapsed(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function ExportView() {
   const { state, dispatch } = useProject();
   const cut = state.cut;
@@ -50,6 +56,8 @@ export default function ExportView() {
   } = es;
   // Transient per-render state (fine to reset on navigation).
   const [progress, setProgress] = useState<number | null>(null);
+  const [statusText, setStatusText] = useState<string>("");
+  const [elapsedSec, setElapsedSec] = useState<number>(0);
   const [error, setError] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [modelMsg, setModelMsg] = useState("");
@@ -60,6 +68,19 @@ export default function ExportView() {
   const [titleOpen, setTitleOpen] = useState(true);
   const [playingName, setPlayingName] = useState("");
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (progress === null) {
+      setElapsedSec(0);
+      return;
+    }
+    const startTime = Date.now();
+    setElapsedSec(0);
+    const timer = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [progress !== null]);
 
   // Load the music-bed folder (MUSIC_DIR) listing from the dev server.
   useEffect(() => {
@@ -212,6 +233,7 @@ export default function ExportView() {
     setError("");
     setVideoUrl("");
     setProgress(0);
+    setStatusText("Initializing export…");
     try {
       const exportLayers: TitleLayer[] = await Promise.all(
         titleLayers.map(async (l) => {
@@ -251,7 +273,10 @@ export default function ExportView() {
         cut!,
         clips,
         { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
-        setProgress,
+        (p, status) => {
+          setProgress(p);
+          if (status) setStatusText(status);
+        },
       );
       setVideoUrl(URL.createObjectURL(blob));
 
@@ -358,9 +383,53 @@ export default function ExportView() {
       </div>
 
       {busy && (
-        <div style={{ padding: "8px 24px", background: "var(--panel-3)", borderBottom: "1px solid var(--line)", display: "flex", gap: 12, alignItems: "center" }}>
-          <progress max={100} value={(progress ?? 0) * 100} style={{ flex: 1, accentColor: "var(--accent)" }} />
-          <span style={{ fontSize: 12, width: 44, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round((progress ?? 0) * 100)}%</span>
+        <div
+          style={{
+            padding: "10px 24px",
+            background: "var(--panel-3)",
+            borderBottom: "1px solid var(--line)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+            <span style={{ color: "var(--ink)", fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  boxShadow: "0 0 8px var(--accent)",
+                }}
+              />
+              {statusText || "Processing video export…"}
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, color: "var(--ink-2)", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                {formatElapsed(elapsedSec)}
+              </span>
+              <span style={{ fontWeight: 700, color: "var(--accent)", minWidth: 38, textAlign: "right" }}>
+                {Math.round((progress ?? 0) * 100)}%
+              </span>
+            </div>
+          </div>
+          <progress
+            max={100}
+            value={(progress ?? 0) * 100}
+            style={{
+              width: "100%",
+              height: 6,
+              accentColor: "var(--accent)",
+              borderRadius: 3,
+            }}
+          />
         </div>
       )}
 
