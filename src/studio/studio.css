@@ -168,9 +168,15 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
 .st-tlhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .st-tlhead .t{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
 .st-tlhead .meta{margin-left:auto;font-size:12px;color:var(--ink-2)}
+.st-tl-scroll{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+.st-tl-scroll::-webkit-scrollbar{height:6px}
+.st-tl-scroll::-webkit-scrollbar-track{background:var(--panel-2);border-radius:3px}
+.st-tl-scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+.st-tl-scroll::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+.st-tl-content{display:flex;flex-direction:column;gap:10px;width:100%}
 .st-track{display:flex;gap:6px;align-items:stretch;position:relative;min-height:88px}
 .st-track.empty{align-items:center;justify-content:center;color:var(--ink-3);font-size:13px}
-.st-beat{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:5px;position:relative;cursor:pointer}
+.st-beat{flex:1 0 135px;min-width:135px;display:flex;flex-direction:column;gap:5px;position:relative;cursor:pointer}
 .st-bt{height:52px;border-radius:7px;position:relative;overflow:hidden;background:#0a0b0d center/cover no-repeat;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);transition:box-shadow .12s}
 .st-bt .bn{position:absolute;top:3px;left:5px;font-size:10px;font-family:var(--mono);color:#fff;
