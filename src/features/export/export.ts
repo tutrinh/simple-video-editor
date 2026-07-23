@@ -87,98 +87,7 @@ export interface ExportOptions {
 // composited with `overlay`. drawtext is gone: it had no letter-spacing,
 // different shaping, and a guessed wrap. Motion (fade/slide) rides on top of the
 // static bitmap via the looped image's own timeline + overlay x/y expressions,
-// mirroring the preview's CSS transform (see TITLE_ANIM for the shared easing).
-async function buildTitleFilterGraph(
-  title: TitleOverlay,
-  w: number,
-  h: number,
-  totalDurationSec: number,
-): Promise<{ filterGraph: string; inputs: EngineInput[]; inputArgs: string[]; outputMap: string }> {
-  const activeLayers = title.layers.filter((l) => l.enabled && l.text.trim());
-  const inputs: EngineInput[] = [];
-  const inputArgs: string[] = ["-i", "in.mp4"];
-  const filterChains: string[] = [];
 
-  let lastV = "[0:v]";
-  let inputIndex = 1;
-
-  for (let k = 0; k < activeLayers.length; k++) {
-    const l = activeLayers[k];
-    // Register the exact TTF so the export canvas draws byte-identical glyphs to
-    // the preview (and measureText wraps against the real metrics).
-    const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
-    const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
-
-    const png = await renderTitleLayerToPng(
-      {
-        text: l.text,
-        canvasFamily,
-        cssFamily: l.fontCssFamily ?? "sans-serif",
-        fontBytes: l.fontBytes,
-        fontWeight: l.weight ?? 400,
-        sizePx: l.sizePx,
-        letterSpacing: l.letterSpacing,
-        arcDeg: l.arcDeg,
-        shadow: l.shadow,
-        color: l.color,
-        posX: l.posX,
-        posY: l.posY,
-      },
-      w,
-      h,
-    );
-    // No canvas (non-browser) or a render failure → skip this layer so the export
-    // still completes, just without it.
-    if (!png) continue;
-
-    const pngName = `title_${k}.png`;
-    inputs.push({ name: pngName, data: png });
-
-    // Loop the still into a real 30fps stream for its lifetime so the fade filter
-    // has frames to animate across (a bare image has a single frame at t=0). The
-    // stream starts at t=0 aligned with the base, so fade/overlay `t` match.
-    const scopeDur = l.scope === "intro" ? (l.introSec ?? 3) : Math.max(0.1, totalDurationSec);
-    inputArgs.push("-loop", "1", "-t", scopeDur.toFixed(3), "-r", "30", "-i", pngName);
-    const idx = inputIndex++;
-
-    const anim = l.animation ?? "none";
-    const animDur = l.animDurationSec ?? 0.5;
-    const fadeInNeeded = anim !== "none"; // fade/slide/pop all ease their opacity in
-
-    const fadeParts: string[] = [];
-    if (fadeInNeeded) fadeParts.push(`fade=t=in:st=0:d=${animDur.toFixed(3)}:alpha=1`);
-    if (l.scope === "intro") {
-      const fade = Math.min(0.8, scopeDur / 2);
-      const fadeStart = Math.max(0, scopeDur - fade);
-      fadeParts.push(`fade=t=out:st=${fadeStart.toFixed(3)}:d=${fade.toFixed(3)}:alpha=1`);
-    }
-    const ovLabel = `[ov_${k}]`;
-    const head = `[${idx}:v]format=rgba`;
-    filterChains.push(fadeParts.length ? `${head},${fadeParts.join(",")}${ovLabel}` : `${head}${ovLabel}`);
-
-    // Slide shifts the whole frame-sized PNG by a decaying offset expressed as a
-    // fraction of the frame (TITLE_ANIM), so the preview's CSS transform lands on
-    // exactly the same proportion. `pop` eases opacity only (overlay can't scale
-    // over time); the preview matches by easing opacity for pop too.
-    const d = animDur.toFixed(3);
-    let xExpr = "0";
-    let yExpr = "0";
-    if (anim === "slide_left") {
-      xExpr = `if(lt(t,${d}),(1-t/${d})*${(-w * TITLE_ANIM.slideXFrac).toFixed(1)},0)`;
-    } else if (anim === "slide_bottom") {
-      yExpr = `if(lt(t,${d}),(1-t/${d})*${(h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
-    } else if (anim === "slide_top") {
-      yExpr = `if(lt(t,${d}),(1-t/${d})*${(-h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
-    }
-
-    const enable = l.scope === "intro" ? `:enable='between(t,0,${scopeDur.toFixed(3)})'` : "";
-    const nextV = `[titled_${k}]`;
-    filterChains.push(`${lastV}${ovLabel}overlay=x='${xExpr}':y='${yExpr}':eof_action=pass${enable}${nextV}`);
-    lastV = nextV;
-  }
-
-  return { filterGraph: filterChains.join(";"), inputs, inputArgs, outputMap: lastV };
-}
 
 /** The actual on-screen window an exported beat used (voiceover can change it). */
 export interface BeatTiming {
@@ -450,13 +359,131 @@ export async function exportCut(
   const profile = EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES[qualityKey] ?? EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES.high;
   const { preset, crf, audioBitrate } = profile;
 
-  // Render every beat's segment, up to exportConcurrency() at once. Each runs in
-  // its own isolated engine, so parallelizing is safe; this overlaps both the
-  // Render every beat's segment, up to exportConcurrency() at once. Each runs in
-  // its own isolated engine, so parallelizing is safe; this overlaps both the
-  // per-beat voiceover (TTS) waits and the ffmpeg encodes. Segments/timings are
-  // written into fixed slots so the concat below stays in beat order regardless
-  // of which finishes first.
+  // Pre-render title layers once so they can be folded directly into segment rendering.
+  interface RenderedTitleLayer {
+    layer: TitleLayer;
+    png: Uint8Array;
+    pngName: string;
+    index: number;
+  }
+  const preRenderedTitleLayers: RenderedTitleLayer[] = [];
+  if (opts.title && opts.title.layers) {
+    const activeLayers = opts.title.layers.filter((l) => l.enabled && l.text.trim());
+    for (let k = 0; k < activeLayers.length; k++) {
+      const l = activeLayers[k];
+      const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
+      const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
+      const png = await renderTitleLayerToPng(
+        {
+          text: l.text,
+          canvasFamily,
+          cssFamily: l.fontCssFamily ?? "sans-serif",
+          fontBytes: l.fontBytes,
+          fontWeight: l.weight ?? 400,
+          sizePx: l.sizePx,
+          letterSpacing: l.letterSpacing,
+          arcDeg: l.arcDeg,
+          shadow: l.shadow,
+          color: l.color,
+          posX: l.posX,
+          posY: l.posY,
+        },
+        w,
+        h,
+      );
+      if (png) {
+        preRenderedTitleLayers.push({ layer: l, png, pngName: `title_${k}.png`, index: k });
+      }
+    }
+  }
+
+  // Pre-compute TTS and segment metadata so beatStartSec and totalDurationSec are known up front.
+  interface PrecomputedBeat {
+    clip: Clip;
+    inSec: number;
+    footageLen: number;
+    segDur: number;
+    capLines: string[];
+    schedule: ReturnType<typeof captionSchedule>;
+    voOn: boolean;
+    voData?: { inputs: EngineInput[]; audioInput: string[]; voiceLeadMs: number };
+  }
+
+  const preBeats: (PrecomputedBeat | null)[] = await Promise.all(
+    cut.beats.map(async (b) => {
+      const clip = clipById.get(b.clipId);
+      if (!clip) return null;
+      const clipDur = clip.durationSec || b.outSec - b.inSec;
+      const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));
+      const footageLen = Math.min(Math.max(0.1, b.outSec - b.inSec), Math.max(0.1, clipDur - inSec));
+      const capLines = b.captionText.split("\n").map((l) => l.trim()).filter(Boolean);
+      const schedule = captionSchedule(b.captionText, b.captionDurations);
+      const voOn = !!opts.voiceover && (capLines.length > 0 || b.scriptText.trim() !== "");
+
+      let segDur = footageLen;
+      let voData: { inputs: EngineInput[]; audioInput: string[]; voiceLeadMs: number } | undefined;
+
+      if (schedule) {
+        const cues = schedule.cues;
+        if (voOn) {
+          segDur = Math.max(footageLen, schedule.total);
+          const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
+          const vos = await Promise.all(cues.map((cue) => synthesizeVoiceover(cue.text, ttsOpts)));
+          const catInputs = vos.map((vo, k) => ({ name: `p${k}.${vo.ext}`, data: vo.data }));
+          const catArgs = vos.flatMap((vo, k) => ["-i", `p${k}.${vo.ext}`]);
+          const leadMs = Math.round(schedule.leadSec * 1000);
+          const filt =
+            cues.map((cue, k) => `[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo,apad,atrim=0:${cue.sec.toFixed(3)},asetpts=N/SR/TB[a${k}]`).join(";") + ";" +
+            cues.map((_, k) => `[a${k}]`).join("") + `concat=n=${cues.length}:v=0:a=1[cc];` +
+            `[cc]adelay=${leadMs}|${leadMs}[a]`;
+          const voall = await runIsolated(catInputs, [...catArgs, "-filter_complex", filt, "-map", "[a]", "voall.wav"], "voall.wav");
+          voData = { inputs: [{ name: "vo.wav", data: voall }], audioInput: ["-i", "vo.wav"], voiceLeadMs: 0 };
+        }
+      } else if (voOn) {
+        const lead = Math.max(0, opts.voiceoverLeadSec ?? 0);
+        const gap = Math.max(0, opts.voiceoverGapSec ?? 0);
+        const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
+        const lineTexts = capLines.length > 0 ? capLines : [b.scriptText.trim()];
+        const vos = await Promise.all(lineTexts.map((t) => synthesizeVoiceover(t, ttsOpts)));
+        let cursor = 0;
+        const timed = vos.map((vo, k) => {
+          const d = vo.durationSec > 0 ? vo.durationSec : 1.5;
+          const s = cursor; cursor += d;
+          return { start: s, end: cursor, vo, text: lineTexts[k] };
+        });
+        segDur = Math.max(footageLen, lead + cursor) + gap;
+
+        if (timed.length === 1) {
+          voData = {
+            inputs: [{ name: `vo.${timed[0].vo.ext}`, data: timed[0].vo.data }],
+            audioInput: ["-i", `vo.${timed[0].vo.ext}`],
+            voiceLeadMs: Math.round(lead * 1000),
+          };
+        } else {
+          const catInputs = timed.map((t, k) => ({ name: `p${k}.${t.vo.ext}`, data: t.vo.data }));
+          const catArgs = timed.flatMap((t, k) => ["-i", `p${k}.${t.vo.ext}`]);
+          const filt =
+            timed.map((_, k) => `[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo[a${k}]`).join(";") + ";" +
+            timed.map((_, k) => `[a${k}]`).join("") + `concat=n=${timed.length}:v=0:a=1[a]`;
+          const voall = await runIsolated(catInputs, [...catArgs, "-filter_complex", filt, "-map", "[a]", "voall.wav"], "voall.wav");
+          voData = { inputs: [{ name: "vo.wav", data: voall }], audioInput: ["-i", "vo.wav"], voiceLeadMs: Math.round(lead * 1000) };
+        }
+      }
+      return { clip, inSec, footageLen, segDur, capLines, schedule, voOn, voData };
+    }),
+  );
+
+  // Compute beatStartSec for each beat slot.
+  const beatStartSecs: number[] = new Array(cut.beats.length).fill(0);
+  let currentTimelineOffset = 0;
+  for (let i = 0; i < cut.beats.length; i++) {
+    beatStartSecs[i] = currentTimelineOffset;
+    const pre = preBeats[i];
+    if (pre) currentTimelineOffset += pre.segDur;
+  }
+  const totalDurationSec = Math.max(0.1, currentTimelineOffset);
+
+  // Render beat segments in parallel pool.
   const n = cut.beats.length;
   const segSlots: (Uint8Array | null)[] = new Array(n).fill(null);
   const timingSlots: (BeatTiming | null)[] = new Array(n).fill(null);
@@ -464,17 +491,15 @@ export async function exportCut(
   const reportBeatProg = () => onProgress?.((prog.reduce((a, x) => a + x, 0) / n) * 0.55);
 
   await runPool(cut.beats, exportConcurrency(), async (b, i) => {
-    const clip = clipById.get(b.clipId);
-    if (!clip) { prog[i] = 1; reportBeatProg(); return; }
+    const pre = preBeats[i];
+    if (!pre) { prog[i] = 1; reportBeatProg(); return; }
+    const { clip, inSec, footageLen, segDur, capLines, schedule, voOn, voData } = pre;
+    const bStart = beatStartSecs[i];
     const data = await bytesOf(clip.normalized ?? clip.file);
-    const clipDur = clip.durationSec || b.outSec - b.inSec;
 
-    const capLines = b.captionText.split("\n").map((l) => l.trim()).filter(Boolean);
-    const schedule = captionSchedule(b.captionText, b.captionDurations);
     const inputs: EngineInput[] = [{ name: sourceName(clip), data }];
-    // Captions are rendered by the shared canvas renderer (ADR-0008): one
-    // full-frame PNG per cue, collected here and overlaid (time-gated) below —
-    // no more drawtext. Each cue's PNG becomes ffmpeg input 1..N.
+    if (voData) inputs.push(...voData.inputs);
+
     const captionCues: { enable: string }[] = [];
     const addCaption = async (text: string, enable: string) => {
       if (!text.trim()) return;
@@ -484,6 +509,7 @@ export async function exportCut(
         captionCues.push({ enable });
       }
     };
+
     const vf = [
       "setpts=PTS-STARTPTS",
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
@@ -492,131 +518,164 @@ export async function exportCut(
       ...ffmpegColorFilters(b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
     ];
 
-    const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));
-    const footageLen = Math.min(Math.max(0.1, b.outSec - b.inSec), Math.max(0.1, clipDur - inSec));
-    let playFootage = footageLen;
-    let segDur = footageLen;
-    let audioInput: string[];
-    // Silence prepended before non-schedule voiceover so it eases in after the
-    // lead-in; folded into the filter_complex below. Schedule-path leads are
-    // already baked into voall.wav, so this stays 0 there.
-    let voiceLeadMs = 0;
+    // Fold Intro Fade directly into Beat 0 segment filtergraph (saves full-video re-encode pass).
+    if (i === 0 && b.transition && b.transition !== "none" && (b.transitionPosition ?? "start") === "start") {
+      const fTr = b.transition;
+      const fSec = Math.min(1.0, b.transitionSec ?? 0.5);
+      if (fTr === "fadeblack" || fTr === "fade") {
+        vf.push(`fade=t=in:st=0:d=${fSec.toFixed(2)}`);
+      }
+    }
 
-    const voOn = !!opts.voiceover && (capLines.length > 0 || b.scriptText.trim() !== "");
+    // Fold Outro Fade directly into Last Beat segment filtergraph (saves full-video re-encode pass).
+    if (i === n - 1 && b.transition && b.transition !== "none" && b.transitionPosition === "end") {
+      const lTr = b.transition;
+      const lSec = Math.min(1.0, b.transitionSec ?? 0.5);
+      if (lTr === "fadeblack" || lTr === "fade") {
+        const fadeStart = Math.max(0, segDur - lSec).toFixed(3);
+        vf.push(`fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`);
+      }
+    }
+
+    const freeze = segDur - footageLen;
+    if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
 
     if (schedule) {
-      const cues = schedule.cues;
-      playFootage = footageLen;
-      // Only extend the segment past the footage when voiceover is on and needs
-      // time to finish narrating. Without VO, the footage plays at its natural
-      // length — captions still appear (enable-gated) but don't freeze the last
-      // frame just for the schedule's lead/tail buffers.
-      if (voOn) {
-        segDur = Math.max(footageLen, schedule.total);
-        const freeze = segDur - footageLen;
-        if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
-      } else {
-        segDur = footageLen;
-      }
-
-      for (const cue of cues) {
+      for (const cue of schedule.cues) {
         await addCaption(cue.text, `between(t,${cue.start.toFixed(3)},${cue.end.toFixed(3)})`);
-      }
-
-      if (voOn) {
-        const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
-        const vos = await Promise.all(cues.map((cue) => synthesizeVoiceover(cue.text, ttsOpts)));
-        const catInputs = vos.map((vo, k) => ({ name: `p${k}.${vo.ext}`, data: vo.data }));
-        const catArgs = vos.flatMap((vo, k) => ["-i", `p${k}.${vo.ext}`]);
-        const leadMs = Math.round(schedule.leadSec * 1000);
-        const filt =
-          cues.map((cue, k) => `[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo,apad,atrim=0:${cue.sec.toFixed(3)},asetpts=N/SR/TB[a${k}]`).join(";") + ";" +
-          cues.map((_, k) => `[a${k}]`).join("") + `concat=n=${cues.length}:v=0:a=1[cc];` +
-          `[cc]adelay=${leadMs}|${leadMs}[a]`;
-        const voall = await runIsolated(catInputs, [...catArgs, "-filter_complex", filt, "-map", "[a]", "voall.wav"], "voall.wav");
-        inputs.push({ name: "vo.wav", data: voall });
-        audioInput = ["-i", "vo.wav"];
-      } else {
-        audioInput = ["-f", "lavfi", "-t", String(segDur), "-i", "anullsrc=r=48000:cl=stereo"];
       }
     } else if (voOn) {
       const lead = Math.max(0, opts.voiceoverLeadSec ?? 0);
-      const gap = Math.max(0, opts.voiceoverGapSec ?? 0);
-      const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
-      const lineTexts = capLines.length > 0 ? capLines : [b.scriptText.trim()];
-      const vos = await Promise.all(lineTexts.map((t) => synthesizeVoiceover(t, ttsOpts)));
-      let cursor = 0;
-      const timed = vos.map((vo, k) => {
-        const d = vo.durationSec > 0 ? vo.durationSec : 1.5;
-        const s = cursor; cursor += d;
-        return { start: s, end: cursor, vo, text: lineTexts[k] };
-      });
-      segDur = Math.max(footageLen, lead + cursor) + gap;
-      const freeze = segDur - footageLen;
-      if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
-
       if (capLines.length > 0) {
-        for (const t of timed) {
-          const enable = timed.length > 1 ? `between(t,${(lead + t.start).toFixed(3)},${(lead + t.end).toFixed(3)})` : "";
-          await addCaption(t.text, enable);
+        const lineTexts = capLines;
+        // Re-derive caption timings for enable string.
+        let cursor = 0;
+        for (const t of lineTexts) {
+          const s = cursor; cursor += 1.5;
+          const enable = lineTexts.length > 1 ? `between(t,${(lead + s).toFixed(3)},${(lead + cursor).toFixed(3)})` : "";
+          await addCaption(t, enable);
+        }
+      }
+    } else if (capLines.length > 0) {
+      await addCaption(b.captionText, "");
+    }
+
+    timingSlots[i] = { id: b.id, inSec, outSec: inSec + footageLen, durationSec: segDur };
+
+    let audioInput: string[];
+    let voiceLeadMs = 0;
+    if (voOn && voData) {
+      audioInput = voData.audioInput;
+      voiceLeadMs = voData.voiceLeadMs;
+    } else {
+      audioInput = ["-f", "lavfi", "-t", String(segDur), "-i", "anullsrc=r=48000:cl=stereo"];
+    }
+
+    const beatVol = b.volume ?? 1;
+    const strategy: "vo" | "source" | "silent" = voOn ? "vo" : beatVol > 0 ? "source" : "silent";
+
+    const capCount = captionCues.length;
+    const segDurStr = segDur.toFixed(3);
+    const capInputArgs = captionCues.flatMap((_, k) => ["-loop", "1", "-t", segDurStr, "-r", "30", "-i", `cap_${k}.png`]);
+
+    // Check which pre-rendered title layers overlap this beat's timeline window [bStart, bStart + segDur].
+    interface SegmentTitleOverlay {
+      pngName: string;
+      filter: string;
+    }
+    const segTitles: SegmentTitleOverlay[] = [];
+    const titleInputArgs: string[] = [];
+
+    for (let k = 0; k < preRenderedTitleLayers.length; k++) {
+      const rtl = preRenderedTitleLayers[k];
+      const l = rtl.layer;
+      const scopeDur = l.scope === "intro" ? (l.introSec ?? 3) : totalDurationSec;
+      const overlap = bStart < scopeDur && bStart + segDur > 0;
+      if (!overlap) continue;
+
+      const tName = `title_seg_${k}.png`;
+      inputs.push({ name: tName, data: rtl.png });
+      titleInputArgs.push("-loop", "1", "-t", segDurStr, "-r", "30", "-i", tName);
+
+      const anim = l.animation ?? "none";
+      const animDur = l.animDurationSec ?? 0.5;
+
+      const fadeParts: string[] = [];
+      if (anim !== "none" && bStart < animDur) {
+        const dIn = Math.min(animDur - bStart, segDur);
+        if (dIn > 0) fadeParts.push(`fade=t=in:st=0:d=${dIn.toFixed(3)}:alpha=1`);
+      }
+      if (l.scope === "intro") {
+        const fadeDur = Math.min(0.8, scopeDur / 2);
+        const fadeStart = Math.max(0, scopeDur - fadeDur);
+        if (bStart + segDur > fadeStart && bStart < scopeDur) {
+          const stOut = Math.max(0, fadeStart - bStart);
+          const dOut = Math.min(fadeDur, scopeDur - Math.max(bStart, fadeStart));
+          if (dOut > 0) fadeParts.push(`fade=t=out:st=${stOut.toFixed(3)}:d=${dOut.toFixed(3)}:alpha=1`);
         }
       }
 
-      if (timed.length === 1) {
-        inputs.push({ name: `vo.${timed[0].vo.ext}`, data: timed[0].vo.data });
-        audioInput = ["-i", `vo.${timed[0].vo.ext}`];
-      } else {
-        const catInputs = timed.map((t, k) => ({ name: `p${k}.${t.vo.ext}`, data: t.vo.data }));
-        const catArgs = timed.flatMap((t, k) => ["-i", `p${k}.${t.vo.ext}`]);
-        const filt =
-          timed.map((_, k) => `[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo[a${k}]`).join(";") + ";" +
-          timed.map((_, k) => `[a${k}]`).join("") + `concat=n=${timed.length}:v=0:a=1[a]`;
-        const voall = await runIsolated(catInputs, [...catArgs, "-filter_complex", filt, "-map", "[a]", "voall.wav"], "voall.wav");
-        inputs.push({ name: "vo.wav", data: voall });
-        audioInput = ["-i", "vo.wav"];
+      const dStr = animDur.toFixed(3);
+      const bStartStr = bStart.toFixed(3);
+      const tExpr = bStart > 0 ? `(t+${bStartStr})` : "t";
+
+      let xExpr = "0";
+      let yExpr = "0";
+      if (bStart < animDur) {
+        if (anim === "slide_left") {
+          xExpr = `if(lt(${tExpr},${dStr}),(1-${tExpr}/${dStr})*${(-w * TITLE_ANIM.slideXFrac).toFixed(1)},0)`;
+        } else if (anim === "slide_bottom") {
+          yExpr = `if(lt(${tExpr},${dStr}),(1-${tExpr}/${dStr})*${(h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+        } else if (anim === "slide_top") {
+          yExpr = `if(lt(${tExpr},${dStr}),(1-${tExpr}/${dStr})*${(-h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+        }
       }
-      voiceLeadMs = Math.round(lead * 1000);
-    } else {
-      if (capLines.length > 0) await addCaption(b.captionText, "");
-      audioInput = [];
-    }
-    timingSlots[i] = { id: b.id, inSec, outSec: inSec + playFootage, durationSec: segDur };
 
-    const beatVol = (b.volume ?? 1);
-    // Audio source per beat: voiceover when narrating; otherwise the beat's own
-    // footage audio at beat volume (matching the preview's v.volume=beat.volume);
-    // silence when the beat is muted (volume 0).
-    const strategy: "vo" | "source" | "silent" = voOn ? "vo" : beatVol > 0 ? "source" : "silent";
+      const enExpr = bStart > 0 ? `between(t+${bStartStr},0,${scopeDur.toFixed(3)})` : `between(t,0,${scopeDur.toFixed(3)})`;
+      const enable = l.scope === "intro" ? `:enable='${enExpr}'` : "";
 
-    // Caption PNGs are ffmpeg inputs 1..capCount (looped to segDur so `-shortest`
-    // and framesync never truncate on a single still); the audio input follows at
-    // index audioIdx. Overlay each caption on the filtered base, time-gated.
-    const capCount = captionCues.length;
-    const audioIdx = 1 + capCount;
-    let videoFilterString: string;
-    if (capCount === 0) {
-      videoFilterString = `[0:v]${vf.join(",")}[v]`;
-    } else {
-      const chains = [`[0:v]${vf.join(",")}[vbase]`];
-      let last = "[vbase]";
-      captionCues.forEach((c, k) => {
-        const out = k === capCount - 1 ? "[v]" : `[vcap${k}]`;
-        const en = c.enable ? `:enable='${c.enable}'` : "";
-        chains.push(`${last}[${k + 1}:v]overlay=x=0:y=0:eof_action=pass${en}${out}`);
-        last = out;
+      segTitles.push({
+        pngName: tName,
+        filter: { fadeParts, xExpr, yExpr, enable } as any,
       });
-      videoFilterString = chains.join(";");
     }
+
+    // Combine video filter, caption overlays, and title overlays.
+    const titleCount = segTitles.length;
+    const audioIdx = 1 + capCount + titleCount;
+
+    let videoFilterString: string;
+    const baseLabel = capCount === 0 && titleCount === 0 ? "[v]" : "[vbase]";
+    const chains: string[] = [`[0:v]${vf.join(",")}${baseLabel}`];
+    let last = baseLabel;
+
+    captionCues.forEach((c, k) => {
+      const isLast = k === capCount - 1 && titleCount === 0;
+      const out = isLast ? "[v]" : `[vcap_${k}]`;
+      const en = c.enable ? `:enable='${c.enable}'` : "";
+      chains.push(`${last}[${k + 1}:v]overlay=x=0:y=0:eof_action=pass${en}${out}`);
+      last = out;
+    });
+
+    segTitles.forEach((st, k) => {
+      const tInputIdx = 1 + capCount + k;
+      const isLast = k === titleCount - 1;
+      const out = isLast ? "[v]" : `[vtitle_${k}]`;
+      const fObj = st.filter as any;
+      const ovLabel = `[ovt_${k}]`;
+      const head = `[${tInputIdx}:v]format=rgba`;
+      if (fObj.fadeParts.length > 0) {
+        chains.push(`${head},${fObj.fadeParts.join(",")}${ovLabel}`);
+      } else {
+        chains.push(`${head}${ovLabel}`);
+      }
+      chains.push(`${last}${ovLabel}overlay=x='${fObj.xExpr}':y='${fObj.yExpr}':eof_action=pass${fObj.enable}${out}`);
+      last = out;
+    });
+
+    videoFilterString = chains.join(";");
     const leadPrefix = voiceLeadMs > 0 ? `adelay=${voiceLeadMs}|${voiceLeadMs},` : "";
 
-    // Build the seg args for a given audio strategy so we can fall back to silence
-    // if a "source" clip turns out to have no audio track (a bare [0:a] reference
-    // would make ffmpeg error otherwise).
-    // Pin every strategy's audio to exactly segDur: apad extends short audio, then
-    // atrim clips it to length. This avoids an unbounded apad stream + -shortest,
-    // which can make the muxer fail to finalize the segment.
-    const segDurStr = segDur.toFixed(3);
-    const capInputArgs = captionCues.flatMap((_, k) => ["-loop", "1", "-t", segDurStr, "-r", "30", "-i", `cap_${k}.png`]);
     const buildSegArgs = (strat: "vo" | "source" | "silent"): string[] => {
       let audioInputArgs: string[];
       let audioFilterString: string;
@@ -624,21 +683,23 @@ export async function exportCut(
         audioInputArgs = audioInput;
         audioFilterString = `[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${leadPrefix}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
       } else if (strat === "source") {
-        // The footage's own audio ([0:a]) at beat volume, over any caption freeze.
         audioInputArgs = [];
         audioFilterString = `[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
       } else {
         audioInputArgs = ["-f", "lavfi", "-t", segDurStr, "-i", "anullsrc=r=48000:cl=stereo"];
         audioFilterString = `[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a]`;
       }
-      return ["-ss", String(inSec), "-t", String(playFootage), "-i", sourceName(clip),
+      return [
+        "-ss", String(inSec), "-t", String(footageLen), "-i", sourceName(clip),
         ...capInputArgs,
+        ...titleInputArgs,
         ...audioInputArgs,
         "-filter_complex", `${videoFilterString};${audioFilterString}`,
         "-map", "[v]", "-map", "[a]",
         "-shortest",
         "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4"];
+        "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4",
+      ];
     };
 
     const renderSeg = (strat: "vo" | "source" | "silent") =>
@@ -660,13 +721,10 @@ export async function exportCut(
 
   onProgress?.(0.60);
 
-  // Drop any skipped beats (missing clip), preserving beat order.
   const timings: BeatTiming[] = timingSlots.filter((t): t is BeatTiming => t !== null);
   const segments: Uint8Array[] = segSlots.filter((s): s is Uint8Array => s !== null);
-
   const activeBeats = cut.beats.filter((b) => clips.some((c) => c.id === b.clipId));
 
-  // Check if any beats have active custom transitions
   const hasTransitions = activeBeats.some((b) => b.transition && b.transition !== "none");
   let video: Uint8Array;
 
@@ -719,60 +777,10 @@ export async function exportCut(
       (f) => onProgress?.(0.60 + f * 0.12),
     );
   } else {
-    // Concat (stream copy) → the finished video with silent audio.
+    // Concat (stream copy) → the finished video. Intro/outro fades and titles are already burned in!
     const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
     video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
-  }
-
-  onProgress?.(0.72);
-
-  // Handle intro fade at video start (Beat 0)
-  const firstBeat = activeBeats[0];
-  if (firstBeat?.transition && firstBeat.transition !== "none" && (firstBeat.transitionPosition ?? "start") === "start") {
-    const fTr = firstBeat.transition;
-    const fSec = Math.min(1.0, firstBeat.transitionSec ?? 0.5);
-    if (fTr === "fadeblack" || fTr === "fade") {
-      video = await runIsolated(
-        [{ name: "in.mp4", data: video }],
-        ["-i", "in.mp4", "-map", "0:v:0", "-map", "0:a:0?", "-vf", `fade=t=in:st=0:d=${fSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "start_faded.mp4"],
-        "start_faded.mp4",
-      );
-    }
-  }
-
-  // Handle outro fade at video end (Last Beat)
-  const lastBeat = activeBeats[activeBeats.length - 1];
-  if (lastBeat?.transition && lastBeat.transition !== "none" && lastBeat.transitionPosition === "end") {
-    const lTr = lastBeat.transition;
-    const lSec = Math.min(1.0, lastBeat.transitionSec ?? 0.5);
-    const totalVideoDur = timings.reduce((sum, t) => sum + t.durationSec, 0);
-    if (lTr === "fadeblack" || lTr === "fade") {
-      const fadeStart = Math.max(0, totalVideoDur - lSec).toFixed(3);
-      video = await runIsolated(
-        [{ name: "in.mp4", data: video }],
-        ["-i", "in.mp4", "-map", "0:v:0", "-map", "0:a:0?", "-vf", `fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`, "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "end_faded.mp4"],
-        "end_faded.mp4",
-      );
-    }
-  }
-
-  onProgress?.(0.80);
-
-  // Burn the title overlay over the concatenated video (re-encode video, copy audio).
-  if (opts.title && opts.title.layers.some((l) => l.enabled && l.text.trim())) {
-    const titleDur = timings.reduce((sum, t) => sum + t.durationSec, 0);
-    const { filterGraph, inputs, inputArgs, outputMap } = await buildTitleFilterGraph(opts.title, w, h, titleDur);
-    // filterGraph is empty only if every layer failed to render (e.g. no canvas);
-    // skip the stage rather than feed ffmpeg an empty -filter_complex.
-    if (filterGraph) {
-      video = await runIsolated(
-        [{ name: "in.mp4", data: video }, ...inputs],
-        [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
-        "titled.mp4",
-        (f) => onProgress?.(0.80 + f * 0.08),
-      );
-    }
   }
 
   onProgress?.(0.88);

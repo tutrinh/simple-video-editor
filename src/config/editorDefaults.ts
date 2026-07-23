@@ -36,19 +36,19 @@ export const EDITOR_DEFAULTS = {
   EXPORT_QUALITY_PROFILES: {
     max: {
       crf: 15,
-      preset: "medium",
+      preset: "veryfast",
       audioBitrate: "320k",
       label: "Maximum (CRF 15 · 320k)",
     },
     high: {
       crf: 18,
-      preset: "faster",
+      preset: "superfast",
       audioBitrate: "320k",
       label: "High (CRF 18 · 320k)",
     },
     standard: {
       crf: 22,
-      preset: "veryfast",
+      preset: "superfast",
       audioBitrate: "192k",
       label: "Standard (CRF 22 · 192k)",
     },
