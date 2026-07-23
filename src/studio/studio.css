@@ -173,11 +173,55 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
 .st-tl-scroll::-webkit-scrollbar-track{background:var(--panel-2);border-radius:3px}
 .st-tl-scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
 .st-tl-scroll::-webkit-scrollbar-thumb:hover{background:var(--accent)}
-.st-tl-content{display:flex;flex-direction:column;gap:10px;width:100%}
-.st-track{display:flex;gap:6px;align-items:stretch;position:relative;min-height:88px}
+.st-tl-content{display:flex;flex-direction:column;gap:0;width:100%}
+/* Shared ruler area — overlay + beats share the same proportional x-axis */
+.st-tl-ruler-area{display:flex;flex-direction:column;gap:0;width:100%}
+
+/* Overlay lane */
+.st-ov-lane{width:100%;padding:6px 0 4px;background:var(--panel-2);border-radius:8px 8px 0 0;border:1px solid var(--line);border-bottom:none}
+.st-ov-label{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;padding:0 10px 4px;display:flex;align-items:center;gap:6px}
+.st-ov-label-hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3);font-size:10px}
+/* Canvas: same width as beat track, uses absolute % positioning */
+.st-ov-canvas{position:relative;height:36px;width:100%;background:var(--panel-3);overflow:hidden;border-top:1px solid var(--line)}
+/* Vertical beat dividers inside overlay canvas */
+.st-ov-divider{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.7;pointer-events:none;z-index:1}
+/* Beat number labels in the background of the overlay canvas */
+.st-ov-beat-label{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;
+  font-size:9px;font-family:var(--mono);color:var(--ink-3);pointer-events:none;z-index:1;overflow:hidden;white-space:nowrap;padding:0 2px}
+/* Overlay chip */
+.st-ov-chip{position:absolute;top:3px;bottom:3px;min-width:40px;
+  background:rgba(255,179,57,.28);border:1px solid var(--accent);border-radius:4px;
+  color:var(--accent);font-size:10px;font-weight:600;
+  display:flex;align-items:center;gap:3px;padding:0 2px;
+  cursor:grab;user-select:none;touch-action:none;z-index:2;box-sizing:border-box;
+  transition:background .1s,border-color .1s,box-shadow .1s}
+.st-ov-chip:hover{background:rgba(255,179,57,.42);box-shadow:0 0 0 1px var(--accent)}
+.st-ov-chip.sel{background:var(--accent);border-color:#fff;color:#111;box-shadow:0 0 0 2px var(--accent),0 2px 8px rgba(0,0,0,.35);z-index:10}
+.st-ov-chip-mode{font-size:9px;letter-spacing:.4px;flex-shrink:0;opacity:.85}
+.st-ov-chip-dot{opacity:.4;flex-shrink:0}
+.st-ov-chip-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;min-width:0}
+.st-ov-chip-time{font-size:8.5px;font-family:var(--mono);opacity:.7;flex-shrink:0;white-space:nowrap}
+.st-ov-chip.sel .st-ov-chip-mode,.st-ov-chip.sel .st-ov-chip-name,.st-ov-chip.sel .st-ov-chip-time{opacity:1}
+/* Resize handles on edges of overlay chip */
+.st-ov-resize-handle{width:5px;height:100%;cursor:ew-resize;background:rgba(0,0,0,.25);flex-shrink:0}
+.st-ov-resize-handle.left{border-radius:3px 0 0 3px;margin-right:1px}
+.st-ov-resize-handle.right{border-radius:0 3px 3px 0;margin-left:1px}
+.st-ov-chip.sel .st-ov-resize-handle{background:rgba(0,0,0,.35)}
+.st-ov-resize-handle:hover{background:rgba(0,0,0,.5)}
+/* Small icon buttons inside overlay chip */
+.st-ov-action-btn{background:rgba(0,0,0,.25);border:none;border-radius:50%;width:17px;height:17px;min-width:17px;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;color:inherit;flex-shrink:0}
+.st-ov-action-btn:hover{background:rgba(0,0,0,.5)}
+
+/* Beat track — no gap between beats, widths set by inline style */
+.st-track{display:flex;gap:0;align-items:stretch;position:relative;min-height:88px;
+  border-radius:0 0 8px 8px;overflow:hidden;border:1px solid var(--line);border-top:none}
+.st-tl-ruler-area:not(:has(.st-ov-lane)) .st-track{border-radius:8px;border-top:1px solid var(--line)}
 .st-track.empty{align-items:center;justify-content:center;color:var(--ink-3);font-size:13px}
-.st-beat{flex:1 0 135px;min-width:135px;display:flex;flex-direction:column;gap:5px;position:relative;cursor:pointer}
-.st-bt{height:52px;border-radius:7px;position:relative;overflow:hidden;background:#0a0b0d center/cover no-repeat;
+.st-beat{flex:none;display:flex;flex-direction:column;gap:5px;position:relative;cursor:pointer;
+  padding:6px 5px 5px;box-sizing:border-box;border-right:1px solid var(--line)}
+.st-beat:last-child{border-right:none}
+.st-bt{height:52px;border-radius:6px;position:relative;overflow:hidden;background:#0a0b0d center/cover no-repeat;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);transition:box-shadow .12s}
 .st-bt .bn{position:absolute;top:3px;left:5px;font-size:10px;font-family:var(--mono);color:#fff;
   background:rgba(0,0,0,.45);padding:0 4px;border-radius:3px;z-index:2}
@@ -186,12 +230,14 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
 .st-beat:hover .st-bt{box-shadow:0 0 0 1px var(--ink-3),inset 0 0 0 1px rgba(255,255,255,.06)}
 .st-beat.sel .st-bt{box-shadow:0 0 0 2px var(--accent),inset 0 0 0 1px rgba(255,255,255,.06)}
 .st-beat.sel .st-bcap{color:var(--ink)}
+.st-beat.sel{background:rgba(var(--accent-rgb,255,165,0),.05)}
 .st-reorder{display:none;gap:2px}
 .st-beat:hover .st-reorder{display:inline-flex}
 .st-reorder button{color:var(--ink-3);font-size:10px;line-height:1}
 .st-reorder button:hover{color:var(--ink)}
-.st-playhead{position:absolute;top:-5px;height:62px;width:2px;background:var(--accent);z-index:3;pointer-events:none}
-.st-playhead::before{content:"";position:absolute;top:-4px;left:-4px;width:10px;height:10px;background:var(--accent);border-radius:2px;transform:rotate(45deg)}
+/* Playhead spans overlay canvas + beat track */
+.st-playhead{position:absolute;top:-70px;height:calc(100% + 70px);width:2px;background:var(--accent);z-index:11;pointer-events:none}
+.st-playhead::before{content:"";position:absolute;top:0;left:-4px;width:10px;height:10px;background:var(--accent);border-radius:2px;transform:rotate(45deg)}
 
 /* inspector */
 .st-insp-body{flex:1;overflow:auto;padding:4px 16px 24px;display:flex;flex-direction:column;gap:16px}
