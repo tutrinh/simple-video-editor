@@ -26,14 +26,14 @@ describe("captionSchedule", () => {
     ]);
     expect(scheduleDuration(s)).toBe(5);
   });
-  it("wraps the sequence in a lead-in and tail, offsetting the cues", () => {
-    // Default buffers: 1s lead before line 1, 2s tail after line 2.
+  it("wraps the sequence in a lead-in, offsetting the cues", () => {
+    // Default buffers: 1s lead before line 1, no tail (CAPTION_TAIL_SEC = 0).
     const s = captionSchedule("first\nsecond", [2, 3])!;
     expect(s.leadSec).toBe(1);
-    expect(s.tailSec).toBe(2);
+    expect(s.tailSec).toBe(0);
     expect(s.cues[0]).toMatchObject({ text: "first", start: 1, end: 3 });
     expect(s.cues[1]).toMatchObject({ text: "second", start: 3, end: 6 });
-    expect(s.total).toBe(1 + 5 + 2); // lead + lines + tail
+    expect(s.total).toBe(1 + 5 + 0); // lead + lines + tail
   });
   it("drops empty lines but keeps timer alignment by raw row index", () => {
     // Row 1 is blank; its timer (99) is skipped, not shifted onto another line.
