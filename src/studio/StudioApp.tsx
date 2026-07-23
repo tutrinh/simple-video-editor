@@ -23,6 +23,9 @@ export default function StudioApp() {
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  // Mount the export drawer lazily on first open, then keep it mounted so its
+  // state survives close/reopen (only slid out of view). Reset on "Start over".
+  const [exportMounted, setExportMounted] = useState(false);
 
   // Dev-only fixture (?seed) to exercise the populated workspace without footage/AI.
   useEffect(() => {
@@ -104,12 +107,13 @@ export default function StudioApp() {
     resetExport();
     setSelectedBeatId(null);
     setExportOpen(false);
+    setExportMounted(false); // fully discard the drawer's local state (video, etc.)
   }
 
   return (
     <div className="studio">
       <TopBar
-        onExport={() => setExportOpen(true)}
+        onExport={() => { setExportMounted(true); setExportOpen(true); }}
         onStartOver={startOver}
       />
 
@@ -189,7 +193,7 @@ export default function StudioApp() {
         />
       </div>
 
-      {exportOpen && <ExportDrawer onClose={() => setExportOpen(false)} />}
+      {exportMounted && <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} />}
     </div>
   );
 }

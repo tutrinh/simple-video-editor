@@ -1,31 +1,36 @@
 import { useEffect, useState } from "react";
 import ExportView from "../features/export/ExportView";
 
-/** Slide-over drawer that hosts the existing Export flow, with animated slide open and slide back. */
-export default function ExportDrawer({ onClose }: { onClose: () => void }) {
-  const [closing, setClosing] = useState(false);
-
-  const handleClose = () => {
-    if (closing) return;
-    setClosing(true);
-    setTimeout(() => {
-      onClose();
-    }, 280);
-  };
+/**
+ * Slide-over drawer that hosts the Export flow. It stays MOUNTED once created and
+ * toggles open/closed via the `open` prop (CSS transition), so ExportView keeps
+ * all of its state — the generated video, expanded sections, active layer, even
+ * an in-progress export — when you close and reopen it.
+ */
+export default function ExportDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  // Drive the `.open` CSS class one frame behind `open` so the very first open
+  // (which mounts already-open) still has a closed starting frame to slide from.
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!open) { setShown(false); return; }
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, [open]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") handleClose(); };
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closing]);
+  }, [open, onClose]);
 
   return (
     <>
-      <div className={`st-drawer-scrim ${closing ? "closing" : ""}`} onClick={handleClose} />
-      <div className={`st-drawer ${closing ? "closing" : ""}`} role="dialog" aria-label="Export">
+      <div className={`st-drawer-scrim ${shown ? "open" : ""}`} onClick={onClose} />
+      <div className={`st-drawer ${shown ? "open" : ""}`} role="dialog" aria-label="Export" aria-hidden={!open}>
         <div className="st-drawer-head">
           <h2>Export</h2>
-          <button className="x" onClick={handleClose} title="Close (Esc)">×</button>
+          <button className="x" onClick={onClose} title="Close (Esc)">×</button>
         </div>
         <div className="st-drawer-body">
           <ExportView />
