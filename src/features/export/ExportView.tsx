@@ -7,7 +7,8 @@ import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
 import { ELEVEN_VOICES } from "../../lib/elevenLabs";
 import type { TtsEngine } from "../../lib/tts";
 import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./FinalPreview";
-import { GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded, findFontById, fetchGoogleFontBytes } from "../../lib/googleFonts";
+import { GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded, findFontById } from "../../lib/googleFonts";
+import { getTitleFontBytes } from "./titleFonts";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, type TitlePreset } from "../../lib/titlePresets";
 
 import { EDITOR_DEFAULTS } from "../../config/editorDefaults";
@@ -232,24 +233,11 @@ export default function ExportView() {
       const fontBytes = await loadFont();
       const exportLayers: TitleLayer[] = await Promise.all(
         titleLayers.map(async (l) => {
-          let fBytes: Uint8Array | undefined;
-          if (l.enabled && l.text.trim()) {
-            if (l.fontId === "custom") {
-              if (l.fontFile) fBytes = new Uint8Array(await l.fontFile.arrayBuffer());
-            } else {
-              const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === l.fontId);
-              if (gf) fBytes = await fetchGoogleFontBytes(gf, l.weight);
-              else {
-                const url = l.fontId === "serif" ? "/fonts/title-serif.ttf" : "/fonts/title-sans.ttf";
-                const res = await fetch(url);
-                const contentType = res.headers.get("content-type") || "";
-                if (res.ok && !contentType.includes("text/html")) {
-                  const bytes = new Uint8Array(await res.arrayBuffer());
-                  if (bytes.length > 1000 && bytes[0] !== 0x3c) fBytes = bytes;
-                }
-              }
-            }
-          }
+          // Shared cached loader → the preview and the export use identical bytes
+          // (and therefore the same registered FontFace) for pixel parity.
+          const fBytes = (l.enabled && l.text.trim())
+            ? await getTitleFontBytes(l.fontId, l.weight, l.fontFile)
+            : undefined;
           const fontObj = findFontById(l.fontId);
           return {
             id: l.id,
@@ -319,6 +307,8 @@ export default function ExportView() {
       introSec: l.introSec,
       fontFamily: fontObj?.cssFamily,
       fontWeight: l.weight,
+      fontId: l.fontId,
+      fontFile: l.fontFile,
       animation: l.animation,
       animDurationSec: l.animDurationSec,
     };

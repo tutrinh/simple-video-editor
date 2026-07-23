@@ -5,6 +5,7 @@ import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
 import { ffmpegColorFilters } from "../../studio/util";
+import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
 // isolated engine — trim → scale/letterbox → BURN caption → uniform-silent
@@ -81,129 +82,18 @@ export interface ExportOptions {
   captionLineHeight?: number;
 }
 
-export function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-export async function renderTitleLayerPng(
-  layer: TitleLayer,
-  w: number,
-  h: number
-): Promise<Uint8Array | null> {
-  if (typeof document === "undefined") return null;
-  if (!layer.enabled || !layer.text.trim()) return null;
-
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-
-    const curvature = layer.arcDeg ?? 0;
-    const fontSize = layer.sizePx;
-    const fontFam = layer.fontCssFamily || "system-ui, sans-serif";
-    const primaryFontName = (fontFam.split(",")[0] || "customFont").replace(/['"]/g, "").trim();
-    const shadowFilter = layer.shadow !== false ? 'filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.7))"' : "";
-    const letterSpace = layer.letterSpacing ? `letter-spacing="${layer.letterSpacing}px"` : "";
-
-    let fontFaceCss = "";
-    if (layer.fontBytes && layer.fontBytes.length > 0) {
-      let binary = "";
-      const bytes = layer.fontBytes;
-      const len = bytes.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const b64 = btoa(binary);
-      fontFaceCss = `<style>@font-face { font-family: '${primaryFontName}'; src: url('data:font/ttf;base64,${b64}') format('truetype'); }</style>`;
-
-      if (typeof FontFace !== "undefined") {
-        try {
-          const fontFace = new FontFace(primaryFontName, bytes.buffer as ArrayBuffer);
-          const loadedFace = await fontFace.load();
-          document.fonts.add(loadedFace);
-        } catch {}
-      }
-    }
-
-    let textContent = "";
-    let defsContent = "";
-
-    if (curvature !== 0) {
-      const hOffset = (curvature / 180) * (h * 0.45);
-      const startY = h / 2 + hOffset * 0.4;
-      const controlY = h / 2 - hOffset;
-      const pathD = `M 40,${startY} Q ${w / 2},${controlY} ${w - 40},${startY}`;
-      const pathId = `arc_${layer.id}_${Math.random().toString(36).slice(2, 6)}`;
-      defsContent = `<path id="${pathId}" d="${pathD}" fill="none" />`;
-
-      textContent = `
-        <text fill="${layer.color}" font-weight="${layer.weight ?? 400}" font-family="'${primaryFontName}', sans-serif" font-size="${fontSize}px" ${letterSpace} ${shadowFilter}>
-          <textPath href="#${pathId}" startOffset="50%" text-anchor="middle">
-            ${escapeXml(layer.text)}
-          </textPath>
-        </text>
-      `;
-    } else {
-      const lines = wrapCaption(layer.text, w, fontSize).split("\n");
-      const lineElements = lines.map((line, idx) => {
-        const lineY = h / 2 + (idx - (lines.length - 1) / 2) * (fontSize * 1.2);
-        return `<tspan x="50%" y="${lineY}" text-anchor="middle" dominant-baseline="central">${escapeXml(line)}</tspan>`;
-      }).join("");
-
-      textContent = `
-        <text fill="${layer.color}" font-weight="${layer.weight ?? 400}" font-family="'${primaryFontName}', sans-serif" font-size="${fontSize}px" ${letterSpace} ${shadowFilter}>
-          ${lineElements}
-        </text>
-      `;
-    }
-
-    const svgString = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-        <defs>
-          ${fontFaceCss}
-          ${defsContent}
-        </defs>
-        ${textContent}
-      </svg>
-    `;
-
-    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-
-    await new Promise((resolve) => {
-      img.onload = resolve;
-      img.onerror = resolve;
-      img.src = url;
-    });
-
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(url);
-
-    return new Promise((resolve) => {
-      canvas.toBlob((b) => {
-        if (!b) return resolve(null);
-        b.arrayBuffer().then((buf) => resolve(new Uint8Array(buf))).catch(() => resolve(null));
-      }, "image/png");
-    });
-  } catch {
-    return null;
-  }
-}
-
-/** Build drawtext and overlay filters for stacked title layers. */
+// Build the ffmpeg overlay graph for stacked title layers. Each layer is
+// rendered to a full-frame transparent PNG by the SHARED canvas renderer
+// (titleCanvas.ts, ADR-0008) — the SAME engine the preview draws with — then
+// composited with `overlay`. drawtext is gone: it had no letter-spacing,
+// different shaping, and a guessed wrap. Motion (fade/slide) rides on top of the
+// static bitmap via the looped image's own timeline + overlay x/y expressions,
+// mirroring the preview's CSS transform (see TITLE_ANIM for the shared easing).
 async function buildTitleFilterGraph(
   title: TitleOverlay,
   w: number,
   h: number,
-  defaultFontBytes: Uint8Array
+  totalDurationSec: number,
 ): Promise<{ filterGraph: string; inputs: EngineInput[]; inputArgs: string[]; outputMap: string }> {
   const activeLayers = title.layers.filter((l) => l.enabled && l.text.trim());
   const inputs: EngineInput[] = [];
@@ -215,116 +105,80 @@ async function buildTitleFilterGraph(
 
   for (let k = 0; k < activeLayers.length; k++) {
     const l = activeLayers[k];
-    const dur = l.introSec ?? 3;
-    const fade = Math.min(0.8, dur / 2);
-    const fadeStart = (dur - fade).toFixed(3);
-    const nextV = k === activeLayers.length - 1 ? "[titled_v]" : `[v_title_${k}]`;
+    // Register the exact TTF so the export canvas draws byte-identical glyphs to
+    // the preview (and measureText wraps against the real metrics).
+    const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
+    const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
 
-    const pngData = await renderTitleLayerPng(l, w, h);
-    if (pngData) {
-      const pngName = `title_layer_${k}.png`;
-      inputs.push({ name: pngName, data: pngData });
-      inputArgs.push("-i", pngName);
+    const png = await renderTitleLayerToPng(
+      {
+        text: l.text,
+        canvasFamily,
+        cssFamily: l.fontCssFamily ?? "sans-serif",
+        fontBytes: l.fontBytes,
+        fontWeight: l.weight ?? 400,
+        sizePx: l.sizePx,
+        letterSpacing: l.letterSpacing,
+        arcDeg: l.arcDeg,
+        shadow: l.shadow,
+        color: l.color,
+        posX: l.posX,
+        posY: l.posY,
+      },
+      w,
+      h,
+    );
+    // No canvas (non-browser) or a render failure → skip this layer so the export
+    // still completes, just without it.
+    if (!png) continue;
 
-      const xOffset = Math.round(w * (l.posX / 100));
-      const yOffset = Math.round(h * (l.posY / 100));
-      const currPngIdx = inputIndex++;
+    const pngName = `title_${k}.png`;
+    inputs.push({ name: pngName, data: png });
 
-      const anim = l.animation ?? "none";
-      const animDur = (l.animDurationSec ?? 0.5).toFixed(2);
-      let xExpr = `(W-w)/2+${xOffset}`;
-      let yExpr = `(H-h)/2+${yOffset}`;
-
-      if (anim === "slide_left") {
-        xExpr = `(W-w)/2+${xOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-250,0)`;
-      } else if (anim === "slide_bottom") {
-        yExpr = `(H-h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*150,0)`;
-      } else if (anim === "slide_top") {
-        yExpr = `(H-h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-150,0)`;
-      } else if (anim === "pop") {
-        yExpr = `(H-h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*35,0)`;
-      }
-
-      const xParam = `'${xExpr}'`;
-      const yParam = `'${yExpr}'`;
-
-      if (l.scope === "intro") {
-        const fadeLabel = `[ol_fade_${k}]`;
-        filterChains.push(`[${currPngIdx}:v]fade=t=out:st=${fadeStart}:d=${fade.toFixed(2)}:alpha=1${fadeLabel}`);
-        filterChains.push(`${lastV}${fadeLabel}overlay=x=${xParam}:y=${yParam}:enable='between(t,0,${dur})'${nextV}`);
-      } else {
-        filterChains.push(`${lastV}[${currPngIdx}:v]overlay=x=${xParam}:y=${yParam}${nextV}`);
-      }
-      lastV = nextV;
-      continue;
-    }
-
-    const fontName = `title_font_${k}.ttf`;
-    const textName = `title_text_${k}.txt`;
-    inputs.push({ name: fontName, data: l.fontBytes ?? defaultFontBytes });
-    inputs.push({ name: textName, data: new TextEncoder().encode(wrapCaption(l.text, w, l.sizePx)) });
-
-    const xOffset = Math.round(w * (l.posX / 100));
-    const yOffset = Math.round(h * (l.posY / 100));
-    const color = "0x" + l.color.replace(/^#/, "");
-    // `tracking` (letter spacing) is not available in @ffmpeg/core 0.12.10's
-    // drawtext — using it crashes the filter with "Option not found". Skipped;
-    // the title renders without spacing (cosmetic-only difference from preview).
-    const tracking = "";
-    const shadowFilter = l.shadow !== false ? ":shadowcolor=black@0.5:shadowx=2:shadowy=2" : "";
+    // Loop the still into a real 30fps stream for its lifetime so the fade filter
+    // has frames to animate across (a bare image has a single frame at t=0). The
+    // stream starts at t=0 aligned with the base, so fade/overlay `t` match.
+    const scopeDur = l.scope === "intro" ? (l.introSec ?? 3) : Math.max(0.1, totalDurationSec);
+    inputArgs.push("-loop", "1", "-t", scopeDur.toFixed(3), "-r", "30", "-i", pngName);
+    const idx = inputIndex++;
 
     const anim = l.animation ?? "none";
-    const animDur = (l.animDurationSec ?? 0.5).toFixed(2);
-    let xExpr = `(w-text_w)/2+${xOffset}`;
-    let yExpr = `(h-text_h)/2+${yOffset}`;
+    const animDur = l.animDurationSec ?? 0.5;
+    const fadeInNeeded = anim !== "none"; // fade/slide/pop all ease their opacity in
 
-    if (anim === "slide_left") {
-      xExpr = `(w-text_w)/2+${xOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-250,0)`;
-    } else if (anim === "slide_bottom") {
-      yExpr = `(h-text_h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*150,0)`;
-    } else if (anim === "slide_top") {
-      yExpr = `(h-text_h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-150,0)`;
-    } else if (anim === "pop") {
-      yExpr = `(h-text_h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*35,0)`;
-    }
-
-    let alphaExpr = "1";
-    const needsIntroFade = anim === "fade" || anim === "pop" || anim === "slide_left" || anim === "slide_bottom" || anim === "slide_top";
-
+    const fadeParts: string[] = [];
+    if (fadeInNeeded) fadeParts.push(`fade=t=in:st=0:d=${animDur.toFixed(3)}:alpha=1`);
     if (l.scope === "intro") {
-      if (needsIntroFade) {
-        alphaExpr = `if(lt(t,${animDur}),t/${animDur},if(lt(t,${fadeStart}),1,if(lt(t,${dur}),(${dur}-t)/${fade},0)))`;
-      } else {
-        alphaExpr = `if(lt(t,${fadeStart}),1,if(lt(t,${dur}),(${dur}-t)/${fade},0))`;
-      }
-    } else {
-      if (needsIntroFade) {
-        alphaExpr = `if(lt(t,${animDur}),t/${animDur},1)`;
-      }
+      const fade = Math.min(0.8, scopeDur / 2);
+      const fadeStart = Math.max(0, scopeDur - fade);
+      fadeParts.push(`fade=t=out:st=${fadeStart.toFixed(3)}:d=${fade.toFixed(3)}:alpha=1`);
+    }
+    const ovLabel = `[ov_${k}]`;
+    const head = `[${idx}:v]format=rgba`;
+    filterChains.push(fadeParts.length ? `${head},${fadeParts.join(",")}${ovLabel}` : `${head}${ovLabel}`);
+
+    // Slide shifts the whole frame-sized PNG by a decaying offset expressed as a
+    // fraction of the frame (TITLE_ANIM), so the preview's CSS transform lands on
+    // exactly the same proportion. `pop` eases opacity only (overlay can't scale
+    // over time); the preview matches by easing opacity for pop too.
+    const d = animDur.toFixed(3);
+    let xExpr = "0";
+    let yExpr = "0";
+    if (anim === "slide_left") {
+      xExpr = `if(lt(t,${d}),(1-t/${d})*${(-w * TITLE_ANIM.slideXFrac).toFixed(1)},0)`;
+    } else if (anim === "slide_bottom") {
+      yExpr = `if(lt(t,${d}),(1-t/${d})*${(h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+    } else if (anim === "slide_top") {
+      yExpr = `if(lt(t,${d}),(1-t/${d})*${(-h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
     }
 
-    const alphaParam = alphaExpr !== "1" ? `:alpha='${alphaExpr}'` : "";
-    const enableParam = l.scope === "intro" ? `:enable='between(t,0,${dur})'` : "";
-
-    // Wrap x/y in single quotes: animation expressions contain commas
-    // (e.g. `if(lt(t,0.50),(1-t/0.50)*-250,0)`); unquoted, FFmpeg's filtergraph
-    // parser splits at the comma and treats the tail as a filter name →
-    // "No such filter: '0.50)'"
-    const drawFilter =
-      `drawtext=fontfile=/${fontName}:textfile=/${textName}:expansion=none:` +
-      `fontcolor=${color}:fontsize=${Math.round(l.sizePx)}${tracking}${shadowFilter}:` +
-      `x='${xExpr}':y='${yExpr}'${alphaParam}${enableParam}`;
-
-    filterChains.push(`${lastV}${drawFilter}${nextV}`);
+    const enable = l.scope === "intro" ? `:enable='between(t,0,${scopeDur.toFixed(3)})'` : "";
+    const nextV = `[titled_${k}]`;
+    filterChains.push(`${lastV}${ovLabel}overlay=x='${xExpr}':y='${yExpr}':eof_action=pass${enable}${nextV}`);
     lastV = nextV;
   }
 
-  return {
-    filterGraph: filterChains.join(";"),
-    inputs,
-    inputArgs,
-    outputMap: lastV,
-  };
+  return { filterGraph: filterChains.join(";"), inputs, inputArgs, outputMap: lastV };
 }
 
 /** The actual on-screen window an exported beat used (voiceover can change it). */
@@ -919,13 +773,18 @@ export async function exportCut(
 
   // Burn the title overlay over the concatenated video (re-encode video, copy audio).
   if (opts.title && opts.title.layers.some((l) => l.enabled && l.text.trim())) {
-    const { filterGraph, inputs, inputArgs, outputMap } = await buildTitleFilterGraph(opts.title, w, h, opts.fontBytes);
-    video = await runIsolated(
-      [{ name: "in.mp4", data: video }, ...inputs],
-      [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
-      "titled.mp4",
-      (f) => onProgress?.(0.80 + f * 0.08),
-    );
+    const titleDur = timings.reduce((sum, t) => sum + t.durationSec, 0);
+    const { filterGraph, inputs, inputArgs, outputMap } = await buildTitleFilterGraph(opts.title, w, h, titleDur);
+    // filterGraph is empty only if every layer failed to render (e.g. no canvas);
+    // skip the stage rather than feed ffmpeg an empty -filter_complex.
+    if (filterGraph) {
+      video = await runIsolated(
+        [{ name: "in.mp4", data: video }, ...inputs],
+        [...inputArgs, "-filter_complex", filterGraph, "-map", outputMap, "-map", "0:a:0?", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "copy", "titled.mp4"],
+        "titled.mp4",
+        (f) => onProgress?.(0.80 + f * 0.08),
+      );
+    }
   }
 
   onProgress?.(0.88);

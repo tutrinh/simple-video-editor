@@ -6,6 +6,8 @@ import { cssFilterFor } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
 import { getClipBlobUrl } from "../../lib/blobUrlCache";
+import { drawTitleLayer, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
+import { getTitleFontBytes } from "./titleFonts";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -29,6 +31,10 @@ export interface PreviewTitleLayer {
   introSec?: number;
   fontFamily?: string;
   fontWeight?: number;
+  /** Font id + optional uploaded file — so the preview loads the SAME TTF bytes
+   *  the export does and draws with the same shared canvas renderer (ADR-0008). */
+  fontId: string;
+  fontFile?: File | null;
   animation?: TitleAnimation;
   animDurationSec?: number;
 }
@@ -72,7 +78,7 @@ export default function FinalPreview({
   const clipById = useMemo(() => new Map(clips.map((c) => [c.id, c])), [clips]);
 
   const beat = cut.beats[index];
-  const [, canvasH] = canvasDims(cut.aspect);
+  const [canvasW, canvasH] = canvasDims(cut.aspect);
 
   useEffect(() => { playingRef.current = playing; }, [playing]);
 
@@ -487,127 +493,46 @@ export default function FinalPreview({
         {title && title.layers.map((layer) => {
           if (!layer.enabled || !layer.text.trim()) return null;
 
+          // Scope: "entire" is always on; "intro" shows for introSec then fades.
           let opacity = 1;
           let visible = false;
           if (layer.scope === "entire") {
             visible = true;
-            opacity = 1;
           } else {
             const dur = layer.introSec ?? 3;
             const fade = Math.min(0.8, dur / 2);
             if (elapsed < dur) {
               visible = true;
-              if (elapsed > dur - fade) {
-                opacity = Math.max(0, (dur - elapsed) / fade);
-              }
+              if (elapsed > dur - fade) opacity = Math.max(0, (dur - elapsed) / fade);
             }
           }
-
           if (!visible) return null;
-          const fontSize = PREVIEW_H * (layer.sizePx / canvasH);
-          const curvature = layer.arcDeg ?? 0;
 
+          // Motion rides on top of the static bitmap (ADR-0008): opacity eases in
+          // for every animation; slides translate by the SAME frame fraction the
+          // export uses (TITLE_ANIM); pop eases opacity only, matching the export.
           const anim = layer.animation ?? "none";
           const animDur = layer.animDurationSec ?? 0.5;
           let animTransform = "";
           let animOpacity = opacity;
-
           if (elapsed < animDur && anim !== "none") {
             const p = Math.min(1, Math.max(0, elapsed / animDur));
-            if (anim === "fade") {
-              animOpacity = opacity * p;
-            } else if (anim === "slide_left") {
-              animOpacity = opacity * p;
-              animTransform = ` translateX(${(1 - p) * -120}px)`;
-            } else if (anim === "slide_bottom") {
-              animOpacity = opacity * p;
-              animTransform = ` translateY(${(1 - p) * 60}px)`;
-            } else if (anim === "slide_top") {
-              animOpacity = opacity * p;
-              animTransform = ` translateY(${(1 - p) * -60}px)`;
-            } else if (anim === "pop") {
-              animOpacity = opacity * p;
-              const scaleVal = 0.75 + p * 0.25;
-              animTransform = ` scale(${scaleVal})`;
-            }
-          }
-
-          if (curvature !== 0) {
-            const hOffset = (curvature / 180) * 420;
-            const svgW = 1000;
-            const svgH = 600;
-            const startY = 300 + hOffset * 0.4;
-            const controlY = 300 - hOffset;
-            const pathD = `M 40,${startY} Q ${svgW / 2},${controlY} ${svgW - 40},${startY}`;
-            const pathId = `arc_${layer.id}`;
-
-            return (
-              <div
-                key={layer.id}
-                style={{
-                  position: "absolute",
-                  left: `${50 + layer.posX}%`,
-                  top: `${50 + layer.posY}%`,
-                  transform: `translate(-50%, -50%)${animTransform}`,
-                  width: "95%",
-                  textAlign: "center",
-                  pointerEvents: "none",
-                  opacity: animOpacity,
-                  transition: "opacity 0.05s linear",
-                }}
-              >
-                <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: "100%", overflow: "visible" }}>
-                  <defs>
-                    <path id={pathId} d={pathD} fill="none" />
-                  </defs>
-                  <text
-                    fill={layer.color}
-                    fontWeight={layer.fontWeight ?? 400}
-                    fontFamily={layer.fontFamily || "system-ui, sans-serif"}
-                    fontSize={fontSize * 2.8}
-                    letterSpacing={layer.letterSpacing ? `${(layer.letterSpacing * PREVIEW_H * 2.8) / canvasH}px` : undefined}
-                    style={{
-                      filter: layer.shadow !== false ? "drop-shadow(2px 2px 3px rgba(0,0,0,0.6))" : "none",
-                    }}
-                  >
-                    <textPath href={`#${pathId}`} startOffset="50%" textAnchor="middle">
-                      {layer.text}
-                    </textPath>
-                  </text>
-                </svg>
-              </div>
-            );
+            animOpacity = opacity * p;
+            const previewW = PREVIEW_H * ASPECT_RATIO[cut.aspect];
+            if (anim === "slide_left") animTransform = `translateX(${(1 - p) * -(previewW * TITLE_ANIM.slideXFrac)}px)`;
+            else if (anim === "slide_bottom") animTransform = `translateY(${(1 - p) * (PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
+            else if (anim === "slide_top") animTransform = `translateY(${(1 - p) * -(PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
           }
 
           return (
-            <div
+            <TitleLayerCanvas
               key={layer.id}
-              style={{
-                position: "absolute",
-                left: `${50 + layer.posX}%`,
-                top: `${50 + layer.posY}%`,
-                transform: `translate(-50%, -50%)${animTransform}`,
-                width: "90%",
-                textAlign: "center",
-                pointerEvents: "none",
-                opacity: animOpacity,
-                transition: "opacity 0.05s linear",
-              }}
-            >
-              <span
-                style={{
-                  color: layer.color,
-                  fontWeight: layer.fontWeight ?? 400,
-                  fontFamily: layer.fontFamily || "system-ui, sans-serif",
-                  fontSize,
-                  letterSpacing: layer.letterSpacing ? `${(layer.letterSpacing * PREVIEW_H) / canvasH}px` : undefined,
-                  lineHeight: 1.1,
-                  textShadow: layer.shadow !== false ? "2px 2px 3px rgba(0,0,0,0.6)" : "none",
-                }}
-              >
-                {layer.text}
-              </span>
-            </div>
+              layer={layer}
+              cw={canvasW}
+              ch={canvasH}
+              opacity={animOpacity}
+              transform={animTransform}
+            />
           );
         })}
 
@@ -732,5 +657,87 @@ export default function FinalPreview({
       </div>
       <audio ref={audioRef} />
     </div>
+  );
+}
+
+/**
+ * One title layer, drawn by the SHARED canvas renderer (ADR-0008) — the exact
+ * same `drawTitleLayer` the export uses. The canvas is at full export resolution
+ * and CSS-scaled to fill the preview box, so the preview is literally a smaller
+ * view of the exported bitmap. Animation (opacity/transform) is applied to the
+ * canvas element, never baked in.
+ */
+function TitleLayerCanvas({
+  layer,
+  cw,
+  ch,
+  opacity,
+  transform,
+}: {
+  layer: PreviewTitleLayer;
+  cw: number;
+  ch: number;
+  opacity: number;
+  transform: string;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const canvas = ref.current;
+      const ctx = canvas?.getContext("2d");
+      if (!canvas || !ctx) return;
+      const weight = layer.fontWeight ?? 400;
+      const cssFamily = layer.fontFamily || "sans-serif";
+      const bytes = await getTitleFontBytes(layer.fontId, weight, layer.fontFile);
+      const canvasFamily = await ensureTitleFontFace(titleFontKey(cssFamily, weight, bytes?.length), bytes, cssFamily);
+      if (cancelled) return;
+      ctx.clearRect(0, 0, cw, ch);
+      await drawTitleLayer(
+        ctx,
+        {
+          text: layer.text,
+          canvasFamily,
+          cssFamily,
+          fontBytes: bytes,
+          fontWeight: weight,
+          sizePx: layer.sizePx,
+          letterSpacing: layer.letterSpacing,
+          arcDeg: layer.arcDeg,
+          shadow: layer.shadow,
+          color: layer.color,
+          posX: layer.posX,
+          posY: layer.posY,
+        },
+        cw,
+        ch,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    layer.text, layer.fontId, layer.fontFile, layer.fontFamily, layer.fontWeight,
+    layer.sizePx, layer.letterSpacing, layer.arcDeg, layer.shadow, layer.color,
+    layer.posX, layer.posY, cw, ch,
+  ]);
+
+  return (
+    <canvas
+      ref={ref}
+      width={cw}
+      height={ch}
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none",
+        opacity,
+        transform: transform || undefined,
+        transition: "opacity 0.05s linear",
+      }}
+    />
   );
 }

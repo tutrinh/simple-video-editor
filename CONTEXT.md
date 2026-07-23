@@ -92,8 +92,8 @@ _Avoid_: segment, shot, scene, track item
 Root-level living docs that track cross-cutting bugs, their fixes, and rules to
 avoid re-introducing them. Check these before re-diagnosing a related problem.
 
-- [EXPORT_OVERLAY_AUDIO_ISSUE.md](./EXPORT_OVERLAY_AUDIO_ISSUE.md) — 🟡 OPEN. Export
-  overlays/audio not matching preview; ffmpeg.wasm filtergraph fixes tried + "do not
-  re-try" list. (Stages: `seg → … → overlaid → final`.)
+- [EXPORT_OVERLAY_AUDIO_ISSUE.md](./EXPORT_OVERLAY_AUDIO_ISSUE.md) — ✅ RESOLVED. Export
+  overlays/audio not matching preview; ffmpeg.wasm filtergraph fixes + "do not
+  re-try" list. Magenta + timeout root causes fixed. (Stages: `seg → … → overlaid → final`.)
 - [PREVIEW_BLACK_SCREEN_PREVENTION.md](./PREVIEW_BLACK_SCREEN_PREVENTION.md) — ✅ fixed.
   Blob-URL lifecycle + async-seek causes of the black preview screen.
