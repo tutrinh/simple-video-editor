@@ -480,7 +480,7 @@ export default function FinalPreview({
               inset: 0,
               width: "100%",
               height: "100%",
-              objectFit: "contain",
+              objectFit: "cover",
               pointerEvents: "none",
               opacity: activeOverlay.opacity,
               mixBlendMode: activeOverlay.blendMode as any,

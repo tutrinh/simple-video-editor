@@ -25,6 +25,7 @@ export const GOOGLE_TITLE_FONTS: GoogleFontOption[] = [
 export const SYSTEM_TITLE_FONTS = [
   { id: "sans", name: "System Sans-serif", cssFamily: "system-ui, sans-serif" },
   { id: "serif", name: "System Serif", cssFamily: "Georgia, 'Times New Roman', serif" },
+  { id: "sf-mono", name: "SF Mono", cssFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace" },
 ];
 
 const loadedLinks = new Set<string>();

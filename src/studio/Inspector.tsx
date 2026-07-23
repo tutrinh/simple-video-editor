@@ -399,12 +399,23 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
             {captionLines.map((line, i) => (
               <div className="st-caprow" key={i}>
                 <div className={timed ? "st-capline timed" : "st-capline"}>
-                  <input
-                    className="st-caption-line"
-                    value={line}
-                    placeholder="Caption line…"
-                    onChange={(e) => editText(i, e.target.value)}
-                  />
+                  <div className="st-capclear-wrap">
+                    <input
+                      className="st-caption-line"
+                      value={line}
+                      placeholder="Caption line…"
+                      onChange={(e) => editText(i, e.target.value)}
+                    />
+                    {line.length > 0 && (
+                      <button
+                        className="st-capclear"
+                        title="Clear"
+                        tabIndex={-1}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => editText(i, "")}
+                      >×</button>
+                    )}
+                  </div>
                   {timed && (
                     <div className="st-capsec" title="Seconds this line stays on screen">
                       <input type="number" min="0.1" step="0.1" value={durations[i] ?? ""} onChange={(e) => editDuration(i, e.target.value)} />

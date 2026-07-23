@@ -83,6 +83,28 @@ export default function Timeline({
     }
   }
 
+  async function importUploadedFiles(files: File[], category: string) {
+    const created: Clip[] = [];
+    for (const f of files) {
+      try {
+        const clip = await createClip(f);
+        created.push(clip);
+        // Persist to overlays/ directory on disk (best-effort — dev server only)
+        fetch(
+          `/api/overlays/upload?name=${encodeURIComponent(f.name)}&category=${encodeURIComponent(category)}`,
+          { method: "POST", body: f, headers: { "content-type": "application/octet-stream" } },
+        ).catch(() => {}); // fire-and-forget; don't block timeline use
+      } catch (e) {
+        console.warn("Failed to import overlay file:", f.name, e);
+      }
+    }
+    if (!created.length) return;
+    dispatch({ type: "ADD_CLIPS", clips: created });
+    for (const clip of created) {
+      addOverlayWithClip(clip);
+    }
+  }
+
   useEffect(() => {
     if (!selectedOverlayId) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -198,6 +220,7 @@ export default function Timeline({
             clips={clips}
             onSelectClip={(clip, blend) => addOverlayWithClip(clip, blend)}
             onImportStockOverlay={(category, file, blend) => importAndAddStockOverlay(category, file, blend)}
+            onImportFiles={importUploadedFiles}
           />
         </div>
       </div>

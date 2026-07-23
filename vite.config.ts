@@ -2,7 +2,7 @@
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { execFile } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, basename, resolve, isAbsolute } from "node:path";
 
@@ -291,9 +291,22 @@ function overlayLibrary(dir: string): Plugin {
             for (const ent of entries) {
               if (ent.isDirectory()) {
                 const categoryPath = join(dir, ent.name);
-                const files = readdirSync(categoryPath).filter((n) => VIDEO_RE.test(n)).sort();
-                if (files.length > 0) {
-                  result.push({ category: ent.name, files });
+                // Top-level files in this category
+                const topFiles = readdirSync(categoryPath, { withFileTypes: true })
+                  .filter((e) => e.isFile() && VIDEO_RE.test(e.name))
+                  .map((e) => e.name)
+                  .sort();
+                if (topFiles.length > 0) {
+                  result.push({ category: ent.name, files: topFiles });
+                }
+                // One level deeper — sub-subdirectories (e.g. light-leaks/Vertical)
+                const subDirs = readdirSync(categoryPath, { withFileTypes: true }).filter((e) => e.isDirectory());
+                for (const sub of subDirs) {
+                  const subPath = join(categoryPath, sub.name);
+                  const subFiles = readdirSync(subPath).filter((n) => VIDEO_RE.test(n)).sort();
+                  if (subFiles.length > 0) {
+                    result.push({ category: `${ent.name}/${sub.name}`, files: subFiles });
+                  }
                 }
               } else if (VIDEO_RE.test(ent.name)) {
                 result.push({ category: "general", files: [ent.name] });
@@ -320,6 +333,30 @@ function overlayLibrary(dir: string): Plugin {
           } catch {
             res.statusCode = 404; res.end();
           }
+          return;
+        }
+        if (u.pathname === "/upload" && req.method === "POST") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          const category = u.searchParams.get("category") || "uploads";
+          if (!name || !VIDEO_RE.test(name)) { res.statusCode = 400; res.end(JSON.stringify({ error: "invalid filename" })); return; }
+          const chunks: Buffer[] = [];
+          req.on("data", (c: Buffer) => chunks.push(c));
+          req.on("end", () => {
+            try {
+              const categoryDir = join(dir, category);
+              mkdirSync(categoryDir, { recursive: true });
+              const dest = join(categoryDir, name);
+              writeFileSync(dest, Buffer.concat(chunks));
+              res.statusCode = 200;
+              res.setHeader("content-type", "application/json");
+              res.end(JSON.stringify({ ok: true, path: `${category}/${name}` }));
+            } catch (e) {
+              res.statusCode = 500;
+              res.setHeader("content-type", "application/json");
+              res.end(JSON.stringify({ error: String(e) }));
+            }
+          });
+          req.on("error", () => { res.statusCode = 500; res.end(); });
           return;
         }
         res.statusCode = 404; res.end();

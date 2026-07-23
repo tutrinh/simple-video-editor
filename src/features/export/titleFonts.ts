@@ -26,8 +26,10 @@ export function getTitleFontBytes(
       }
       const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === fontId);
       if (gf) return await fetchGoogleFontBytes(gf, weight);
-      // System sans/serif ship as bundled TTFs.
-      const url = fontId === "serif" ? "/fonts/title-serif.ttf" : "/fonts/title-sans.ttf";
+      // System sans/serif/sf-mono ship as bundled TTFs.
+      const url = fontId === "serif" ? "/fonts/title-serif.ttf"
+        : fontId === "sf-mono" ? "/fonts/sf-mono.ttf"
+        : "/fonts/title-sans.ttf";
       const res = await fetch(url);
       const ct = res.headers.get("content-type") || "";
       if (res.ok && !ct.includes("text/html")) {
