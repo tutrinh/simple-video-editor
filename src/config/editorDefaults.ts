@@ -28,23 +28,27 @@ export const EDITOR_DEFAULTS = {
   /** Default video export quality profile */
   DEFAULT_EXPORT_QUALITY: "high" as ExportQualityProfile,
 
-  /** Video Export Quality Profiles (CRF, H.264 Preset, AAC Bitrate) */
+  /** Video Export Quality Profiles (CRF, H.264 Preset, AAC Bitrate).
+   *  Preset ladders with quality: ultrafast disables CABAC/deblocking/trellis and
+   *  makes coarse, blocky decisions on fine detail (text especially), so the
+   *  presets below climb with the profile. Higher presets are slower on
+   *  ffmpeg.wasm — the user picks the speed/quality balance via the dropdown. */
   EXPORT_QUALITY_PROFILES: {
     max: {
       crf: 15,
-      preset: "ultrafast",
+      preset: "medium",
       audioBitrate: "320k",
       label: "Maximum (CRF 15 · 320k)",
     },
     high: {
       crf: 18,
-      preset: "ultrafast",
+      preset: "faster",
       audioBitrate: "320k",
       label: "High (CRF 18 · 320k)",
     },
     standard: {
       crf: 22,
-      preset: "ultrafast",
+      preset: "veryfast",
       audioBitrate: "192k",
       label: "Standard (CRF 22 · 192k)",
     },
