@@ -211,7 +211,10 @@ async function buildTitleFilterGraph(
     const xOffset = Math.round(w * (l.posX / 100));
     const yOffset = Math.round(h * (l.posY / 100));
     const color = "0x" + l.color.replace(/^#/, "");
-    const tracking = l.letterSpacing ? `:tracking=${Math.round(l.letterSpacing)}` : "";
+    // `tracking` (letter spacing) is not available in @ffmpeg/core 0.12.10's
+    // drawtext — using it crashes the filter with "Option not found". Skipped;
+    // the title renders without spacing (cosmetic-only difference from preview).
+    const tracking = "";
     const shadowFilter = l.shadow !== false ? ":shadowcolor=black@0.5:shadowx=2:shadowy=2" : "";
 
     const anim = l.animation ?? "none";
@@ -247,10 +250,14 @@ async function buildTitleFilterGraph(
     const alphaParam = alphaExpr !== "1" ? `:alpha='${alphaExpr}'` : "";
     const enableParam = l.scope === "intro" ? `:enable='between(t,0,${dur})'` : "";
 
+    // Wrap x/y in single quotes: animation expressions contain commas
+    // (e.g. `if(lt(t,0.50),(1-t/0.50)*-250,0)`); unquoted, FFmpeg's filtergraph
+    // parser splits at the comma and treats the tail as a filter name →
+    // "No such filter: '0.50)'"
     const drawFilter =
       `drawtext=fontfile=/${fontName}:textfile=/${textName}:expansion=none:` +
       `fontcolor=${color}:fontsize=${Math.round(l.sizePx)}${tracking}${shadowFilter}:` +
-      `x=${xExpr}:y=${yExpr}${alphaParam}${enableParam}`;
+      `x='${xExpr}':y='${yExpr}'${alphaParam}${enableParam}`;
 
     filterChains.push(`${lastV}${drawFilter}${nextV}`);
     lastV = nextV;
@@ -368,10 +375,16 @@ async function applyOverlaysToVideo(
   h: number,
   preset: string,
   crf: number,
+  totalDurationSec: number,
   onProgress?: (fraction: number) => void,
 ): Promise<Uint8Array> {
   const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
   if (activeOverlays.length === 0) return videoBytes;
+  // The RGB composite re-encodes the whole timeline and runs ~0.3x realtime (RGB
+  // conversion + lut2 + libx264), so the default 90s cap kills it mid-encode on
+  // longer cuts → it fell back to YUV → magenta. Budget ~10x realtime with a
+  // generous floor so a healthy-but-slow encode is allowed to finish.
+  const compositeTimeoutMs = Math.max(180000, Math.ceil(totalDurationSec) * 10000);
 
   // Overlay compositing runs as several LEAN ffmpeg passes instead of one heavy
   // filtergraph. The combined pass (full clips + RGB blend + audio amix, all at
@@ -405,11 +418,20 @@ async function applyOverlaysToVideo(
   if (trimmed.length === 0) return videoBytes;
 
   // ---- 2. Composite overlay VIDEO onto the base (keep base audio via copy). ----
-  // RGB blend (gbrp) is the correct match for CSS screen/multiply; if it fails we
-  // retry in YUV (works, but screen/multiply take a colour tint). Each overlay is
-  // placed with tpad so its first frame lands at startTimeSec AND the stream has a
-  // frame from t=0 (else framesync buffers every base frame before it → OOM).
-  const buildVideoArgs = (useRgb: boolean): { inputs: EngineInput[]; args: string[] } => {
+  // Screen/multiply/overlay MUST be computed in sRGB to match the CSS preview
+  // (`mix-blend-mode`); a YUV blend runs the math on the chroma planes → magenta.
+  // Two strategies, tried in order (first success wins):
+  //   • gbrp (planar RGB) + `blend`: convert both streams to gbrp so the blend
+  //     filter operates on sRGB components. `enable` time-gates the effect; tpad
+  //     aligns the overlay stream. An explicit `format=yuv420p` at the end of the
+  //     chain converts back to YUV with the correct colorspace matrix (leaving the
+  //     output in gbrp made the encoder's sws_scale pick the wrong matrix → full-
+  //     frame magenta — the prior "blend crashes in RGB" were all just the 90s
+  //     timeout, not a filter bug; see Fix #18/#19).
+  //   • YUV `blend` fallback: screen/multiply get a colour tint, but always works.
+  // Each overlay is placed with tpad so its content lands at startTimeSec AND the
+  // stream has a frame from t=0 (else framesync buffers every base frame → OOM).
+  const buildVideoArgs = (rgbFormat: string | null): { inputs: EngineInput[]; args: string[] } => {
     const inputs: EngineInput[] = [{ name: "base.mp4", data: videoBytes }];
     const args: string[] = ["-i", "base.mp4"];
     const chains: string[] = [];
@@ -419,33 +441,54 @@ async function applyOverlaysToVideo(
       args.push("-i", `ov_${idx}.mp4`);
       const inputIdx = idx + 1;
       const mode = o.blendMode ?? "normal";
-      const op = (o.opacity ?? 1).toFixed(2);
+      const op = (o.opacity ?? 1).toFixed(3);
       const st = o.startTimeSec.toFixed(3);
       const dur = o.durationSec.toFixed(3);
       const scaledOv = `[ov_${idx}]`;
-      const nextV = idx === trimmed.length - 1 ? "[v_out]" : `[v_step_${idx}]`;
+      const nextV = `[v_step_${idx}]`;
       const enable = `enable='between(t,${st},${st}+${dur})'`;
       const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
-      const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}`;
       if (mode === "screen" || mode === "multiply" || mode === "overlay") {
         // Letterbox pad uses each mode's identity colour so bars stay invisible.
         const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
-        const rgb = useRgb ? ",format=gbrp" : "";
-        chains.push(
-          `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}:color=${padColor}${rgb}${scaledOv}`
-        );
-        const base = useRgb ? `[base_${idx}]` : lastV;
-        if (useRgb) chains.push(`${lastV}format=gbrp${base}`);
-        chains.push(`${base}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
+        if (rgbFormat) {
+          // RGB `blend` path: convert both to planar RGB so the blend math runs
+          // on sRGB components (matches CSS mix-blend-mode). The prior "blend
+          // crashes in RGB" were all just the 90s timeout (Fix #18/#19).
+          const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
+          chains.push(
+            `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place},format=${rgbFormat}${scaledOv}`
+          );
+          const base = `[base_${idx}]`;
+          chains.push(`${lastV}format=${rgbFormat}${base}`);
+          chains.push(`${base}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
+        } else {
+          // YUV `blend` fallback: time-gated with `enable` (magenta tint possible).
+          const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
+          chains.push(
+            `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}${scaledOv}`
+          );
+          chains.push(`${lastV}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
+        }
       } else {
         // Normal: alpha-aware "over" compositing. Transparent letterbox + opacity.
+        const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=black@0.0`;
         chains.push(
-          `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place}:color=black@0.0,colorchannelmixer=aa=${op}${scaledOv}`
+          `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place},colorchannelmixer=aa=${op}${scaledOv}`
         );
         chains.push(`${lastV}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${nextV}`);
       }
       lastV = nextV;
     });
+    // For RGB paths, explicitly convert back to yuv420p WITHIN the filter graph.
+    // Leaving the output in gbrp for the encoder's sws_scale to convert picks a
+    // default colorspace matrix that can differ from the input's bt709, causing a
+    // full-frame magenta/pink shift. The in-graph `format` filter preserves the
+    // colorspace metadata from the original decode → correct round-trip.
+    if (rgbFormat) {
+      chains.push(`${lastV}format=yuv420p[v_out]`);
+      lastV = "[v_out]";
+    }
     args.push(
       "-filter_complex", chains.join(";"),
       "-map", lastV, "-map", "0:a:0?",
@@ -455,15 +498,18 @@ async function applyOverlaysToVideo(
     return { inputs, args };
   };
 
+  // Fallback ladder: gbrp (planar RGB, `blend` with correct sRGB math +
+  // explicit yuv420p conversion back) → null (YUV `blend`, always works but
+  // screen/multiply get a colour tint). First success wins.
   let composited: Uint8Array | null = null;
-  for (const useRgb of [true, false]) {
+  for (const rgbFormat of ["gbrp", null] as const) {
     try {
-      const { inputs, args } = buildVideoArgs(useRgb);
-      composited = await runIsolated(inputs, args, "video.mp4", (f) => onProgress?.(0.4 + f * 0.4));
-      if (!useRgb) console.warn("Overlay video composited in YUV (screen/multiply may show a colour tint); RGB blend failed.");
+      const { inputs, args } = buildVideoArgs(rgbFormat);
+      composited = await runIsolated(inputs, args, "video.mp4", (f) => onProgress?.(0.4 + f * 0.4), compositeTimeoutMs);
+      if (!rgbFormat) console.warn("Overlay video composited in YUV (screen/multiply may show a colour tint); RGB blend failed.");
       break;
     } catch (err) {
-      console.warn(`Overlay video composite failed (RGB=${useRgb}).`, err);
+      console.warn(`Overlay video composite failed (rgbFormat=${rgbFormat ?? "YUV"}).`, err);
     }
   }
   if (!composited) {
@@ -574,9 +620,17 @@ export async function exportCut(
     if (schedule) {
       const cues = schedule.cues;
       playFootage = footageLen;
-      segDur = Math.max(footageLen, schedule.total);
-      const freeze = segDur - footageLen;
-      if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
+      // Only extend the segment past the footage when voiceover is on and needs
+      // time to finish narrating. Without VO, the footage plays at its natural
+      // length — captions still appear (enable-gated) but don't freeze the last
+      // frame just for the schedule's lead/tail buffers.
+      if (voOn) {
+        segDur = Math.max(footageLen, schedule.total);
+        const freeze = segDur - footageLen;
+        if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
+      } else {
+        segDur = footageLen;
+      }
 
       cues.forEach((cue, k) => {
         const enable = `:enable='between(t,${cue.start.toFixed(3)},${cue.end.toFixed(3)})'`;
@@ -830,6 +884,7 @@ export async function exportCut(
       h,
       preset,
       crf,
+      timings.reduce((sum, t) => sum + t.durationSec, 0),
       (f) => onProgress?.(0.88 + f * 0.07),
     );
   }

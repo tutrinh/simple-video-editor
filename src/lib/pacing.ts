@@ -44,7 +44,7 @@ export interface CaptionSchedule {
 const MIN_LINE_SECONDS = 0.1; // avoid zero-length windows; author still sets the value
 /** Default breathing room around a timed sequence so it doesn't start/end abruptly. */
 export const CAPTION_LEAD_SEC = 1; // silent lead-in before the first line
-export const CAPTION_TAIL_SEC = 2; // silent tail after the last line
+export const CAPTION_TAIL_SEC = 0; // no trailing tail — the 1s lead-in is enough
 
 /**
  * Zip `captionText`'s lines with the author's per-line timers into a cumulative

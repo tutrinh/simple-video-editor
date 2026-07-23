@@ -1,18 +1,16 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { toBlobURL } from "@ffmpeg/util";
 
 // Isolated-instance ffmpeg (ADR-0002, validated by spikes/ffmpeg-export): every
 // operation runs in a FRESH FFmpeg that is terminate()d afterwards, so the WASM
 // heap is fully reclaimed between clips. A shared engine creeps upward and
 // eventually OOMs; this pattern caps peak memory at a single operation.
 //
-// Two cores. The multithreaded core (@ffmpeg/core-mt, ~2-4x faster per encode) is
-// preferred when the page is cross-origin isolated (COOP/COEP set in vite.config
-// → SharedArrayBuffer). It is SELF-HOSTED same-origin (public/ffmpeg-mt/): passing
-// its pthread workerURL as a blob hangs ff.load in @ffmpeg/ffmpeg 0.12, but a real
-// same-origin URL works. Falls back to the single-thread CDN core when MT isn't
-// available (not isolated) or the self-hosted files are missing.
-const CORE_BASE = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm";
+// Two cores, both SELF-HOSTED same-origin (public/ffmpeg-st/ and public/ffmpeg-mt/).
+// Self-hosting eliminates the unpkg CDN dependency (offline support, faster load,
+// no outage risk). The multithreaded core (@ffmpeg/core-mt, ~2-4x faster) is
+// preferred when the page is cross-origin isolated (COOP/COEP → SharedArrayBuffer).
+// Falls back to the single-thread core when MT isn't available.
+const ST_DIR = "/ffmpeg-st";
 const MT_DIR = "/ffmpeg-mt";
 
 // KILL-SWITCH: MT is disabled. The self-hosted mt core passed synthetic tests but
@@ -38,11 +36,11 @@ let coreUrlsPromise: Promise<CoreUrls> | null = null;
 function coreUrls(): Promise<CoreUrls> {
   if (!coreUrlsPromise) {
     coreUrlsPromise = (async (): Promise<CoreUrls> => {
+      const abs = (p: string) => new URL(p, location.href).href;
       if (multithreadReady()) {
         try {
           const head = await fetch(`${MT_DIR}/ffmpeg-core.js`, { method: "HEAD" });
           if (head.ok) {
-            const abs = (p: string) => new URL(p, location.href).href;
             return {
               coreURL: abs(`${MT_DIR}/ffmpeg-core.js`),
               wasmURL: abs(`${MT_DIR}/ffmpeg-core.wasm`),
@@ -51,11 +49,10 @@ function coreUrls(): Promise<CoreUrls> {
           }
         } catch { /* self-hosted MT missing — fall back to ST below */ }
       }
-      const [coreURL, wasmURL] = await Promise.all([
-        toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, "text/javascript"),
-        toBlobURL(`${CORE_BASE}/ffmpeg-core.wasm`, "application/wasm"),
-      ]);
-      return { coreURL, wasmURL };
+      return {
+        coreURL: abs(`${ST_DIR}/ffmpeg-core.js`),
+        wasmURL: abs(`${ST_DIR}/ffmpeg-core.wasm`),
+      };
     })().catch((e) => { coreUrlsPromise = null; throw e; });
   }
   return coreUrlsPromise;
@@ -88,6 +85,7 @@ export async function runIsolated(
   args: string[],
   outputName: string,
   onProgress?: (fraction: number) => void,
+  timeoutMs = 600_000,
 ): Promise<Uint8Array<ArrayBuffer>> {
   const urls = await coreUrls();
   const ff = new FFmpeg();
@@ -95,12 +93,18 @@ export async function runIsolated(
   ff.on("log", ({ message }) => { logs.push(message); });
   if (onProgress) ff.on("progress", ({ progress }) => onProgress(Math.min(1, Math.max(0, progress))));
   await ff.load(urls);
+  // Calling ff.terminate() to abort makes the in-flight ff.exec() reject with
+  // "called FFmpeg.terminate()", NOT our timeout message — so flag the timeout
+  // explicitly, otherwise a slow (but healthy) encode looks like a mystery abort.
+  let timedOut = false;
+  const timeoutSec = Math.round(timeoutMs / 1000);
   let timeoutTimer: NodeJS.Timeout | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutTimer = setTimeout(() => {
+      timedOut = true;
       try { ff.terminate(); } catch {}
-      reject(new Error(`FFmpeg processing timed out after 90s for ${outputName}`));
-    }, 90000);
+      reject(new Error(`FFmpeg processing timed out after ${timeoutSec}s for ${outputName}`));
+    }, timeoutMs);
   });
 
   try {
@@ -111,8 +115,8 @@ export async function runIsolated(
     } catch (err) {
       if (timeoutTimer) clearTimeout(timeoutTimer);
       const rawMsg = err instanceof Error ? err.message : String(err);
-      if (rawMsg.includes("timed out")) {
-        throw err;
+      if (timedOut || rawMsg.includes("timed out")) {
+        throw new Error(`FFmpeg processing timed out after ${timeoutSec}s for ${outputName}`);
       }
       try {
         const out = (await ff.readFile(outputName)) as Uint8Array;
@@ -124,7 +128,16 @@ export async function runIsolated(
       } catch {}
 
       const logTail = summarizeFfmpegError(logs);
-      throw new Error(`FFmpeg failed for ${outputName}: ${logTail || rawMsg}`);
+      // Dump everything so nothing is masked: the raw exec exception AND the full
+      // (unfiltered) log tail. summarizeFfmpegError() can hide the real line behind
+      // the post-error stream banner, so print the raw log too for diagnosis.
+      console.error(
+        `[runIsolated ${outputName}] exec threw:`, rawMsg,
+        "\n--- ffmpeg log tail (raw) ---\n" + logs.slice(-40).join("\n"),
+      );
+      // Always keep rawMsg in the thrown message (labeled), never let the banner bury it.
+      const detail = `exec: ${rawMsg || "(empty)"}${logTail ? ` | log: ${logTail}` : ""}`;
+      throw new Error(`FFmpeg failed for ${outputName}: ${detail}`);
     }
     if (timeoutTimer) clearTimeout(timeoutTimer);
     if (code !== 0) {
