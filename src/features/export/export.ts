@@ -155,149 +155,6 @@ function exportConcurrency(): number {
   return 2;
 }
 
-async function applyOverlaysToVideo(
-  videoBytes: Uint8Array,
-  overlays: OverlayClip[],
-  clips: Clip[],
-  w: number,
-  h: number,
-  preset: string,
-  crf: number,
-  totalDurationSec: number,
-  onProgress?: (fraction: number, statusText?: string) => void,
-): Promise<Uint8Array> {
-  const activeOverlays = overlays.filter((o) => clips.some((c) => c.id === o.clipId));
-  if (activeOverlays.length === 0) return videoBytes;
-  const compositeTimeoutMs = Math.max(180000, Math.ceil(totalDurationSec) * 10000);
-
-  const trimmed: { data: Uint8Array; o: OverlayClip }[] = [];
-  for (let idx = 0; idx < activeOverlays.length; idx++) {
-    const o = activeOverlays[idx];
-    const clip = clips.find((c) => c.id === o.clipId);
-    if (!clip) continue;
-    try {
-      const srcData = await bytesOf(clip.normalized ?? clip.file);
-      const out = await runIsolated(
-        [{ name: "src.mp4", data: srcData }],
-        ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", "src.mp4",
-         "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
-        "ov.mp4",
-      );
-      trimmed.push({ data: out, o });
-    } catch (err) {
-      console.warn(`Overlay ${idx} pre-trim failed; skipping this overlay.`, err);
-    }
-    onProgress?.(((idx + 1) / activeOverlays.length) * 0.3, `Preparing B-roll overlay ${idx + 1} of ${activeOverlays.length}…`);
-  }
-  if (trimmed.length === 0) return videoBytes;
-
-  const buildVideoArgs = (rgbFormat: string | null): { inputs: EngineInput[]; args: string[] } => {
-    const inputs: EngineInput[] = [{ name: "base.mp4", data: videoBytes }];
-    const args: string[] = ["-i", "base.mp4"];
-    const chains: string[] = [];
-    let lastV = "[0:v]";
-    trimmed.forEach(({ o, data }, idx) => {
-      inputs.push({ name: `ov_${idx}.mp4`, data });
-      args.push("-i", `ov_${idx}.mp4`);
-      const inputIdx = idx + 1;
-      const mode = o.blendMode ?? "normal";
-      const op = (o.opacity ?? 1).toFixed(3);
-      const st = o.startTimeSec.toFixed(3);
-      const dur = o.durationSec.toFixed(3);
-      const scaledOv = `[ov_${idx}]`;
-      const nextV = `[v_step_${idx}]`;
-      const enable = `enable='between(t,${st},${st}+${dur})'`;
-      const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
-      if (mode === "screen" || mode === "multiply" || mode === "overlay") {
-        const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
-        if (rgbFormat) {
-          const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
-          chains.push(
-            `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place},format=${rgbFormat}${scaledOv}`
-          );
-          const base = `[base_${idx}]`;
-          chains.push(`${lastV}format=${rgbFormat}${base}`);
-          chains.push(`${base}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
-        } else {
-          const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
-          chains.push(
-            `[${inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}${scaledOv}`
-          );
-          chains.push(`${lastV}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${nextV}`);
-        }
-      } else {
-        const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=black@0.0`;
-        chains.push(
-          `[${inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place},colorchannelmixer=aa=${op}${scaledOv}`
-        );
-        chains.push(`${lastV}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${nextV}`);
-      }
-      lastV = nextV;
-    });
-    if (rgbFormat) {
-      chains.push(`${lastV}format=yuv420p[v_out]`);
-      lastV = "[v_out]";
-    }
-    args.push(
-      "-filter_complex", chains.join(";"),
-      "-map", lastV, "-map", "0:a:0?",
-      "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-      "-c:a", "copy", "video.mp4",
-    );
-    return { inputs, args };
-  };
-
-  let composited: Uint8Array | null = null;
-  for (const rgbFormat of ["gbrp", null] as const) {
-    try {
-      const { inputs, args } = buildVideoArgs(rgbFormat);
-      composited = await runIsolated(inputs, args, "video.mp4", (f) => onProgress?.(0.3 + f * 0.5, "Compositing B-roll & blend overlays…"), compositeTimeoutMs);
-      if (!rgbFormat) console.warn("Overlay video composited in YUV (screen/multiply may show a colour tint); RGB blend failed.");
-      break;
-    } catch (err) {
-      console.warn(`Overlay video composite failed (rgbFormat=${rgbFormat ?? "YUV"}).`, err);
-    }
-  }
-  if (!composited) {
-    console.warn("Overlay video composite failed entirely; exporting without overlays.");
-    return videoBytes;
-  }
-
-  const audible = trimmed.filter(({ o }) => (o.volume ?? 0) > 0);
-  if (audible.length === 0) {
-    onProgress?.(1.0, "Overlays complete");
-    return composited;
-  }
-  try {
-    const inputs: EngineInput[] = [{ name: "vid.mp4", data: composited }];
-    const args: string[] = ["-i", "vid.mp4"];
-    const chains: string[] = [`[0:a]aresample=48000[abase]`];
-    const mixLabels: string[] = ["[abase]"];
-    audible.forEach(({ o, data }, k) => {
-      inputs.push({ name: `oa_${k}.mp4`, data });
-      args.push("-i", `oa_${k}.mp4`);
-      const vol = (o.volume ?? 0).toFixed(2);
-      const delayMs = Math.round(o.startTimeSec * 1000);
-      const lbl = `[oa_${k}]`;
-      chains.push(`[${k + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${delayMs}|${delayMs}${lbl}`);
-      mixLabels.push(lbl);
-    });
-    chains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[aout]`);
-    args.push(
-      "-filter_complex", chains.join(";"),
-      "-map", "0:v:0", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "final.mp4",
-    );
-    const withAudio = await runIsolated(inputs, args, "final.mp4", (f) => onProgress?.(0.8 + f * 0.2, "Mixing overlay audio tracks…"));
-    onProgress?.(1.0, "Overlays complete");
-    return withAudio;
-  } catch (err) {
-    console.warn("Overlay audio mix failed (a clip likely has no audio track); keeping overlay video without its audio.", err);
-    onProgress?.(1.0, "Overlays complete");
-    return composited;
-  }
-}
-
 export async function exportCut(
   cut: Cut,
   clips: Clip[],
@@ -354,7 +211,46 @@ export async function exportCut(
     }
   }
 
-  onProgress?.(0.06, "Generating voiceover narration & pacing…");
+  // Pre-trim active B-roll overlays concurrently before segment rendering
+  const activeOverlays = (cut.overlays ?? []).filter((o) => clips.some((c) => c.id === o.clipId));
+  interface PreTrimmedOverlay {
+    data: Uint8Array<ArrayBuffer>;
+    o: OverlayClip;
+  }
+  const preTrimmedOverlays: PreTrimmedOverlay[] = [];
+  if (activeOverlays.length > 0) {
+    onProgress?.(0.05, "Preparing B-roll overlays…");
+    let trimProgress = 0;
+    const trimResults = await Promise.all(
+      activeOverlays.map(async (o, idx) => {
+        const clip = clips.find((c) => c.id === o.clipId);
+        if (!clip) return null;
+        try {
+          const srcData = await bytesOf(clip.normalized ?? clip.file);
+          const out = await runIsolated(
+            [{ name: "src.mp4", data: srcData }],
+            ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", "src.mp4",
+             "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
+            "ov.mp4",
+          );
+          trimProgress++;
+          onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
+          return { data: out, o };
+        } catch (err) {
+          console.warn(`Overlay ${idx} pre-trim failed; skipping overlay.`, err);
+          trimProgress++;
+          onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
+          return null;
+        }
+      }),
+    );
+    for (const r of trimResults) {
+      if (r) preTrimmedOverlays.push(r);
+    }
+  }
+
+  onProgress?.(0.10, "Generating voiceover narration & pacing…");
   interface PrecomputedBeat {
     clip: Clip;
     inSec: number;
@@ -446,7 +342,7 @@ export async function exportCut(
   let completedBeats = 0;
 
   const reportBeatProg = () => {
-    const frac = (prog.reduce((a, x) => a + x, 0) / n) * 0.54 + 0.06;
+    const frac = (prog.reduce((a, x) => a + x, 0) / n) * 0.70 + 0.10;
     const displayNum = Math.min(n, completedBeats + 1);
     onProgress?.(frac, `Rendering beat segment ${displayNum} of ${n}…`);
   };
@@ -461,6 +357,7 @@ export async function exportCut(
     }
     const { clip, inSec, footageLen, segDur, capLines, schedule, voOn, voData } = pre;
     const bStart = beatStartSecs[i];
+    const bEnd = bStart + segDur;
     const data = await bytesOf(clip.normalized ?? clip.file);
 
     const inputs: EngineInput[] = [{ name: sourceName(clip), data }];
@@ -524,15 +421,6 @@ export async function exportCut(
     }
 
     timingSlots[i] = { id: b.id, inSec, outSec: inSec + footageLen, durationSec: segDur };
-
-    let audioInput: string[];
-    let voiceLeadMs = 0;
-    if (voOn && voData) {
-      audioInput = voData.audioInput;
-      voiceLeadMs = voData.voiceLeadMs;
-    } else {
-      audioInput = ["-f", "lavfi", "-t", String(segDur), "-i", "anullsrc=r=48000:cl=stereo"];
-    }
 
     const beatVol = b.volume ?? 1;
     const strategy: "vo" | "source" | "silent" = voOn ? "vo" : beatVol > 0 ? "source" : "silent";
@@ -603,15 +491,48 @@ export async function exportCut(
     }
 
     const titleCount = segTitles.length;
-    const audioIdx = 1 + capCount + titleCount;
 
-    let videoFilterString: string;
-    const baseLabel = capCount === 0 && titleCount === 0 ? "[v]" : "[vbase]";
+    // Check which pre-trimmed B-roll overlays overlap this beat segment's window [bStart, bEnd]
+    interface SegmentOverlay {
+      data: Uint8Array<ArrayBuffer>;
+      o: OverlayClip;
+      stLocalSec: number;
+      durLocalSec: number;
+      inputIdx: number;
+    }
+    const segOverlays: SegmentOverlay[] = [];
+    const overlayInputArgs: string[] = [];
+
+    preTrimmedOverlays.forEach(({ data: ovData, o }) => {
+      const oStart = o.startTimeSec;
+      const oEnd = oStart + o.durationSec;
+      if (oStart < bEnd && oEnd > bStart) {
+        const stLocal = Math.max(0, oStart - bStart);
+        const durLocal = Math.min(oEnd, bEnd) - Math.max(oStart, bStart);
+        const ovIdx = segOverlays.length;
+        const ovName = `ov_seg_${ovIdx}.mp4`;
+        inputs.push({ name: ovName, data: ovData });
+        overlayInputArgs.push("-i", ovName);
+        segOverlays.push({
+          data: ovData,
+          o,
+          stLocalSec: stLocal,
+          durLocalSec: durLocal,
+          inputIdx: 1 + capCount + titleCount + ovIdx,
+        });
+      }
+    });
+
+    const overlayCount = segOverlays.length;
+    const audioIdx = 1 + capCount + titleCount + overlayCount;
+
+    const totalOverlaysAndTitles = titleCount + overlayCount;
+    const baseLabel = capCount === 0 && totalOverlaysAndTitles === 0 ? "[v]" : "[vbase]";
     const chains: string[] = [`[0:v]${vf.join(",")}${baseLabel}`];
     let last = baseLabel;
 
     captionCues.forEach((c, k) => {
-      const isLast = k === capCount - 1 && titleCount === 0;
+      const isLast = k === capCount - 1 && totalOverlaysAndTitles === 0;
       const out = isLast ? "[v]" : `[vcap_${k}]`;
       const en = c.enable ? `:enable='${c.enable}'` : "";
       chains.push(`${last}[${k + 1}:v]overlay=x=0:y=0:eof_action=pass${en}${out}`);
@@ -620,7 +541,7 @@ export async function exportCut(
 
     segTitles.forEach((st, k) => {
       const tInputIdx = 1 + capCount + k;
-      const isLast = k === titleCount - 1;
+      const isLast = k === titleCount - 1 && overlayCount === 0;
       const out = isLast ? "[v]" : `[vtitle_${k}]`;
       const fObj = st.filter as any;
       const ovLabel = `[ovt_${k}]`;
@@ -634,28 +555,103 @@ export async function exportCut(
       last = out;
     });
 
-    videoFilterString = chains.join(";");
-    const leadPrefix = voiceLeadMs > 0 ? `adelay=${voiceLeadMs}|${voiceLeadMs},` : "";
+    const buildVideoChains = (rgbFormat: string | null): string[] => {
+      const segChains = [...chains];
+      let segLast = last;
+      segOverlays.forEach((so, k) => {
+        const isLast = k === overlayCount - 1;
+        const out = isLast ? (rgbFormat ? `[vout_raw_${k}]` : "[v]") : `[voverlay_${k}]`;
+        const mode = so.o.blendMode ?? "normal";
+        const op = (so.o.opacity ?? 1).toFixed(3);
+        const st = so.stLocalSec.toFixed(3);
+        const dur = so.durLocalSec.toFixed(3);
+        const scaledOv = `[ovs_${k}]`;
+        const enable = `enable='between(t,${st},${st}+${dur})'`;
+        const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
 
-    const buildSegArgs = (strat: "vo" | "source" | "silent"): string[] => {
+        if (mode === "screen" || mode === "multiply" || mode === "overlay") {
+          const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
+          if (rgbFormat) {
+            const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
+            segChains.push(
+              `[${so.inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place},format=${rgbFormat}${scaledOv}`
+            );
+            const base = `[base_${k}]`;
+            segChains.push(`${segLast}format=${rgbFormat}${base}`);
+            segChains.push(`${base}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${out}`);
+          } else {
+            const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
+            segChains.push(
+              `[${so.inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}${scaledOv}`
+            );
+            segChains.push(`${segLast}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${out}`);
+          }
+        } else {
+          const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=black@0.0`;
+          segChains.push(
+            `[${so.inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place},colorchannelmixer=aa=${op}${scaledOv}`
+          );
+          segChains.push(`${segLast}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${out}`);
+        }
+        segLast = out;
+      });
+      if (rgbFormat && overlayCount > 0) {
+        segChains.push(`${segLast}format=yuv420p[v]`);
+      }
+      return segChains;
+    };
+
+    let audioInput: string[];
+    let voiceLeadMs = 0;
+    if (voOn && voData) {
+      audioInput = voData.audioInput;
+      voiceLeadMs = voData.voiceLeadMs;
+    } else {
+      audioInput = ["-f", "lavfi", "-t", String(segDur), "-i", "anullsrc=r=48000:cl=stereo"];
+    }
+
+    const leadPrefix = voiceLeadMs > 0 ? `adelay=${voiceLeadMs}|${voiceLeadMs},` : "";
+    const audibleOverlays = segOverlays.filter(({ o }) => (o.volume ?? 0) > 0);
+
+    const buildSegArgs = (strat: "vo" | "source" | "silent", rgbFormat: string | null = null): string[] => {
       let audioInputArgs: string[];
-      let audioFilterString: string;
+      const aChains: string[] = [];
+
       if (strat === "vo") {
         audioInputArgs = audioInput;
-        audioFilterString = `[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${leadPrefix}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
+        aChains.push(`[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${leadPrefix}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
       } else if (strat === "source") {
         audioInputArgs = [];
-        audioFilterString = `[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[a]`;
+        aChains.push(`[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
       } else {
         audioInputArgs = ["-f", "lavfi", "-t", segDurStr, "-i", "anullsrc=r=48000:cl=stereo"];
-        audioFilterString = `[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a]`;
+        aChains.push(`[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[abase]`);
       }
+
+      if (audibleOverlays.length > 0) {
+        const mixLabels: string[] = ["[abase]"];
+        audibleOverlays.forEach(({ o, inputIdx, stLocalSec }, k) => {
+          const vol = (o.volume ?? 0).toFixed(2);
+          const delayMs = Math.round(stLocalSec * 1000);
+          const lbl = `[ova_${k}]`;
+          aChains.push(`[${inputIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${delayMs}|${delayMs}${lbl}`);
+          mixLabels.push(lbl);
+        });
+        aChains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[a]`);
+      } else {
+        aChains[0] = aChains[0].replace("[abase]", "[a]");
+      }
+
+      const vFilterString = buildVideoChains(rgbFormat).join(";");
+      const aFilterString = aChains.join(";");
+
       return [
         "-ss", String(inSec), "-t", String(footageLen), "-i", sourceName(clip),
         ...capInputArgs,
         ...titleInputArgs,
+        ...overlayInputArgs,
         ...audioInputArgs,
-        "-filter_complex", `${videoFilterString};${audioFilterString}`,
+        "-filter_complex", `${vFilterString};${aFilterString}`,
         "-map", "[v]", "-map", "[a]",
         "-shortest",
         "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
@@ -663,8 +659,23 @@ export async function exportCut(
       ];
     };
 
-    const renderSeg = (strat: "vo" | "source" | "silent") =>
-      runIsolated(inputs, buildSegArgs(strat), "seg.mp4", (f) => { prog[i] = f; reportBeatProg(); });
+    const hasRgbBlend = segOverlays.some((so) => {
+      const m = so.o.blendMode ?? "normal";
+      return m === "screen" || m === "multiply" || m === "overlay";
+    });
+
+    const renderSeg = async (strat: "vo" | "source" | "silent") => {
+      if (hasRgbBlend) {
+        for (const rgbFormat of ["gbrp", null] as const) {
+          try {
+            return await runIsolated(inputs, buildSegArgs(strat, rgbFormat), "seg.mp4", (f) => { prog[i] = f; reportBeatProg(); });
+          } catch (err) {
+            console.warn(`Segment ${i} RGB blend pass failed (rgbFormat=${rgbFormat}), trying fallback...`, err);
+          }
+        }
+      }
+      return runIsolated(inputs, buildSegArgs(strat, null), "seg.mp4", (f) => { prog[i] = f; reportBeatProg(); });
+    };
 
     if (strategy === "source") {
       try {
@@ -681,7 +692,7 @@ export async function exportCut(
     reportBeatProg();
   });
 
-  onProgress?.(0.60, "Beat segments rendered");
+  onProgress?.(0.80, "Beat segments rendered");
 
   const timings: BeatTiming[] = timingSlots.filter((t): t is BeatTiming => t !== null);
   const segments: Uint8Array[] = segSlots.filter((s): s is Uint8Array => s !== null);
@@ -736,29 +747,13 @@ export async function exportCut(
       inputs,
       [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "video.mp4"],
       "video.mp4",
-      (f) => onProgress?.(0.60 + f * 0.28, "Applying video transitions & concatenating…"),
+      (f) => onProgress?.(0.80 + f * 0.15, "Applying video transitions & concatenating…"),
     );
   } else {
-    onProgress?.(0.75, "Concatenating video segments…");
+    onProgress?.(0.88, "Concatenating video segments…");
     const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
     video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
-  }
-
-  onProgress?.(0.88, "Video concatenation complete");
-
-  if (cut.overlays && cut.overlays.length > 0) {
-    video = await applyOverlaysToVideo(
-      video,
-      cut.overlays,
-      clips,
-      w,
-      h,
-      preset,
-      crf,
-      timings.reduce((sum, t) => sum + t.durationSec, 0),
-      (f, st) => onProgress?.(0.88 + f * 0.07, st ?? "Compositing B-roll & blend overlays…"),
-    );
   }
 
   onProgress?.(0.95, "Preparing final audio mux…");
