@@ -29,23 +29,6 @@ function download(name: string, blobOrText: Blob | string, type = "text/plain") 
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function loadFont(): Promise<Uint8Array> {
-  const fontCandidates = ["/caption-font.ttf", "/fonts/title-sans.ttf"];
-  for (const url of fontCandidates) {
-    try {
-      const res = await fetch(url);
-      const contentType = res.headers.get("content-type") || "";
-      if (res.ok && !contentType.includes("text/html")) {
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        if (bytes.length > 1000 && bytes[0] !== 0x3c && bytes[0] !== 0x7b) {
-          return bytes;
-        }
-      }
-    } catch {}
-  }
-  throw new Error("Caption font file missing or invalid (/caption-font.ttf)");
-}
-
 function sliderTrackStyle(val: number, min: number, max: number) {
   const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
   return {
@@ -230,7 +213,6 @@ export default function ExportView() {
     setVideoUrl("");
     setProgress(0);
     try {
-      const fontBytes = await loadFont();
       const exportLayers: TitleLayer[] = await Promise.all(
         titleLayers.map(async (l) => {
           // Shared cached loader → the preview and the export use identical bytes
@@ -268,7 +250,7 @@ export default function ExportView() {
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, fontBytes, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
+        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
         setProgress,
       );
       setVideoUrl(URL.createObjectURL(blob));

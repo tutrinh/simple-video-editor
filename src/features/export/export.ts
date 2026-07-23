@@ -45,8 +45,6 @@ import { EDITOR_DEFAULTS, type ExportQualityProfile } from "../../config/editorD
 export type ExportQuality = ExportQualityProfile;
 
 export interface ExportOptions {
-  /** TTF bytes for burned-in captions (fetched from /caption-font.ttf). */
-  fontBytes: Uint8Array;
   /** Video export quality profile: "standard" (CRF 22), "high" (CRF 18), "max" (CRF 15). */
   exportQuality?: ExportQuality;
   /** Optional music bed laid over the finished video (looped + trimmed). */
