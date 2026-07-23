@@ -3,22 +3,23 @@ export interface GoogleFontOption {
   name: string;
   category: "sans-serif" | "serif" | "display" | "handwriting" | "monospace";
   googleFontName: string;
+  fontsourceSlug?: string;
   cssFamily: string;
   weight?: string;
 }
 
 export const GOOGLE_TITLE_FONTS: GoogleFontOption[] = [
-  { id: "outfit", name: "Outfit (Google Font)", category: "sans-serif", googleFontName: "Outfit", cssFamily: "'Outfit', sans-serif", weight: "400;600;700;800" },
-  { id: "inter", name: "Inter (Google Font)", category: "sans-serif", googleFontName: "Inter", cssFamily: "'Inter', sans-serif", weight: "400;600;700;800" },
-  { id: "roboto", name: "Roboto (Google Font)", category: "sans-serif", googleFontName: "Roboto", cssFamily: "'Roboto', sans-serif", weight: "400;700;900" },
-  { id: "montserrat", name: "Montserrat (Google Font)", category: "sans-serif", googleFontName: "Montserrat", cssFamily: "'Montserrat', sans-serif", weight: "400;600;700;900" },
-  { id: "oswald", name: "Oswald (Google Font)", category: "sans-serif", googleFontName: "Oswald", cssFamily: "'Oswald', sans-serif", weight: "400;600;700" },
-  { id: "playfair", name: "Playfair Display (Google Font)", category: "serif", googleFontName: "Playfair+Display", cssFamily: "'Playfair Display', serif", weight: "400;600;700;900" },
-  { id: "bebas", name: "Bebas Neue (Google Font)", category: "display", googleFontName: "Bebas+Neue", cssFamily: "'Bebas Neue', display", weight: "400" },
-  { id: "space-grotesk", name: "Space Grotesk (Google Font)", category: "sans-serif", googleFontName: "Space+Grotesk", cssFamily: "'Space Grotesk', sans-serif", weight: "400;600;700" },
-  { id: "poppins", name: "Poppins (Google Font)", category: "sans-serif", googleFontName: "Poppins", cssFamily: "'Poppins', sans-serif", weight: "400;600;700;800" },
-  { id: "pacifico", name: "Pacifico (Google Font)", category: "handwriting", googleFontName: "Pacifico", cssFamily: "'Pacifico', cursive", weight: "400" },
-  { id: "cinzel", name: "Cinzel (Google Font)", category: "serif", googleFontName: "Cinzel", cssFamily: "'Cinzel', serif", weight: "400;600;700;900" },
+  { id: "outfit", name: "Outfit (Google Font)", category: "sans-serif", googleFontName: "Outfit", fontsourceSlug: "outfit", cssFamily: "'Outfit', sans-serif", weight: "400;600;700;800" },
+  { id: "inter", name: "Inter (Google Font)", category: "sans-serif", googleFontName: "Inter", fontsourceSlug: "inter", cssFamily: "'Inter', sans-serif", weight: "400;600;700;800" },
+  { id: "roboto", name: "Roboto (Google Font)", category: "sans-serif", googleFontName: "Roboto", fontsourceSlug: "roboto", cssFamily: "'Roboto', sans-serif", weight: "400;700;900" },
+  { id: "montserrat", name: "Montserrat (Google Font)", category: "sans-serif", googleFontName: "Montserrat", fontsourceSlug: "montserrat", cssFamily: "'Montserrat', sans-serif", weight: "400;600;700;900" },
+  { id: "oswald", name: "Oswald (Google Font)", category: "sans-serif", googleFontName: "Oswald", fontsourceSlug: "oswald", cssFamily: "'Oswald', sans-serif", weight: "400;600;700" },
+  { id: "playfair", name: "Playfair Display (Google Font)", category: "serif", googleFontName: "Playfair+Display", fontsourceSlug: "playfair-display", cssFamily: "'Playfair Display', serif", weight: "400;600;700;900" },
+  { id: "bebas", name: "Bebas Neue (Google Font)", category: "display", googleFontName: "Bebas+Neue", fontsourceSlug: "bebas-neue", cssFamily: "'Bebas Neue', display", weight: "400" },
+  { id: "space-grotesk", name: "Space Grotesk (Google Font)", category: "sans-serif", googleFontName: "Space+Grotesk", fontsourceSlug: "space-grotesk", cssFamily: "'Space Grotesk', sans-serif", weight: "400;600;700" },
+  { id: "poppins", name: "Poppins (Google Font)", category: "sans-serif", googleFontName: "Poppins", fontsourceSlug: "poppins", cssFamily: "'Poppins', sans-serif", weight: "400;600;700;800" },
+  { id: "pacifico", name: "Pacifico (Google Font)", category: "handwriting", googleFontName: "Pacifico", fontsourceSlug: "pacifico", cssFamily: "'Pacifico', cursive", weight: "400" },
+  { id: "cinzel", name: "Cinzel (Google Font)", category: "serif", googleFontName: "Cinzel", fontsourceSlug: "cinzel", cssFamily: "'Cinzel', serif", weight: "400;600;700;900" },
 ];
 
 export const SYSTEM_TITLE_FONTS = [
@@ -64,7 +65,27 @@ export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400)
     }
   } catch {}
 
-  // Tier 2: Fetch uncompressed TTF bytes from Google Fonts using legacy Firefox User-Agent
+  // Tier 2: Fetch uncompressed TTF bytes directly from Fontsource CDN via jsDelivr
+  try {
+    const slug = font.fontsourceSlug || font.id;
+    const urls = [
+      `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-${weight}-normal.ttf`,
+      `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-400-normal.ttf`,
+    ];
+    for (const url of urls) {
+      const fontRes = await fetch(url);
+      const ct = fontRes.headers.get("content-type") || "";
+      if (fontRes.ok && !ct.includes("text/html")) {
+        const bytes = new Uint8Array(await fontRes.arrayBuffer());
+        // Reject compressed WOFF / WOFF2 ('wOF' magic bytes)
+        if (bytes.length > 1000 && !(bytes[0] === 0x77 && bytes[1] === 0x4f && bytes[2] === 0x46)) {
+          return bytes;
+        }
+      }
+    }
+  } catch {}
+
+  // Tier 3: Fetch uncompressed TTF bytes from Google Fonts API using legacy Firefox User-Agent
   try {
     const cssUrl = `https://fonts.googleapis.com/css2?family=${font.googleFontName}:wght@${weight}&display=swap`;
     const cssRes = await fetch(cssUrl, {
@@ -88,7 +109,7 @@ export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400)
     }
   } catch {}
 
-  // Tier 3: Guaranteed local fallback to title-sans.ttf or title-serif.ttf
+  // Tier 4: Guaranteed local fallback to title-sans.ttf or title-serif.ttf
   const fallbackUrls = [
     font.category === "serif" ? "/fonts/title-serif.ttf" : "/fonts/title-sans.ttf",
     "/caption-font.ttf",
@@ -105,3 +126,4 @@ export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400)
   }
   return new Uint8Array();
 }
+

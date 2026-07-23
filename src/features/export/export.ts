@@ -96,8 +96,7 @@ export async function renderTitleLayerPng(
   h: number
 ): Promise<Uint8Array | null> {
   if (typeof document === "undefined") return null;
-  const curvature = layer.arcDeg ?? 0;
-  if (!layer.enabled || !layer.text.trim() || curvature === 0) return null;
+  if (!layer.enabled || !layer.text.trim()) return null;
 
   try {
     const canvas = document.createElement("canvas");
@@ -106,29 +105,72 @@ export async function renderTitleLayerPng(
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
+    const curvature = layer.arcDeg ?? 0;
     const fontSize = layer.sizePx;
-    const hOffset = (curvature / 180) * (h * 0.45);
-    const svgW = w;
-    const svgH = h;
-    const startY = h / 2 + hOffset * 0.4;
-    const controlY = h / 2 - hOffset;
-    const pathD = `M 40,${startY} Q ${svgW / 2},${controlY} ${svgW - 40},${startY}`;
-    const pathId = `arc_${layer.id}_${Math.random().toString(36).slice(2, 6)}`;
-
     const fontFam = layer.fontCssFamily || "system-ui, sans-serif";
+    const primaryFontName = (fontFam.split(",")[0] || "customFont").replace(/['"]/g, "").trim();
     const shadowFilter = layer.shadow !== false ? 'filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.7))"' : "";
     const letterSpace = layer.letterSpacing ? `letter-spacing="${layer.letterSpacing}px"` : "";
 
-    const svgString = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${svgW} ${svgH}">
-        <defs>
-          <path id="${pathId}" d="${pathD}" fill="none" />
-        </defs>
-        <text fill="${layer.color}" font-weight="${layer.weight ?? 400}" font-family="${fontFam.replace(/"/g, "'")}" font-size="${fontSize}px" ${letterSpace} ${shadowFilter}>
+    let fontFaceCss = "";
+    if (layer.fontBytes && layer.fontBytes.length > 0) {
+      let binary = "";
+      const bytes = layer.fontBytes;
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const b64 = btoa(binary);
+      fontFaceCss = `<style>@font-face { font-family: '${primaryFontName}'; src: url('data:font/ttf;base64,${b64}') format('truetype'); }</style>`;
+
+      if (typeof FontFace !== "undefined") {
+        try {
+          const fontFace = new FontFace(primaryFontName, bytes.buffer as ArrayBuffer);
+          const loadedFace = await fontFace.load();
+          document.fonts.add(loadedFace);
+        } catch {}
+      }
+    }
+
+    let textContent = "";
+    let defsContent = "";
+
+    if (curvature !== 0) {
+      const hOffset = (curvature / 180) * (h * 0.45);
+      const startY = h / 2 + hOffset * 0.4;
+      const controlY = h / 2 - hOffset;
+      const pathD = `M 40,${startY} Q ${w / 2},${controlY} ${w - 40},${startY}`;
+      const pathId = `arc_${layer.id}_${Math.random().toString(36).slice(2, 6)}`;
+      defsContent = `<path id="${pathId}" d="${pathD}" fill="none" />`;
+
+      textContent = `
+        <text fill="${layer.color}" font-weight="${layer.weight ?? 400}" font-family="'${primaryFontName}', sans-serif" font-size="${fontSize}px" ${letterSpace} ${shadowFilter}>
           <textPath href="#${pathId}" startOffset="50%" text-anchor="middle">
             ${escapeXml(layer.text)}
           </textPath>
         </text>
+      `;
+    } else {
+      const lines = wrapCaption(layer.text, w, fontSize).split("\n");
+      const lineElements = lines.map((line, idx) => {
+        const lineY = h / 2 + (idx - (lines.length - 1) / 2) * (fontSize * 1.2);
+        return `<tspan x="50%" y="${lineY}" text-anchor="middle" dominant-baseline="central">${escapeXml(line)}</tspan>`;
+      }).join("");
+
+      textContent = `
+        <text fill="${layer.color}" font-weight="${layer.weight ?? 400}" font-family="'${primaryFontName}', sans-serif" font-size="${fontSize}px" ${letterSpace} ${shadowFilter}>
+          ${lineElements}
+        </text>
+      `;
+    }
+
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+        <defs>
+          ${fontFaceCss}
+          ${defsContent}
+        </defs>
+        ${textContent}
       </svg>
     `;
 
@@ -178,29 +220,43 @@ async function buildTitleFilterGraph(
     const fadeStart = (dur - fade).toFixed(3);
     const nextV = k === activeLayers.length - 1 ? "[titled_v]" : `[v_title_${k}]`;
 
-    if (l.arcDeg && l.arcDeg !== 0) {
-      const pngData = await renderTitleLayerPng(l, w, h);
-      if (pngData) {
-        const pngName = `title_curved_${k}.png`;
-        inputs.push({ name: pngName, data: pngData });
-        inputArgs.push("-i", pngName);
+    const pngData = await renderTitleLayerPng(l, w, h);
+    if (pngData) {
+      const pngName = `title_layer_${k}.png`;
+      inputs.push({ name: pngName, data: pngData });
+      inputArgs.push("-i", pngName);
 
-        const xOffset = Math.round(w * (l.posX / 100));
-        const yOffset = Math.round(h * (l.posY / 100));
-        const x = `(W-w)/2+${xOffset}`;
-        const y = `(H-h)/2+${yOffset}`;
-        const currPngIdx = inputIndex++;
+      const xOffset = Math.round(w * (l.posX / 100));
+      const yOffset = Math.round(h * (l.posY / 100));
+      const currPngIdx = inputIndex++;
 
-        if (l.scope === "intro") {
-          const fadeLabel = `[ol_fade_${k}]`;
-          filterChains.push(`[${currPngIdx}:v]fade=t=out:st=${fadeStart}:d=${fade.toFixed(2)}:alpha=1${fadeLabel}`);
-          filterChains.push(`${lastV}${fadeLabel}overlay=x=${x}:y=${y}:enable='between(t,0,${dur})'${nextV}`);
-        } else {
-          filterChains.push(`${lastV}[${currPngIdx}:v]overlay=x=${x}:y=${y}${nextV}`);
-        }
-        lastV = nextV;
-        continue;
+      const anim = l.animation ?? "none";
+      const animDur = (l.animDurationSec ?? 0.5).toFixed(2);
+      let xExpr = `(W-w)/2+${xOffset}`;
+      let yExpr = `(H-h)/2+${yOffset}`;
+
+      if (anim === "slide_left") {
+        xExpr = `(W-w)/2+${xOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-250,0)`;
+      } else if (anim === "slide_bottom") {
+        yExpr = `(H-h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*150,0)`;
+      } else if (anim === "slide_top") {
+        yExpr = `(H-h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*-150,0)`;
+      } else if (anim === "pop") {
+        yExpr = `(H-h)/2+${yOffset}+if(lt(t,${animDur}),(1-t/${animDur})*35,0)`;
       }
+
+      const xParam = `'${xExpr}'`;
+      const yParam = `'${yExpr}'`;
+
+      if (l.scope === "intro") {
+        const fadeLabel = `[ol_fade_${k}]`;
+        filterChains.push(`[${currPngIdx}:v]fade=t=out:st=${fadeStart}:d=${fade.toFixed(2)}:alpha=1${fadeLabel}`);
+        filterChains.push(`${lastV}${fadeLabel}overlay=x=${xParam}:y=${yParam}:enable='between(t,0,${dur})'${nextV}`);
+      } else {
+        filterChains.push(`${lastV}[${currPngIdx}:v]overlay=x=${xParam}:y=${yParam}${nextV}`);
+      }
+      lastV = nextV;
+      continue;
     }
 
     const fontName = `title_font_${k}.ttf`;
