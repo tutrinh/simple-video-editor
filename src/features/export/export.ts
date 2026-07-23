@@ -558,46 +558,116 @@ export async function exportCut(
     const buildVideoChains = (rgbFormat: string | null): string[] => {
       const segChains = [...chains];
       let segLast = last;
+
       segOverlays.forEach((so, k) => {
         const isLast = k === overlayCount - 1;
         const out = isLast ? (rgbFormat ? `[vout_raw_${k}]` : "[v]") : `[voverlay_${k}]`;
         const mode = so.o.blendMode ?? "normal";
         const op = (so.o.opacity ?? 1).toFixed(3);
-        const st = so.stLocalSec.toFixed(3);
-        const dur = so.durLocalSec.toFixed(3);
-        const scaledOv = `[ovs_${k}]`;
-        const enable = `enable='between(t,${st},${st}+${dur})'`;
-        const scale = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
+        const stSec = so.stLocalSec;
+        const dur = so.durLocalSec;
+        const scaleF = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
 
-        if (mode === "screen" || mode === "multiply" || mode === "overlay") {
-          const padColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
+        // When an overlay spans a beat boundary, seek to the right position
+        // within the pre-trimmed clip (avoid replaying from the start on beat N+1).
+        const beatIntoOverlay = Math.max(0, bStart - so.o.startTimeSec);
+        const seekStart = beatIntoOverlay.toFixed(3);
+        const seekEnd = (beatIntoOverlay + dur).toFixed(3);
+        const stStr = stSec.toFixed(3);
+        const trailDur = Math.max(0, segDur - stSec - dur);
+        const trailStr = trailDur.toFixed(3);
+
+        // Build a FULL-SEGMENT-DURATION overlay stream so the blend/overlay filter
+        // always has matching-duration inputs from t=0 — no sync stalls that cause
+        // the "briefly plays → freeze → loops" artifact.
+        //
+        // Layout:  [neutral lead: stSec] ++ [overlay content: dur] ++ [neutral trail: trailDur]
+        //          → concat → single stream of length ≈ segDur
+
+        if (mode === "normal") {
+          // Alpha-composite path. Neutral = fully transparent black.
+          const concatParts: string[] = [];
+
+          if (stSec > 0.001) {
+            const lbl = `[ov_lead_${k}]`;
+            segChains.push(`color=c=black@0.0:s=${w}x${h}:r=30:d=${stStr},format=rgba${lbl}`);
+            concatParts.push(lbl);
+          }
+
+          const contLbl = `[ov_cont_${k}]`;
+          segChains.push(
+            `[${so.inputIdx}:v]trim=start=${seekStart}:end=${seekEnd},setpts=PTS-STARTPTS,` +
+            `${scaleF},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,` +
+            `format=rgba,colorchannelmixer=aa=${op}${contLbl}`
+          );
+          concatParts.push(contLbl);
+
+          if (trailDur > 0.001) {
+            const lbl = `[ov_trail_${k}]`;
+            segChains.push(`color=c=black@0.0:s=${w}x${h}:r=30:d=${trailStr},format=rgba${lbl}`);
+            concatParts.push(lbl);
+          }
+
+          let ovFull: string;
+          if (concatParts.length > 1) {
+            ovFull = `[ov_full_${k}]`;
+            segChains.push(`${concatParts.join("")}concat=n=${concatParts.length}:v=1:a=0${ovFull}`);
+          } else {
+            ovFull = concatParts[0];
+          }
+
+          segChains.push(`${segLast}${ovFull}overlay=x=0:y=0:eof_action=pass${out}`);
+
+        } else {
+          // Blend modes (screen / multiply / overlay).
+          // Neutral color = identity for each mode, so lead/trail regions are invisible.
+          const neutralColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
+          const pixFmt = rgbFormat ?? "yuv420p";
+          const concatParts: string[] = [];
+
+          if (stSec > 0.001) {
+            const lbl = `[ov_lead_${k}]`;
+            segChains.push(`color=c=${neutralColor}:s=${w}x${h}:r=30:d=${stStr},format=${pixFmt}${lbl}`);
+            concatParts.push(lbl);
+          }
+
+          const contLbl = `[ov_cont_${k}]`;
+          segChains.push(
+            `[${so.inputIdx}:v]trim=start=${seekStart}:end=${seekEnd},setpts=PTS-STARTPTS,` +
+            `${scaleF},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${neutralColor},setsar=1,format=${pixFmt}${contLbl}`
+          );
+          concatParts.push(contLbl);
+
+          if (trailDur > 0.001) {
+            const lbl = `[ov_trail_${k}]`;
+            segChains.push(`color=c=${neutralColor}:s=${w}x${h}:r=30:d=${trailStr},format=${pixFmt}${lbl}`);
+            concatParts.push(lbl);
+          }
+
+          let ovFull: string;
+          if (concatParts.length > 1) {
+            ovFull = `[ov_full_${k}]`;
+            segChains.push(`${concatParts.join("")}concat=n=${concatParts.length}:v=1:a=0${ovFull}`);
+          } else {
+            ovFull = concatParts[0];
+          }
+
           if (rgbFormat) {
-            const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
-            segChains.push(
-              `[${so.inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place},format=${rgbFormat}${scaledOv}`
-            );
             const base = `[base_${k}]`;
             segChains.push(`${segLast}format=${rgbFormat}${base}`);
-            segChains.push(`${base}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${out}`);
+            segChains.push(`${base}${ovFull}blend=all_mode=${mode}:all_opacity=${op}${out}`);
           } else {
-            const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=${padColor}`;
-            segChains.push(
-              `[${so.inputIdx}:v]${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${padColor},setsar=1,${place}${scaledOv}`
-            );
-            segChains.push(`${segLast}${scaledOv}blend=all_mode=${mode}:all_opacity=${op}:${enable}${out}`);
+            segChains.push(`${segLast}${ovFull}blend=all_mode=${mode}:all_opacity=${op}${out}`);
           }
-        } else {
-          const place = `setpts=PTS-STARTPTS,tpad=start_duration=${st}:color=black@0.0`;
-          segChains.push(
-            `[${so.inputIdx}:v]format=rgba,${scale},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,${place},colorchannelmixer=aa=${op}${scaledOv}`
-          );
-          segChains.push(`${segLast}${scaledOv}overlay=x=0:y=0:${enable}:eof_action=pass${out}`);
         }
+
         segLast = out;
       });
+
       if (rgbFormat && overlayCount > 0) {
         segChains.push(`${segLast}format=yuv420p[v]`);
       }
+
       return segChains;
     };
 
