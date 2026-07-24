@@ -96,6 +96,11 @@ export interface Beat {
   zoomX?: number;
   /** Vertical focus of the zoom, -50..50 (0 = centered). */
   zoomY?: number;
+  /** When the zoom is active within the beat: "entire" (whole beat) or "intro"
+   *  (only the first `zoomSec` seconds). Default "entire". */
+  zoomScope?: "entire" | "intro";
+  /** Duration in seconds the zoom holds when zoomScope === "intro" (default 3). */
+  zoomSec?: number;
 }
 
 export interface ColorAdjustments {

@@ -413,12 +413,18 @@ export async function exportCut(
       }
     };
 
+    // Zoom: "entire" scope folds straight into the base chain; "intro" scope must
+    // be time-gated, so the zoomed frame is composited over the un-zoomed base with
+    // an `enable` window (below) rather than baked into vf.
+    const zoomFilters = ffmpegZoomFilters(w, h, b.zoom, b.zoomX, b.zoomY);
+    const zoomIntro = zoomFilters.length > 0 && (b.zoomScope ?? "entire") === "intro";
+
     const vf = [
       "setpts=PTS-STARTPTS",
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
       `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
       "setsar=1",
-      ...ffmpegZoomFilters(w, h, b.zoom, b.zoomX, b.zoomY),
+      ...(zoomIntro ? [] : zoomFilters),
       ...ffmpegColorFilters(b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
     ];
 
@@ -619,7 +625,16 @@ export async function exportCut(
 
     const totalOverlaysAndTitles = titleCount + overlayCount;
     const baseLabel = capCount === 0 && totalOverlaysAndTitles === 0 ? "[v]" : "[vbase]";
-    const chains: string[] = [`[0:v]${vf.join(",")}${baseLabel}`];
+    // For "intro" zoom: split the processed base, punch-in one branch, and overlay
+    // it back gated to the first `zoomSec` (segment-local t). Outside the window the
+    // un-zoomed base shows through. "Entire"/no zoom → the base is a single chain.
+    const chains: string[] = zoomIntro
+      ? [
+          `[0:v]${vf.join(",")},split=2[vzbase][vzsrc]`,
+          `[vzsrc]${zoomFilters.join(",")}[vzoomed]`,
+          `[vzbase][vzoomed]overlay=x=0:y=0:eof_action=pass:enable='between(t,0,${(b.zoomSec ?? 3).toFixed(3)})'${baseLabel}`,
+        ]
+      : [`[0:v]${vf.join(",")}${baseLabel}`];
     let last = baseLabel;
 
     captionCues.forEach((c, k) => {

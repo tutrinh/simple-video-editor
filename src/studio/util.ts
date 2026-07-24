@@ -113,6 +113,14 @@ export function beatZoomStyle(zoom?: number, zoomX?: number, zoomY?: number): CS
   };
 }
 
+/** Whether the punch-in zoom is active at `elapsedSec` into the beat. "entire"
+ *  scope is always on; "intro" scope only for the first `zoomSec` seconds. */
+export function isBeatZoomActive(zoom?: number, zoomScope?: "entire" | "intro", zoomSec?: number, elapsedSec = 0): boolean {
+  if ((zoom ?? 1) <= 1.001) return false;
+  if ((zoomScope ?? "entire") === "entire") return true;
+  return elapsedSec < (zoomSec ?? 3);
+}
+
 /** ffmpeg filters for a beat's punch-in zoom (scale up, crop back to frame). */
 export function ffmpegZoomFilters(w: number, h: number, zoom?: number, zoomX?: number, zoomY?: number): string[] {
   const z = zoom ?? 1;
