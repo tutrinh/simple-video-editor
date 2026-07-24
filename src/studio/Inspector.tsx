@@ -71,6 +71,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
   const currentGlobalAdj = cut?.globalFilterAdjustments ?? activeGlobalFilter?.colorAdjustments ?? {};
@@ -738,6 +739,106 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                   scopeEntireLabel="Entire beat"
                   introScopeLabel="Beat intro (fade out)"
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Beat Zoom / Punch-In Collapsible Section */}
+        <div className="st-field" style={{ marginTop: 8 }}>
+          <div
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+            onClick={() => setZoomOpen((v) => !v)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ transform: zoomOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              <label style={{ margin: 0, cursor: "pointer" }}>Zoom / Punch-In</label>
+              {(b.zoom ?? 1) > 1.001 && (
+                <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• {(b.zoom ?? 1).toFixed(2)}×</span>
+              )}
+            </div>
+
+            {(b.zoom ?? 1) > 1.001 && (
+              <button
+                style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
+                onClick={(e) => { e.stopPropagation(); update({ ...b, zoom: 1, zoomX: 0, zoomY: 0 }); }}
+                title="Reset zoom to 1× (no punch-in)"
+              >
+                Reset zoom
+              </button>
+            )}
+          </div>
+
+          <div className={"st-color-collapsible" + (zoomOpen ? " open" : "")}>
+            <div className="st-color-collapsible-inner">
+              <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Zoom</span>
+                  <input
+                    type="range"
+                    min={1}
+                    max={3}
+                    step={0.05}
+                    value={b.zoom ?? 1}
+                    onChange={(e) => update({ ...b, zoom: Number(e.target.value) })}
+                    onDoubleClick={() => update({ ...b, zoom: 1 })}
+                    title="Punch-in scale (double-click to reset to 1×)"
+                    style={sliderTrackStyle(b.zoom ?? 1, 1, 3)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.zoom ?? 1).toFixed(2)}×
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: (b.zoom ?? 1) > 1.001 ? 1 : 0.5 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Focus X</span>
+                  <input
+                    type="range"
+                    min={-50}
+                    max={50}
+                    step={1}
+                    value={b.zoomX ?? 0}
+                    disabled={(b.zoom ?? 1) <= 1.001}
+                    onChange={(e) => update({ ...b, zoomX: Number(e.target.value) })}
+                    onDoubleClick={() => update({ ...b, zoomX: 0 })}
+                    title="Pan the punch-in left/right (double-click to center)"
+                    style={sliderTrackStyle(b.zoomX ?? 0, -50, 50)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.zoomX ?? 0) > 0 ? `+${b.zoomX}` : (b.zoomX ?? 0)}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: (b.zoom ?? 1) > 1.001 ? 1 : 0.5 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Focus Y</span>
+                  <input
+                    type="range"
+                    min={-50}
+                    max={50}
+                    step={1}
+                    value={b.zoomY ?? 0}
+                    disabled={(b.zoom ?? 1) <= 1.001}
+                    onChange={(e) => update({ ...b, zoomY: Number(e.target.value) })}
+                    onDoubleClick={() => update({ ...b, zoomY: 0 })}
+                    title="Pan the punch-in up/down (double-click to center)"
+                    style={sliderTrackStyle(b.zoomY ?? 0, -50, 50)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.zoomY ?? 0) > 0 ? `+${b.zoomY}` : (b.zoomY ?? 0)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
