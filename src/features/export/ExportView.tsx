@@ -664,7 +664,7 @@ export default function ExportView() {
               <div className="st-color-collapsible-inner">
                 <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
                   {musicLib.length > 0 && (
-                    <div style={{ border: "1px solid var(--line)", borderRadius: 7, overflow: "hidden", maxHeight: 150, overflowY: "auto", background: "var(--panel-3)" }}>
+                    <div className="no-scrollbar" style={{ border: "1px solid var(--line)", borderRadius: 7, overflow: "hidden", maxHeight: 150, overflowY: "auto", background: "var(--panel-3)" }}>
                       {musicLib.map((name, i) => {
                         const selected = music?.name === name;
                         const isPlaying = playingName === name;
