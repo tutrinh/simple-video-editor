@@ -1,7 +1,7 @@
 import React, { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview, { BeatTitleOverlay } from "../features/export/FinalPreview";
-import { activeCaptionText } from "../lib/pacing";
+import { activeVoCaption } from "../lib/pacing";
 import { fmtClock, cssFilterFor, beatZoomStyle, isBeatZoomActive } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 
@@ -236,7 +236,8 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   }
 
   const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
-  const caption = activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec));
+  // Captions now come from the VO track by absolute cut time (decoupled from beats).
+  const caption = activeVoCaption(cut.voSegments, elapsedCutSec);
   const isAtEnd = !playing && pos >= 0.98;
 
   return (
