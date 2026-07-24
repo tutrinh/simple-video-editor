@@ -70,8 +70,11 @@ export interface ExportOptions {
    *  breathing room so beats don't cut wall-to-wall. Only applies when voiceover
    *  is on. */
   voiceoverGapSec?: number;
-  /** Optional styled title burned over the video. */
+  /** Optional styled title burned over the whole video (cut-level, intro/entire). */
   title?: TitleOverlay | null;
+  /** Per-beat title layers, keyed by beat id. Each beat's layers composite only
+   *  during that beat's segment (scope "intro" = first N sec of the beat). */
+  beatTitles?: Record<string, TitleLayer[]>;
   /** Caption font-size multiplier (1 = default ~4.5% of frame height). */
   captionScale?: number;
   /** Caption underlay (background box) opacity, 0–1 (default 0.5). */
@@ -208,6 +211,43 @@ export async function exportCut(
       if (png) {
         preRenderedTitleLayers.push({ layer: l, png, pngName: `title_${k}.png`, index: k });
       }
+    }
+  }
+
+  // Pre-render each beat's OWN title layers (parallel to the cut-level title).
+  // These composite only within their own beat segment, timed segment-locally.
+  const perBeatTitles = new Map<string, RenderedTitleLayer[]>();
+  if (opts.beatTitles) {
+    for (const beat of cut.beats) {
+      const layers = opts.beatTitles[beat.id];
+      if (!layers) continue;
+      const activeLayers = layers.filter((l) => l.enabled && l.text.trim());
+      const rendered: RenderedTitleLayer[] = [];
+      for (let k = 0; k < activeLayers.length; k++) {
+        const l = activeLayers[k];
+        const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
+        const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
+        const png = await renderTitleLayerToPng(
+          {
+            text: l.text,
+            canvasFamily,
+            cssFamily: l.fontCssFamily ?? "sans-serif",
+            fontBytes: l.fontBytes,
+            fontWeight: l.weight ?? 400,
+            sizePx: l.sizePx,
+            letterSpacing: l.letterSpacing,
+            arcDeg: l.arcDeg,
+            shadow: l.shadow,
+            color: l.color,
+            posX: l.posX,
+            posY: l.posY,
+          },
+          w,
+          h,
+        );
+        if (png) rendered.push({ layer: l, png, pngName: `btitle_${beat.id}_${k}.png`, index: k });
+      }
+      if (rendered.length) perBeatTitles.set(beat.id, rendered);
     }
   }
 
@@ -483,6 +523,56 @@ export async function exportCut(
 
       const enExpr = bStart > 0 ? `between(t+${bStartStr},0,${scopeDur.toFixed(3)})` : `between(t,0,${scopeDur.toFixed(3)})`;
       const enable = l.scope === "intro" ? `:enable='${enExpr}'` : "";
+
+      segTitles.push({
+        pngName: tName,
+        filter: { fadeParts, xExpr, yExpr, enable } as any,
+      });
+    }
+
+    // Per-beat titles: same compositing pipeline, but timed segment-locally
+    // (this title lives entirely within its own beat, so bStart is effectively 0
+    // and "entire" scope spans the whole segment). Appended after the cut-level
+    // titles so the input indexing (1 + capCount + k) stays consistent.
+    const beatRendered = perBeatTitles.get(b.id) ?? [];
+    for (let j = 0; j < beatRendered.length; j++) {
+      const rtl = beatRendered[j];
+      const l = rtl.layer;
+      const scopeDur = l.scope === "intro" ? (l.introSec ?? 3) : segDur;
+
+      const tName = rtl.pngName;
+      inputs.push({ name: tName, data: rtl.png });
+      titleInputArgs.push("-loop", "1", "-t", segDurStr, "-r", "30", "-i", tName);
+
+      const anim = l.animation ?? "none";
+      const animDur = l.animDurationSec ?? 0.5;
+
+      const fadeParts: string[] = [];
+      if (anim !== "none") {
+        const dIn = Math.min(animDur, segDur);
+        if (dIn > 0) fadeParts.push(`fade=t=in:st=0:d=${dIn.toFixed(3)}:alpha=1`);
+      }
+      if (l.scope === "intro") {
+        const fadeDur = Math.min(0.8, scopeDur / 2);
+        const fadeStart = Math.max(0, scopeDur - fadeDur);
+        if (segDur > fadeStart) {
+          const dOut = Math.min(fadeDur, scopeDur - fadeStart);
+          if (dOut > 0) fadeParts.push(`fade=t=out:st=${fadeStart.toFixed(3)}:d=${dOut.toFixed(3)}:alpha=1`);
+        }
+      }
+
+      const dStr = animDur.toFixed(3);
+      let xExpr = "0";
+      let yExpr = "0";
+      if (anim === "slide_left") {
+        xExpr = `if(lt(t,${dStr}),(1-t/${dStr})*${(-w * TITLE_ANIM.slideXFrac).toFixed(1)},0)`;
+      } else if (anim === "slide_bottom") {
+        yExpr = `if(lt(t,${dStr}),(1-t/${dStr})*${(h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+      } else if (anim === "slide_top") {
+        yExpr = `if(lt(t,${dStr}),(1-t/${dStr})*${(-h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+      }
+
+      const enable = l.scope === "intro" ? `:enable='between(t,0,${scopeDur.toFixed(3)})'` : "";
 
       segTitles.push({
         pngName: tName,

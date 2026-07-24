@@ -225,44 +225,52 @@ export default function ExportView() {
     setProgress(0);
     setStatusText("Initializing export…");
     try {
-      const exportLayers: TitleLayer[] = await Promise.all(
-        titleLayers.map(async (l) => {
-          // Shared cached loader → the preview and the export use identical bytes
-          // (and therefore the same registered FontFace) for pixel parity.
-          const fBytes = (l.enabled && l.text.trim())
-            ? await getTitleFontBytes(l.fontId, l.weight, l.fontFile)
-            : undefined;
-          const fontObj = findFontById(l.fontId);
-          return {
-            id: l.id,
-            enabled: l.enabled,
-            text: l.text,
-            fontBytes: fBytes,
-            fontCssFamily: fontObj?.cssFamily,
-            weight: l.weight,
-            sizePx: l.sizePx,
-            letterSpacing: l.letterSpacing,
-            arcDeg: l.arcDeg,
-            shadow: l.shadow,
-            color: l.color,
-            posX: l.posX,
-            posY: l.posY,
-            scope: l.scope,
-            introSec: l.introSec,
-            animation: l.animation,
-            animDurationSec: l.animDurationSec,
-          };
-        })
-      );
+      // Convert a UI title layer into an export-ready layer, loading the SAME
+      // cached font bytes the preview uses (identical registered FontFace → pixel
+      // parity). Shared by the cut-level title and every beat's own title.
+      const toExportLayer = async (l: TitleLayerSettings): Promise<TitleLayer> => {
+        const fBytes = (l.enabled && l.text.trim())
+          ? await getTitleFontBytes(l.fontId, l.weight, l.fontFile)
+          : undefined;
+        const fontObj = findFontById(l.fontId);
+        return {
+          id: l.id,
+          enabled: l.enabled,
+          text: l.text,
+          fontBytes: fBytes,
+          fontCssFamily: fontObj?.cssFamily,
+          weight: l.weight,
+          sizePx: l.sizePx,
+          letterSpacing: l.letterSpacing,
+          arcDeg: l.arcDeg,
+          shadow: l.shadow,
+          color: l.color,
+          posX: l.posX,
+          posY: l.posY,
+          scope: l.scope,
+          introSec: l.introSec,
+          animation: l.animation,
+          animDurationSec: l.animDurationSec,
+        };
+      };
+
+      const exportLayers: TitleLayer[] = await Promise.all(titleLayers.map(toExportLayer));
 
       const title: TitleOverlay | null = exportLayers.some((l) => l.enabled && l.text.trim())
         ? { layers: exportLayers }
         : null;
 
+      // Per-beat titles: only beats that actually have enabled, non-empty layers.
+      const beatTitles: Record<string, TitleLayer[]> = {};
+      for (const bt of cut!.beats) {
+        const active = (bt.titleLayers ?? []).filter((l) => l.enabled && l.text.trim());
+        if (active.length) beatTitles[bt.id] = await Promise.all(active.map(toExportLayer));
+      }
+
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
+        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
         (p, status) => {
           setProgress(p);
           if (status) setStatusText(status);
