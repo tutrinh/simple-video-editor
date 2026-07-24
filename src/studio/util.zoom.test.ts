@@ -1,5 +1,25 @@
 import { describe, it, expect } from "vitest";
-import { beatZoomStyle, ffmpegZoomFilters } from "./util";
+import { beatZoomStyle, ffmpegZoomFilters, isBeatZoomActive } from "./util";
+
+describe("isBeatZoomActive", () => {
+  it("is inactive at 1x regardless of scope", () => {
+    expect(isBeatZoomActive(1, "entire", 3, 0)).toBe(false);
+    expect(isBeatZoomActive(1, "intro", 3, 0)).toBe(false);
+    expect(isBeatZoomActive(undefined, undefined, undefined, 5)).toBe(false);
+  });
+  it("entire scope is always active when zoomed", () => {
+    expect(isBeatZoomActive(1.5, "entire", 3, 0)).toBe(true);
+    expect(isBeatZoomActive(1.5, "entire", 3, 999)).toBe(true);
+    expect(isBeatZoomActive(1.5, undefined, undefined, 999)).toBe(true); // defaults to entire
+  });
+  it("intro scope is active only within the first zoomSec seconds", () => {
+    expect(isBeatZoomActive(1.5, "intro", 3, 0)).toBe(true);
+    expect(isBeatZoomActive(1.5, "intro", 3, 2.9)).toBe(true);
+    expect(isBeatZoomActive(1.5, "intro", 3, 3)).toBe(false);
+    expect(isBeatZoomActive(1.5, "intro", 3, 4)).toBe(false);
+    expect(isBeatZoomActive(1.5, "intro", undefined, 2.5)).toBe(true); // zoomSec defaults to 3
+  });
+});
 
 describe("beat zoom", () => {
   it("is a no-op at 1x", () => {

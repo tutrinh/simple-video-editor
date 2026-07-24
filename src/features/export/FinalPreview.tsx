@@ -3,7 +3,7 @@ import type { Aspect, Clip, Cut } from "../../domain/types";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
 import { activeCaptionText } from "../../lib/pacing";
-import { cssFilterFor, beatZoomStyle } from "../../studio/util";
+import { cssFilterFor, beatZoomStyle, isBeatZoomActive } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
 import { getClipBlobUrl } from "../../lib/blobUrlCache";
@@ -442,20 +442,29 @@ export default function FinalPreview({
           overflow: "hidden",
         }}
       >
-        <video
-          ref={videoRef}
-          src={mainBeatBlobUrl}
-          muted={(beat?.volume ?? 1) === 0}
-          playsInline
+        {/* Zoom lives on this wrapper, not the <video> — so a beat's transition
+            animation (which drives the video's transform) never collides with it. */}
+        <div
           style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            filter: cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
-            animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
-            ...beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY),
+            position: "absolute",
+            inset: 0,
+            ...(isBeatZoomActive(beat?.zoom, beat?.zoomScope, beat?.zoomSec, beatElapsed) ? beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY) : {}),
           }}
-        />
+        >
+          <video
+            ref={videoRef}
+            src={mainBeatBlobUrl}
+            muted={(beat?.volume ?? 1) === 0}
+            playsInline
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              filter: cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
+              animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
+            }}
+          />
+        </div>
 
         {transitionOverlayOpacity > 0 && (
           <div

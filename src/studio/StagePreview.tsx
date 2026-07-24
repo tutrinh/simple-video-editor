@@ -2,7 +2,7 @@ import React, { Component, useEffect, useRef, useState, type ReactNode } from "r
 import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview, { BeatTitleOverlay } from "../features/export/FinalPreview";
 import { activeCaptionText } from "../lib/pacing";
-import { fmtClock, cssFilterFor, beatZoomStyle } from "./util";
+import { fmtClock, cssFilterFor, beatZoomStyle, isBeatZoomActive } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 
 interface ErrorBoundaryProps {
@@ -242,7 +242,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   return (
     <>
       <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
-        <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments), ...beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY) }} />
+        <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments), ...(isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed) ? beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY) : {}) }} />
         {activeOverlay && activeOverlayClip && overlayBlobUrl && (
           <video
             key={activeOverlay.id}

@@ -773,7 +773,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
             {(b.zoom ?? 1) > 1.001 && (
               <button
                 style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
-                onClick={(e) => { e.stopPropagation(); update({ ...b, zoom: 1, zoomX: 0, zoomY: 0 }); }}
+                onClick={(e) => { e.stopPropagation(); update({ ...b, zoom: 1, zoomX: 0, zoomY: 0, zoomScope: "entire", zoomSec: 3 }); }}
                 title="Reset zoom to 1× (no punch-in)"
               >
                 Reset zoom
@@ -838,6 +838,39 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                   <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                     {(b.zoomY ?? 0) > 0 ? `+${b.zoomY}` : (b.zoomY ?? 0)}
                   </span>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 12, marginTop: 2, opacity: (b.zoom ?? 1) > 1.001 ? 1 : 0.5 }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    Show
+                    <select
+                      value={b.zoomScope ?? "entire"}
+                      disabled={(b.zoom ?? 1) <= 1.001}
+                      onChange={(e) => update({ ...b, zoomScope: e.target.value as "entire" | "intro" })}
+                      title="Zoom the whole beat, or only punch in for the first few seconds"
+                      style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}
+                    >
+                      <option value="entire">Entire beat</option>
+                      <option value="intro">First seconds</option>
+                    </select>
+                  </label>
+                  {(b.zoomScope ?? "entire") === "intro" && (
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      Duration
+                      <select
+                        value={b.zoomSec ?? 3}
+                        disabled={(b.zoom ?? 1) <= 1.001}
+                        onChange={(e) => update({ ...b, zoomSec: Number(e.target.value) })}
+                        style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}
+                      >
+                        <option value={1}>1s</option>
+                        <option value={2}>2s</option>
+                        <option value={3}>3s</option>
+                        <option value={4}>4s</option>
+                        <option value={5}>5s</option>
+                      </select>
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
