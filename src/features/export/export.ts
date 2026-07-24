@@ -4,7 +4,7 @@ import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
-import { ffmpegColorFilters } from "../../studio/util";
+import { ffmpegColorFilters, ffmpegZoomFilters } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
 
@@ -418,6 +418,7 @@ export async function exportCut(
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
       `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
       "setsar=1",
+      ...ffmpegZoomFilters(w, h, b.zoom, b.zoomX, b.zoomY),
       ...ffmpegColorFilters(b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
     ];
 

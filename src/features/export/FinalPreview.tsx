@@ -3,7 +3,7 @@ import type { Aspect, Clip, Cut } from "../../domain/types";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
 import { activeCaptionText } from "../../lib/pacing";
-import { cssFilterFor } from "../../studio/util";
+import { cssFilterFor, beatZoomStyle } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
 import { getClipBlobUrl } from "../../lib/blobUrlCache";
@@ -453,6 +453,7 @@ export default function FinalPreview({
             objectFit: "contain",
             filter: cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
             animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
+            ...beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY),
           }}
         />
 
