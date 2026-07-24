@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded } from "../../lib/googleFonts";
+import { extractTitleStyle, setCopiedTitleStyle, useCopiedTitleStyle } from "../../lib/titleClipboard";
 
 const TITLE_SWATCHES = [
   { label: "White", value: "#ffffff" },
@@ -45,9 +46,23 @@ export default function TitleTreatmentEditor({
 }: Props) {
   const [activeLayerIndex, setActiveLayerIndex] = useState(0);
   const activeIdx = Math.min(activeLayerIndex, layers.length - 1);
+  const copiedStyle = useCopiedTitleStyle();
+  const [copiedToast, setCopiedToast] = useState(false);
 
   function updateLayer(index: number, patch: Partial<TitleLayerSettings>) {
     onChange(layers.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  }
+
+  // Copy the active layer's styling to the shared clipboard; paste applies it to
+  // the active layer (keeping that layer's own text/enabled). Works across the
+  // cut-level title and every beat's title, in either direction.
+  function copyActiveLayer() {
+    setCopiedTitleStyle(extractTitleStyle(curLayer));
+    setCopiedToast(true);
+    setTimeout(() => setCopiedToast(false), 1200);
+  }
+  function pasteActiveLayer() {
+    if (copiedStyle) updateLayer(activeIdx, { ...copiedStyle });
   }
 
   // Preload any Google fonts referenced by enabled layers so preview matches export.
@@ -111,6 +126,28 @@ export default function TitleTreatmentEditor({
             style={{ flex: 1, padding: "7px 10px", fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none" }}
           />
           {!curLayer.enabled && <span style={{ fontSize: 10, color: "var(--danger)", whiteSpace: "nowrap" }}>(Layer Disabled)</span>}
+        </div>
+
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            className="st-btn ghost"
+            style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+            onClick={copyActiveLayer}
+            title="Copy this layer's style (font, weight, size, color, shadow, position, motion, scope) to reuse on any title layer or beat"
+          >
+            {copiedToast ? "✓ Copied!" : "📋 Copy Settings"}
+          </button>
+          <button
+            type="button"
+            className="st-btn ghost"
+            style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+            onClick={pasteActiveLayer}
+            disabled={!copiedStyle}
+            title={copiedStyle ? "Paste the copied style onto this layer (keeps its own text)" : "Copy a title layer's settings first"}
+          >
+            📥 Paste Settings
+          </button>
         </div>
 
         {curLayer.text.trim() && (
