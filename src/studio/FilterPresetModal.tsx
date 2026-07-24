@@ -202,66 +202,32 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                   gap: 10,
                 }}
               >
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Exposure ({fineTuneAdj.exposure ?? 0})</label>
-                    <input
-                      type="range"
-                      min={-100}
-                      max={100}
-                      value={fineTuneAdj.exposure ?? 0}
-                      onChange={(e) => handleAdjChange("exposure", Number(e.target.value))}
-                      style={sliderTrackStyle(fineTuneAdj.exposure ?? 0, -100, 100)}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Contrast ({fineTuneAdj.contrast ?? 0})</label>
-                    <input
-                      type="range"
-                      min={-100}
-                      max={100}
-                      value={fineTuneAdj.contrast ?? 0}
-                      onChange={(e) => handleAdjChange("contrast", Number(e.target.value))}
-                      style={sliderTrackStyle(fineTuneAdj.contrast ?? 0, -100, 100)}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Color Tone ({fineTuneAdj.colorTone ?? 0})</label>
-                    <input
-                      type="range"
-                      min={-100}
-                      max={100}
-                      value={fineTuneAdj.colorTone ?? 0}
-                      onChange={(e) => handleAdjChange("colorTone", Number(e.target.value))}
-                      style={sliderTrackStyle(fineTuneAdj.colorTone ?? 0, -100, 100)}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Warmth ({fineTuneAdj.warmth ?? 0})</label>
-                    <input
-                      type="range"
-                      min={-100}
-                      max={100}
-                      value={fineTuneAdj.warmth ?? 0}
-                      onChange={(e) => handleAdjChange("warmth", Number(e.target.value))}
-                      style={sliderTrackStyle(fineTuneAdj.warmth ?? 0, -100, 100)}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Saturation ({fineTuneAdj.saturation ?? 0})</label>
-                    <input
-                      type="range"
-                      min={-100}
-                      max={100}
-                      value={fineTuneAdj.saturation ?? 0}
-                      onChange={(e) => handleAdjChange("saturation", Number(e.target.value))}
-                      style={sliderTrackStyle(fineTuneAdj.saturation ?? 0, -100, 100)}
-                    />
-                  </div>
+                <div className="st-color-adjustments" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 16, rowGap: 8 }}>
+                  {([
+                    ["Exposure", "exposure"],
+                    ["Contrast", "contrast"],
+                    ["Color Tone", "colorTone"],
+                    ["Warmth", "warmth"],
+                    ["Saturation", "saturation"],
+                  ] as const).map(([label, key]) => {
+                    const val = fineTuneAdj[key] ?? 0;
+                    return (
+                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>{label}</span>
+                        <input
+                          type="range"
+                          min={-100}
+                          max={100}
+                          value={val}
+                          onChange={(e) => handleAdjChange(key, Number(e.target.value))}
+                          style={sliderTrackStyle(val, -100, 100)}
+                        />
+                        <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                          {val > 0 ? `+${val}` : val}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {!savingPreset ? (
