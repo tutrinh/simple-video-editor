@@ -448,7 +448,6 @@ export default function FinalPreview({
           style={{
             position: "absolute",
             inset: 0,
-            transition: "transform 0.18s ease-out",
             ...(isBeatZoomActive(beat?.zoom, beat?.zoomScope, beat?.zoomSec, beatElapsed) ? beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY) : {}),
           }}
         >
