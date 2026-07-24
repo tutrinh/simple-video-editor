@@ -4,7 +4,7 @@ import { useExportSettings, type TitleLayerSettings } from "../../state/ExportSe
 import { cutDuration } from "../assemble/assemble";
 import { exportCut, buildScriptText, buildSrt, type TitleOverlay, type TitleLayer } from "./export";
 import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
-import { ELEVEN_VOICES } from "../../lib/elevenLabs";
+import { ELEVEN_VOICES, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
 import type { TtsEngine } from "../../lib/tts";
 import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./FinalPreview";
 import { GOOGLE_TITLE_FONTS, ensureGoogleFontLoaded, findFontById } from "../../lib/googleFonts";
@@ -57,6 +57,7 @@ export default function ExportView() {
   const [videoUrl, setVideoUrl] = useState("");
   const [modelMsg, setModelMsg] = useState("");
   const [musicLib, setMusicLib] = useState<string[]>([]);
+  const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>(ELEVEN_VOICES);
   const [captionsOpen, setCaptionsOpen] = useState(true);
   const [voiceOpen, setVoiceOpen] = useState(true);
   const [musicOpen, setMusicOpen] = useState(true);
@@ -85,6 +86,14 @@ export default function ExportView() {
       .then((r) => (r.ok ? r.json() : { files: [] }))
       .then((d: { files?: string[] }) => { if (!cancelled) setMusicLib(d.files ?? []); })
       .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load the full ElevenLabs voice library from the account (falls back to the
+  // built-in list on error). Runs once; the proxy keeps the API key server-side.
+  useEffect(() => {
+    let cancelled = false;
+    fetchElevenVoices().then((vs) => { if (!cancelled) setElevenVoices(vs); });
     return () => { cancelled = true; };
   }, []);
 
@@ -757,7 +766,7 @@ export default function ExportView() {
                         </select>
                       ) : (
                         <select value={elevenVoiceId} onChange={(e) => update({ elevenVoiceId: e.target.value })} style={{ flex: 1, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
-                          {ELEVEN_VOICES.map((v) => (
+                          {elevenVoices.map((v) => (
                             <option key={v.id} value={v.id}>{v.label}</option>
                           ))}
                         </select>

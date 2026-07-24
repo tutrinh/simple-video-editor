@@ -216,10 +216,39 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
   display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;color:inherit;flex-shrink:0}
 .st-ov-action-btn:hover{background:rgba(0,0,0,.5)}
 
+/* VO track lane — narration + captions; distinct green (--good) accent vs amber overlays */
+.st-vo-lane{width:100%;padding:6px 0 4px;background:var(--panel-2);border:1px solid var(--line);border-bottom:none;border-radius:0}
+.st-tl-ruler-area:not(:has(.st-ov-lane)) .st-vo-lane{border-radius:8px 8px 0 0}
+.st-vo-label{font-size:10px;font-weight:700;color:var(--good);text-transform:uppercase;letter-spacing:.07em;padding:0 10px 4px;display:flex;align-items:center;gap:6px}
+.st-vo-label-hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3);font-size:10px}
+.st-vo-canvas{position:relative;height:34px;width:100%;background:var(--panel-3);overflow:hidden;border-top:1px solid var(--line)}
+.st-vo-divider{position:absolute;top:0;bottom:0;width:1px;background:var(--line);opacity:.7;pointer-events:none;z-index:1}
+.st-vo-chip{position:absolute;top:3px;bottom:3px;min-width:36px;
+  background:color-mix(in srgb, var(--good) 26%, transparent);border:1px solid var(--good);border-radius:4px;
+  color:var(--good);font-size:10px;font-weight:600;
+  display:flex;align-items:center;gap:3px;padding:0 2px;
+  cursor:grab;user-select:none;touch-action:none;z-index:2;box-sizing:border-box;
+  transition:background .1s,border-color .1s,box-shadow .1s}
+.st-vo-chip:hover{background:color-mix(in srgb, var(--good) 40%, transparent);box-shadow:0 0 0 1px var(--good)}
+.st-vo-chip.sel{background:var(--good);border-color:#fff;color:#04140b;box-shadow:0 0 0 2px var(--good),0 2px 8px rgba(0,0,0,.35);z-index:10}
+.st-vo-chip.empty{border-style:dashed;opacity:.85}
+.st-vo-chip-icon{font-size:10px;flex-shrink:0;line-height:1}
+.st-vo-chip-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9.5px;min-width:0}
+.st-vo-chip-time{font-size:8.5px;font-family:var(--mono);opacity:.7;flex-shrink:0;white-space:nowrap}
+.st-vo-chip.sel .st-vo-chip-text,.st-vo-chip.sel .st-vo-chip-time{opacity:1}
+.st-vo-resize-handle{width:5px;height:100%;cursor:ew-resize;background:rgba(0,0,0,.25);flex-shrink:0}
+.st-vo-resize-handle.left{border-radius:3px 0 0 3px;margin-right:1px}
+.st-vo-resize-handle.right{border-radius:0 3px 3px 0;margin-left:1px}
+.st-vo-chip.sel .st-vo-resize-handle{background:rgba(0,0,0,.35)}
+.st-vo-resize-handle:hover{background:rgba(0,0,0,.5)}
+.st-vo-action-btn{background:rgba(0,0,0,.25);border:none;border-radius:50%;width:17px;height:17px;min-width:17px;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;color:inherit;flex-shrink:0}
+.st-vo-action-btn:hover{background:rgba(0,0,0,.5)}
+
 /* Beat track — no gap between beats, widths set by inline style */
 .st-track{display:flex;gap:0;align-items:stretch;position:relative;min-height:88px;
   border-radius:0 0 8px 8px;overflow:hidden;border:1px solid var(--line);border-top:none}
-.st-tl-ruler-area:not(:has(.st-ov-lane)) .st-track{border-radius:8px;border-top:1px solid var(--line)}
+.st-tl-ruler-area:not(:has(.st-ov-lane)):not(:has(.st-vo-lane)) .st-track{border-radius:8px;border-top:1px solid var(--line)}
 .st-track.empty{align-items:center;justify-content:center;color:var(--ink-3);font-size:13px}
 .st-beat{flex:none;display:flex;flex-direction:column;gap:5px;position:relative;cursor:pointer;
   padding:6px 5px 5px;box-sizing:border-box;border-right:1px solid var(--line)}

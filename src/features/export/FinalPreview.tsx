@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Aspect, Clip, Cut } from "../../domain/types";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
-import { activeCaptionText } from "../../lib/pacing";
+import { activeVoSegment, activeVoCaption } from "../../lib/pacing";
 import { cssFilterFor, beatZoomStyle, isBeatZoomActive } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import type { Voice } from "../../lib/kokoroTts";
@@ -65,7 +65,7 @@ interface Props {
 
 export default function FinalPreview({
   cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
-  voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec = 0,
+  ttsEngine, voice, elevenVoiceId, voiceoverSpeed,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
@@ -214,65 +214,46 @@ export default function FinalPreview({
     else a.pause();
   }, [playing, music]);
 
-  // Synthesize and play neural AI voiceover per beat (Kokoro or ElevenLabs), matching the export.
+  // The VO segment whose window contains the current absolute time (audio plays
+  // regardless of whether its caption is visible), decoupled from beats.
+  const activeVo = activeVoSegment(cut.voSegments, elapsed);
+
+  // Play the active VO segment's narration (Kokoro/ElevenLabs, synth cached),
+  // seeking to how far into the segment we already are. Matches the export.
   useEffect(() => {
-    const text = cut.beats[index]?.scriptText?.trim();
-    if (!playing || !voiceover || !text) return;
-
-    let timer: NodeJS.Timeout;
-    let activeAudio: HTMLAudioElement | null = null;
-    let cancelled = false;
-
+    if (!playing || !activeVo || !activeVo.text.trim()) return;
+    const text = activeVo.text.trim();
+    const startAt = activeVo.startTimeSec;
     const key = `${text}_${ttsEngine ?? "kokoro"}_${voice ?? "af_heart"}_${elevenVoiceId ?? ""}_${voiceoverSpeed ?? 1}`;
+    let cancelled = false;
+    let audio: HTMLAudioElement | null = null;
 
-    async function playVo() {
+    (async () => {
       try {
         let url = voCacheRef.current.get(key);
         if (!url) {
-          const narration = await synthesizeVoiceover(text, {
-            engine: ttsEngine ?? "kokoro",
-            voice,
-            elevenVoiceId,
-            speed: voiceoverSpeed,
-          });
+          const narration = await synthesizeVoiceover(text, { engine: ttsEngine ?? "kokoro", voice, elevenVoiceId, speed: voiceoverSpeed });
           if (cancelled) return;
           const blob = new Blob([new Uint8Array(narration.data)], { type: narration.ext === "mp3" ? "audio/mpeg" : "audio/wav" });
           url = URL.createObjectURL(blob);
           voCacheRef.current.set(key, url);
         }
-
         if (cancelled) return;
-
-        timer = setTimeout(() => {
-          if (cancelled) return;
-          const a = new Audio(url);
-          activeAudio = a;
-          a.play().catch(() => {});
-        }, Math.round(voiceoverLeadSec * 1000));
+        audio = new Audio(url);
+        const offset = Math.max(0, beatElapsedRef.current + beatStart - startAt);
+        const seek = () => { try { audio!.currentTime = offset; } catch { /* pre-metadata */ } };
+        audio.addEventListener("loadedmetadata", seek, { once: true });
+        seek();
+        audio.play().catch(() => {});
       } catch {
-        // Fallback to SpeechSynthesis if AI voice is offline / generating
-        if (cancelled) return;
-        const synth = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-        if (synth) {
-          synth.cancel();
-          timer = setTimeout(() => {
-            const ut = new SpeechSynthesisUtterance(text);
-            if (voiceoverSpeed) ut.rate = voiceoverSpeed;
-            synth.speak(ut);
-          }, Math.round(voiceoverLeadSec * 1000));
-        }
+        /* offline or model still downloading — skip preview audio (export still narrates) */
       }
-    }
+    })();
 
-    playVo();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      if (activeAudio) { activeAudio.pause(); activeAudio.src = ""; }
-      if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
-    };
-  }, [index, playing, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, cut.beats]);
+    return () => { cancelled = true; if (audio) { audio.pause(); audio.src = ""; } };
+    // Re-run when the active segment (or its text) changes, or play toggles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeVo?.id, activeVo?.text, playing, ttsEngine, voice, elevenVoiceId, voiceoverSpeed]);
 
   const play = () => {
     if (index >= cut.beats.length - 1) {
@@ -296,9 +277,9 @@ export default function FinalPreview({
     setPlaying(true);
   };
 
-  // Timed beats show one line at a time (the cue live at beatElapsed); untimed
-  // beats show the whole stacked caption, as before.
-  const caption = beat ? activeCaptionText(beat.captionText, beat.captionDurations, beatElapsed, beat.durationSec || (beat.outSec - beat.inSec)) : "";
+  // Captions come from the VO track by absolute cut time (only segments with the
+  // caption toggle on), decoupled from beats.
+  const caption = activeVoCaption(cut.voSegments, elapsed);
 
   const [trAnimKey, setTrAnimKey] = useState(0);
 

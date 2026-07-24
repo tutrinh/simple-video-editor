@@ -10,9 +10,15 @@ import { fmtSecs, cssFilterFor, getFilterPreset } from "./util";
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import { makeBeatTitleLayers, type TitleLayerSettings } from "../state/ExportSettingsContext";
+import Switch from "./Switch";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
 const modelLabel = (m: string) => m.replace(/^claude-/, "");
+
+// Captions moved to the independent VO track (see VO Segment card + the timeline VO
+// lane). The old per-beat caption editor is retired but kept behind this flag so its
+// alternates/timed-line machinery stays available if we ever re-surface it.
+const SHOW_PER_BEAT_CAPTION_BOX = false;
 
 interface Props {
   beat: Beat | null;
@@ -24,6 +30,8 @@ interface Props {
   onDuplicateBeat: (beatId: string) => void;
   selectedOverlayId?: string | null;
   onSelectOverlay?: (id: string | null) => void;
+  selectedVoId?: string | null;
+  onSelectVo?: (id: string | null) => void;
 }
 
 export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
@@ -62,12 +70,13 @@ export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSP
   };
 }
 
-export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay }: Props) {
+export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo }: Props) {
   const { state, dispatch } = useProject();
   const { settings } = useSettings();
   const cut = state.cut;
   const overlays = cut?.overlays ?? [];
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
+  const selectedVo = (cut?.voSegments ?? []).find((s) => s.id === selectedVoId);
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
@@ -138,11 +147,72 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   // Suggestions & modals belong to one beat — clear them when a different beat is selected.
   useEffect(() => { setAlts([]); setAltErr(null); setConfirmRemoveOpen(false); }, [beat?.id]);
 
+  // VO Segment editor card — narration text + caption visibility, decoupled from the
+  // beat. Rendered in both the empty state and the normal Inspector so a selected VO
+  // chip is always editable. (Mirrors the overlay clip card.)
+  const voCard = selectedVo ? (
+    <div className="st-sec" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--accent)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎙️ VO Segment</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11 }}
+            onClick={() => {
+              const gid = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+              const newId = `vo-${gid()}`;
+              dispatch({ type: "DUPLICATE_VO", id: selectedVo.id, newVoId: newId });
+              onSelectVo?.(newId);
+            }}
+            title="Duplicate this VO segment"
+          >
+            📋 Duplicate
+          </button>
+          <button
+            type="button"
+            className="st-btn danger"
+            style={{ padding: "2px 8px", fontSize: 11 }}
+            onClick={() => { dispatch({ type: "REMOVE_VO", id: selectedVo.id }); onSelectVo?.(null); }}
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+
+      <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Narration text (read by ElevenLabs / Kokoro)</label>
+      <textarea
+        value={selectedVo.text}
+        onChange={(e) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, text: e.target.value } })}
+        placeholder="Type what the voiceover should say…"
+        rows={3}
+        style={{ width: "100%", marginTop: 4, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "6px 8px", fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" }}
+      />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+        <div style={{ fontSize: 11, color: "var(--ink-2)" }}>Show caption on screen</div>
+        <Switch
+          checked={selectedVo.captionVisible}
+          onChange={(next) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, captionVisible: next } })}
+          label="Show caption on screen"
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+        <span>Start {selectedVo.startTimeSec.toFixed(1)}s</span>
+        <span>Length {selectedVo.durationSec.toFixed(1)}s</span>
+        {selectedVo.text.trim() && <span>· ~{estimateSpokenSeconds(selectedVo.text).toFixed(1)}s to speak</span>}
+      </div>
+      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>Drag the chip on the VO track to move; drag its edges to resize.</div>
+    </div>
+  ) : null;
+
   if (!beat) {
     return (
       <aside className="st-col insp">
         <div className="st-colhead">Inspector</div>
         <div className="st-insp-empty" style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
+          {voCard}
           <span style={{ color: "var(--ink-3)", fontSize: 12 }}>Select a beat in the timeline to edit its caption, trim, and clip.</span>
 
           {cut && (
@@ -311,12 +381,10 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     const cin = Math.min(Math.max(0, inSec), Math.max(0, clipDur - 0.1));
     return Math.min(Math.max(0.1, outSec - inSec), Math.max(0.1, clipDur - cin));
   }
-  // The beat's on-screen duration: the trim window, extended only if a timed
-  // caption sequence runs longer than it. Never shrinks below the manual trim.
-  function durationFor(inSec: number, outSec: number, captionText: string, durs?: number[]): number {
-    const footageLen = footageLenOf(inSec, outSec);
-    const total = scheduleDuration(captionSchedule(captionText, durs));
-    return Math.max(footageLen, total);
+  // Beat duration is the trim window (footage only) — narration lives on the VO
+  // track now, so captions no longer stretch a beat. (Params kept for callers.)
+  function durationFor(inSec: number, outSec: number, _captionText?: string, _durs?: number[]): number {
+    return footageLenOf(inSec, outSec);
   }
 
   // Write lines (and, when timed, their aligned timers) back to the beat, keeping
@@ -395,6 +463,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     <aside className="st-col insp">
       <div className="st-colhead">Beat {String(index + 1).padStart(2, "0")} <span className="cnt">of {total}</span></div>
       <div className="st-insp-body">
+        {voCard}
         <div
           className="st-ip-poster"
           style={{
@@ -406,6 +475,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           <div className="cap">{b.captionText}</div>
         </div>
 
+        {SHOW_PER_BEAT_CAPTION_BOX && (
         <div className="st-field">
           <div className="st-caphead">
             <label>Caption · {timed ? "each line plays for its own seconds, in sequence" : "one line per row, stacked on screen"}</label>
@@ -510,6 +580,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
             </div>
           )}
         </div>
+        )}
 
         <div className="st-field">
           <label>Trim · in / out of source · {fmtSecs(b.durationSec)}</label>

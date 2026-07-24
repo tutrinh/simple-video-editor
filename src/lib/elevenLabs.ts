@@ -19,6 +19,22 @@ export const ELEVEN_VOICES: ElevenVoice[] = [
 
 export const DEFAULT_ELEVEN_VOICE = ELEVEN_VOICES[0].id;
 
+/**
+ * Fetch every voice on the connected ElevenLabs account (stock + custom/cloned) via
+ * the dev proxy, so the picker reflects the whole library instead of the static list.
+ * Falls back to ELEVEN_VOICES on any error (offline, no key, non-dev build).
+ */
+export async function fetchElevenVoices(): Promise<ElevenVoice[]> {
+  try {
+    const res = await fetch("/api/tts/voices");
+    if (!res.ok) return ELEVEN_VOICES;
+    const data = (await res.json()) as { voices?: ElevenVoice[] };
+    return data.voices && data.voices.length > 0 ? data.voices : ELEVEN_VOICES;
+  } catch {
+    return ELEVEN_VOICES;
+  }
+}
+
 async function mp3Duration(buf: ArrayBuffer): Promise<number> {
   try {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
