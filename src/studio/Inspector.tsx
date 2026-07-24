@@ -183,73 +183,83 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     style={sliderTrackStyle(cut?.globalFilterIntensity ?? 1, 0.1, 1)}
                   />
 
-                  <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div className="st-color-adjustments" style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>🎛️ Fine-Tune Filter</div>
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Exposure</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.exposure ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.exposure ?? 0}
+                        onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.exposure ?? 0) > 0 ? `+${currentGlobalAdj.exposure}` : (currentGlobalAdj.exposure ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.exposure ?? 0}
-                      onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Contrast</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.contrast ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Contrast</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.contrast ?? 0}
+                        onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.contrast ?? 0) > 0 ? `+${currentGlobalAdj.contrast}` : (currentGlobalAdj.contrast ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.contrast ?? 0}
-                      onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Color Tone</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.colorTone ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Color Tone</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.colorTone ?? 0}
+                        onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.colorTone ?? 0) > 0 ? `+${currentGlobalAdj.colorTone}` : (currentGlobalAdj.colorTone ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.colorTone ?? 0}
-                      onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Warmth</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.warmth ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Warmth</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.warmth ?? 0}
+                        onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.warmth ?? 0) > 0 ? `+${currentGlobalAdj.warmth}` : (currentGlobalAdj.warmth ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.warmth ?? 0}
-                      onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Saturation</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.saturation ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Saturation</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.saturation ?? 0}
+                        onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.saturation ?? 0) > 0 ? `+${currentGlobalAdj.saturation}` : (currentGlobalAdj.saturation ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.saturation ?? 0}
-                      onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
-                    />
                   </div>
                 </div>
               )}
@@ -825,73 +835,83 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     style={sliderTrackStyle(cut?.globalFilterIntensity ?? 1, 0.1, 1)}
                   />
 
-                  <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div className="st-color-adjustments" style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>🎛️ Fine-Tune Filter</div>
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Exposure</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.exposure ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.exposure ?? 0}
+                        onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.exposure ?? 0) > 0 ? `+${currentGlobalAdj.exposure}` : (currentGlobalAdj.exposure ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.exposure ?? 0}
-                      onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Contrast</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.contrast ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Contrast</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.contrast ?? 0}
+                        onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.contrast ?? 0) > 0 ? `+${currentGlobalAdj.contrast}` : (currentGlobalAdj.contrast ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.contrast ?? 0}
-                      onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Color Tone</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.colorTone ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Color Tone</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.colorTone ?? 0}
+                        onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.colorTone ?? 0) > 0 ? `+${currentGlobalAdj.colorTone}` : (currentGlobalAdj.colorTone ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.colorTone ?? 0}
-                      onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Warmth</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.warmth ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Warmth</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.warmth ?? 0}
+                        onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.warmth ?? 0) > 0 ? `+${currentGlobalAdj.warmth}` : (currentGlobalAdj.warmth ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.warmth ?? 0}
-                      onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
-                    />
 
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Saturation</span>
-                      <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{currentGlobalAdj.saturation ?? 0}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Saturation</span>
+                      <input
+                        type="range"
+                        min="-100"
+                        max="100"
+                        value={currentGlobalAdj.saturation ?? 0}
+                        onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
+                        style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
+                      />
+                      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {(currentGlobalAdj.saturation ?? 0) > 0 ? `+${currentGlobalAdj.saturation}` : (currentGlobalAdj.saturation ?? 0)}
+                      </span>
                     </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={currentGlobalAdj.saturation ?? 0}
-                      onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
-                      style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
-                    />
                   </div>
                 </div>
               )}

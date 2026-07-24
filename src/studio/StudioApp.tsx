@@ -10,18 +10,20 @@ import StagePreview from "./StagePreview";
 import Timeline from "./Timeline";
 import Inspector from "./Inspector";
 import ExportDrawer from "./ExportDrawer";
+import SettingsDrawer from "./SettingsDrawer";
 import { seedProject } from "./devSeed";
 import StoryBar from "./StoryBar";
 import "./studio.css";
 
 export default function StudioApp() {
   const { state, dispatch } = useProject();
-  const { reset: resetSettings } = useSettings();
+  const { settings, reset: resetSettings } = useSettings();
   const { reset: resetExport } = useExportSettings();
   const regen = useRegenerate();
 
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Mount the export drawer lazily on first open, then keep it mounted so its
   // state survives close/reopen (only slid out of view). Reset on "Start over".
@@ -115,6 +117,7 @@ export default function StudioApp() {
       <TopBar
         onExport={() => { setExportMounted(true); setExportOpen(true); }}
         onStartOver={startOver}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       <div className="st-main">
@@ -167,7 +170,7 @@ export default function StudioApp() {
               </div>
             )}
 
-            {clips.length > 0 && (
+            {clips.length > 0 && settings.showStoryBar && (
               <StoryBar onAuthor={regen.authorScript} busy={regen.busy} />
             )}
           </div>
@@ -194,6 +197,7 @@ export default function StudioApp() {
       </div>
 
       {exportMounted && <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} />}
+      <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
