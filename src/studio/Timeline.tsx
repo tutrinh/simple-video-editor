@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment } from "../domain/types";
+import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, StickerClip } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { createClip } from "../features/ingest/ingest";
 import { fmtSecs, posterBg } from "./util";
 import OverlayPickerModal from "./OverlayPickerModal";
+import StickerPickerModal from "./StickerPickerModal";
 
 interface Props {
   cut: Cut;
@@ -16,6 +17,8 @@ interface Props {
   onSelectOverlay?: (id: string | null) => void;
   selectedVoId?: string | null;
   onSelectVo?: (id: string | null) => void;
+  selectedStickerId?: string | null;
+  onSelectSticker?: (id: string | null) => void;
 }
 
 export default function Timeline({
@@ -28,12 +31,16 @@ export default function Timeline({
   onSelectOverlay,
   selectedVoId,
   onSelectVo,
+  selectedStickerId,
+  onSelectSticker,
 }: Props) {
   const { dispatch } = useProject();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const beats = cut.beats;
   const overlays = cut.overlays ?? [];
   const voSegments = cut.voSegments ?? [];
+  const stickers = cut.stickers ?? [];
   const totalDur = cutDuration(cut) || 1;
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
 
@@ -273,6 +280,82 @@ export default function Timeline({
     acc += b.durationSec;
   }
 
+  // ── Sticker track drag/resize (mirrors the VO / overlay track) ───────────
+  const stickerTrackRef = useRef<HTMLDivElement>(null);
+  const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
+  const stickerDragStartRef = useRef<{ startX: number; initialStartSec: number; initialDurationSec: number; mode: "move" | "resize-left" | "resize-right" } | null>(null);
+
+  function addSticker(src: string, mimeType: "image/png" | "image/svg+xml", name: string) {
+    const id = `sticker-${genId()}`;
+    const defaultStart = selIndex >= 0 ? beatStarts[selIndex] : 0;
+    const defaultDur = selIndex >= 0 ? beats[selIndex].durationSec : Math.min(3, totalDur);
+    const sticker: StickerClip = {
+      id,
+      src,
+      mimeType,
+      name,
+      startTimeSec: Math.round(defaultStart * 10) / 10,
+      durationSec: Math.round(defaultDur * 10) / 10,
+      posX: 0,
+      posY: 0,
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      animIn: "fade",
+      animOut: "fade",
+      animDurationSec: 0.3,
+    };
+    dispatch({ type: "ADD_STICKER", sticker });
+    onSelectSticker?.(id);
+    onSelectOverlay?.(null);
+    onSelectVo?.(null);
+    setStickerPickerOpen(false);
+  }
+
+  function startStickerDrag(e: React.PointerEvent, s: StickerClip, mode: "move" | "resize-left" | "resize-right") {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSelectSticker?.(s.id);
+    onSelectOverlay?.(null);
+    onSelectVo?.(null);
+    setDraggingStickerId(s.id);
+    stickerDragStartRef.current = { startX: e.clientX, initialStartSec: s.startTimeSec, initialDurationSec: s.durationSec, mode };
+  }
+
+  function handleStickerPointerMove(e: React.PointerEvent, s: StickerClip) {
+    if (draggingStickerId !== s.id || !stickerDragStartRef.current || !stickerTrackRef.current) return;
+    const rect = stickerTrackRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const deltaSec = ((e.clientX - stickerDragStartRef.current.startX) / rect.width) * totalDur;
+    const st = stickerDragStartRef.current;
+
+    if (st.mode === "move") {
+      const newStartSec = Math.max(0, Math.min(totalDur - s.durationSec, st.initialStartSec + deltaSec));
+      const rounded = Math.round(newStartSec * 10) / 10;
+      if (rounded !== s.startTimeSec) dispatch({ type: "UPDATE_STICKER", sticker: { ...s, startTimeSec: rounded } });
+    } else if (st.mode === "resize-right") {
+      const newDur = Math.max(0.1, Math.min(totalDur - s.startTimeSec, st.initialDurationSec + deltaSec));
+      const rounded = Math.round(newDur * 10) / 10;
+      if (rounded !== s.durationSec) dispatch({ type: "UPDATE_STICKER", sticker: { ...s, durationSec: rounded } });
+    } else {
+      const maxDelta = st.initialDurationSec - 0.1;
+      const actualDelta = Math.max(-st.initialStartSec, Math.min(maxDelta, deltaSec));
+      const newStartSec = Math.round((st.initialStartSec + actualDelta) * 10) / 10;
+      const newDur = Math.round((st.initialDurationSec - actualDelta) * 10) / 10;
+      if (newStartSec !== s.startTimeSec || newDur !== s.durationSec) {
+        dispatch({ type: "UPDATE_STICKER", sticker: { ...s, startTimeSec: newStartSec, durationSec: newDur } });
+      }
+    }
+  }
+
+  function endStickerDrag(e: React.PointerEvent) {
+    if (draggingStickerId) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      setDraggingStickerId(null);
+      stickerDragStartRef.current = null;
+    }
+  }
+
   // Playhead sits at the midpoint of the selected beat (as % of totalDur)
   const playheadLeft = selIndex >= 0
     ? `${((beatStarts[selIndex] + beats[selIndex].durationSec / 2) / totalDur) * 100}%`
@@ -283,7 +366,7 @@ export default function Timeline({
       <div className="st-tlhead">
         <span className="t">The Cut</span>
         <span className="meta st-num">
-          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {fmtSecs(totalDur)} · {cut.aspect}
+          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {stickers.length} stickers · {fmtSecs(totalDur)} · {cut.aspect}
         </span>
         {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
           <button
@@ -323,6 +406,21 @@ export default function Timeline({
             onImportFiles={importUploadedFiles}
           />
         </div>
+        <div style={{ position: "relative" }}>
+          <button
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11, borderColor: stickerPickerOpen ? "var(--sk-accent)" : undefined, color: stickerPickerOpen ? "var(--sk-accent)" : undefined }}
+            onClick={() => setStickerPickerOpen(!stickerPickerOpen)}
+            title="Add a transparent PNG or SVG sticker to the Sticker track"
+          >
+            🪄 Add Sticker
+          </button>
+          <StickerPickerModal
+            isOpen={stickerPickerOpen}
+            onClose={() => setStickerPickerOpen(false)}
+            onSelectSticker={addSticker}
+          />
+        </div>
       </div>
 
       {/* Scrollable Timeline Tracks Container */}
@@ -333,6 +431,73 @@ export default function Timeline({
         >
           {/* ── SHARED TIME RULER + BOTH TRACKS ── */}
           <div className="st-tl-ruler-area">
+
+            {/* Sticker Track Lane — static PNG/SVG placed at any point in the timeline */}
+            {stickers.length > 0 && (
+              <div className="st-sk-lane">
+                <div className="st-sk-label">
+                  🪄 Sticker Track <span className="st-sk-label-hint">(Drag to reposition · Drag edges to resize)</span>
+                </div>
+                <div ref={stickerTrackRef} className="st-sk-canvas">
+                  {/* Beat dividers for alignment reference */}
+                  {beats.map((b, i) => {
+                    if (i === 0) return null;
+                    return <div key={b.id} className="st-sk-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                  })}
+
+                  {stickers.map((s) => {
+                    const leftPct = (s.startTimeSec / totalDur) * 100;
+                    const widthPct = Math.max(1, (s.durationSec / totalDur) * 100);
+                    const isSel = s.id === selectedStickerId;
+                    return (
+                      <div
+                        key={s.id}
+                        onPointerDown={(e) => startStickerDrag(e, s, "move")}
+                        onPointerMove={(e) => handleStickerPointerMove(e, s)}
+                        onPointerUp={endStickerDrag}
+                        className={"st-sk-chip" + (isSel ? " sel" : "")}
+                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                        title={`${s.name} · ${s.startTimeSec.toFixed(1)}s–${(s.startTimeSec + s.durationSec).toFixed(1)}s`}
+                      >
+                        <div onPointerDown={(e) => startStickerDrag(e, s, "resize-left")} className="st-sk-resize-handle left" title="Drag to adjust start time" />
+
+                        <img className="st-sk-chip-thumb" src={s.src} alt={s.name} />
+                        <span className="st-sk-chip-name">{s.name}</span>
+                        <span className="st-sk-chip-time">{s.startTimeSec.toFixed(1)}s–{(s.startTimeSec + s.durationSec).toFixed(1)}s</span>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); const newId = `sticker-${genId()}`; dispatch({ type: "DUPLICATE_STICKER", id: s.id, newStickerId: newId }); onSelectSticker?.(newId); }}
+                          className="st-sk-action-btn"
+                          title="Duplicate sticker (Cmd+D / Ctrl+D)"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </button>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_STICKER", id: s.id }); if (selectedStickerId === s.id) onSelectSticker?.(null); }}
+                          className="st-sk-action-btn"
+                          title="Remove sticker"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                            <line x1="2" y1="2" x2="10" y2="10" />
+                            <line x1="10" y1="2" x2="2" y2="10" />
+                          </svg>
+                        </button>
+
+                        <div onPointerDown={(e) => startStickerDrag(e, s, "resize-right")} className="st-sk-resize-handle right" title="Drag to adjust duration" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Overlay Track Lane — positioned ABOVE the beats, sharing the same proportional ruler */}
             {overlays.length > 0 && (

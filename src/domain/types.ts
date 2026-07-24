@@ -118,6 +118,41 @@ export interface ColorAdjustments {
 
 export type OverlayBlendMode = "normal" | "screen" | "multiply" | "overlay";
 
+export type StickerAnimation = "none" | "fade" | "slide_left" | "slide_right" | "slide_top" | "slide_bottom";
+
+/**
+ * A static image (transparent PNG or SVG) placed on an independent Sticker track.
+ * Positioned by posX/posY (% offset from centre), scaled, rotated, and animated
+ * in/out during [startTimeSec, startTimeSec + durationSec].
+ */
+export interface StickerClip {
+  id: string;
+  /** Data URL (image/png or image/svg+xml). Stored in state — no File reference. */
+  src: string;
+  /** MIME type of the source asset. */
+  mimeType: "image/png" | "image/svg+xml";
+  /** Display label (filename or user-assigned name). */
+  name: string;
+  startTimeSec: number;
+  durationSec: number;
+  /** Horizontal offset from centre: -50..+50 (%). Default 0. */
+  posX: number;
+  /** Vertical offset from centre: -50..+50 (%). Default 0. */
+  posY: number;
+  /** Uniform scale multiplier, 0.1..3.0. Default 1. */
+  scale: number;
+  /** Rotation in degrees, -180..180. Default 0. */
+  rotation: number;
+  /** Opacity 0..1. Default 1. */
+  opacity: number;
+  /** Animate-in style. Default "fade". */
+  animIn: StickerAnimation;
+  /** Animate-out style. Default "fade". */
+  animOut: StickerAnimation;
+  /** Duration of both anim-in and anim-out in seconds. Default 0.3. */
+  animDurationSec: number;
+}
+
 export interface OverlayClip {
   id: string;
   clipId: string;
@@ -150,6 +185,8 @@ export interface Cut {
   overlays?: OverlayClip[];
   /** Narration + caption segments on the independent VO track. */
   voSegments?: VoSegment[];
+  /** Static image stickers (PNG/SVG) on the independent Sticker track. */
+  stickers?: StickerClip[];
   aspect: Aspect;
   /** Non-destructive global look & feel color filter preset ID. */
   globalFilterId?: string;

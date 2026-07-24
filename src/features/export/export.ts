@@ -1,4 +1,4 @@
-import type { Clip, Cut, Aspect, OverlayClip } from "../../domain/types";
+import type { Clip, Cut, Aspect, OverlayClip, StickerClip } from "../../domain/types";
 import { runIsolated, multithreadReady, type EngineInput } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -7,6 +7,7 @@ import { captionSchedule } from "../../lib/pacing";
 import { ffmpegColorFilters, ffmpegZoomFilters } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
+import { renderStickerToPng } from "./stickerCanvas";
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
 // isolated engine — trim → scale/letterbox → BURN caption → uniform-silent
@@ -296,6 +297,28 @@ export async function exportCut(
     }
   }
 
+  // Pre-render sticker PNGs (static full-frame transparent PNG per sticker).
+  // Each is rendered once here and re-used across every beat segment it overlaps.
+  interface PreRenderedSticker {
+    data: Uint8Array;
+    s: StickerClip;
+    pngName: string;
+  }
+  const preRenderedStickers: PreRenderedSticker[] = [];
+  const activeStickers = (cut.stickers ?? []);
+  if (activeStickers.length > 0) {
+    onProgress?.(0.08, "Rendering sticker frames…");
+    for (let si = 0; si < activeStickers.length; si++) {
+      const s = activeStickers[si];
+      try {
+        const png = await renderStickerToPng(s, w, h);
+        if (png) preRenderedStickers.push({ data: png, s, pngName: `sk_${si}.png` });
+      } catch (err) {
+        console.warn("Sticker pre-render failed; skipping sticker.", s.id, err);
+      }
+    }
+  }
+
   onProgress?.(0.10, "Preparing beat segments…");
   // Beat duration is footage-only now — narration lives on the independent VO track
   // (synthesized + mixed as a master audio bed at the final stage), so beats no longer
@@ -568,9 +591,43 @@ export async function exportCut(
     });
 
     const overlayCount = segOverlays.length;
-    const audioIdx = 1 + capCount + titleCount + overlayCount;
 
-    const totalOverlaysAndTitles = titleCount + overlayCount;
+    // Stickers that overlap this beat segment: each is a pre-rendered full-frame PNG.
+    // Composited AFTER B-roll overlays (highest layer), with fade alpha and enable gating.
+    interface SegmentSticker {
+      data: Uint8Array;
+      s: StickerClip;
+      stLocalSec: number;
+      durLocalSec: number;
+      inputIdx: number;
+    }
+    const segStickers: SegmentSticker[] = [];
+    const stickerInputArgs: string[] = [];
+
+    preRenderedStickers.forEach(({ data: skData, s, pngName }) => {
+      const sStart = s.startTimeSec;
+      const sEnd = sStart + s.durationSec;
+      if (sStart < bEnd && sEnd > bStart) {
+        const stLocal = Math.max(0, sStart - bStart);
+        const durLocal = Math.min(sEnd, bEnd) - Math.max(sStart, bStart);
+        const skIdx = segStickers.length;
+        const skName = `sk_seg_${skIdx}_${pngName}`;
+        inputs.push({ name: skName, data: skData });
+        stickerInputArgs.push("-loop", "1", "-t", segDurStr, "-r", "30", "-i", skName);
+        segStickers.push({
+          data: skData,
+          s,
+          stLocalSec: stLocal,
+          durLocalSec: durLocal,
+          inputIdx: 1 + capCount + titleCount + overlayCount + skIdx,
+        });
+      }
+    });
+
+    const stickerCount = segStickers.length;
+    const audioIdxFinal = 1 + capCount + titleCount + overlayCount + stickerCount;
+
+    const totalOverlaysAndTitles = titleCount + overlayCount + stickerCount;
     const baseLabel = capCount === 0 && totalOverlaysAndTitles === 0 ? "[v]" : "[vbase]";
     // For "intro" zoom: split the processed base, punch-in one branch, and overlay
     // it back gated to the first `zoomSec` (segment-local t). Outside the window the
@@ -721,6 +778,71 @@ export async function exportCut(
         segChains.push(`${segLast}format=yuv420p[v]`);
       }
 
+      // Sticker compositing: simple alpha overlay using the pre-rendered RGBA PNG.
+      // Each sticker gets fade-in and/or fade-out applied as an alpha filter chain.
+      // We start from `segLast` (which may already be `[v]` if no overlays, or a
+      // named intermediate), and thread through each sticker in order.
+      if (segStickers.length > 0) {
+        // If overlays already wrote "[v]" we need to back-track to use baseLabel
+        // (overlays write [v] only when they are the final stage and !rgbFormat).
+        // In that case segLast === "[v]" and we can't overlay on top of "[v]" as an
+        // input label. The overlay chain ending in "[v]" already consumed it.
+        // Re-route: treat the overlay chain's final output as an intermediate label.
+        // We fix this by NOT letting the overlay loop assign "[v]" — but that's an
+        // existing pattern. Instead: when stickerCount>0 and segLast==="[v]", we
+        // re-emit the base label chain replacing "[v]" with a named intermediate.
+        // Simplest safe approach: always use an intermediate for overlay when stickers follow.
+        // Since we can't rewrite closed chains, we use a passthrough filter instead.
+        let skBase = segLast;
+        if (skBase === "[v]") {
+          // Insert a passthrough to rename [v] → [vsk_in]
+          segChains.push(`[vsk_in]null[vsk_in]`); // noop — FFmpeg accepts this? No.
+          // Actually: overlay chains only close with "[v]" when no stickers exist
+          // (totalOverlaysAndTitles check above). Since stickerCount>0, we are in
+          // totalOverlaysAndTitles>0 path, so baseLabel==="[vbase]" and the overlay
+          // chain will NOT close with "[v]" — segLast will be "[voverlay_N]" or "[vbase]".
+          // So this branch should never fire. Assert defensively:
+          skBase = baseLabel;
+        }
+
+        segStickers.forEach((sk, k) => {
+          const isLast = k === stickerCount - 1;
+          const stickerOut = isLast ? "[v]" : `[vsk_${k}]`;
+          const animDur = sk.s.animDurationSec ?? 0.3;
+          const stStr = sk.stLocalSec.toFixed(3);
+          const stEnd = (sk.stLocalSec + sk.durLocalSec).toFixed(3);
+
+          const animIn = sk.s.animIn ?? "fade";
+          const animOut = sk.s.animOut ?? "fade";
+          const skLabel = `[sk_raw_${k}]`;
+          const fadeParts: string[] = ["format=rgba"];
+
+          if (animIn === "fade" && animDur > 0) {
+            fadeParts.push(`fade=t=in:st=${stStr}:d=${animDur.toFixed(3)}:alpha=1`);
+          }
+          if (animOut === "fade" && animDur > 0) {
+            const outSt = Math.max(sk.stLocalSec, sk.stLocalSec + sk.durLocalSec - animDur);
+            fadeParts.push(`fade=t=out:st=${outSt.toFixed(3)}:d=${animDur.toFixed(3)}:alpha=1`);
+          }
+
+          const op = (sk.s.opacity ?? 1).toFixed(3);
+          if (parseFloat(op) < 1) fadeParts.push(`colorchannelmixer=aa=${op}`);
+
+          const enable = `:enable='between(t,${stStr},${stEnd})'`;
+          segChains.push(`[${sk.inputIdx}:v]${fadeParts.join(",")}${skLabel}`);
+          segChains.push(`${skBase}${skLabel}overlay=x=0:y=0:eof_action=pass${enable}${stickerOut}`);
+          skBase = stickerOut;
+        });
+
+        // If rgb blend mode left us needing yuv420p conversion and stickers were last, close it.
+        if (rgbFormat && overlayCount > 0 && !segChains[segChains.length - 1].includes("[v]")) {
+          segChains.push(`${skBase}format=yuv420p[v]`);
+        }
+      } else if (rgbFormat && overlayCount > 0) {
+        // No stickers — original rgb conversion.
+        segChains.push(`${segLast}format=yuv420p[v]`);
+      }
+
       return segChains;
     };
 
@@ -735,7 +857,7 @@ export async function exportCut(
         aChains.push(`[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
       } else {
         audioInputArgs = ["-f", "lavfi", "-t", segDurStr, "-i", "anullsrc=r=48000:cl=stereo"];
-        aChains.push(`[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[abase]`);
+        aChains.push(`[${audioIdxFinal}:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[abase]`);
       }
 
       if (audibleOverlays.length > 0) {
@@ -760,6 +882,7 @@ export async function exportCut(
         ...capInputArgs,
         ...titleInputArgs,
         ...overlayInputArgs,
+        ...stickerInputArgs,
         ...audioInputArgs,
         "-filter_complex", `${vFilterString};${aFilterString}`,
         "-map", "[v]", "-map", "[a]",

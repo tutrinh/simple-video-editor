@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
-import type { Beat, Clip, ColorAdjustments, VideoTransitionType } from "../domain/types";
+import type { Beat, Clip, ColorAdjustments, VideoTransitionType, StickerAnimation } from "../domain/types";
 import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
@@ -33,6 +33,8 @@ interface Props {
   onSelectOverlay?: (id: string | null) => void;
   selectedVoId?: string | null;
   onSelectVo?: (id: string | null) => void;
+  selectedStickerId?: string | null;
+  onSelectSticker?: (id: string | null) => void;
 }
 
 export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
@@ -71,7 +73,7 @@ export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSP
   };
 }
 
-export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo }: Props) {
+export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedStickerId, onSelectSticker }: Props) {
   const { state, dispatch } = useProject();
   const { settings } = useSettings();
   const { settings: es } = useExportSettings();
@@ -81,6 +83,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const overlays = cut?.overlays ?? [];
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
   const selectedVo = (cut?.voSegments ?? []).find((s) => s.id === selectedVoId);
+  const selectedSticker = (cut?.stickers ?? []).find((s) => s.id === selectedStickerId);
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
@@ -1222,6 +1225,158 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                 }}
                 onClose={() => setFilterModalOpen(false)}
               />
+            )}
+
+            {/* Sticker Inspector Card */}
+            {selectedSticker && (
+              <div className="st-sec" style={{ marginTop: 10, background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--sk-accent)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--sk-accent)" }}>🪄 Sticker</span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      className="st-btn ghost"
+                      style={{ padding: "2px 8px", fontSize: 11 }}
+                      onClick={() => {
+                        const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+                        const newId = `sticker-${genId()}`;
+                        dispatch({ type: "DUPLICATE_STICKER", id: selectedSticker.id, newStickerId: newId });
+                        onSelectSticker?.(newId);
+                      }}
+                      title="Duplicate this sticker"
+                    >
+                      📋 Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      className="st-btn danger"
+                      style={{ padding: "2px 8px", fontSize: 11 }}
+                      onClick={() => { dispatch({ type: "REMOVE_STICKER", id: selectedSticker.id }); onSelectSticker?.(null); }}
+                      title="Remove sticker"
+                    >
+                      🗑 Remove
+                    </button>
+                  </div>
+                </div>
+
+                {/* Thumbnail + name */}
+                <div className="st-sk-insp-thumb-row">
+                  <img className="st-sk-insp-thumb" src={selectedSticker.src} alt={selectedSticker.name} />
+                  <span className="st-sk-insp-name">{selectedSticker.name}</span>
+                </div>
+
+                {/* Duration */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Duration</span>
+                  <input
+                    type="range" min="0.1" max="30" step="0.1"
+                    value={selectedSticker.durationSec}
+                    onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, durationSec: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedSticker.durationSec, 0.1, 30)}
+                  />
+                  <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{selectedSticker.durationSec.toFixed(1)}s</span>
+                </div>
+
+                {/* X Position */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>X Position</span>
+                  <input
+                    type="range" min="-50" max="50" step="1"
+                    value={selectedSticker.posX}
+                    onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, posX: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedSticker.posX, -50, 50)}
+                  />
+                  <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{selectedSticker.posX > 0 ? `+${selectedSticker.posX}` : selectedSticker.posX}%</span>
+                </div>
+
+                {/* Y Position */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Y Position</span>
+                  <input
+                    type="range" min="-50" max="50" step="1"
+                    value={selectedSticker.posY}
+                    onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, posY: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedSticker.posY, -50, 50)}
+                  />
+                  <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{selectedSticker.posY > 0 ? `+${selectedSticker.posY}` : selectedSticker.posY}%</span>
+                </div>
+
+                {/* Scale */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Scale</span>
+                  <input
+                    type="range" min="0.1" max="3" step="0.05"
+                    value={selectedSticker.scale}
+                    onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, scale: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedSticker.scale, 0.1, 3)}
+                  />
+                  <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{selectedSticker.scale.toFixed(2)}×</span>
+                </div>
+
+                {/* Rotation */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Rotation</span>
+                  <input
+                    type="range" min="-180" max="180" step="1"
+                    value={selectedSticker.rotation}
+                    onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, rotation: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedSticker.rotation, -180, 180)}
+                  />
+                  <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{selectedSticker.rotation > 0 ? `+${selectedSticker.rotation}` : selectedSticker.rotation}°</span>
+                </div>
+
+                {/* Opacity */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Opacity</span>
+                  <input
+                    type="range" min="0" max="1" step="0.01"
+                    value={selectedSticker.opacity}
+                    onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, opacity: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedSticker.opacity, 0, 1)}
+                  />
+                  <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(selectedSticker.opacity * 100)}%</span>
+                </div>
+
+                {/* Animation controls */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: "var(--ink-3)", marginBottom: 4 }}>Animate In</div>
+                    <select
+                      value={selectedSticker.animIn}
+                      onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, animIn: e.target.value as StickerAnimation } })}
+                      style={{ width: "100%", background: "var(--panel-3)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: 5, padding: "4px 6px", fontSize: 11 }}
+                    >
+                      {(["none", "fade", "slide_left", "slide_right", "slide_top", "slide_bottom"] as StickerAnimation[]).map((v) => (
+                        <option key={v} value={v}>{v.replace("_", " ")}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: "var(--ink-3)", marginBottom: 4 }}>Animate Out</div>
+                    <select
+                      value={selectedSticker.animOut}
+                      onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, animOut: e.target.value as StickerAnimation } })}
+                      style={{ width: "100%", background: "var(--panel-3)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: 5, padding: "4px 6px", fontSize: 11 }}
+                    >
+                      {(["none", "fade", "slide_left", "slide_right", "slide_top", "slide_bottom"] as StickerAnimation[]).map((v) => (
+                        <option key={v} value={v}>{v.replace("_", " ")}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Anim Duration */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Anim Speed</span>
+                  <input
+                    type="range" min="0.1" max="2" step="0.05"
+                    value={selectedSticker.animDurationSec}
+                    onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, animDurationSec: Number(e.target.value) } })}
+                    style={sliderTrackStyle(selectedSticker.animDurationSec, 0.1, 2)}
+                  />
+                  <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{selectedSticker.animDurationSec.toFixed(2)}s</span>
+                </div>
+              </div>
             )}
 
             {/* Overlay Clip Inspector Card */}

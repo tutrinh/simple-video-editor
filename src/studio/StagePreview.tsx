@@ -1,5 +1,5 @@
 import React, { Component, useEffect, useRef, useState, type ReactNode } from "react";
-import type { Beat, Clip, Cut } from "../domain/types";
+import type { Beat, Clip, Cut, StickerClip } from "../domain/types";
 import FinalPreview, { BeatTitleOverlay } from "../features/export/FinalPreview";
 import { activeVoCaption } from "../lib/pacing";
 import { fmtClock, cssFilterFor, beatZoomStyle, isBeatZoomActive } from "./util";
@@ -240,6 +240,11 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const caption = activeVoCaption(cut.voSegments, elapsedCutSec);
   const isAtEnd = !playing && pos >= 0.98;
 
+  // Active stickers at the current cut position
+  const activeStickers = (cut.stickers ?? []).filter(
+    (s) => elapsedCutSec >= s.startTimeSec && elapsedCutSec < s.startTimeSec + s.durationSec,
+  );
+
   return (
     <>
       <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
@@ -265,6 +270,18 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
             }}
           />
         )}
+        {/* Active stickers composited above video, below captions */}
+        {activeStickers.map((s) => {
+          const elapsed = elapsedCutSec - s.startTimeSec;
+          const remaining = s.durationSec - elapsed;
+          const animDur = s.animDurationSec ?? 0.3;
+          const style = stickerPreviewStyle(s, elapsed, remaining, animDur);
+          return (
+            <div key={s.id} className="st-sticker-overlay" style={style}>
+              <img src={s.src} alt={s.name} />
+            </div>
+          );
+        })}
         <BeatTitleOverlay layers={beat.titleLayers} aspect={cut.aspect} elapsed={beatElapsed} />
         <div className="st-badgeTL st-num">Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}</div>
         <div className="cap"><span>{caption}</span></div>
@@ -323,4 +340,53 @@ function ModeSwitch({ mode, setMode }: { mode: "beat" | "cut"; setMode: (m: "bea
       <button className={mode === "cut" ? "on" : ""} onClick={() => setMode("cut")}>Cut</button>
     </div>
   );
+}
+
+/**
+ * Compute the inline style for a sticker overlay element in StagePreview.
+ *
+ * The .st-sticker-overlay element is positioned `top:50%; left:50%` (centred)
+ * and we apply a CSS transform to shift/scale/rotate it. The element itself
+ * is sized as 15% of the preview's shorter dimension × sticker.scale.
+ *
+ * @param s        The StickerClip
+ * @param elapsed  Seconds since this sticker became visible
+ * @param remaining Seconds until this sticker disappears
+ * @param animDur  Animation duration in seconds
+ */
+function stickerPreviewStyle(
+  s: StickerClip,
+  elapsed: number,
+  remaining: number,
+  animDur: number,
+): React.CSSProperties {
+  // Size: use 15vmin as the base (matches stickerCanvas.ts's 15% of shorter dim).
+  const size = `calc(15vmin * ${s.scale})`;
+
+  // Position transform: translate from the centred anchor, then apply rotation.
+  // We separate the centring (-50%) from posX/posY so rotation pivots around the
+  // sticker's own centre, not the top-left corner.
+  const tx = `calc(-50% + ${s.posX}%)`;
+  const ty = `calc(-50% + ${s.posY}%)`;
+  const rotate = s.rotation !== 0 ? ` rotate(${s.rotation}deg)` : "";
+  const transform = `translate(${tx}, ${ty})${rotate}`;
+
+  // Animation: pick in or out based on elapsed / remaining vs animDur.
+  let animation = "none";
+  const animIn = s.animIn ?? "fade";
+  const animOut = s.animOut ?? "fade";
+
+  if (elapsed < animDur && animIn !== "none") {
+    animation = `sk-${animIn.replace("_", "-")}-in ${animDur}s ease-out forwards`;
+  } else if (remaining < animDur && animOut !== "none") {
+    animation = `sk-${animOut.replace("_", "-")}-out ${animDur}s ease-in forwards`;
+  }
+
+  return {
+    width: size,
+    height: size,
+    opacity: s.opacity,
+    transform,
+    animation,
+  };
 }

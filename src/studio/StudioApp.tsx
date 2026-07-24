@@ -24,6 +24,7 @@ export default function StudioApp() {
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [selectedVoId, setSelectedVoId] = useState<string | null>(null);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Mount the export drawer lazily on first open, then keep it mounted so its
@@ -48,13 +49,16 @@ export default function StudioApp() {
     if (!beats.some((b) => b.id === selectedBeatId)) setSelectedBeatId(beats[0].id);
   }, [beats, selectedBeatId]);
 
-  // Delete key shortcut for removing the selected overlay or VO segment
+  // Delete key shortcut for removing the selected overlay, VO segment, or sticker
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Delete" || e.key === "Backspace") {
         const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        if (selectedVoId) {
+        if (selectedStickerId) {
+          dispatch({ type: "REMOVE_STICKER", id: selectedStickerId });
+          setSelectedStickerId(null);
+        } else if (selectedVoId) {
           dispatch({ type: "REMOVE_VO", id: selectedVoId });
           setSelectedVoId(null);
         } else if (selectedOverlayId) {
@@ -65,13 +69,19 @@ export default function StudioApp() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedOverlayId, selectedVoId, dispatch]);
+  }, [selectedOverlayId, selectedVoId, selectedStickerId, dispatch]);
 
   // Keep VO selection valid as segments change.
   useEffect(() => {
     const segs = cut?.voSegments ?? [];
     if (selectedVoId && !segs.some((s) => s.id === selectedVoId)) setSelectedVoId(null);
   }, [cut?.voSegments, selectedVoId]);
+
+  // Keep sticker selection valid as stickers change.
+  useEffect(() => {
+    const stickers = cut?.stickers ?? [];
+    if (selectedStickerId && !stickers.some((s) => s.id === selectedStickerId)) setSelectedStickerId(null);
+  }, [cut?.stickers, selectedStickerId]);
 
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
   const selectedBeat = selIndex >= 0 ? beats[selIndex] : null;
@@ -161,9 +171,11 @@ export default function StudioApp() {
                   selectedBeatId={selectedBeatId}
                   onSelectBeat={setSelectedBeatId}
                   selectedOverlayId={selectedOverlayId}
-                  onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) setSelectedVoId(null); }}
+                  onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) { setSelectedVoId(null); setSelectedStickerId(null); } }}
                   selectedVoId={selectedVoId}
-                  onSelectVo={(id) => { setSelectedVoId(id); if (id) setSelectedOverlayId(null); }}
+                  onSelectVo={(id) => { setSelectedVoId(id); if (id) { setSelectedOverlayId(null); setSelectedStickerId(null); } }}
+                  selectedStickerId={selectedStickerId}
+                  onSelectSticker={(id) => { setSelectedStickerId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); } }}
                 />
               </>
             ) : (
@@ -207,6 +219,8 @@ export default function StudioApp() {
           onSelectOverlay={setSelectedOverlayId}
           selectedVoId={selectedVoId}
           onSelectVo={setSelectedVoId}
+          selectedStickerId={selectedStickerId}
+          onSelectSticker={setSelectedStickerId}
         />
       </div>
 
