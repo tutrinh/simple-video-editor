@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { Voice } from "../lib/kokoroTts";
 import type { TtsEngine } from "../lib/tts";
 import { DEFAULT_ELEVEN_VOICE, DEFAULT_ELEVEN_MODEL } from "../lib/elevenLabs";
+import { activeVoPresetSettings } from "../lib/voPresets";
 
 import type { ExportQuality, TitleAnimation } from "../features/export/export";
 
@@ -172,7 +173,8 @@ const Ctx = createContext<{
 } | null>(null);
 
 export function ExportSettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<ExportSettings>(DEFAULTS);
+  // Seed from the factory DEFAULTS, overlaid with the user's last-applied VO preset.
+  const [settings, setSettings] = useState<ExportSettings>(() => ({ ...DEFAULTS, ...activeVoPresetSettings() }));
   const update = (patch: Partial<ExportSettings>) => setSettings((s) => ({ ...s, ...patch }));
 
   // Dev convenience: auto-load the default music bed configured via DEFAULT_MUSIC
@@ -195,7 +197,8 @@ export function ExportSettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { loadDefaultMusic(); }, [loadDefaultMusic]);
-  const reset = () => { setSettings(DEFAULTS); loadDefaultMusic(); };
+  // "Start over" reverts to factory DEFAULTS but keeps the user's active VO preset.
+  const reset = () => { setSettings({ ...DEFAULTS, ...activeVoPresetSettings() }); loadDefaultMusic(); };
 
   return <Ctx.Provider value={{ settings, update, reset }}>{children}</Ctx.Provider>;
 }
