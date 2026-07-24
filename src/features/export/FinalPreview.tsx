@@ -9,6 +9,7 @@ import { getClipBlobUrl } from "../../lib/blobUrlCache";
 import { drawTitleLayer, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { getTitleFontBytes } from "./titleFonts";
 import { drawCaptionBlock } from "./captionCanvas";
+import { findFontById } from "../../lib/googleFonts";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -526,6 +527,58 @@ export default function FinalPreview({
           return (
             <TitleLayerCanvas
               key={layer.id}
+              layer={layer}
+              cw={canvasW}
+              ch={canvasH}
+              opacity={animOpacity}
+              transform={animTransform}
+            />
+          );
+        })}
+
+        {/* Per-beat title layers — same shared renderer, but timed against this
+            beat's local elapsed (scope "entire" = whole beat, "intro" = first Ns). */}
+        {beat?.titleLayers?.map((l) => {
+          if (!l.enabled || !l.text.trim()) return null;
+
+          const layer: PreviewTitleLayer = {
+            id: l.id, enabled: l.enabled, text: l.text, sizePx: l.sizePx,
+            letterSpacing: l.letterSpacing, arcDeg: l.arcDeg, shadow: l.shadow, color: l.color,
+            posX: l.posX, posY: l.posY, scope: l.scope, introSec: l.introSec,
+            fontFamily: findFontById(l.fontId)?.cssFamily, fontWeight: l.weight,
+            fontId: l.fontId, fontFile: l.fontFile, animation: l.animation, animDurationSec: l.animDurationSec,
+          };
+
+          let opacity = 1;
+          let visible = false;
+          if (layer.scope === "entire") {
+            visible = true;
+          } else {
+            const dur = layer.introSec ?? 3;
+            const fade = Math.min(0.8, dur / 2);
+            if (beatElapsed < dur) {
+              visible = true;
+              if (beatElapsed > dur - fade) opacity = Math.max(0, (dur - beatElapsed) / fade);
+            }
+          }
+          if (!visible) return null;
+
+          const anim = layer.animation ?? "none";
+          const animDur = layer.animDurationSec ?? 0.5;
+          let animTransform = "";
+          let animOpacity = opacity;
+          if (beatElapsed < animDur && anim !== "none") {
+            const p = Math.min(1, Math.max(0, beatElapsed / animDur));
+            animOpacity = opacity * p;
+            const previewW = PREVIEW_H * ASPECT_RATIO[cut.aspect];
+            if (anim === "slide_left") animTransform = `translateX(${(1 - p) * -(previewW * TITLE_ANIM.slideXFrac)}px)`;
+            else if (anim === "slide_bottom") animTransform = `translateY(${(1 - p) * (PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
+            else if (anim === "slide_top") animTransform = `translateY(${(1 - p) * -(PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
+          }
+
+          return (
+            <TitleLayerCanvas
+              key={"beat-" + layer.id}
               layer={layer}
               cw={canvasW}
               ch={canvasH}

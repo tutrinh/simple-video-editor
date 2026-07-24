@@ -7,17 +7,12 @@ import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
 import { ELEVEN_VOICES } from "../../lib/elevenLabs";
 import type { TtsEngine } from "../../lib/tts";
 import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./FinalPreview";
-import { GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded, findFontById } from "../../lib/googleFonts";
+import { GOOGLE_TITLE_FONTS, ensureGoogleFontLoaded, findFontById } from "../../lib/googleFonts";
 import { getTitleFontBytes } from "./titleFonts";
+import TitleTreatmentEditor from "./TitleTreatmentEditor";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, type TitlePreset } from "../../lib/titlePresets";
 
 import { EDITOR_DEFAULTS } from "../../config/editorDefaults";
-
-const TITLE_SWATCHES = [
-  { label: "White", value: "#ffffff" },
-  { label: "Black", value: "#000000" },
-  { label: "Yellow", value: "#ffd400" },
-];
 
 function download(name: string, blobOrText: Blob | string, type = "text/plain") {
   const blob = typeof blobOrText === "string" ? new Blob([blobOrText], { type }) : blobOrText;
@@ -98,25 +93,29 @@ export default function ExportView() {
     { id: "layer-2", enabled: false, text: "", fontId: "inter", fontFile: null, weight: 400, sizePx: 70, color: "#ffd400", posX: 0, posY: 5, scope: "intro", introSec: 3 },
     { id: "layer-3", enabled: false, text: "", fontId: "space-grotesk", fontFile: null, weight: 600, sizePx: 45, color: "#ffffff", posX: 0, posY: 20, scope: "intro", introSec: 3 },
   ];
-  const [activeLayerIndex, setActiveLayerIndex] = useState(0);
   const projectKey = state.title || "default_project";
   const [customPresets, setCustomPresets] = useState<TitlePreset[]>(() => loadSavedPresets(projectKey));
   const [selectedPresetId, setSelectedPresetId] = useState("");
 
-  function updateLayer(index: number, patch: Partial<TitleLayerSettings>) {
-    const updated = titleLayers.map((l, i) => (i === index ? { ...l, ...patch } : l));
-    update({ titleLayers: updated });
-    // Also keep legacy single title fields in sync if updating layer 0
-    if (index === 0) {
-      if (patch.text !== undefined) update({ titleText: patch.text });
-      if (patch.fontId !== undefined) update({ titleFontId: patch.fontId });
-      if (patch.fontFile !== undefined) update({ titleFontFile: patch.fontFile });
-      if (patch.weight !== undefined) update({ titleWeight: patch.weight });
-      if (patch.sizePx !== undefined) update({ titleSize: patch.sizePx });
-      if (patch.color !== undefined) update({ titleColor: patch.color });
-      if (patch.scope !== undefined) update({ titleScope: patch.scope });
-      if (patch.introSec !== undefined) update({ titleIntroSec: patch.introSec });
-    }
+  // Persist the edited layer stack and mirror layer 0 into the legacy single-title
+  // fields (kept for backward-compatible export fallback).
+  function handleLayersChange(next: TitleLayerSettings[]) {
+    const l0 = next[0];
+    update({
+      titleLayers: next,
+      ...(l0
+        ? {
+            titleText: l0.text,
+            titleFontId: l0.fontId,
+            titleFontFile: l0.fontFile,
+            titleWeight: l0.weight,
+            titleSize: l0.sizePx,
+            titleColor: l0.color,
+            titleScope: l0.scope,
+            titleIntroSec: l0.introSec,
+          }
+        : {}),
+    });
   }
 
   function applyPreset(presetId: string) {
@@ -174,15 +173,6 @@ export default function ExportView() {
     setCustomPresets(loadSavedPresets(projectKey));
     setSelectedPresetId(newP.id);
   }
-
-  useEffect(() => {
-    titleLayers.forEach((l) => {
-      if (l.enabled && l.text.trim()) {
-        const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === l.fontId);
-        if (gf) ensureGoogleFontLoaded(gf);
-      }
-    });
-  }, [titleLayers]);
 
   if (!cut) return <p style={{ color: "var(--ink-3)" }}>Build a cut first.</p>;
 
@@ -562,269 +552,7 @@ export default function ExportView() {
                     </button>
                   </div>
 
-                  {/* Layer Tabs */}
-                  <div style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--line)", paddingBottom: 8 }}>
-                    {titleLayers.map((layer, idx) => (
-                      <button
-                        key={layer.id}
-                        type="button"
-                        onClick={() => setActiveLayerIndex(idx)}
-                        style={{
-                          flex: 1,
-                          padding: "6px 10px",
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          border: activeLayerIndex === idx ? "1px solid var(--accent)" : "1px solid var(--line)",
-                          background: activeLayerIndex === idx ? "rgba(255, 179, 57, 0.15)" : "var(--panel-3)",
-                          color: activeLayerIndex === idx ? "var(--accent)" : "var(--ink-2)",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={layer.enabled}
-                          onChange={(e) => updateLayer(idx, { enabled: e.target.checked })}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ accentColor: "var(--accent)", cursor: "pointer" }}
-                          title="Enable/disable this title layer"
-                        />
-                        Layer {idx + 1} {idx === 0 ? "(Main)" : idx === 1 ? "(Sub)" : "(Tag)"}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Active Layer Editor */}
-                  {(() => {
-                    const curLayer = titleLayers[activeLayerIndex] ?? titleLayers[0];
-                    return (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10, opacity: curLayer.enabled ? 1 : 0.55 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <input
-                            value={curLayer.text}
-                            onChange={(e) => updateLayer(activeLayerIndex, { text: e.target.value })}
-                            placeholder={activeLayerIndex === 0 ? "e.g. SUMMER VIBES 2026" : activeLayerIndex === 1 ? "e.g. Official Highlight Reel" : "e.g. Presented by VIDSTR"}
-                            style={{ flex: 1, padding: "7px 10px", fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none" }}
-                          />
-                          {!curLayer.enabled && <span style={{ fontSize: 10, color: "var(--danger)", whiteSpace: "nowrap" }}>(Layer Disabled)</span>}
-                        </div>
-
-                        {curLayer.text.trim() && (
-                          <>
-                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 12 }}>
-                              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Font
-                                <select value={curLayer.fontId} onChange={(e) => updateLayer(activeLayerIndex, { fontId: e.target.value })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
-                                  <optgroup label="Google Fonts">
-                                    {GOOGLE_TITLE_FONTS.map((f) => (
-                                      <option key={f.id} value={f.id}>{f.name}</option>
-                                    ))}
-                                  </optgroup>
-                                  <optgroup label="System Fonts">
-                                    {SYSTEM_TITLE_FONTS.map((f) => (
-                                      <option key={f.id} value={f.id}>{f.name}</option>
-                                    ))}
-                                  </optgroup>
-                                  <option value="custom">Custom upload…</option>
-                                </select>
-                              </label>
-
-                              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Weight
-                                <select
-                                  value={curLayer.weight}
-                                  onChange={(e) => updateLayer(activeLayerIndex, { weight: Number(e.target.value) })}
-                                  style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}
-                                >
-                                  <option value={300}>Light (300)</option>
-                                  <option value={400}>Normal (400)</option>
-                                  <option value={600}>Semi-Bold (600)</option>
-                                  <option value={700}>Bold (700)</option>
-                                  <option value={800}>Extra Bold (800)</option>
-                                </select>
-                              </label>
-
-                              {curLayer.fontId === "custom" && (
-                                <input type="file" accept=".ttf,.otf,font/ttf,font/otf" onChange={(e) => updateLayer(activeLayerIndex, { fontFile: e.target.files?.[0] ?? null })} style={{ fontSize: 11 }} />
-                              )}
-
-                              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Size
-                                <input type="number" min={16} max={300} step={2} value={curLayer.sizePx} onChange={(e) => updateLayer(activeLayerIndex, { sizePx: Number(e.target.value) })} style={{ width: 56, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 6px", fontSize: 12, textAlign: "right", outline: "none" }} /> px
-                              </label>
-
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Color
-                                {TITLE_SWATCHES.map((s) => (
-                                  <button
-                                    key={s.value}
-                                    type="button"
-                                    onClick={() => updateLayer(activeLayerIndex, { color: s.value })}
-                                    title={s.label}
-                                    style={{
-                                      width: 18,
-                                      height: 18,
-                                      borderRadius: 4,
-                                      background: s.value,
-                                      border: curLayer.color.toLowerCase() === s.value ? "2px solid var(--accent)" : "1px solid var(--line)",
-                                      cursor: "pointer",
-                                      padding: 0,
-                                    }}
-                                  />
-                                ))}
-                                <input type="color" value={curLayer.color} onChange={(e) => updateLayer(activeLayerIndex, { color: e.target.value })} title="Custom color" style={{ width: 24, height: 22, border: "none", background: "none", cursor: "pointer" }} />
-                              </span>
-
-                              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                                <input
-                                  type="checkbox"
-                                  checked={curLayer.shadow !== false}
-                                  onChange={(e) => updateLayer(activeLayerIndex, { shadow: e.target.checked })}
-                                  style={{ accentColor: "var(--accent)", cursor: "pointer" }}
-                                />
-                                Drop shadow
-                              </label>
-
-                              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Show
-                                <select value={curLayer.scope} onChange={(e) => updateLayer(activeLayerIndex, { scope: e.target.value as "intro" | "entire" })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
-                                  <option value="intro">Intro (fade out)</option>
-                                  <option value="entire">Entire video</option>
-                                </select>
-                              </label>
-
-                              {curLayer.scope === "intro" && (
-                                <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                  Duration
-                                  <select value={curLayer.introSec} onChange={(e) => updateLayer(activeLayerIndex, { introSec: Number(e.target.value) })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
-                                    <option value={2}>2s</option>
-                                    <option value={3}>3s</option>
-                                    <option value={4}>4s</option>
-                                    <option value={5}>5s</option>
-                                  </select>
-                                </label>
-                              )}
-
-                              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                Motion
-                                <select
-                                  value={curLayer.animation ?? "none"}
-                                  onChange={(e) => updateLayer(activeLayerIndex, { animation: e.target.value as any })}
-                                  style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--accent)", fontWeight: 600, fontSize: 12, padding: "4px 8px", outline: "none", cursor: "pointer" }}
-                                  title="Select title intro entry animation style"
-                                >
-                                  <option value="none">None (Static)</option>
-                                  <option value="fade">✨ Fade In</option>
-                                  <option value="slide_left">➡️ Slide Left</option>
-                                  <option value="slide_bottom">⬆️ Slide Up</option>
-                                  <option value="slide_top">⬇️ Slide Down</option>
-                                  <option value="pop">💥 Pop & Bounce</option>
-                                </select>
-                              </label>
-
-                              {curLayer.animation && curLayer.animation !== "none" && (
-                                <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                  In Speed
-                                  <select
-                                    value={curLayer.animDurationSec ?? 0.5}
-                                    onChange={(e) => updateLayer(activeLayerIndex, { animDurationSec: Number(e.target.value) })}
-                                    style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none", cursor: "pointer" }}
-                                    title="Select title intro entry animation duration"
-                                  >
-                                    <option value={0.2}>0.2s (Fast)</option>
-                                    <option value={0.5}>0.5s (Normal)</option>
-                                    <option value={0.8}>0.8s (Smooth)</option>
-                                    <option value={1.0}>1.0s (Slow)</option>
-                                    <option value={1.5}>1.5s (Cinematic)</option>
-                                    <option value={2.0}>2.0s (Epic)</option>
-                                  </select>
-                                </label>
-                              )}
-                            </div>
-
-                            {/* Position & Spacing Sliders Card (Left/Right, Up/Down, Letter Spacing) */}
-                            <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, padding: "8px 10px", background: "var(--panel-3)", borderRadius: 6, border: "1px solid var(--line)" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Position X (Left / Right)</span>
-                                <input
-                                  type="range"
-                                  min={-50}
-                                  max={50}
-                                  step={1}
-                                  value={curLayer.posX}
-                                  onChange={(e) => updateLayer(activeLayerIndex, { posX: Number(e.target.value) })}
-                                  onDoubleClick={() => updateLayer(activeLayerIndex, { posX: 0 })}
-                                  style={sliderTrackStyle(curLayer.posX, -50, 50)}
-                                  title="Double-click to center horizontally"
-                                />
-                                <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                                  {curLayer.posX > 0 ? `+${curLayer.posX}%` : `${curLayer.posX}%`}
-                                </span>
-                              </div>
-
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Position Y (Up / Down)</span>
-                                <input
-                                  type="range"
-                                  min={-50}
-                                  max={50}
-                                  step={1}
-                                  value={curLayer.posY}
-                                  onChange={(e) => updateLayer(activeLayerIndex, { posY: Number(e.target.value) })}
-                                  onDoubleClick={() => updateLayer(activeLayerIndex, { posY: 0 })}
-                                  style={sliderTrackStyle(curLayer.posY, -50, 50)}
-                                  title="Double-click to center vertically"
-                                />
-                                <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                                  {curLayer.posY > 0 ? `+${curLayer.posY}%` : `${curLayer.posY}%`}
-                                </span>
-                              </div>
-
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Letter Spacing</span>
-                                <input
-                                  type="range"
-                                  min={-10}
-                                  max={60}
-                                  step={1}
-                                  value={curLayer.letterSpacing ?? 0}
-                                  onChange={(e) => updateLayer(activeLayerIndex, { letterSpacing: Number(e.target.value) })}
-                                  onDoubleClick={() => updateLayer(activeLayerIndex, { letterSpacing: 0 })}
-                                  style={sliderTrackStyle(curLayer.letterSpacing ?? 0, -10, 60)}
-                                  title="Double-click to reset spacing to 0"
-                                />
-                                <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                                  {curLayer.letterSpacing ?? 0}px
-                                </span>
-                              </div>
-
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Text Curve / Arc</span>
-                                <input
-                                  type="range"
-                                  min={-180}
-                                  max={180}
-                                  step={1}
-                                  value={curLayer.arcDeg ?? 0}
-                                  onChange={(e) => updateLayer(activeLayerIndex, { arcDeg: Number(e.target.value) })}
-                                  onDoubleClick={() => updateLayer(activeLayerIndex, { arcDeg: 0 })}
-                                  style={sliderTrackStyle(curLayer.arcDeg ?? 0, -180, 180)}
-                                  title="Double-click to reset text curve to 0°"
-                                />
-                                <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                                  {(curLayer.arcDeg ?? 0) > 0 ? `+${curLayer.arcDeg}°` : `${curLayer.arcDeg ?? 0}°`}
-                                </span>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <TitleTreatmentEditor layers={titleLayers} onChange={handleLayersChange} />
                 </div>
               </div>
             </div>
