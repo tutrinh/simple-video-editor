@@ -52,12 +52,36 @@ function sliderTrackStyle(val: number, min = 0, max = 1): React.CSSProperties {
 }
 ```
 
-### Text Inputs, Numbers, & Select Dropdowns
-- **Background**: `var(--panel-3)`
-- **Border**: `1px solid var(--line)`
-- **Text Color**: `var(--ink)`
-- **Border Radius**: `6px`
-- **Padding**: `4px 8px`
+### Compact Slider Row (name · slider · value)
+
+- **Rule**: Any group of labeled range sliders (color adjustments, fine-tune filters, etc.) **MUST** use the compact single-row layout — **never** stack the label/value on a separate line above the track.
+- **Structure**: a flex row (`display: flex; align-items: center; gap: 8`) with exactly three columns:
+  1. **Name** — `<span>`, `fontSize: 11`, **`width: 70`** (fixed), `color: var(--ink-2)`.
+  2. **Slider** — `<input type="range">` styled via `sliderTrackStyle(...)` (flexes to fill).
+  3. **Value** — `<span>`, `fontSize: 10`, **`width: 32`**, `textAlign: "right"`, `color: var(--ink-3)`, `fontVariantNumeric: "tabular-nums"`. Prefix positive values with `+` (e.g. `+22`).
+- **Container**: wrap the rows in `.st-color-adjustments` with `display: flex; flexDirection: column; gap: 8`.
+
+```tsx
+<div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
+    <input type="range" min="-100" max="100" value={val}
+      onChange={(e) => update("exposure", Number(e.target.value))}
+      style={sliderTrackStyle(val, -100, 100)} />
+    <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+      {val > 0 ? `+${val}` : val}
+    </span>
+  </div>
+  {/* …one row per adjustment… */}
+</div>
+```
+
+### Toggle Switch (`<Switch>`)
+
+- **Rule**: All on/off toggles **MUST** use the reusable `Switch` component (`src/studio/Switch.tsx`) — do not hand-roll checkboxes or inline switch markup.
+- **API**: `<Switch checked={bool} onChange={(next) => …} label="Accessible label" disabled?={bool} />`. It renders an accessible `role="switch"` button.
+- **Styling** (`.st-switch` in `studio.css`): `42×24` pill, `--panel-3` track with a soft `color-mix(in srgb, var(--ink-3) 25%, transparent)` border (deepening to `--ink-2` on hover), `--accent` fill + border when on, white `18px` knob that slides right.
+- **Specificity note**: switch rules are prefixed with `.studio` (e.g. `.studio .st-switch`) so they win over the global `.studio button { border:none; background:none }` reset — keep that prefix on any new switch styles.
 
 ---
 
@@ -106,6 +130,22 @@ Always use standard button style classes defined in `studio.css`:
 - **Border Radius**: `12px`
 - **Shadow**: `0 24px 60px rgba(0, 0, 0, 0.7)`
 
+### Close Buttons
+- **CRITICAL RULE**: Every modal, drawer, and dismissible panel close affordance **MUST** render an **`x` SVG icon** — never a raw unicode character (`×`, `✕`, `x`) and never a text label like `Close`.
+- **Icon**: two crossing lines in a `viewBox="0 0 24 24"`, `stroke="currentColor"`, `strokeWidth="2.2"`, `strokeLinecap="round"`, sized `14–16px`.
+- **Color / Hover**: `color: var(--ink-2)`; on hover raise to `var(--ink)` with a `var(--panel-3)` background chip (`borderRadius: 7px`).
+- **Accessibility**: always include `aria-label="Close"` and `title="Close (Esc)"`; wire `Esc` to the same handler.
+
+```tsx
+<button className="x" onClick={onClose} aria-label="Close" title="Close (Esc)">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2.2" strokeLinecap="round">
+    <line x1="6" y1="6" x2="18" y2="18" />
+    <line x1="18" y1="6" x2="6" y2="18" />
+  </svg>
+</button>
+```
+
 ---
 
 ## 6. Pre-Commit Checklist for New UI Features
@@ -113,6 +153,9 @@ Always use standard button style classes defined in `studio.css`:
 Before declaring any UI task completed, verify:
 - [ ] No hardcoded color strings (e.g., `#0075ff`, `#ffffff`, `#000000` where theme tokens apply).
 - [ ] All range sliders use `var(--accent)` and `var(--panel-3)` track fill.
+- [ ] Grouped labeled sliders use the compact **name (70px) · slider · value (32px)** single-row layout.
+- [ ] All on/off toggles use the reusable `<Switch>` component (not raw checkboxes or inline markup).
+- [ ] Every close affordance uses the `x` SVG icon (no unicode `×`/`✕` or `Close` text) with `aria-label="Close"` and `Esc` wired.
 - [ ] Interactive buttons inside draggable elements include `onPointerDown={(e) => e.stopPropagation()}`.
 - [ ] UI tested in both **Dark Mode** and **Light Mode**.
 - [ ] `npm test && npm run build` completes with 0 errors.

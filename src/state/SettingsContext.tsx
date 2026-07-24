@@ -8,6 +8,8 @@ export interface Settings {
   authorModel: string;
   /** Tone/mood that steers the vlog coaching (Analyze) and script voice (Author). */
   tone: string;
+  /** Whether the AI "Author Story & Script" bar (Step 2) is shown in the workspace. */
+  showStoryBar: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -15,6 +17,7 @@ const DEFAULTS: Settings = {
   analyzeModel: "claude-haiku-4-5",
   authorModel: "claude-opus-4-8",
   tone: "casual",
+  showStoryBar: true,
 };
 
 export const AI_PROVIDER_OPTIONS: { id: AiProvider; label: string }[] = [
