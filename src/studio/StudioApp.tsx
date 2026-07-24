@@ -3,7 +3,6 @@ import { useProject } from "../state/ProjectContext";
 import { makeBeat } from "../features/assemble/assemble";
 import { useSettings } from "../state/SettingsContext";
 import { useExportSettings } from "../state/ExportSettingsContext";
-import { useRegenerate } from "./useRegenerate";
 import TopBar from "./TopBar";
 import ClipBin from "./ClipBin";
 import StagePreview from "./StagePreview";
@@ -11,15 +10,15 @@ import Timeline from "./Timeline";
 import Inspector from "./Inspector";
 import ExportDrawer from "./ExportDrawer";
 import SettingsDrawer from "./SettingsDrawer";
+import AiStoryDrawer from "./AiStoryDrawer";
 import { seedProject } from "./devSeed";
-import StoryBar from "./StoryBar";
 import "./studio.css";
+// AI actions (analyze/author/refine) now live inside AiStoryDrawer's own hook.
 
 export default function StudioApp() {
   const { state, dispatch } = useProject();
-  const { settings, reset: resetSettings } = useSettings();
+  const { reset: resetSettings } = useSettings();
   const { reset: resetExport } = useExportSettings();
-  const regen = useRegenerate();
 
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
@@ -29,6 +28,9 @@ export default function StudioApp() {
   // Mount the export drawer lazily on first open, then keep it mounted so its
   // state survives close/reopen (only slid out of view). Reset on "Start over".
   const [exportMounted, setExportMounted] = useState(false);
+  // Same lazy-mount pattern for the AI Story drawer.
+  const [aiStoryOpen, setAiStoryOpen] = useState(false);
+  const [aiStoryMounted, setAiStoryMounted] = useState(false);
 
   // Dev-only fixture (?seed) to exercise the populated workspace without footage/AI.
   useEffect(() => {
@@ -120,6 +122,8 @@ export default function StudioApp() {
     setSelectedBeatId(null);
     setExportOpen(false);
     setExportMounted(false); // fully discard the drawer's local state (video, etc.)
+    setAiStoryOpen(false);
+    setAiStoryMounted(false);
   }
 
   return (
@@ -128,9 +132,10 @@ export default function StudioApp() {
         onExport={() => { setExportMounted(true); setExportOpen(true); }}
         onStartOver={startOver}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAiStory={() => { setAiStoryMounted(true); setAiStoryOpen(true); }}
       />
 
-      <div className="st-main">
+      <div className={"st-main" + (aiStoryOpen ? " ai-open" : "")}>
         <ClipBin
           usedClipIds={usedClipIds}
           selectedClipId={selectedClip?.id ?? null}
@@ -139,18 +144,10 @@ export default function StudioApp() {
           onPickClip={pickClip}
           onAddClip={addClipToCut}
           onDuplicateBeat={duplicateBeat}
-          onAnalyzeClips={regen.analyzeClips}
-          busy={regen.busy}
         />
 
         <section className="st-col stage" style={{ position: "relative" }}>
           <div className="st-stage-inner">
-            {regen.error && (
-              <div className="st-err" onClick={regen.clearError} title="Dismiss" style={{ cursor: "pointer" }}>
-                ⚠ {regen.error} · (click to dismiss)
-              </div>
-            )}
-
             {cut ? (
               <>
                 <StagePreview cut={cut} clips={clips} beat={selectedBeat} clip={selectedClip} />
@@ -171,8 +168,8 @@ export default function StudioApp() {
                 <h2>{clips.length ? "Ready when you are" : "Start with your footage"}</h2>
                 <p>
                   {clips.length
-                    ? "Click '1. Analyze Clips' to describe scenes with Claude, or '2. Author Story & Script' to build your Vlog story."
-                    : "Drop clips into the bin on the left. Claude reads them, finds a story, and builds a captioned cut you refine here."}
+                    ? "Open ✨ AI Story (top bar) to analyze your clips, author the story & script, and refine each beat with Claude."
+                    : "Drop clips into the bin on the left. Then open ✨ AI Story — Claude reads them, finds a story, and builds a captioned cut you refine here."}
                 </p>
                 {clips.length > 0 && (
                   <button className="st-btn ghost" style={{ marginTop: 14 }} onClick={startManualCut}>
@@ -182,17 +179,7 @@ export default function StudioApp() {
               </div>
             )}
 
-            {clips.length > 0 && settings.showStoryBar && (
-              <StoryBar onAuthor={regen.authorScript} busy={regen.busy} />
-            )}
           </div>
-
-          {regen.busy && (
-            <div className="st-regen">
-              <div className="spinner" />
-              <div className="lab">{regen.label || "Working…"}</div>
-            </div>
-          )}
         </section>
 
         <Inspector
@@ -208,6 +195,9 @@ export default function StudioApp() {
           selectedVoId={selectedVoId}
           onSelectVo={setSelectedVoId}
         />
+
+        {/* Docked side panel — pushes the layout (see .st-main.ai-open in studio.css). */}
+        {aiStoryMounted && <AiStoryDrawer open={aiStoryOpen} onClose={() => setAiStoryOpen(false)} />}
       </div>
 
       {exportMounted && <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} />}

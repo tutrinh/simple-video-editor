@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { Clip, ColorAdjustments } from "../domain/types";
+import type { Clip, ColorAdjustments, Cut } from "../domain/types";
 
 /** m:ss from seconds. */
 export function fmtClock(sec: number): string {
@@ -15,6 +15,23 @@ export function fmtSecs(sec: number): string {
 /** A clip is "in play" for authoring unless explicitly excluded. */
 export function isIncluded(clip: Clip): boolean {
   return clip.included !== false;
+}
+
+/**
+ * The clips that are beats in the cut — "what's in the cut". AI analysis and
+ * authoring operate only on these: the arranged beats are the story, and clips
+ * used only as overlays (or not placed at all) are intentionally left out.
+ * Preserves cut/beat order and de-dupes if a clip appears in more than one beat.
+ */
+export function beatClips(clips: Clip[], cut?: Cut | null): Clip[] {
+  const byId = new Map(clips.map((c) => [c.id, c]));
+  const seen = new Set<string>();
+  const out: Clip[] = [];
+  for (const b of cut?.beats ?? []) {
+    const clip = byId.get(b.clipId);
+    if (clip && !seen.has(clip.id)) { seen.add(clip.id); out.push(clip); }
+  }
+  return out;
 }
 
 /** CSS background value for a clip's poster (data URL), or a neutral fallback. */

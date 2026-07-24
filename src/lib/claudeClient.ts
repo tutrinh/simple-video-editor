@@ -10,6 +10,8 @@ export interface ClaudeConfig {
   model?: string;
   /** Tone/mood phrase to steer the output (see SettingsContext.toneHint). */
   tone?: string;
+  /** Genre/format phrase to steer story structure (see SettingsContext.scriptTypeHint). */
+  scriptType?: string;
 }
 
 async function runClaude(prompt: string, images: string[] | undefined, cfg?: ClaudeConfig): Promise<string> {
