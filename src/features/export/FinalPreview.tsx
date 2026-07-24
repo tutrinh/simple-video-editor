@@ -58,6 +58,9 @@ interface Props {
   ttsEngine?: TtsEngine;
   voice?: Voice;
   elevenVoiceId?: string;
+  elevenModel?: string;
+  elevenStability?: number;
+  elevenStyle?: number;
   voiceoverSpeed?: number;
   /** Silent lead-in before the beat's narration starts (mirrors the export). */
   voiceoverLeadSec?: number;
@@ -65,7 +68,7 @@ interface Props {
 
 export default function FinalPreview({
   cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
-  ttsEngine, voice, elevenVoiceId, voiceoverSpeed,
+  ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
@@ -232,7 +235,7 @@ export default function FinalPreview({
       try {
         let url = voCacheRef.current.get(key);
         if (!url) {
-          const narration = await synthesizeVoiceover(text, { engine: ttsEngine ?? "kokoro", voice, elevenVoiceId, speed: voiceoverSpeed });
+          const narration = await synthesizeVoiceover(text, { engine: ttsEngine ?? "kokoro", voice, elevenVoiceId, speed: voiceoverSpeed, elevenModel, elevenStability, elevenStyle });
           if (cancelled) return;
           const blob = new Blob([new Uint8Array(narration.data)], { type: narration.ext === "mp3" ? "audio/mpeg" : "audio/wav" });
           url = URL.createObjectURL(blob);

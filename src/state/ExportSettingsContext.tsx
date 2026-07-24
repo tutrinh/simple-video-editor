@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Voice } from "../lib/kokoroTts";
 import type { TtsEngine } from "../lib/tts";
-import { DEFAULT_ELEVEN_VOICE } from "../lib/elevenLabs";
+import { DEFAULT_ELEVEN_VOICE, DEFAULT_ELEVEN_MODEL } from "../lib/elevenLabs";
 
 import type { ExportQuality, TitleAnimation } from "../features/export/export";
 
@@ -36,6 +36,12 @@ export interface ExportSettings {
   ttsEngine: TtsEngine;
   voice: Voice;
   elevenVoiceId: string;
+  /** ElevenLabs model id (quality vs fast; v3 supports audio tags). */
+  elevenModel: string;
+  /** ElevenLabs voice stability 0..1 (lower = more expressive/variable). */
+  elevenStability: number;
+  /** ElevenLabs style exaggeration 0..1 (0 = off). */
+  elevenStyle: number;
   /** Narration speed, 0.7 (slow) .. 1.2 (fast); 1 = natural. */
   voiceoverSpeed: number;
   /** Silent lead-in before each beat's narration begins, seconds. */
@@ -139,6 +145,9 @@ const DEFAULTS: ExportSettings = {
   ttsEngine: "elevenlabs",
   voice: "af_heart",
   elevenVoiceId: DEFAULT_ELEVEN_VOICE,
+  elevenModel: DEFAULT_ELEVEN_MODEL,
+  elevenStability: 0.5,
+  elevenStyle: 0,
   voiceoverSpeed: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_SPEED,
   voiceoverLeadSec: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_LEAD_SEC,
   voiceoverGapSec: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_GAP_SEC,

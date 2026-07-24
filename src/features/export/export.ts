@@ -59,6 +59,12 @@ export interface ExportOptions {
   voice?: Voice;
   /** ElevenLabs voice id (when ttsEngine === "elevenlabs"). */
   elevenVoiceId?: string;
+  /** ElevenLabs model id (e.g. eleven_flash_v2_5, eleven_v3). */
+  elevenModel?: string;
+  /** ElevenLabs voice stability 0..1. */
+  elevenStability?: number;
+  /** ElevenLabs style exaggeration 0..1. */
+  elevenStyle?: number;
   /** Narration speed, 0.7 (slow) .. 1.2 (fast); 1 = natural (default 1). */
   voiceoverSpeed?: number;
   /** Silent lead-in before each beat's narration begins, in seconds (default 0) —
@@ -864,7 +870,7 @@ export async function exportCut(
   // assembled video's audio at absolute times. VO lives here now (it can span beat
   // boundaries), replacing per-beat voiceover.
   onProgress?.(0.9, "Synthesizing VO track narration…");
-  const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
+  const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed, elevenModel: opts.elevenModel, elevenStability: opts.elevenStability, elevenStyle: opts.elevenStyle };
   const voSegs = (cut.voSegments ?? []).filter((s) => s.text.trim());
   const renderedVo: { startTimeSec: number; name: string; data: Uint8Array }[] = [];
   for (let k = 0; k < voSegs.length; k++) {
