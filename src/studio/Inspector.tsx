@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
 import type { Beat, Clip, ColorAdjustments, VideoTransitionType } from "../domain/types";
@@ -20,6 +20,19 @@ const modelLabel = (m: string) => m.replace(/^claude-/, "");
 // lane). The old per-beat caption editor is retired but kept behind this flag so its
 // alternates/timed-line machinery stays available if we ever re-surface it.
 const SHOW_PER_BEAT_CAPTION_BOX = false;
+
+// ElevenLabs v3 inline "audio tags" — expressive cues the user can drop into the
+// narration text to shape delivery. Grouped for the collapsible hints card in the
+// VO Segment editor. (These only take effect with the ElevenLabs "v3 — expressive"
+// model; other engines/models read them literally.)
+const VO_HINT_GROUPS: { title: string; tags: string[]; note?: string }[] = [
+  { title: "Laughter & amusement", tags: ["[laughs]", "[laughs harder]", "[starts laughing]", "[chuckles]", "[giggles]", "[wheezing]", "[snorts]", "[mischievously]"] },
+  { title: "Emotion / tone", tags: ["[excited]", "[happy]", "[sad]", "[angry]", "[nervous]", "[curious]", "[sarcastic]", "[dramatic]", "[reassuring]", "[regretful]", "[sorrowful]", "[awe]", "[deadpan]"] },
+  { title: "Volume & delivery", tags: ["[whispers]", "[shouting]", "[quietly]", "[loudly]", "[slowly]", "[rushed]", "[drawn out]", "[stammers]", "[stutters]"] },
+  { title: "Breaths & body sounds", tags: ["[sighs]", "[exhales]", "[gasps]", "[gulps]", "[clears throat]", "[coughs]", "[sniffs]", "[groans]", "[yawns]", "[pants]", "[crying]"] },
+  { title: "Pacing", tags: ["[pause]", "[short pause]", "[long pause]"], note: "Plus normal punctuation (…, —, !, ?) also shapes rhythm." },
+  { title: "Character / accent (more experimental)", tags: ["[strong French accent]", "[pirate voice]", "[robotic]", "[singing]"], note: "Hit-or-miss depending on the voice." },
+];
 
 interface Props {
   beat: Beat | null;
@@ -107,6 +120,30 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const [altErr, setAltErr] = useState<string | null>(null);
   const [alts, setAlts] = useState<string[][]>([]);
   const [transitionOpen, setTransitionOpen] = useState(false);
+  const [voHintsOpen, setVoHintsOpen] = useState(false);
+  const voTextRef = useRef<HTMLTextAreaElement>(null);
+
+  // Insert an audio tag at the caret in the narration textarea (falls back to the
+  // end if the field was never focused). Keeps single spaces around the tag and
+  // restores the caret just after it so the user can keep typing.
+  function insertHintTag(tag: string) {
+    if (!selectedVo) return;
+    const text = selectedVo.text;
+    const el = voTextRef.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? start;
+    const before = text.slice(0, start);
+    const after = text.slice(end);
+    const lead = before.length && !/\s$/.test(before) ? " " : "";
+    const trail = after.length && !/^\s/.test(after) ? " " : after.length ? "" : " ";
+    const snippet = `${lead}${tag}${trail}`;
+    const caret = before.length + snippet.length;
+    dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, text: before + snippet + after } });
+    requestAnimationFrame(() => {
+      const e2 = voTextRef.current;
+      if (e2) { e2.focus(); e2.setSelectionRange(caret, caret); }
+    });
+  }
 
   function applyTransitionToAllBeats() {
     if (!cut || !beat) return;
@@ -207,12 +244,65 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
 
       <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Narration text (read by ElevenLabs / Kokoro)</label>
       <textarea
+        ref={voTextRef}
         value={selectedVo.text}
         onChange={(e) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, text: e.target.value } })}
         placeholder="Type what the voiceover should say…"
         rows={3}
         style={{ width: "100%", marginTop: 4, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "6px 8px", fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" }}
       />
+
+      {/* Expressive hints — inline audio tags the user can drop into the narration. */}
+      <div style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          className="st-color-collapsible-btn"
+          onClick={() => setVoHintsOpen((o) => !o)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 10px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", cursor: "pointer" }}
+          title="Reference of expressive audio tags you can type into the narration"
+        >
+          <span style={{ fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>✨ Expressive hints</span>
+          <span style={{ fontSize: 10, color: "var(--ink-3)", transition: "transform .25s cubic-bezier(.4,0,.2,1)", transform: voHintsOpen ? "rotate(180deg)" : "none" }}>▼</span>
+        </button>
+
+        <div className={"st-color-collapsible" + (voHintsOpen ? " open" : "")}>
+          <div className="st-color-collapsible-inner">
+            <div style={{ padding: "8px 10px", background: "var(--panel-3)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5 }}>
+                Type these tags into the narration to shape delivery. Click one to insert it.
+                {es.ttsEngine === "elevenlabs" && es.elevenModel === "eleven_v3"
+                  ? " ✓ Your voice model (ElevenLabs v3) reads them."
+                  : " ⚠ Only the ElevenLabs “v3 — expressive” model reads them — other engines/models say them out loud."}
+              </div>
+
+              {VO_HINT_GROUPS.map((group) => (
+                <div key={group.title} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: 0.4 }}>{group.title}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {group.tags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => insertHintTag(tag)}
+                        title={`Insert ${tag} at the cursor`}
+                        style={{ fontFamily: "ui-monospace, monospace", fontSize: 10.5, padding: "2px 6px", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 4, color: "var(--ink-2)", cursor: "pointer" }}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  {group.note && <div style={{ fontSize: 9.5, color: "var(--ink-3)", lineHeight: 1.4 }}>{group.note}</div>}
+                </div>
+              ))}
+
+              <div style={{ fontSize: 9.5, color: "var(--ink-3)", lineHeight: 1.5, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+                <strong style={{ color: "var(--ink-2)" }}>Tips:</strong> a tag affects what comes <em>after</em> it until the next tag or a strong break. Combine for nuance — <code>[nervous] [quietly] maybe we should go…</code> — and match the voice: a calm narration voice won’t <code>[shouting]</code> convincingly.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
         <div style={{ fontSize: 11, color: "var(--ink-2)" }}>Show caption on screen</div>
