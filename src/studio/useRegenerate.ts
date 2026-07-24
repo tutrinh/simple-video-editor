@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
-import { useSettings, toneHint } from "../state/SettingsContext";
-import type { Clip, ClipDescription } from "../domain/types";
-import { analyzeClip } from "../features/analyze/analyze";
-import { authorStory, isAuthorable } from "../features/author/author";
-import { assembleCut } from "../features/assemble/assemble";
-import { isIncluded } from "./util";
+import { useSettings, toneHint, scriptTypeHint } from "../state/SettingsContext";
+import type { ClipDescription } from "../domain/types";
+import { analyzeClip, hintFromName } from "../features/analyze/analyze";
+import { authorBeatScripts, type BeatDesc } from "../features/author/author";
+import { rewriteCaption } from "../features/refine/refine";
+import { beatClips } from "./util";
 
 export interface RegenState {
   busy: boolean;
@@ -19,17 +19,19 @@ export function useRegenerate() {
   const { settings } = useSettings();
   const [st, setSt] = useState<RegenState>({ busy: false, label: "", error: "" });
 
-  /** Step 1: Analyze included clips (or a single clip) with Claude vision model. */
+  /** Step 1: Analyze the cut's beat clips (or a single clip) with Claude vision model. */
   async function analyzeClips(singleClipId?: string) {
     if (st.busy) return;
     setSt({ busy: true, label: "Preparing clip analysis…", error: "" });
     try {
+      // Analyze only what's in the cut — the arranged beats. A single-clip request
+      // is honored as-is (the caller already knows it's a beat in the cut).
       const targetClips = singleClipId
         ? state.clips.filter((c) => c.id === singleClipId)
-        : state.clips.filter((c) => isIncluded(c));
+        : beatClips(state.clips, state.cut);
 
       if (targetClips.length === 0) {
-        throw new Error("No clips to analyze. Add clips or select included clips.");
+        throw new Error("No beats in the cut to analyze. Arrange your clips into a cut first.");
       }
 
       for (let i = 0; i < targetClips.length; i++) {
@@ -44,15 +46,25 @@ export function useRegenerate() {
     }
   }
 
-  /** Step 2: Author the Vlog Story & Script with Claude, then assemble the cut. */
+  /**
+   * Author a script line for each beat the editor has already arranged. The cut's
+   * beats are the story: their order, membership, and trims are LEFT UNCHANGED —
+   * only each beat's `scriptText` is (re)written. Un-analyzed beat clips are
+   * described first so Claude has something to write from.
+   */
   async function authorScript() {
     if (st.busy) return;
+    const cut = state.cut;
+    if (!cut || cut.beats.length === 0) {
+      setSt({ busy: false, label: "", error: "Arrange your clips into a cut first — the AI writes the script for the cut you build." });
+      return;
+    }
     const tone = toneHint(settings.tone);
     setSt({ busy: true, label: "Checking clip descriptions…", error: "" });
     try {
-      // 1. Describe any included clip that has not been analyzed yet.
-      const toDescribe = state.clips.filter((c) => isIncluded(c) && !c.description);
+      // 1. Describe any beat clip that hasn't been analyzed yet (cut beats only).
       const freshDesc = new Map<string, ClipDescription>();
+      const toDescribe = beatClips(state.clips, cut).filter((c) => !c.description);
       for (let i = 0; i < toDescribe.length; i++) {
         const clip = toDescribe[i];
         setSt({ busy: true, label: `Step 1: Describing clip ${i + 1} of ${toDescribe.length}…`, error: "" });
@@ -61,22 +73,35 @@ export function useRegenerate() {
         freshDesc.set(clip.id, description);
       }
 
-      const clipsNow: Clip[] = state.clips.map((c) =>
-        freshDesc.has(c.id) ? { ...c, description: freshDesc.get(c.id) } : c,
-      );
-      if (!clipsNow.some(isAuthorable)) {
-        throw new Error("No usable analyzed clips to author from. Run Step 1 or add clips.");
-      }
+      const clipById = new Map(state.clips.map((c) => [c.id, c]));
+      const descOf = (clipId: string) => freshDesc.get(clipId) ?? clipById.get(clipId)?.description;
 
-      // 2. Author the Story with Claude.
-      setSt({ busy: true, label: "Step 2: Authoring story & script with AI…", error: "" });
-      const story = await authorStory(clipsNow, state.direction, { provider: settings.aiProvider, model: settings.authorModel, tone });
-      dispatch({ type: "SET_STORY", story });
+      // 2. Ask Claude for ONE line per beat, in the cut's exact order.
+      setSt({ busy: true, label: "Step 2: Writing a script line for each beat…", error: "" });
+      const payload: BeatDesc[] = cut.beats.map((b) => {
+        const clip = clipById.get(b.clipId);
+        const d = descOf(b.clipId);
+        return {
+          label: clip ? hintFromName(clip.name) : "",
+          subjectAction: d?.subjectAction ?? "",
+          settingMood: d?.settingMood ?? "",
+          durationSec: Math.round(b.durationSec),
+        };
+      });
+      const { logline, lines } = await authorBeatScripts(payload, state.direction, {
+        provider: settings.aiProvider,
+        model: settings.authorModel,
+        tone,
+        scriptType: scriptTypeHint(settings.scriptType),
+      });
 
-      // 3. Assemble the Cut.
-      setSt({ busy: true, label: "Assembling cut…", error: "" });
-      const cut = assembleCut(clipsNow, story, state.cut?.aspect ?? "16:9");
-      dispatch({ type: "SET_CUT", cut });
+      // 3. Apply lines in place — same beats, same order, only scriptText changes.
+      const updatedBeats = cut.beats.map((b, i) => {
+        const line = (lines[i] ?? "").trim();
+        return line ? { ...b, scriptText: line } : b;
+      });
+      dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
+      dispatch({ type: "SET_STORY", story: { logline, beats: updatedBeats.map((b) => ({ clipId: b.clipId, scriptText: b.scriptText })) } });
 
       setSt({ busy: false, label: "", error: "" });
     } catch (e) {
@@ -88,11 +113,34 @@ export function useRegenerate() {
     return authorScript();
   }
 
+  /** Rewrite a single beat's script line with Claude (propose-then-refine), in the
+   *  current tone. Leaves the rest of the cut untouched. */
+  async function refineBeat(beatId: string) {
+    if (st.busy || !state.cut) return;
+    const beat = state.cut.beats.find((b) => b.id === beatId);
+    if (!beat) return;
+    const clip = state.clips.find((c) => c.id === beat.clipId);
+    if (!clip) return;
+    setSt({ busy: true, label: "Refining script line with AI…", error: "" });
+    try {
+      const line = await rewriteCaption(clip, beat.scriptText, state.story?.logline ?? "", {
+        provider: settings.aiProvider,
+        model: settings.authorModel,
+        tone: toneHint(settings.tone),
+      });
+      dispatch({ type: "UPDATE_BEAT", beat: { ...beat, scriptText: line } });
+      setSt({ busy: false, label: "", error: "" });
+    } catch (e) {
+      setSt({ busy: false, label: "", error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   return {
     ...st,
     analyzeClips,
     authorScript,
     regenerate,
+    refineBeat,
     clearError: () => setSt((s) => ({ ...s, error: "" })),
   };
 }

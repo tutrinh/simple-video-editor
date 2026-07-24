@@ -10,8 +10,8 @@ export interface Settings {
   authorModel: string;
   /** Tone/mood that steers the vlog coaching (Analyze) and script voice (Author). */
   tone: string;
-  /** Whether the AI "Author Story & Script" bar (Step 2) is shown in the workspace. */
-  showStoryBar: boolean;
+  /** Genre/format that steers the Author prompt's structure (orthogonal to tone). */
+  scriptType: string;
 }
 
 const DEFAULTS: Settings = {
@@ -19,7 +19,7 @@ const DEFAULTS: Settings = {
   analyzeModel: "claude-haiku-4-5",
   authorModel: "claude-opus-4-8",
   tone: "casual",
-  showStoryBar: true,
+  scriptType: "auto",
 };
 
 export const AI_PROVIDER_OPTIONS: { id: AiProvider; label: string }[] = [
@@ -43,6 +43,22 @@ export const TONE_OPTIONS = [
 /** The prompt phrase for a tone id (empty if unknown). */
 export function toneHint(id: string): string {
   return TONE_OPTIONS.find((t) => t.id === id)?.hint ?? "";
+}
+
+// Script Type / genre presets. Unlike Tone (voice), `hint` steers the *structure*
+// of the authored story — injected into the Author prompt. "auto" = no steer.
+export const SCRIPT_TYPE_OPTIONS = [
+  { id: "auto", label: "Auto / general", hint: "" },
+  { id: "product-review", label: "Product review", hint: "Structure as a product review — hook with the product, walk through standout features and real use, land on a clear verdict or recommendation." },
+  { id: "vlog", label: "Vlog / day-in-the-life", hint: "Structure as a personal vlog — first-person, day-in-the-life momentum, casual narration that carries the viewer from moment to moment." },
+  { id: "explainer", label: "Explainer / how-to", hint: "Structure as an explainer — set up the topic or problem, move step by step in a logical order, end on a concise takeaway." },
+  { id: "dramatic-news", label: "Dramatic news / tension", hint: "Structure as dramatic news with rising tension — open with an urgent lede, escalate the stakes beat by beat, hold the biggest reveal until the end." },
+  { id: "sports", label: "Sports highlight", hint: "Structure as a sports highlight — play-by-play energy, build toward the biggest plays, finish on a celebratory payoff." },
+] as const;
+
+/** The prompt phrase for a script-type id (empty for "auto" or unknown). */
+export function scriptTypeHint(id: string): string {
+  return SCRIPT_TYPE_OPTIONS.find((t) => t.id === id)?.hint ?? "";
 }
 
 const SettingsContext = createContext<{

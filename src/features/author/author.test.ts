@@ -1,6 +1,26 @@
 import { describe, it, expect } from "vitest";
-import { parseStory, isAuthorable } from "./author";
+import { parseStory, isAuthorable, buildPrompt } from "./author";
 import type { Clip } from "../../domain/types";
+
+const payload = [{ id: "a", label: "a", usability: 4, durationSec: 10, subjectAction: "s", settingMood: "m" }];
+
+describe("buildPrompt", () => {
+  it("injects the genre/format line when a scriptType hint is given", () => {
+    const p = buildPrompt(payload, "", "", "Structure as a sports highlight.");
+    expect(p).toContain("Format/genre: Structure as a sports highlight.");
+  });
+
+  it("omits the genre line when scriptType is empty", () => {
+    expect(buildPrompt(payload, "", "")).not.toContain("Format/genre");
+  });
+
+  it("still carries tone and direction independently of genre", () => {
+    const p = buildPrompt(payload, "save the best for last", "high-energy", "explainer hint");
+    expect(p).toContain("Format/genre: explainer hint");
+    expect(p).toContain("high-energy");
+    expect(p).toContain("save the best for last");
+  });
+});
 
 const ids = new Set(["a", "b", "c"]);
 

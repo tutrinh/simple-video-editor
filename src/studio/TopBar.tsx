@@ -14,9 +14,10 @@ interface Props {
   onExport: () => void;
   onStartOver: () => void;
   onOpenSettings: () => void;
+  onOpenAiStory: () => void;
 }
 
-export default function TopBar({ onExport, onStartOver, onOpenSettings }: Props) {
+export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAiStory }: Props) {
   const { state, dispatch } = useProject();
   const { theme, toggleTheme } = useTheme();
   const { clips, cut, title } = state;
@@ -138,6 +139,15 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings }: Props)
         {theme === "dark" ? "Light" : "Dark"}
       </button>
 
+      {clips.length > 0 && (
+        <button
+          className="st-btn ghost"
+          onClick={onOpenAiStory}
+          title="Open the AI Story generator — analyze clips, author the story & script, refine each beat"
+        >
+          ✨ AI Story
+        </button>
+      )}
       <button className="st-btn danger" onClick={onStartOver} title="Clear everything">Start over</button>
       <button className="st-btn primary" onClick={onExport} disabled={!cut}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 3v11M8 10l4 4 4-4M5 20h14"/></svg>

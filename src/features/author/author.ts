@@ -18,12 +18,13 @@ interface ClipPayload {
   settingMood: string;
 }
 
-function buildPrompt(clips: ClipPayload[], direction: string, tone: string): string {
+export function buildPrompt(clips: ClipPayload[], direction: string, tone: string, scriptType = ""): string {
   return (
     `You are editing a short highlight reel from the clips below (JSON). Each has a filename label ` +
     `(which often names the key moment), a 1-5 usability score, duration, a subject/action description, ` +
     `and the setting/mood of the shot.\n\n` +
     `Clips:\n${JSON.stringify(clips, null, 2)}\n\n` +
+    (scriptType ? `Format/genre: ${scriptType}\n` : "") +
     (tone ? `Tone/voice for the writing: ${tone}.\n` : "") +
     (direction ? `Creative direction from the editor: "${direction}"\n\n` : "") +
     `Build a highlight story:\n` +
@@ -43,6 +44,58 @@ function extractJson(text: string): string {
   const start = body.indexOf("{");
   const end = body.lastIndexOf("}");
   return start >= 0 && end > start ? body.slice(start, end + 1) : body;
+}
+
+// ── Beat-preserving authoring ──────────────────────────────────────────────
+// The editor has already arranged the Cut; that order IS the story. So instead
+// of letting Claude drop/reorder clips (see authorStory), we hold the beats fixed
+// and only ask for one script line per beat, in the given order.
+
+/** One beat as far as script writing cares — its clip's description, in cut order. */
+export interface BeatDesc {
+  /** Filename-derived label / moment hint. */
+  label: string;
+  subjectAction: string;
+  settingMood: string;
+  durationSec: number;
+}
+
+export function buildBeatScriptPrompt(beats: BeatDesc[], direction: string, tone: string, scriptType = ""): string {
+  return (
+    `The editor has ALREADY arranged the beats of a short video below, in order (JSON array). ` +
+    `This exact order is the story the editor wants to tell — DO NOT reorder, add, merge, or drop any beat. ` +
+    `Write ONE short on-screen script line for each beat, keeping the same order.\n\n` +
+    `Beats:\n${JSON.stringify(beats, null, 2)}\n\n` +
+    (scriptType ? `Format/genre: ${scriptType}\n` : "") +
+    (tone ? `Tone/voice for the writing: ${tone}.\n` : "") +
+    (direction ? `Creative direction from the editor: "${direction}"\n` : "") +
+    `\nEach line: clean, present-tense, no quotes, no numbering — it should carry that moment on-screen. ` +
+    `Draw on each beat's subject and mood, and let the lines read as one continuous story across the beats.\n\n` +
+    `Reply with ONLY this JSON, no prose:\n` +
+    `{"logline": "<one sentence>", "lines": ["<line for beat 1>", "<line for beat 2>", ...]}\n` +
+    `"lines" MUST contain EXACTLY ${beats.length} entries — one per beat, in the same order.`
+  );
+}
+
+/** Parse the beat-script response: a logline plus one line per beat (by position). */
+export function parseScriptLines(text: string): { logline: string; lines: string[] } {
+  const data = JSON.parse(extractJson(text)) as { logline?: unknown; lines?: unknown };
+  const logline = typeof data.logline === "string" ? data.logline : "";
+  const lines = Array.isArray(data.lines)
+    ? data.lines.map((l) => (typeof l === "string" ? l.trim() : ""))
+    : [];
+  return { logline, lines };
+}
+
+/** Author one script line per already-arranged beat (order preserved). */
+export async function authorBeatScripts(
+  beats: BeatDesc[],
+  direction: string,
+  cfg: ClaudeConfig,
+): Promise<{ logline: string; lines: string[] }> {
+  if (beats.length === 0) throw new Error("no beats in the cut to write a script for");
+  const text = await callClaude(buildBeatScriptPrompt(beats, direction, cfg.tone ?? "", cfg.scriptType ?? ""), cfg);
+  return parseScriptLines(text);
 }
 
 /** A clip as far as beat-matching cares: its real id plus the label/name Claude saw. */
@@ -134,7 +187,7 @@ export async function authorStory(clips: Clip[], direction: string, cfg: ClaudeC
     subjectAction: c.description!.subjectAction,
     settingMood: c.description!.settingMood,
   }));
-  const text = await callClaude(buildPrompt(payload, direction, cfg.tone ?? ""), cfg);
+  const text = await callClaude(buildPrompt(payload, direction, cfg.tone ?? "", cfg.scriptType ?? ""), cfg);
   return parseStory(
     text,
     described.map((c) => ({ id: c.id, label: hintFromName(c.name), name: c.name })),
