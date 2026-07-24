@@ -8,6 +8,8 @@ import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, cssFilterFor, getFilterPreset } from "./util";
 import FilterPresetModal from "./FilterPresetModal";
+import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
+import { makeBeatTitleLayers, type TitleLayerSettings } from "../state/ExportSettingsContext";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
 const modelLabel = (m: string) => m.replace(/^claude-/, "");
@@ -68,6 +70,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
+  const [titleOpen, setTitleOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
   const currentGlobalAdj = cut?.globalFilterAdjustments ?? activeGlobalFilter?.colorAdjustments ?? {};
@@ -283,6 +286,11 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   }
   const b = beat;
   const update = (next: Beat) => dispatch({ type: "UPDATE_BEAT", beat: next });
+
+  // Per-beat title layers (fall back to a fresh disabled stack for beats that
+  // have never had a title). Editing dispatches the whole beat back.
+  const beatTitleLayers: TitleLayerSettings[] = b.titleLayers ?? makeBeatTitleLayers();
+  const beatTitleCount = beatTitleLayers.filter((l) => l.enabled && l.text.trim()).length;
 
   // The caption is stored as newline-separated lines. By default they stack
   // on-screen for the whole beat. When "Timed lines" is on, each line carries a
@@ -686,6 +694,50 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                 >
                   Apply color to all beats
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Per-Beat Title Treatment Collapsible Section */}
+        <div className="st-field" style={{ marginTop: 8 }}>
+          <div
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+            onClick={() => setTitleOpen((v) => !v)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ transform: titleOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              <label style={{ margin: 0, cursor: "pointer" }}>Title Treatment</label>
+              {beatTitleCount > 0 && (
+                <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• {beatTitleCount} layer{beatTitleCount === 1 ? "" : "s"}</span>
+              )}
+            </div>
+          </div>
+
+          <div className={"st-color-collapsible" + (titleOpen ? " open" : "")}>
+            <div className="st-color-collapsible-inner">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+                <div style={{ fontSize: 11, color: "var(--ink-3)" }}>
+                  Titles shown only during this beat. The cut-level intro title (in Export) stays separate.
+                </div>
+                <TitleTreatmentEditor
+                  layers={beatTitleLayers}
+                  onChange={(next) => update({ ...b, titleLayers: next })}
+                  scopeEntireLabel="Entire beat"
+                  introScopeLabel="Beat intro (fade out)"
+                />
               </div>
             </div>
           </div>

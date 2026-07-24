@@ -115,6 +115,19 @@ const DEFAULT_TITLE_LAYERS: TitleLayerSettings[] = [
   },
 ];
 
+/**
+ * A fresh stack of 3 title layers for a Beat's own title treatment. All layers
+ * start disabled with empty text (so a beat shows no title until you add one),
+ * and default to "entire" scope — a per-beat title shows for that whole beat.
+ */
+export function makeBeatTitleLayers(): TitleLayerSettings[] {
+  return [
+    { id: "beat-layer-1", enabled: false, text: "", fontId: "outfit", fontFile: null, weight: 700, sizePx: 120, letterSpacing: 0, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: -12, scope: "entire", introSec: 3, animation: "fade" },
+    { id: "beat-layer-2", enabled: false, text: "", fontId: "inter", fontFile: null, weight: 400, sizePx: 60, letterSpacing: 0, arcDeg: 0, shadow: true, color: "#ffd400", posX: 0, posY: 5, scope: "entire", introSec: 3, animation: "slide_left" },
+    { id: "beat-layer-3", enabled: false, text: "", fontId: "space-grotesk", fontFile: null, weight: 600, sizePx: 40, letterSpacing: 0, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: 20, scope: "entire", introSec: 3, animation: "slide_bottom" },
+  ];
+}
+
 import { EDITOR_DEFAULTS } from "../config/editorDefaults";
 
 const DEFAULTS: ExportSettings = {

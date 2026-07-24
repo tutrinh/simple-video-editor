@@ -1,6 +1,7 @@
 import type { ProjectState } from "../state/projectReducer";
 import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
+import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts } from "./titleFontPersist";
 
 interface VidstrPackage {
   version: 1;
@@ -13,6 +14,12 @@ interface VidstrPackage {
     fileType: string;
     fileDataUrl: string; // Base64 data URL for portability
     poster?: string;
+  }>;
+  /** Uploaded per-beat title fonts, keyed `<beatId>:<layerId>`, as data URLs. */
+  titleFonts?: Array<{
+    key: string;
+    fontType: string;
+    fontDataUrl: string;
   }>;
 }
 
@@ -55,8 +62,15 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
     }
   }
 
-  const serializableClips = state.clips.map(({ file, normalized, ...rest }) => rest);
-  const serializableState = { ...state, clips: serializableClips };
+  // Uploaded per-beat title fonts → portable data URLs (parallel to clip media).
+  const titleFonts: NonNullable<VidstrPackage["titleFonts"]> = [];
+  for (const { key, file } of collectTitleFonts(state)) {
+    titleFonts.push({ key, fontType: file.type || "font/ttf", fontDataUrl: await blobToDataUrl(file) });
+  }
+
+  const stripped = stripTitleFonts(state);
+  const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
+  const serializableState = { ...stripped, clips: serializableClips };
 
   const pkg: VidstrPackage = {
     version: 1,
@@ -64,6 +78,7 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
     title: state.title || "Untitled project",
     stateJson: JSON.stringify(serializableState),
     media: mediaList,
+    ...(titleFonts.length ? { titleFonts } : {}),
   };
 
   const jsonString = JSON.stringify(pkg, null, 2);
@@ -108,8 +123,16 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
     };
   });
 
-  return {
-    ...parsedState,
-    clips: rehydratedClips,
-  };
+  const fontMap = new Map<string, Blob>();
+  for (const f of pkg.titleFonts ?? []) {
+    fontMap.set(f.key, dataUrlToBlob(f.fontDataUrl, f.fontType || "font/ttf"));
+  }
+
+  return reinjectTitleFonts(
+    {
+      ...parsedState,
+      clips: rehydratedClips,
+    },
+    fontMap,
+  );
 }

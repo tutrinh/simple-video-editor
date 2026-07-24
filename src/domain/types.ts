@@ -78,6 +78,10 @@ export interface Beat {
   captionText: string;
   captionDurations?: number[];
   colorAdjustments?: ColorAdjustments;
+  /** Per-beat stacked title layers, shown during this beat (parallel to the
+   *  cut-level title in ExportSettings). Type-only import — erased at runtime,
+   *  so no state↔domain runtime cycle. */
+  titleLayers?: import("../state/ExportSettingsContext").TitleLayerSettings[];
   /** Video transition into this beat from the preceding beat. */
   transition?: VideoTransitionType;
   /** Duration of the transition in seconds (default 0.5s). */
