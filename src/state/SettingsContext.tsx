@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+const STORAGE_KEY = "vidstr_settings";
 
 export type AiProvider = "claude" | "antigravity";
 
@@ -49,10 +51,33 @@ const SettingsContext = createContext<{
   reset: () => void;
 } | null>(null);
 
+/** Load persisted settings, merged over DEFAULTS so new fields get their default. */
+function loadSettings(): Settings {
+  if (typeof localStorage === "undefined") return DEFAULTS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULTS;
+    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) };
+  } catch {
+    return DEFAULTS;
+  }
+}
+
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<Settings>(DEFAULTS);
+  const [settings, setSettings] = useState<Settings>(loadSettings);
   const update = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
   const reset = () => setSettings(DEFAULTS);
+
+  // Persist across reloads. "Start over" calls reset() → DEFAULTS is written back.
+  useEffect(() => {
+    if (typeof localStorage === "undefined") return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch {
+      /* storage full or blocked — settings just won't persist */
+    }
+  }, [settings]);
+
   return <SettingsContext.Provider value={{ settings, update, reset }}>{children}</SettingsContext.Provider>;
 }
 
