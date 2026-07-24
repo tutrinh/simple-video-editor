@@ -15,6 +15,11 @@ import Switch from "./Switch";
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
 const modelLabel = (m: string) => m.replace(/^claude-/, "");
 
+// Captions moved to the independent VO track (see VO Segment card + the timeline VO
+// lane). The old per-beat caption editor is retired but kept behind this flag so its
+// alternates/timed-line machinery stays available if we ever re-surface it.
+const SHOW_PER_BEAT_CAPTION_BOX = false;
+
 interface Props {
   beat: Beat | null;
   clip: Clip | undefined;
@@ -376,12 +381,10 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     const cin = Math.min(Math.max(0, inSec), Math.max(0, clipDur - 0.1));
     return Math.min(Math.max(0.1, outSec - inSec), Math.max(0.1, clipDur - cin));
   }
-  // The beat's on-screen duration: the trim window, extended only if a timed
-  // caption sequence runs longer than it. Never shrinks below the manual trim.
-  function durationFor(inSec: number, outSec: number, captionText: string, durs?: number[]): number {
-    const footageLen = footageLenOf(inSec, outSec);
-    const total = scheduleDuration(captionSchedule(captionText, durs));
-    return Math.max(footageLen, total);
+  // Beat duration is the trim window (footage only) — narration lives on the VO
+  // track now, so captions no longer stretch a beat. (Params kept for callers.)
+  function durationFor(inSec: number, outSec: number, _captionText?: string, _durs?: number[]): number {
+    return footageLenOf(inSec, outSec);
   }
 
   // Write lines (and, when timed, their aligned timers) back to the beat, keeping
@@ -472,6 +475,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           <div className="cap">{b.captionText}</div>
         </div>
 
+        {SHOW_PER_BEAT_CAPTION_BOX && (
         <div className="st-field">
           <div className="st-caphead">
             <label>Caption · {timed ? "each line plays for its own seconds, in sequence" : "one line per row, stacked on screen"}</label>
@@ -576,6 +580,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
             </div>
           )}
         </div>
+        )}
 
         <div className="st-field">
           <label>Trim · in / out of source · {fmtSecs(b.durationSec)}</label>

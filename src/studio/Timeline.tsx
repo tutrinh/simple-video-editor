@@ -207,6 +207,21 @@ export default function Timeline({
     onSelectOverlay?.(null);
   }
 
+  // Migration/convenience: turn existing beat captions into VO segments placed at
+  // each beat's start, so authored captions aren't lost when captions move to the track.
+  function seedVoFromBeats() {
+    let acc = 0;
+    const segs: VoSegment[] = [];
+    for (const b of beats) {
+      const text = b.captionText.trim();
+      const dur = b.durationSec || Math.max(0.1, b.outSec - b.inSec);
+      if (text) segs.push({ id: `vo-${genId()}`, text, startTimeSec: Math.round(acc * 10) / 10, durationSec: Math.round(dur * 10) / 10, captionVisible: true });
+      acc += dur;
+    }
+    for (const s of segs) dispatch({ type: "ADD_VO", segment: s });
+    if (segs[0]) { onSelectVo?.(segs[0].id); onSelectOverlay?.(null); }
+  }
+
   function startVoDrag(e: React.PointerEvent, seg: VoSegment, mode: "move" | "resize-left" | "resize-right") {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -270,9 +285,19 @@ export default function Timeline({
         <span className="meta st-num">
           {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {fmtSecs(totalDur)} · {cut.aspect}
         </span>
+        {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
+          <button
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11, marginLeft: "auto" }}
+            onClick={seedVoFromBeats}
+            title="Create VO segments from your beats' captions, placed at each beat's start"
+          >
+            ↧ Seed VO from beats
+          </button>
+        )}
         <button
           className="st-btn ghost"
-          style={{ padding: "2px 8px", fontSize: 11, marginLeft: "auto" }}
+          style={{ padding: "2px 8px", fontSize: 11, marginLeft: voSegments.length === 0 && beats.some((b) => b.captionText.trim()) ? undefined : "auto" }}
           onClick={addVoSegment}
           title="Add a voiceover segment to the VO track (type its narration in the Inspector)"
         >

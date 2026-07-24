@@ -290,81 +290,25 @@ export async function exportCut(
     }
   }
 
-  onProgress?.(0.10, "Generating voiceover narration & pacing…");
+  onProgress?.(0.10, "Preparing beat segments…");
+  // Beat duration is footage-only now — narration lives on the independent VO track
+  // (synthesized + mixed as a master audio bed at the final stage), so beats no longer
+  // stretch to fit voiceover.
   interface PrecomputedBeat {
     clip: Clip;
     inSec: number;
     footageLen: number;
     segDur: number;
-    capLines: string[];
-    schedule: ReturnType<typeof captionSchedule>;
-    voOn: boolean;
-    voData?: { inputs: EngineInput[]; audioInput: string[]; voiceLeadMs: number };
   }
 
-  const preBeats: (PrecomputedBeat | null)[] = await Promise.all(
-    cut.beats.map(async (b) => {
-      const clip = clipById.get(b.clipId);
-      if (!clip) return null;
-      const clipDur = clip.durationSec || b.outSec - b.inSec;
-      const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));
-      const footageLen = Math.min(Math.max(0.1, b.outSec - b.inSec), Math.max(0.1, clipDur - inSec));
-      const capLines = b.captionText.split("\n").map((l) => l.trim()).filter(Boolean);
-      const schedule = captionSchedule(b.captionText, b.captionDurations);
-      const voOn = !!opts.voiceover && (capLines.length > 0 || b.scriptText.trim() !== "");
-
-      let segDur = footageLen;
-      let voData: { inputs: EngineInput[]; audioInput: string[]; voiceLeadMs: number } | undefined;
-
-      if (schedule) {
-        const cues = schedule.cues;
-        if (voOn) {
-          segDur = Math.max(footageLen, schedule.total);
-          const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
-          const vos = await Promise.all(cues.map((cue) => synthesizeVoiceover(cue.text, ttsOpts)));
-          const catInputs = vos.map((vo, k) => ({ name: `p${k}.${vo.ext}`, data: vo.data }));
-          const catArgs = vos.flatMap((vo, k) => ["-i", `p${k}.${vo.ext}`]);
-          const leadMs = Math.round(schedule.leadSec * 1000);
-          const filt =
-            cues.map((cue, k) => `[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo,apad,atrim=0:${cue.sec.toFixed(3)},asetpts=N/SR/TB[a${k}]`).join(";") + ";" +
-            cues.map((_, k) => `[a${k}]`).join("") + `concat=n=${cues.length}:v=0:a=1[cc];` +
-            `[cc]adelay=${leadMs}|${leadMs}[a]`;
-          const voall = await runIsolated(catInputs, [...catArgs, "-filter_complex", filt, "-map", "[a]", "voall.wav"], "voall.wav");
-          voData = { inputs: [{ name: "vo.wav", data: voall }], audioInput: ["-i", "vo.wav"], voiceLeadMs: 0 };
-        }
-      } else if (voOn) {
-        const lead = Math.max(0, opts.voiceoverLeadSec ?? 0);
-        const gap = Math.max(0, opts.voiceoverGapSec ?? 0);
-        const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
-        const lineTexts = capLines.length > 0 ? capLines : [b.scriptText.trim()];
-        const vos = await Promise.all(lineTexts.map((t) => synthesizeVoiceover(t, ttsOpts)));
-        let cursor = 0;
-        const timed = vos.map((vo, k) => {
-          const d = vo.durationSec > 0 ? vo.durationSec : 1.5;
-          const s = cursor; cursor += d;
-          return { start: s, end: cursor, vo, text: lineTexts[k] };
-        });
-        segDur = Math.max(footageLen, lead + cursor) + gap;
-
-        if (timed.length === 1) {
-          voData = {
-            inputs: [{ name: `vo.${timed[0].vo.ext}`, data: timed[0].vo.data }],
-            audioInput: ["-i", `vo.${timed[0].vo.ext}`],
-            voiceLeadMs: Math.round(lead * 1000),
-          };
-        } else {
-          const catInputs = timed.map((t, k) => ({ name: `p${k}.${t.vo.ext}`, data: t.vo.data }));
-          const catArgs = timed.flatMap((t, k) => ["-i", `p${k}.${t.vo.ext}`]);
-          const filt =
-            timed.map((_, k) => `[${k}:a]aformat=sample_rates=48000:channel_layouts=stereo[a${k}]`).join(";") + ";" +
-            timed.map((_, k) => `[a${k}]`).join("") + `concat=n=${timed.length}:v=0:a=1[a]`;
-          const voall = await runIsolated(catInputs, [...catArgs, "-filter_complex", filt, "-map", "[a]", "voall.wav"], "voall.wav");
-          voData = { inputs: [{ name: "vo.wav", data: voall }], audioInput: ["-i", "vo.wav"], voiceLeadMs: Math.round(lead * 1000) };
-        }
-      }
-      return { clip, inSec, footageLen, segDur, capLines, schedule, voOn, voData };
-    }),
-  );
+  const preBeats: (PrecomputedBeat | null)[] = cut.beats.map((b) => {
+    const clip = clipById.get(b.clipId);
+    if (!clip) return null;
+    const clipDur = clip.durationSec || b.outSec - b.inSec;
+    const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));
+    const footageLen = Math.min(Math.max(0.1, b.outSec - b.inSec), Math.max(0.1, clipDur - inSec));
+    return { clip, inSec, footageLen, segDur: footageLen };
+  });
 
   const beatStartSecs: number[] = new Array(cut.beats.length).fill(0);
   let currentTimelineOffset = 0;
@@ -395,13 +339,12 @@ export async function exportCut(
       reportBeatProg();
       return;
     }
-    const { clip, inSec, footageLen, segDur, capLines, schedule, voOn, voData } = pre;
+    const { clip, inSec, footageLen, segDur } = pre;
     const bStart = beatStartSecs[i];
     const bEnd = bStart + segDur;
     const data = await bytesOf(clip.normalized ?? clip.file);
 
     const inputs: EngineInput[] = [{ name: sourceName(clip), data }];
-    if (voData) inputs.push(...voData.inputs);
 
     const captionCues: { enable: string }[] = [];
     const addCaption = async (text: string, enable: string) => {
@@ -448,29 +391,27 @@ export async function exportCut(
     const freeze = segDur - footageLen;
     if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
 
-    if (schedule) {
-      for (const cue of schedule.cues) {
-        await addCaption(cue.text, `between(t,${cue.start.toFixed(3)},${cue.end.toFixed(3)})`);
-      }
-    } else if (voOn) {
-      const lead = Math.max(0, opts.voiceoverLeadSec ?? 0);
-      if (capLines.length > 0) {
-        const lineTexts = capLines;
-        let cursor = 0;
-        for (const t of lineTexts) {
-          const s = cursor; cursor += 1.5;
-          const enable = lineTexts.length > 1 ? `between(t,${(lead + s).toFixed(3)},${(lead + cursor).toFixed(3)})` : "";
-          await addCaption(t, enable);
+    // VO-track captions: burn each visible segment that overlaps this beat's window
+    // [bStart, bEnd], gated to the overlap in segment-local time. A caption spanning a
+    // beat boundary is drawn in each segment it touches.
+    for (const seg of (cut.voSegments ?? [])) {
+      if (!seg.captionVisible || !seg.text.trim()) continue;
+      const segEnd = seg.startTimeSec + seg.durationSec;
+      if (seg.startTimeSec < bEnd && segEnd > bStart) {
+        const localStart = Math.max(0, seg.startTimeSec - bStart);
+        const localEnd = Math.min(segDur, segEnd - bStart);
+        if (localEnd > localStart + 0.01) {
+          await addCaption(seg.text, `between(t,${localStart.toFixed(3)},${localEnd.toFixed(3)})`);
         }
       }
-    } else if (capLines.length > 0) {
-      await addCaption(b.captionText, "");
     }
 
     timingSlots[i] = { id: b.id, inSec, outSec: inSec + footageLen, durationSec: segDur };
 
     const beatVol = b.volume ?? 1;
-    const strategy: "vo" | "source" | "silent" = voOn ? "vo" : beatVol > 0 ? "source" : "silent";
+    // Beat audio is just the (optionally muted) source clip now; narration is the
+    // master VO bed mixed in at the final stage.
+    const strategy: "source" | "silent" = beatVol > 0 ? "source" : "silent";
 
     const capCount = captionCues.length;
     const segDurStr = segDur.toFixed(3);
@@ -777,26 +718,13 @@ export async function exportCut(
       return segChains;
     };
 
-    let audioInput: string[];
-    let voiceLeadMs = 0;
-    if (voOn && voData) {
-      audioInput = voData.audioInput;
-      voiceLeadMs = voData.voiceLeadMs;
-    } else {
-      audioInput = ["-f", "lavfi", "-t", String(segDur), "-i", "anullsrc=r=48000:cl=stereo"];
-    }
-
-    const leadPrefix = voiceLeadMs > 0 ? `adelay=${voiceLeadMs}|${voiceLeadMs},` : "";
     const audibleOverlays = segOverlays.filter(({ o }) => (o.volume ?? 0) > 0);
 
-    const buildSegArgs = (strat: "vo" | "source" | "silent", rgbFormat: string | null = null): string[] => {
+    const buildSegArgs = (strat: "source" | "silent", rgbFormat: string | null = null): string[] => {
       let audioInputArgs: string[];
       const aChains: string[] = [];
 
-      if (strat === "vo") {
-        audioInputArgs = audioInput;
-        aChains.push(`[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${leadPrefix}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
-      } else if (strat === "source") {
+      if (strat === "source") {
         audioInputArgs = [];
         aChains.push(`[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
       } else {
@@ -840,7 +768,7 @@ export async function exportCut(
       return m === "screen" || m === "multiply" || m === "overlay";
     });
 
-    const renderSeg = async (strat: "vo" | "source" | "silent") => {
+    const renderSeg = async (strat: "source" | "silent") => {
       if (hasRgbBlend) {
         for (const rgbFormat of ["gbrp", null] as const) {
           try {
@@ -932,40 +860,69 @@ export async function exportCut(
     video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
   }
 
+  // Synthesize the VO-track narration and mix it — plus any music bed — over the
+  // assembled video's audio at absolute times. VO lives here now (it can span beat
+  // boundaries), replacing per-beat voiceover.
+  onProgress?.(0.9, "Synthesizing VO track narration…");
+  const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed };
+  const voSegs = (cut.voSegments ?? []).filter((s) => s.text.trim());
+  const renderedVo: { startTimeSec: number; name: string; data: Uint8Array }[] = [];
+  for (let k = 0; k < voSegs.length; k++) {
+    try {
+      const vo = await synthesizeVoiceover(voSegs[k].text.trim(), ttsOpts);
+      renderedVo.push({ startTimeSec: voSegs[k].startTimeSec, name: `voseg_${k}.${vo.ext}`, data: vo.data });
+    } catch (err) {
+      console.warn(`VO segment ${k} synthesis failed; skipping its audio.`, err);
+    }
+  }
+
   onProgress?.(0.95, "Preparing final audio mux…");
 
-  if (!opts.music) {
+  const hasMusic = !!opts.music;
+  if (!hasMusic && renderedVo.length === 0) {
     onProgress?.(1.0, "Export complete ✓");
     return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
   }
 
-  const mExt = opts.music.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() ?? "mp3";
-  const vol = Math.min(1, Math.max(0, opts.musicVolume ?? 0.5));
-  const musicInputs = [
-    { name: "video.mp4", data: video },
-    { name: `music.${mExt}`, data: await bytesOf(opts.music) },
-  ];
-  const muxWith = (args: string[]) =>
-    runIsolated(musicInputs, args, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing background music bed…"));
+  // Build one amix over: the video's own audio [0:a], the (looped, volume-scaled)
+  // music bed, and each VO segment delayed to its absolute start.
+  const finalInputs: EngineInput[] = [{ name: "video.mp4", data: video }];
+  const inputArgs: string[] = ["-i", "video.mp4"];
+  const mixChains: string[] = [];
+  const mixLabels: string[] = ["[0:a]"];
+  let inIdx = 1;
 
-  const amixArgs =
-    ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
-     "-filter_complex", `[1:a]volume=${vol}[m];[0:a][m]amix=inputs=2:duration=first:normalize=0[a]`,
-     "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
-  const musicOnlyArgs =
-    ["-i", "video.mp4", "-stream_loop", "-1", "-i", `music.${mExt}`,
-     "-filter_complex", `[1:a]volume=${vol}[a]`,
-     "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
-
-  let withMusic: Uint8Array;
-  try {
-    withMusic = await muxWith(amixArgs);
-  } catch (err) {
-    console.warn("Music amix with base audio failed (base may have no audio track); using a music-only track.", err);
-    withMusic = await muxWith(musicOnlyArgs);
+  if (hasMusic) {
+    const mExt = opts.music!.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() ?? "mp3";
+    const mvol = Math.min(1, Math.max(0, opts.musicVolume ?? 0.5));
+    finalInputs.push({ name: `music.${mExt}`, data: await bytesOf(opts.music!) });
+    inputArgs.push("-stream_loop", "-1", "-i", `music.${mExt}`);
+    mixChains.push(`[${inIdx}:a]volume=${mvol}[m]`);
+    mixLabels.push("[m]");
+    inIdx++;
   }
-  onProgress?.(1.0, "Export complete ✓");
-  return { blob: new Blob([new Uint8Array(withMusic)], { type: "video/mp4" }), timings };
+
+  for (const r of renderedVo) {
+    finalInputs.push({ name: r.name, data: r.data });
+    inputArgs.push("-i", r.name);
+    const delayMs = Math.round(r.startTimeSec * 1000);
+    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay=${delayMs}|${delayMs}[vo${inIdx}]`);
+    mixLabels.push(`[vo${inIdx}]`);
+    inIdx++;
+  }
+
+  const filter = `${mixChains.join(";")}${mixChains.length ? ";" : ""}${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[a]`;
+  const muxArgs = [...inputArgs, "-filter_complex", filter, "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
+
+  try {
+    const finalOut = await runIsolated(finalInputs, muxArgs, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing VO track & music…"));
+    onProgress?.(1.0, "Export complete ✓");
+    return { blob: new Blob([new Uint8Array(finalOut)], { type: "video/mp4" }), timings };
+  } catch (err) {
+    console.warn("Final VO/music mux failed; returning the video without the mixed audio bed.", err);
+    onProgress?.(1.0, "Export complete ✓");
+    return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
+  }
 }
 
 // --- Portable Script export (ADR-0003). ---
