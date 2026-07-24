@@ -1,14 +1,10 @@
 import { useEffect } from "react";
-import { useSettings } from "../state/SettingsContext";
-import Switch from "./Switch";
 
 /**
  * Slide-over side panel for workspace settings. Mounted only while open.
- * Currently hosts the toggle for showing/hiding the AI Story bar (Step 2).
+ * AI options (engine, model, tone, script type) now live in the ✨ AI Story drawer.
  */
 export default function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { settings, update } = useSettings();
-
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -27,14 +23,11 @@ export default function SettingsDrawer({ open, onClose }: { open: boolean; onClo
         <div className="st-settings-body">
           <div className="st-setting-row">
             <div className="st-setting-text">
-              <div className="st-setting-name">Show AI story bar</div>
-              <div className="st-setting-desc">Show the "Author Story &amp; Script" bar (Step 2) below the timeline.</div>
+              <div className="st-setting-name">AI options moved</div>
+              <div className="st-setting-desc">
+                Engine, model, tone, and script type now live in the ✨ AI Story panel (top bar).
+              </div>
             </div>
-            <Switch
-              checked={settings.showStoryBar}
-              onChange={(next) => update({ showStoryBar: next })}
-              label="Show AI story bar"
-            />
           </div>
         </div>
       </aside>

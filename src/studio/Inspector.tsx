@@ -338,6 +338,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   if (!beat) {
     return (
       <aside className="st-col insp">
+        <div className="st-insp-inner">
         <div className="st-colhead">Inspector</div>
         <div className="st-insp-empty" style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
           {voCard}
@@ -480,6 +481,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
             onClose={() => setFilterModalOpen(false)}
           />
         )}
+        </div>
       </aside>
     );
   }
@@ -589,6 +591,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
 
   return (
     <aside className="st-col insp">
+      <div className="st-insp-inner">
       <div className="st-colhead">Beat {String(index + 1).padStart(2, "0")} <span className="cnt">of {total}</span></div>
       <div className="st-insp-body">
         {voCard}
@@ -1526,6 +1529,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           </div>
         </div>
       )}
+      </div>
     </aside>
   );
 }

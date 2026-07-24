@@ -67,11 +67,20 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
 .st-btn.danger{background:var(--danger);color:#fff;border:none}
 .st-btn.danger:hover:not(:disabled){background:#d4584e}
 
-.st-main{display:grid;grid-template-columns:300px minmax(0,1fr) 500px;min-height:0;width:100%;overflow:hidden}
+/* 4th track = AI Story side panel (0 when closed → 500px when .ai-open), so it
+   pushes the stage/inspector instead of overlaying. Grid-template-columns animates. */
+.st-main{display:grid;grid-template-columns:300px minmax(0,1fr) 500px 0px;min-height:0;width:100%;overflow:hidden;
+  transition:grid-template-columns .3s cubic-bezier(.4,0,.2,1)}
+/* Panel opens into the inspector's slot: inspector 500→0, panel 0→500, so the
+   stage width is unchanged (col3+col4 total stays 500 in both states). */
+.st-main.ai-open{grid-template-columns:300px minmax(0,1fr) 0px 500px}
+.st-main.ai-open .st-col.insp{min-width:0;width:auto;opacity:0;pointer-events:none}
 .st-col{min-height:0;min-width:0;display:flex;flex-direction:column}
 .st-col.bin{border-right:1px solid var(--line);background:var(--panel);width:300px}
 .st-col.stage{background:var(--bg);min-width:0}
-.st-col.insp{border-left:1px solid var(--line);background:var(--panel);width:500px;min-width:500px}
+.st-col.insp{border-left:1px solid var(--line);background:var(--panel);width:500px;min-width:500px;overflow:hidden;transition:opacity .2s ease}
+/* fixed-width inner so the inspector CLIPS (not reflows) when its column collapses */
+.st-insp-inner{width:500px;min-width:500px;height:100%;display:flex;flex-direction:column;min-height:0}
 
 .st-colhead{display:flex;align-items:baseline;gap:8px;padding:14px 16px 10px;
   text-transform:uppercase;font-size:11px;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
@@ -423,6 +432,52 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
 .studio .st-switch-knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
   background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .18s ease}
 .studio .st-switch.on .st-switch-knob{transform:translateX(18px)}
+
+/* ── AI Story side panel (docked column, pushes the layout) ────────── */
+.st-col.aistory{border-left:1px solid var(--line);background:var(--panel);min-width:0;overflow:hidden}
+.st-aistory-head{display:flex;align-items:center;padding:14px 16px 10px;border-bottom:1px solid var(--line);flex-shrink:0}
+.st-aistory-head h2{font-size:14px;font-weight:700;margin:0;color:var(--accent);white-space:nowrap}
+.st-aistory-head .x{margin-left:auto;color:var(--ink-2);font-size:20px;line-height:1;padding:2px 9px;border-radius:7px}
+.st-aistory-head .x:hover{background:var(--panel-3);color:var(--ink)}
+.st-aistory-body{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+/* fixed inner width so content stays put while the column width animates in */
+.st-ai{width:500px;height:100%;padding:16px 16px 40px;display:flex;flex-direction:column;gap:18px}
+/* steering header */
+.st-ai-steer{display:flex;flex-direction:column;gap:12px;padding:16px;background:var(--panel-2);border:1px solid var(--line);border-radius:12px}
+.st-ai-steer-row{display:flex;flex-wrap:wrap;gap:12px}
+.st-ai-field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:150px}
+.st-ai-field>span{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600}
+.st-ai-field select{background:var(--panel-3);border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:12px;padding:6px 9px;outline:none;cursor:pointer}
+.st-ai-field select:focus{border-color:var(--accent)}
+.st-ai-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:2px}
+.st-ai-count{font-size:11px;color:var(--ink-3)}
+.st-ai-status{font-size:12px;color:var(--accent);display:flex;align-items:center;gap:6px}
+.st-ai-status.err{color:var(--danger)}
+.st-ai-sec{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);font-weight:700}
+.st-ai-logline{font-size:15px;font-style:italic;color:var(--logline-color);line-height:1.4}
+.st-ai-empty{padding:32px 12px;text-align:center;color:var(--ink-3);font-size:13px}
+/* pre-cut readiness list */
+.st-ai-pre,.st-ai-post{display:flex;flex-direction:column;gap:12px}
+.st-ai-readylist{display:flex;flex-direction:column;gap:8px}
+.st-ai-ready{display:flex;align-items:center;gap:12px;padding:8px 10px;background:var(--panel-2);border:1px solid var(--line);border-radius:9px}
+.st-ai-ready-meta{flex:1;min-width:0}
+.st-ai-ready-name{font-size:12px;font-family:var(--mono);color:var(--cname-color);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* post-cut beat grid */
+.st-ai-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:12px}
+.st-ai-card{display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:11px}
+.st-ai-poster{position:relative;width:100%;aspect-ratio:16/9;border-radius:8px;overflow:hidden;
+  background:#0a0b0d center/cover no-repeat;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.st-ai-badge{position:absolute;top:6px;left:6px;min-width:18px;height:18px;padding:0 5px;border-radius:6px;
+  background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.st-ai-use{position:absolute;top:6px;right:6px;padding:1px 6px;border-radius:6px;background:var(--accent-subtle);color:var(--accent);font-size:10px;font-weight:700}
+.st-ai-desc{font-size:11.5px;color:var(--ink-2);line-height:1.4}
+.st-ai-desc.muted,.st-ai-desc .muted{color:var(--ink-3)}
+.st-ai-subject{color:var(--ink);font-weight:600}
+.st-ai-setting{color:var(--ink-3)}
+.st-ai-script{width:100%;background:var(--panel-3);border:1px solid var(--line);border-radius:7px;color:var(--ink);
+  padding:6px 8px;font-size:12px;line-height:1.4;resize:vertical;outline:none;box-sizing:border-box;font-family:inherit}
+.st-ai-script:focus{border-color:var(--accent)}
+.st-ai-cardactions{display:flex;gap:6px}
 
 @keyframes st-drawer-slide {
   from { transform: translateX(100%); }
