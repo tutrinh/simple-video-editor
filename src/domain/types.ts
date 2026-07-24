@@ -90,6 +90,12 @@ export interface Beat {
   transitionPosition?: "start" | "end";
   /** Audio volume multiplier for original clip audio (0 to 1, default 1.0 = 100%). */
   volume?: number;
+  /** Punch-in zoom scale for this beat's footage (1 = none, up to 3). */
+  zoom?: number;
+  /** Horizontal focus of the zoom, -50..50 (0 = centered). */
+  zoomX?: number;
+  /** Vertical focus of the zoom, -50..50 (0 = centered). */
+  zoomY?: number;
 }
 
 export interface ColorAdjustments {

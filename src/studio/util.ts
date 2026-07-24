@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Clip, ColorAdjustments } from "../domain/types";
 
 /** m:ss from seconds. */
@@ -86,4 +87,40 @@ export function ffmpegColorFilters(adj?: ColorAdjustments, globalFilterId?: stri
     filters.push(`colorbalance=rm=${rm}:gm=${gm}:bm=${bm}`);
   }
   return filters;
+}
+
+/** Normalized zoom focus point (0..1) from the beat's -50..50 pan sliders. */
+function zoomFocus(zoomX?: number, zoomY?: number): { fx: number; fy: number } {
+  return {
+    fx: Math.max(0, Math.min(1, 0.5 + (zoomX ?? 0) / 100)),
+    fy: Math.max(0, Math.min(1, 0.5 + (zoomY ?? 0) / 100)),
+  };
+}
+
+/**
+ * CSS transform for a beat's punch-in zoom. Scaling around a transform-origin at
+ * the focus point keeps that point fixed while cropping in — the exact match for
+ * the ffmpeg scale+crop below (footage is already letterboxed/`contain`, so the
+ * preview and export crop identically). Returns {} at 1× (no effect).
+ */
+export function beatZoomStyle(zoom?: number, zoomX?: number, zoomY?: number): CSSProperties {
+  const z = zoom ?? 1;
+  if (z <= 1.001) return {};
+  const { fx, fy } = zoomFocus(zoomX, zoomY);
+  return {
+    transform: `scale(${z})`,
+    transformOrigin: `${(fx * 100).toFixed(2)}% ${(fy * 100).toFixed(2)}%`,
+  };
+}
+
+/** ffmpeg filters for a beat's punch-in zoom (scale up, crop back to frame). */
+export function ffmpegZoomFilters(w: number, h: number, zoom?: number, zoomX?: number, zoomY?: number): string[] {
+  const z = zoom ?? 1;
+  if (z <= 1.001) return [];
+  const W2 = Math.round(w * z);
+  const H2 = Math.round(h * z);
+  const { fx, fy } = zoomFocus(zoomX, zoomY);
+  const cropX = Math.round(fx * (W2 - w));
+  const cropY = Math.round(fy * (H2 - h));
+  return [`scale=${W2}:${H2}`, `crop=${w}:${h}:${cropX}:${cropY}`];
 }
