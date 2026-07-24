@@ -5,6 +5,8 @@
 export interface ElevenVoice {
   id: string;
   label: string;
+  /** ElevenLabs voice category: "premade" (stock), "professional", "cloned", "generated". */
+  category?: string;
 }
 
 // A few of ElevenLabs' stock voices. Swap/extend with IDs from your account.
@@ -50,12 +52,32 @@ export interface WordTiming {
  * the dev proxy, so the picker reflects the whole library instead of the static list.
  * Falls back to ELEVEN_VOICES on any error (offline, no key, non-dev build).
  */
+// Your own voices (cloned/generated) rank first, then professional, then stock,
+// so custom voices sit at the top of the picker instead of buried at the bottom.
+const CUSTOM_CATEGORIES = new Set(["cloned", "generated"]);
+function voiceRank(category?: string): number {
+  if (CUSTOM_CATEGORIES.has(category ?? "")) return 0;
+  if (category === "professional") return 1;
+  return 2; // premade / unknown
+}
+
+/** Sort custom voices to the top and tag them "(custom)" so they're easy to spot. */
+export function orderElevenVoices(voices: ElevenVoice[]): ElevenVoice[] {
+  return voices
+    .map((v) =>
+      CUSTOM_CATEGORIES.has(v.category ?? "") && !/\(custom\)\s*$/i.test(v.label)
+        ? { ...v, label: `${v.label} (custom)` }
+        : v,
+    )
+    .sort((a, b) => voiceRank(a.category) - voiceRank(b.category)); // stable: keeps API order within a rank
+}
+
 export async function fetchElevenVoices(): Promise<ElevenVoice[]> {
   try {
     const res = await fetch("/api/tts/voices");
     if (!res.ok) return ELEVEN_VOICES;
     const data = (await res.json()) as { voices?: ElevenVoice[] };
-    return data.voices && data.voices.length > 0 ? data.voices : ELEVEN_VOICES;
+    return data.voices && data.voices.length > 0 ? orderElevenVoices(data.voices) : ELEVEN_VOICES;
   } catch {
     return ELEVEN_VOICES;
   }
