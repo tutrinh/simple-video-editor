@@ -167,16 +167,34 @@ function elevenProxy(apiKey: string): Plugin {
     name: "tts-elevenlabs-proxy",
     configureServer(server) {
       server.middlewares.use("/api/tts", async (req, res) => {
-        if (req.method !== "POST") {
-          res.statusCode = 405;
-          res.end();
-          return;
-        }
         const send = (code: number, body: unknown) => {
           res.statusCode = code;
           res.setHeader("content-type", "application/json");
           res.end(JSON.stringify(body));
         };
+
+        // GET /api/tts/voices → list every voice on the account (stock + custom/cloned)
+        if (req.method === "GET" && (req.url ?? "").startsWith("/voices")) {
+          try {
+            if (!apiKey) return send(500, { error: "ELEVENLABS_API_KEY not set in .env.local" });
+            const r = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": apiKey } });
+            if (!r.ok) {
+              const detail = await r.text().catch(() => "");
+              return send(r.status, { error: `ElevenLabs ${r.status}: ${detail.slice(0, 300)}` });
+            }
+            const data = (await r.json()) as { voices?: Array<{ voice_id: string; name: string; category?: string }> };
+            const voices = (data.voices ?? []).map((v) => ({ id: v.voice_id, label: v.name, category: v.category }));
+            return send(200, { voices });
+          } catch (e) {
+            return send(500, { error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end();
+          return;
+        }
         try {
           if (!apiKey) return send(500, { error: "ELEVENLABS_API_KEY not set in .env.local" });
           const { text, voiceId, speed } = JSON.parse(await readBody(req)) as { text: string; voiceId: string; speed?: number };

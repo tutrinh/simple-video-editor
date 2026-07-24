@@ -87,6 +87,28 @@ describe("projectReducer", () => {
     expect(s.cut?.overlays).toHaveLength(1);
   });
 
+  it("adds, updates, duplicates, and removes VO segments on the cut", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const seg = { id: "vo1", text: "hello", startTimeSec: 1, durationSec: 2, captionVisible: true };
+
+    s = projectReducer(s, { type: "ADD_VO", segment: seg });
+    expect(s.cut?.voSegments).toHaveLength(1);
+    expect(s.cut?.voSegments?.[0].text).toBe("hello");
+
+    s = projectReducer(s, { type: "UPDATE_VO", segment: { ...seg, text: "world", captionVisible: false } });
+    expect(s.cut?.voSegments?.[0].text).toBe("world");
+    expect(s.cut?.voSegments?.[0].captionVisible).toBe(false);
+
+    s = projectReducer(s, { type: "DUPLICATE_VO", id: "vo1", newVoId: "vo1-dup" });
+    expect(s.cut?.voSegments).toHaveLength(2);
+    expect(s.cut?.voSegments?.[1].id).toBe("vo1-dup");
+    expect(s.cut?.voSegments?.[1].text).toBe("world");
+
+    s = projectReducer(s, { type: "REMOVE_VO", id: "vo1" });
+    expect(s.cut?.voSegments?.map((v) => v.id)).toEqual(["vo1-dup"]);
+  });
+
   it("sets and resets global look and feel filter on cut", () => {
     const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
     let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });

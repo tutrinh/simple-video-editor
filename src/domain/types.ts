@@ -130,10 +130,26 @@ export interface OverlayClip {
   volume: number; // 0..1
 }
 
+/**
+ * A narration segment on the VO track — its own timeline lane, independent of the
+ * beats. `text` is read by TTS (ElevenLabs/Kokoro) and, when `captionVisible`, burned
+ * as a caption during [startTimeSec, startTimeSec + durationSec]. Draggable/resizable
+ * like an OverlayClip, so a line can carry across beat boundaries.
+ */
+export interface VoSegment {
+  id: string;
+  text: string;
+  startTimeSec: number;
+  durationSec: number;
+  captionVisible: boolean;
+}
+
 /** The assembled, editable draft — the ordered sequence of Beats and Overlays. */
 export interface Cut {
   beats: Beat[];
   overlays?: OverlayClip[];
+  /** Narration + caption segments on the independent VO track. */
+  voSegments?: VoSegment[];
   aspect: Aspect;
   /** Non-destructive global look & feel color filter preset ID. */
   globalFilterId?: string;

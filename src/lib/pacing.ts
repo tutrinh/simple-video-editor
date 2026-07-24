@@ -1,4 +1,5 @@
 import { EDITOR_DEFAULTS } from "../config/editorDefaults";
+import type { VoSegment } from "../domain/types";
 
 // Script-driven pacing (ADR-0004): a Beat's duration derives from its Script
 // segment's spoken length. Words are the master clock; the trim window is chosen
@@ -7,6 +8,22 @@ import { EDITOR_DEFAULTS } from "../config/editorDefaults";
 export function estimateSpokenSeconds(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   return Math.max(EDITOR_DEFAULTS.MIN_BEAT_DURATION_SEC, words / EDITOR_DEFAULTS.WORDS_PER_SEC);
+}
+
+/** The VO segment active at an absolute cut time (or null) — audio plays regardless. */
+export function activeVoSegment(segs: VoSegment[] | undefined, absSec: number): VoSegment | null {
+  if (!segs) return null;
+  for (const s of segs) {
+    if (s.text.trim() && absSec >= s.startTimeSec && absSec < s.startTimeSec + s.durationSec) return s;
+  }
+  return null;
+}
+
+/** Caption text to show at an absolute cut time — only from VO segments with the
+ *  caption toggle on. Empty string when nothing is showing. */
+export function activeVoCaption(segs: VoSegment[] | undefined, absSec: number): string {
+  const s = activeVoSegment(segs, absSec);
+  return s && s.captionVisible ? s.text.trim() : "";
 }
 
 // Per-line caption timing. When the author sets explicit per-line timers

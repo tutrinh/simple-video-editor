@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, ColorAdjustments } from "../domain/types";
+import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, ColorAdjustments } from "../domain/types";
 
 /** The whole editing session. One store; every phase reads/writes it. */
 export interface ProjectState {
@@ -33,6 +33,10 @@ export type Action =
   | { type: "UPDATE_OVERLAY"; overlay: OverlayClip }
   | { type: "REMOVE_OVERLAY"; id: string }
   | { type: "DUPLICATE_OVERLAY"; id: string; newOverlayId?: string }
+  | { type: "ADD_VO"; segment: VoSegment }
+  | { type: "UPDATE_VO"; segment: VoSegment }
+  | { type: "REMOVE_VO"; id: string }
+  | { type: "DUPLICATE_VO"; id: string; newVoId?: string }
   | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number; adjustments?: ColorAdjustments }
   | { type: "LOAD_PROJECT"; state: ProjectState }
   | { type: "RESET" };
@@ -111,6 +115,33 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
 
       const overlays = [...(state.cut.overlays ?? []), duplicated];
       return { ...state, cut: { ...state.cut, overlays } };
+    }
+    case "ADD_VO": {
+      if (!state.cut) return state;
+      const voSegments = [...(state.cut.voSegments ?? []), action.segment];
+      return { ...state, cut: { ...state.cut, voSegments } };
+    }
+    case "UPDATE_VO": {
+      if (!state.cut) return state;
+      const voSegments = (state.cut.voSegments ?? []).map((s) => (s.id === action.segment.id ? action.segment : s));
+      return { ...state, cut: { ...state.cut, voSegments } };
+    }
+    case "REMOVE_VO": {
+      if (!state.cut) return state;
+      const voSegments = (state.cut.voSegments ?? []).filter((s) => s.id !== action.id);
+      return { ...state, cut: { ...state.cut, voSegments } };
+    }
+    case "DUPLICATE_VO": {
+      if (!state.cut) return state;
+      const target = (state.cut.voSegments ?? []).find((s) => s.id === action.id);
+      if (!target) return state;
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const newId = action.newVoId ?? `vo-${genId()}`;
+      const totalDur = state.cut.beats.reduce((acc, b) => acc + (b.durationSec || Math.max(0.05, b.outSec - b.inSec)), 0);
+      const newStart = Math.min(Math.max(0, totalDur - target.durationSec), target.startTimeSec + 0.5);
+      const duplicated: VoSegment = { ...target, id: newId, startTimeSec: Math.round(newStart * 10) / 10 };
+      const voSegments = [...(state.cut.voSegments ?? []), duplicated];
+      return { ...state, cut: { ...state.cut, voSegments } };
     }
     case "SET_GLOBAL_FILTER": {
       if (!state.cut) return state;
