@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Cut, Clip, OverlayClip, OverlayBlendMode } from "../domain/types";
+import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { createClip } from "../features/ingest/ingest";
 import { fmtSecs, posterBg } from "./util";
@@ -14,6 +14,8 @@ interface Props {
   onSelectBeat: (id: string) => void;
   selectedOverlayId?: string | null;
   onSelectOverlay?: (id: string | null) => void;
+  selectedVoId?: string | null;
+  onSelectVo?: (id: string | null) => void;
 }
 
 export default function Timeline({
@@ -24,11 +26,14 @@ export default function Timeline({
   onSelectBeat,
   selectedOverlayId,
   onSelectOverlay,
+  selectedVoId,
+  onSelectVo,
 }: Props) {
   const { dispatch } = useProject();
   const [pickerOpen, setPickerOpen] = useState(false);
   const beats = cut.beats;
   const overlays = cut.overlays ?? [];
+  const voSegments = cut.voSegments ?? [];
   const totalDur = cutDuration(cut) || 1;
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
 
@@ -183,6 +188,68 @@ export default function Timeline({
     }
   }
 
+  // ── VO track drag/resize (mirrors the overlay track) ──
+  const voTrackRef = useRef<HTMLDivElement>(null);
+  const [draggingVoId, setDraggingVoId] = useState<string | null>(null);
+  const voDragStartRef = useRef<{ startX: number; initialStartSec: number; initialDurationSec: number; mode: "move" | "resize-left" | "resize-right" } | null>(null);
+  const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+
+  function addVoSegment() {
+    const seg: VoSegment = {
+      id: `vo-${genId()}`,
+      text: "",
+      startTimeSec: Math.round((selIndex >= 0 ? beatStarts[selIndex] : 0) * 10) / 10,
+      durationSec: Math.min(2.5, totalDur),
+      captionVisible: true,
+    };
+    dispatch({ type: "ADD_VO", segment: seg });
+    onSelectVo?.(seg.id);
+    onSelectOverlay?.(null);
+  }
+
+  function startVoDrag(e: React.PointerEvent, seg: VoSegment, mode: "move" | "resize-left" | "resize-right") {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSelectVo?.(seg.id);
+    onSelectOverlay?.(null);
+    setDraggingVoId(seg.id);
+    voDragStartRef.current = { startX: e.clientX, initialStartSec: seg.startTimeSec, initialDurationSec: seg.durationSec, mode };
+  }
+
+  function handleVoPointerMove(e: React.PointerEvent, seg: VoSegment) {
+    if (draggingVoId !== seg.id || !voDragStartRef.current || !voTrackRef.current) return;
+    const rect = voTrackRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const deltaSec = ((e.clientX - voDragStartRef.current.startX) / rect.width) * totalDur;
+    const st = voDragStartRef.current;
+
+    if (st.mode === "move") {
+      const newStartSec = Math.max(0, Math.min(totalDur - seg.durationSec, st.initialStartSec + deltaSec));
+      const rounded = Math.round(newStartSec * 10) / 10;
+      if (rounded !== seg.startTimeSec) dispatch({ type: "UPDATE_VO", segment: { ...seg, startTimeSec: rounded } });
+    } else if (st.mode === "resize-right") {
+      const newDur = Math.max(0.5, Math.min(totalDur - seg.startTimeSec, st.initialDurationSec + deltaSec));
+      const rounded = Math.round(newDur * 10) / 10;
+      if (rounded !== seg.durationSec) dispatch({ type: "UPDATE_VO", segment: { ...seg, durationSec: rounded } });
+    } else {
+      const maxDelta = st.initialDurationSec - 0.5;
+      const actualDelta = Math.max(-st.initialStartSec, Math.min(maxDelta, deltaSec));
+      const newStartSec = Math.round((st.initialStartSec + actualDelta) * 10) / 10;
+      const newDur = Math.round((st.initialDurationSec - actualDelta) * 10) / 10;
+      if (newStartSec !== seg.startTimeSec || newDur !== seg.durationSec) {
+        dispatch({ type: "UPDATE_VO", segment: { ...seg, startTimeSec: newStartSec, durationSec: newDur } });
+      }
+    }
+  }
+
+  function endVoDrag(e: React.PointerEvent) {
+    if (draggingVoId) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      setDraggingVoId(null);
+      voDragStartRef.current = null;
+    }
+  }
+
   // Compute cumulative beat start times so we can position the playhead and beat dividers
   const beatStarts: number[] = [];
   let acc = 0;
@@ -201,9 +268,17 @@ export default function Timeline({
       <div className="st-tlhead">
         <span className="t">The Cut</span>
         <span className="meta st-num">
-          {beats.length} beats · {overlays.length} overlays · {fmtSecs(totalDur)} · {cut.aspect}
+          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {fmtSecs(totalDur)} · {cut.aspect}
         </span>
-        <div style={{ position: "relative", marginLeft: "auto" }}>
+        <button
+          className="st-btn ghost"
+          style={{ padding: "2px 8px", fontSize: 11, marginLeft: "auto" }}
+          onClick={addVoSegment}
+          title="Add a voiceover segment to the VO track (type its narration in the Inspector)"
+        >
+          + Add VO
+        </button>
+        <div style={{ position: "relative" }}>
           <button
             className="st-btn ghost"
             style={{ padding: "2px 8px", fontSize: 11, borderColor: pickerOpen ? "var(--accent)" : undefined }}
@@ -353,6 +428,75 @@ export default function Timeline({
                           className="st-ov-resize-handle right"
                           title="Drag right edge to adjust duration"
                         />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* VO Track Lane — narration + captions on an independent proportional ruler */}
+            {voSegments.length > 0 && (
+              <div className="st-vo-lane">
+                <div className="st-vo-label">
+                  🎙️ VO Track <span className="st-vo-label-hint">(Drag to reposition · Drag edges to resize)</span>
+                </div>
+
+                <div ref={voTrackRef} className="st-vo-canvas">
+                  {/* Beat dividers for alignment reference */}
+                  {beats.map((b, i) => {
+                    if (i === 0) return null;
+                    return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                  })}
+
+                  {voSegments.map((seg) => {
+                    const leftPct = (seg.startTimeSec / totalDur) * 100;
+                    const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
+                    const isSel = seg.id === selectedVoId;
+                    const snippet = seg.text.trim() || "Empty — type in Inspector";
+                    return (
+                      <div
+                        key={seg.id}
+                        onPointerDown={(e) => startVoDrag(e, seg, "move")}
+                        onPointerMove={(e) => handleVoPointerMove(e, seg)}
+                        onPointerUp={endVoDrag}
+                        className={"st-vo-chip" + (isSel ? " sel" : "") + (seg.text.trim() ? "" : " empty")}
+                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                        title={`${snippet} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · ${seg.captionVisible ? "caption visible" : "voiceover only"}`}
+                      >
+                        <div onPointerDown={(e) => startVoDrag(e, seg, "resize-left")} className="st-vo-resize-handle left" title="Drag to adjust start time" />
+
+                        <span className="st-vo-chip-icon">{seg.captionVisible ? "👁" : "🔇"}</span>
+                        <span className="st-vo-chip-text">{snippet}</span>
+                        <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); const newId = `vo-${genId()}`; dispatch({ type: "DUPLICATE_VO", id: seg.id, newVoId: newId }); onSelectVo?.(newId); }}
+                          className="st-vo-action-btn"
+                          title="Duplicate VO segment"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </button>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_VO", id: seg.id }); if (selectedVoId === seg.id) onSelectVo?.(null); }}
+                          className="st-vo-action-btn"
+                          title="Remove VO segment"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                            <line x1="2" y1="2" x2="10" y2="10" />
+                            <line x1="10" y1="2" x2="2" y2="10" />
+                          </svg>
+                        </button>
+
+                        <div onPointerDown={(e) => startVoDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to adjust duration" />
                       </div>
                     );
                   })}
