@@ -11,6 +11,10 @@ import { GOOGLE_TITLE_FONTS, ensureGoogleFontLoaded, findFontById } from "../../
 import { getTitleFontBytes } from "./titleFonts";
 import TitleTreatmentEditor from "./TitleTreatmentEditor";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, type TitlePreset } from "../../lib/titlePresets";
+import {
+  loadVoPresets, saveVoPreset, updateVoPreset, deleteVoPreset, getDefaultPresetId, setDefaultPresetId,
+  type VoPreset, type VoSettings,
+} from "../../lib/voPresets";
 
 import { EDITOR_DEFAULTS } from "../../config/editorDefaults";
 
@@ -46,6 +50,18 @@ export default function ExportView() {
   const cut = state.cut;
   const clips = state.clips;
   const { settings: es, update } = useExportSettings();
+  const [voPresets, setVoPresets] = useState<VoPreset[]>(() => loadVoPresets());
+  const [selectedVoPresetId, setSelectedVoPresetId] = useState<string>(() => getDefaultPresetId() ?? "");
+  const [defaultVoPresetId, setDefaultVoPresetId] = useState<string>(() => getDefaultPresetId() ?? "");
+  // Snapshot of the VO settings "before modification" — updated whenever a clean
+  // state is established (preset applied/saved). "Revert changes" restores it.
+  const [voBaseline, setVoBaseline] = useState<VoSettings>(() => ({
+    voiceover: es.voiceover, ttsEngine: es.ttsEngine, voice: es.voice, elevenVoiceId: es.elevenVoiceId,
+    elevenModel: es.elevenModel, elevenStability: es.elevenStability, elevenStyle: es.elevenStyle,
+    voiceoverSpeed: es.voiceoverSpeed, voiceoverLeadSec: es.voiceoverLeadSec, voiceoverGapSec: es.voiceoverGapSec,
+  }));
+  // Two-step confirm before overwriting the selected preset with the current settings.
+  const [confirmSaveMod, setConfirmSaveMod] = useState(false);
   const {
     exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
   } = es;
@@ -209,6 +225,73 @@ export default function ExportView() {
     if (engine === "kokoro") preloadKokoro();
     else setModelMsg("");
   }
+
+  // ── Voiceover presets ──────────────────────────────────────────────
+  /** The current VO fields as a saveable preset payload. */
+  function currentVoSettings(): VoSettings {
+    return {
+      voiceover: es.voiceover, ttsEngine: es.ttsEngine, voice: es.voice, elevenVoiceId: es.elevenVoiceId,
+      elevenModel: es.elevenModel, elevenStability: es.elevenStability, elevenStyle: es.elevenStyle,
+      voiceoverSpeed: es.voiceoverSpeed, voiceoverLeadSec: es.voiceoverLeadSec, voiceoverGapSec: es.voiceoverGapSec,
+    };
+  }
+
+  function applyVoPreset(id: string) {
+    const preset = voPresets.find((p) => p.id === id);
+    if (!preset) return;
+    update(preset.settings);
+    setVoBaseline(preset.settings); // fresh clean baseline
+    setSelectedVoPresetId(preset.id);
+    setConfirmSaveMod(false);
+  }
+
+  /** Discard modifications — restore the VO settings to before you started tweaking. */
+  function revertVoChanges() {
+    update(voBaseline);
+    setConfirmSaveMod(false);
+  }
+
+  /** Overwrite the selected preset with the current settings (after Confirm). */
+  function saveModifiedPreset() {
+    if (!selectedVoPreset) return;
+    const snapshot = currentVoSettings();
+    updateVoPreset(selectedVoPreset.id, snapshot);
+    setVoBaseline(snapshot);
+    setVoPresets(loadVoPresets());
+    setConfirmSaveMod(false);
+  }
+
+  /** Toggle whether the selected preset auto-loads in new sessions / after Start over. */
+  function toggleVoDefault() {
+    if (!selectedVoPresetId) return;
+    const next = defaultVoPresetId === selectedVoPresetId ? null : selectedVoPresetId;
+    setDefaultPresetId(next);
+    setDefaultVoPresetId(next ?? "");
+  }
+
+  function handleSaveVoPreset() {
+    const name = prompt("Name this voiceover preset:", "My VO preset");
+    if (!name?.trim()) return;
+    const snapshot = currentVoSettings();
+    const preset = saveVoPreset(name, snapshot);
+    setVoBaseline(snapshot); // saving establishes a clean baseline
+    setVoPresets(loadVoPresets());
+    setSelectedVoPresetId(preset.id);
+    setConfirmSaveMod(false);
+  }
+
+  function handleDeleteVoPreset() {
+    if (!selectedVoPresetId) return;
+    deleteVoPreset(selectedVoPresetId);
+    setVoPresets(loadVoPresets());
+    if (defaultVoPresetId === selectedVoPresetId) setDefaultVoPresetId("");
+    setSelectedVoPresetId(getDefaultPresetId() ?? "");
+    setConfirmSaveMod(false);
+  }
+
+  // Selected preset + whether the current VO settings have drifted from the baseline.
+  const selectedVoPreset = voPresets.find((p) => p.id === selectedVoPresetId);
+  const voModified = JSON.stringify(currentVoSettings()) !== JSON.stringify(voBaseline);
 
   function togglePreview(name: string) {
     const a = audioRef.current;
@@ -825,6 +908,99 @@ export default function ExportView() {
                       <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Tail gap after voice</span>
                       <input type="range" min={0} max={2} step={0.1} value={voiceoverGapSec} onChange={(e) => update({ voiceoverGapSec: Number(e.target.value) })} style={sliderTrackStyle(voiceoverGapSec, 0, 2)} />
                       <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{voiceoverGapSec.toFixed(1)}s</span>
+                    </div>
+
+                    {/* Voiceover presets — save the current settings by name, apply any saved one. */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2, paddingTop: 8, borderTop: "1px solid var(--line)" }}>
+                      <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>
+                        Preset{voModified && <span style={{ color: "var(--accent)", fontStyle: "italic" }}> · modified</span>}
+                      </span>
+                      <select
+                        value={selectedVoPresetId}
+                        onChange={(e) => { if (e.target.value) applyVoPreset(e.target.value); else setSelectedVoPresetId(""); }}
+                        style={{ flex: 1, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 11, padding: "3px 7px", outline: "none" }}
+                        title="Apply a saved voiceover preset"
+                      >
+                        <option value="">{voPresets.length ? "Select a preset…" : "No presets yet"}</option>
+                        {voPresets.map((p) => <option key={p.id} value={p.id}>{p.id === defaultVoPresetId ? `★ ${p.name}` : p.name}</option>)}
+                      </select>
+                      {selectedVoPresetId && (
+                        <>
+                          <button
+                            type="button"
+                            className="st-btn ghost"
+                            style={{ fontSize: 12, padding: "3px 8px", color: defaultVoPresetId === selectedVoPresetId ? "var(--accent)" : "var(--ink-3)" }}
+                            onClick={toggleVoDefault}
+                            title={defaultVoPresetId === selectedVoPresetId ? "This is your default — auto-applied to new projects. Click to unset." : "Make this the default (auto-applied to new projects and after Start over)"}
+                          >
+                            {defaultVoPresetId === selectedVoPresetId ? "★" : "☆"}
+                          </button>
+                          <button
+                            type="button"
+                            className="st-btn ghost"
+                            style={{ fontSize: 11, padding: "3px 8px", color: "var(--danger)" }}
+                            onClick={handleDeleteVoPreset}
+                            title="Delete the selected preset"
+                          >
+                            ✕
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      {/* Save modifications back into the selected preset — explicit, with confirm. */}
+                      {voModified && selectedVoPreset && !confirmSaveMod && (
+                        <button
+                          type="button"
+                          className="st-btn ghost"
+                          style={{ fontSize: 11, padding: "4px 10px" }}
+                          onClick={() => setConfirmSaveMod(true)}
+                          title={`Overwrite “${selectedVoPreset.name}” with the current settings`}
+                        >
+                          💾 Save modified preset
+                        </button>
+                      )}
+                      {voModified && selectedVoPreset && confirmSaveMod && (
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                          <span style={{ color: "var(--ink-2)" }}>Overwrite “{selectedVoPreset.name}”?</span>
+                          <button
+                            type="button"
+                            className="st-btn ghost"
+                            style={{ fontSize: 11, padding: "3px 9px", color: "var(--good)" }}
+                            onClick={saveModifiedPreset}
+                          >
+                            ✓ Confirm
+                          </button>
+                          <button
+                            type="button"
+                            className="st-btn ghost"
+                            style={{ fontSize: 11, padding: "3px 9px", color: "var(--ink-3)" }}
+                            onClick={() => setConfirmSaveMod(false)}
+                          >
+                            ✕ Cancel
+                          </button>
+                        </span>
+                      )}
+                      {voModified && (
+                        <button
+                          type="button"
+                          className="st-btn ghost"
+                          style={{ fontSize: 11, padding: "4px 10px", color: "var(--accent)" }}
+                          onClick={revertVoChanges}
+                          title={selectedVoPreset ? `Discard changes and go back to “${selectedVoPreset.name}”` : "Discard changes and go back to before you modified"}
+                        >
+                          ↺ Revert changes
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="st-btn ghost"
+                        style={{ fontSize: 11, padding: "4px 10px" }}
+                        onClick={handleSaveVoPreset}
+                        title="Save these voiceover settings as a NEW named preset (available in every project)"
+                      >
+                        💾 Save as new preset…
+                      </button>
                     </div>
                   </div>
                 )}
