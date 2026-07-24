@@ -197,27 +197,31 @@ function elevenProxy(apiKey: string): Plugin {
         }
         try {
           if (!apiKey) return send(500, { error: "ELEVENLABS_API_KEY not set in .env.local" });
-          const { text, voiceId, speed } = JSON.parse(await readBody(req)) as { text: string; voiceId: string; speed?: number };
+          const { text, voiceId, speed, model, stability, style } = JSON.parse(await readBody(req)) as {
+            text: string; voiceId: string; speed?: number; model?: string; stability?: number; style?: number;
+          };
           const clean = (text ?? "").trim();
           if (!clean) return send(400, { error: "empty voiceover text" });
           if (!voiceId) return send(400, { error: "missing ElevenLabs voiceId" });
-          // ElevenLabs voice_settings.speed: 0.7 (slow) .. 1.2 (fast), 1 = natural.
-          const body: Record<string, unknown> = { text: clean, model_id: "eleven_multilingual_v2" };
-          if (typeof speed === "number" && speed !== 1) {
-            body.voice_settings = { speed: Math.min(1.2, Math.max(0.7, speed)) };
-          }
-          const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          // voice_settings: speed 0.7..1.2 (1 = natural); stability/style 0..1.
+          const voiceSettings: Record<string, number> = {};
+          if (typeof speed === "number" && speed !== 1) voiceSettings.speed = Math.min(1.2, Math.max(0.7, speed));
+          if (typeof stability === "number") voiceSettings.stability = Math.min(1, Math.max(0, stability));
+          if (typeof style === "number") voiceSettings.style = Math.min(1, Math.max(0, style));
+          const body: Record<string, unknown> = { text: clean, model_id: model || "eleven_multilingual_v2" };
+          if (Object.keys(voiceSettings).length) body.voice_settings = voiceSettings;
+          // with-timestamps → JSON { audio_base64, alignment } so callers get exact timing.
+          const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`, {
             method: "POST",
-            headers: { "xi-api-key": apiKey, "content-type": "application/json", accept: "audio/mpeg" },
+            headers: { "xi-api-key": apiKey, "content-type": "application/json", accept: "application/json" },
             body: JSON.stringify(body),
           });
           if (!r.ok) {
             const detail = await r.text().catch(() => "");
             return send(r.status, { error: `ElevenLabs ${r.status}: ${detail.slice(0, 300)}` });
           }
-          res.statusCode = 200;
-          res.setHeader("content-type", "audio/mpeg");
-          res.end(Buffer.from(await r.arrayBuffer()));
+          const out = (await r.json()) as { audio_base64?: string; alignment?: unknown; normalized_alignment?: unknown };
+          return send(200, { audioBase64: out.audio_base64 ?? "", alignment: out.alignment ?? out.normalized_alignment ?? null });
         } catch (e) {
           send(500, { error: e instanceof Error ? e.message : String(e) });
         }

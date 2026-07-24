@@ -4,7 +4,7 @@ import { useExportSettings, type TitleLayerSettings } from "../../state/ExportSe
 import { cutDuration } from "../assemble/assemble";
 import { exportCut, buildScriptText, buildSrt, type TitleOverlay, type TitleLayer } from "./export";
 import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
-import { ELEVEN_VOICES, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
+import { ELEVEN_VOICES, ELEVEN_MODELS, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
 import type { TtsEngine } from "../../lib/tts";
 import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./FinalPreview";
 import { GOOGLE_TITLE_FONTS, ensureGoogleFontLoaded, findFontById } from "../../lib/googleFonts";
@@ -47,7 +47,7 @@ export default function ExportView() {
   const clips = state.clips;
   const { settings: es, update } = useExportSettings();
   const {
-    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
+    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
   } = es;
   // Transient per-render state (fine to reset on navigation).
   const [progress, setProgress] = useState<number | null>(null);
@@ -279,7 +279,7 @@ export default function ExportView() {
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
+        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
         (p, status) => {
           setProgress(p);
           if (status) setStatusText(status);
@@ -468,6 +468,9 @@ export default function ExportView() {
               ttsEngine={ttsEngine}
               voice={voice}
               elevenVoiceId={elevenVoiceId}
+              elevenModel={elevenModel}
+              elevenStability={elevenStability}
+              elevenStyle={elevenStyle}
               voiceoverSpeed={voiceoverSpeed}
               voiceoverLeadSec={voiceoverLeadSec}
             />
@@ -772,6 +775,37 @@ export default function ExportView() {
                         </select>
                       )}
                     </div>
+
+                    {ttsEngine === "elevenlabs" && (
+                      <>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Model: Flash is fast & cheap for previews; v3 understands inline audio tags like [excited].">
+                          <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Model</span>
+                          <select value={elevenModel} onChange={(e) => update({ elevenModel: e.target.value })} style={{ flex: 1, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
+                            {ELEVEN_MODELS.map((m) => (
+                              <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Lower = more expressive/variable read; higher = steadier/more monotone.">
+                          <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Stability</span>
+                          <input type="range" min={0} max={1} step={0.05} value={elevenStability} onChange={(e) => update({ elevenStability: Number(e.target.value) })} style={sliderTrackStyle(elevenStability, 0, 1)} />
+                          <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(elevenStability * 100)}%</span>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Style exaggeration — 0 is neutral/faster; higher pushes the voice's characteristic style.">
+                          <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Style</span>
+                          <input type="range" min={0} max={1} step={0.05} value={elevenStyle} onChange={(e) => update({ elevenStyle: Number(e.target.value) })} style={sliderTrackStyle(elevenStyle, 0, 1)} />
+                          <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(elevenStyle * 100)}%</span>
+                        </div>
+
+                        {elevenModel === "eleven_v3" && (
+                          <span style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.4 }}>
+                            💡 v3 reads inline audio tags in your VO text — e.g. <code>[excited]</code>, <code>[whispers]</code>, <code>[laughs]</code>, <code>[sighs]</code>.
+                          </span>
+                        )}
+                      </>
+                    )}
 
                     {modelMsg && <span style={{ fontSize: 11, color: "var(--accent)" }}>{modelMsg}</span>}
 
