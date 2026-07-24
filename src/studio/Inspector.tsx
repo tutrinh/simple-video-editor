@@ -9,7 +9,8 @@ import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, cssFilterFor, getFilterPreset } from "./util";
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
-import { makeBeatTitleLayers, type TitleLayerSettings } from "../state/ExportSettingsContext";
+import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
+import { synthesizeVoiceover } from "../lib/tts";
 import Switch from "./Switch";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -73,6 +74,9 @@ export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSP
 export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo }: Props) {
   const { state, dispatch } = useProject();
   const { settings } = useSettings();
+  const { settings: es } = useExportSettings();
+  const [fitting, setFitting] = useState(false);
+  const [fitErr, setFitErr] = useState<string | null>(null);
   const cut = state.cut;
   const overlays = cut?.overlays ?? [];
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
@@ -147,6 +151,27 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   // Suggestions & modals belong to one beat — clear them when a different beat is selected.
   useEffect(() => { setAlts([]); setAltErr(null); setConfirmRemoveOpen(false); }, [beat?.id]);
 
+  // Synthesize this segment's narration and snap its length to the exact spoken
+  // duration (from ElevenLabs timestamps / decoded audio) so the caption window fits.
+  async function fitVoLength() {
+    if (!selectedVo || !selectedVo.text.trim()) return;
+    setFitting(true); setFitErr(null);
+    try {
+      const seg = selectedVo;
+      const n = await synthesizeVoiceover(seg.text.trim(), {
+        engine: es.ttsEngine, voice: es.voice, elevenVoiceId: es.elevenVoiceId,
+        speed: es.voiceoverSpeed, elevenModel: es.elevenModel, elevenStability: es.elevenStability, elevenStyle: es.elevenStyle,
+      });
+      const dur = Math.max(0.3, Math.round((n.durationSec || 0) * 10) / 10);
+      if (dur > 0.3) dispatch({ type: "UPDATE_VO", segment: { ...seg, durationSec: dur } });
+      else setFitErr("Couldn't read a duration from the voice.");
+    } catch (e) {
+      setFitErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFitting(false);
+    }
+  }
+
   // VO Segment editor card — narration text + caption visibility, decoupled from the
   // beat. Rendered in both the empty state and the normal Inspector so a selected VO
   // chip is always editable. (Mirrors the overlay clip card.)
@@ -203,6 +228,19 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         <span>Length {selectedVo.durationSec.toFixed(1)}s</span>
         {selectedVo.text.trim() && <span>· ~{estimateSpokenSeconds(selectedVo.text).toFixed(1)}s to speak</span>}
       </div>
+
+      <button
+        type="button"
+        className="st-btn ghost"
+        style={{ marginTop: 8, fontSize: 11, padding: "5px 10px", width: "100%", justifyContent: "center" }}
+        onClick={fitVoLength}
+        disabled={fitting || !selectedVo.text.trim()}
+        title="Synthesize this narration and snap the segment length to its exact spoken duration"
+      >
+        {fitting ? "Fitting…" : "⤢ Fit length to voice"}
+      </button>
+      {fitErr && <div style={{ fontSize: 10, color: "var(--danger)", marginTop: 4 }}>⚠ {fitErr}</div>}
+
       <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>Drag the chip on the VO track to move; drag its edges to resize.</div>
     </div>
   ) : null;
