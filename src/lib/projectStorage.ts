@@ -1,9 +1,10 @@
 import type { ProjectState } from "../state/projectReducer";
 import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
+import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, titleFontKeys } from "./titleFontPersist";
 
 const DB_NAME = "vidstr_projects_db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const ACTIVE_PROJECT_KEY = "simple_editor_active_project_id";
 
 function openDB(): Promise<IDBDatabase> {
@@ -19,6 +20,10 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("media_blobs")) {
         db.createObjectStore("media_blobs", { keyPath: "clipId" });
+      }
+      // v2: uploaded per-beat title fonts (structured clone preserves the File).
+      if (!db.objectStoreNames.contains("title_fonts")) {
+        db.createObjectStore("title_fonts", { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -55,10 +60,23 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
     }
   }
 
+  // 1b. Save uploaded per-beat title fonts (structured clone keeps the File),
+  //     keyed per project so different projects can't collide or leak.
+  const titleFonts = collectTitleFonts(state);
+  if (titleFonts.length) {
+    const fontTx = db.transaction("title_fonts", "readwrite");
+    const fontStore = fontTx.objectStore("title_fonts");
+    for (const { key, file } of titleFonts) {
+      fontStore.put({ key: `${id}:${key}`, fontBlob: file });
+    }
+  }
+
   // 2. Prepare serializable state without non-serializable File/Blob objects
-  const serializableClips = state.clips.map(({ file, normalized, ...rest }) => rest);
+  //    (clip media and title-font Files are stored out-of-band above).
+  const stripped = stripTitleFonts(state);
+  const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
   const serializableState = {
-    ...state,
+    ...stripped,
     clips: serializableClips,
   };
 
@@ -130,10 +148,32 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     })
   );
 
-  return {
-    ...parsedState,
-    clips: rehydratedClips,
-  };
+  // Rehydrate uploaded per-beat title fonts from the title_fonts store.
+  const fontKeys = titleFontKeys(parsedState);
+  const fontMap = new Map<string, Blob>();
+  if (fontKeys.length) {
+    const fontTx = db.transaction("title_fonts", "readonly");
+    const fontStore = fontTx.objectStore("title_fonts");
+    const results = await Promise.all(
+      fontKeys.map(
+        (k) =>
+          new Promise<{ k: string; blob: Blob | null }>((resolve) => {
+            const req = fontStore.get(`${id}:${k}`);
+            req.onsuccess = () => resolve({ k, blob: (req.result as { fontBlob?: Blob } | undefined)?.fontBlob ?? null });
+            req.onerror = () => resolve({ k, blob: null });
+          }),
+      ),
+    );
+    for (const r of results) if (r.blob) fontMap.set(r.k, r.blob);
+  }
+
+  return reinjectTitleFonts(
+    {
+      ...parsedState,
+      clips: rehydratedClips,
+    },
+    fontMap,
+  );
 }
 
 export async function listSavedProjects(): Promise<SavedProjectMeta[]> {
@@ -177,6 +217,12 @@ export async function deleteProjectFromStorage(id: string): Promise<void> {
       const mediaStore = mediaTx.objectStore("media_blobs");
       for (const clip of parsed.clips) {
         mediaStore.delete(clip.id);
+      }
+      const fontKeys = titleFontKeys(parsed);
+      if (fontKeys.length) {
+        const fontTx = db.transaction("title_fonts", "readwrite");
+        const fontStore = fontTx.objectStore("title_fonts");
+        for (const k of fontKeys) fontStore.delete(`${id}:${k}`);
       }
     } catch (e) {
       console.error("Error cleaning up media_blobs on project delete:", e);
