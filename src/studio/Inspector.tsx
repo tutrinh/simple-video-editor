@@ -6,10 +6,11 @@ import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
 import { cutDuration } from "../features/assemble/assemble";
-import { fmtSecs, cssFilterFor, getFilterPreset } from "./util";
+import { fmtSecs, cssFilterFor, getFilterPreset, rotationCoverScale } from "./util";
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
+import { canvasDims } from "../features/export/export";
 import { synthesizeVoiceover } from "../lib/tts";
 import { sfxFileUrl } from "../lib/sfxLibrary";
 import Switch from "./Switch";
@@ -1218,6 +1219,43 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Rotation — its own section, independent of zoom. It has its own pivot
+            (the frame centre, matching ffmpeg's rotate) and its own cover scale,
+            so it composes with zoom rather than sharing a transform with it. */}
+        <div className="st-field" style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <label style={{ margin: 0, fontWeight: 600 }}>Rotation</label>
+            {Math.abs(b.rotation ?? 0) >= 0.05 && (
+              <button
+                style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
+                onClick={() => update({ ...b, rotation: 0 })}
+                title="Reset rotation to 0°"
+              >
+                Reset rotation
+              </button>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Angle</span>
+            <input
+              type="range" min={-15} max={15} step={0.1}
+              value={b.rotation ?? 0}
+              onChange={(e) => update({ ...b, rotation: Number(e.target.value) })}
+              onDoubleClick={() => update({ ...b, rotation: 0 })}
+              title="Fine rotation — straighten a horizon or add a subtle tilt. Double-click to reset."
+              style={sliderTrackStyle(b.rotation ?? 0, -15, 15)}
+            />
+            <span style={{ fontSize: 10, width: 40, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+              {(b.rotation ?? 0) > 0 ? `+${(b.rotation ?? 0).toFixed(1)}` : (b.rotation ?? 0).toFixed(1)}°
+            </span>
+          </div>
+          {Math.abs(b.rotation ?? 0) >= 0.05 && (
+            <div style={{ fontSize: 10, color: "var(--ink-3)", marginLeft: 78, marginTop: 2 }}>
+              corners show — zoom to {rotationCoverScale(...canvasDims(cut?.aspect ?? "16:9"), b.rotation).toFixed(2)}× to hide them
+            </div>
+          )}
         </div>
 
         {/* Video Transition Collapsible Section */}

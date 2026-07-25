@@ -1,8 +1,9 @@
 import React, { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview, { BeatTitleOverlay } from "../features/export/FinalPreview";
+import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
-import { fmtClock, cssFilterFor, beatZoomStyle, isBeatZoomActive } from "./util";
+import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 
 interface ErrorBoundaryProps {
@@ -243,7 +244,15 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   return (
     <>
       <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
-        <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments), ...(isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed) ? beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY) : {}) }} />
+        {/* Zoom and rotation are separate layers with separate pivots: zoom
+            outside on the focus point, rotation inside on the centre. Nested
+            transforms apply child-first, which matches the export's
+            rotate-then-zoom order. */}
+        <div style={{ position: "absolute", inset: 0, ...beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY, isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed)) }}>
+          <div style={{ position: "absolute", inset: 0, ...beatRotationStyle(...canvasDims(cut.aspect), beat.rotation) }}>
+            <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments) }} />
+          </div>
+        </div>
         {activeOverlay && activeOverlayClip && overlayBlobUrl && (
           <video
             key={activeOverlay.id}

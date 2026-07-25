@@ -3,7 +3,7 @@ import type { Aspect, Clip, Cut } from "../../domain/types";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
 import { activeVoSegment, activeVoCaption } from "../../lib/pacing";
-import { cssFilterFor, beatZoomStyle, isBeatZoomActive } from "../../studio/util";
+import { cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { sfxFileUrl } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
@@ -464,13 +464,23 @@ export default function FinalPreview({
           overflow: "hidden",
         }}
       >
-        {/* Zoom lives on this wrapper, not the <video> — so a beat's transition
-            animation (which drives the video's transform) never collides with it. */}
+        {/* Zoom and rotation live on wrappers, not the <video> — a beat's
+            transition animation drives the video's own transform and would
+            collide. They are separate layers with separate pivots: zoom outside
+            on the focus point, rotation inside on the centre. Nested transforms
+            apply child-first, matching the export's rotate-then-zoom order. */}
         <div
           style={{
             position: "absolute",
             inset: 0,
-            ...(isBeatZoomActive(beat?.zoom, beat?.zoomScope, beat?.zoomSec, beatElapsed) ? beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY) : {}),
+            ...beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY, isBeatZoomActive(beat?.zoom, beat?.zoomScope, beat?.zoomSec, beatElapsed)),
+          }}
+        >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            ...beatRotationStyle(...canvasDims(cut.aspect), beat?.rotation),
           }}
         >
           <video
@@ -486,6 +496,7 @@ export default function FinalPreview({
               animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
             }}
           />
+        </div>
         </div>
 
         {transitionOverlayOpacity > 0 && (

@@ -5,7 +5,7 @@ import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { fetchSfxBytes } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
-import { ffmpegColorLut, ffmpegZoomFilters } from "../../studio/util";
+import { ffmpegColorLut, beatFrameFilters } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
 
@@ -363,11 +363,14 @@ export async function exportCut(
       }
     };
 
-    // Zoom: "entire" scope folds straight into the base chain; "intro" scope must
-    // be time-gated, so the zoomed frame is composited over the un-zoomed base with
-    // an `enable` window (below) rather than baked into vf.
-    const zoomFilters = ffmpegZoomFilters(w, h, b.zoom, b.zoomX, b.zoomY);
-    const zoomIntro = zoomFilters.length > 0 && (b.zoomScope ?? "entire") === "intro";
+    // Frame geometry — punch-in zoom and fine rotation as one scale/rotate/crop.
+    // "entire" scope folds straight into the base chain; "intro" scope must be
+    // time-gated, so the zoomed frame is composited over the base with an
+    // `enable` window (below) rather than baked into vf. The rotation always
+    // lives in the base, so it outlives the intro window.
+    const frame = beatFrameFilters(w, h, b);
+    const zoomFilters = frame.introZoom ?? [];
+    const zoomIntro = zoomFilters.length > 0;
 
     // The Grade rides in as a baked 3D LUT written to the engine FS, not as a
     // filter chain — one generator drives it and the preview both (ADR-0010).
@@ -381,7 +384,7 @@ export async function exportCut(
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
       `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
       "setsar=1",
-      ...(zoomIntro ? [] : zoomFilters),
+      ...frame.base,
       ...(colorLut ? [colorLut.filter] : []),
     ];
 

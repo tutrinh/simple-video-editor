@@ -86,11 +86,15 @@ export async function runIsolated(
   outputName: string,
   onProgress?: (fraction: number) => void,
   timeoutMs = 600_000,
+  /** Receives ffmpeg's own log lines on SUCCESS too — otherwise they are only
+   *  summarised on failure, which hides "filter did nothing" style problems. */
+  onLog?: (lines: string[]) => void,
 ): Promise<Uint8Array<ArrayBuffer>> {
   const urls = await coreUrls();
   const ff = new FFmpeg();
   const logs: string[] = [];
   ff.on("log", ({ message }) => { logs.push(message); });
+  const emitLogs = () => { try { onLog?.(logs); } catch { /* diagnostics must never break a render */ } };
   if (onProgress) ff.on("progress", ({ progress }) => onProgress(Math.min(1, Math.max(0, progress))));
   await ff.load(urls);
   // Calling ff.terminate() to abort makes the in-flight ff.exec() reject with
@@ -156,6 +160,7 @@ export async function runIsolated(
     const out = (await ff.readFile(outputName)) as Uint8Array;
     const copy = new Uint8Array(out.byteLength);
     copy.set(out);
+    emitLogs();
     return copy;
   } finally {
     if (timeoutTimer) clearTimeout(timeoutTimer);

@@ -101,6 +101,13 @@ export interface Beat {
   zoomScope?: "entire" | "intro";
   /** Duration in seconds the zoom holds when zoomScope === "intro" (default 3). */
   zoomSec?: number;
+  /**
+   * Fine rotation in degrees, -15..15 (0 = none). Static for the whole beat —
+   * unlike zoom there is no scope/animation. Rotating exposes the frame's
+   * corners, so the frame is auto-scaled to cover: rotation punches in slightly
+   * even at zoom 1×.
+   */
+  rotation?: number;
 }
 
 export interface ColorAdjustments {
