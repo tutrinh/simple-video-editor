@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Aspect, Clip, Cut } from "../../domain/types";
+import type { Aspect, Clip, Cut, Sticker } from "../../domain/types";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
 import { activeVoSegment, activeVoCaption } from "../../lib/pacing";
 import { cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive } from "../../studio/util";
+import { activeStickers, renderStickersToCanvas, beatSpans, resolveStickers, stickerRenderKey } from "./stickerCanvas";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { sfxFileUrl } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
@@ -95,6 +96,7 @@ export default function FinalPreview({
     return t;
   }, [cut.beats, index]);
   const elapsed = beatStart + beatElapsed;
+
 
   const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec) ?? null;
   const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
@@ -534,6 +536,8 @@ export default function FinalPreview({
           />
         )}
 
+        <StickerOverlay stickers={cut.stickers} beats={cut.beats} aspect={cut.aspect} cutSec={elapsed} />
+
         {title && title.layers.map((layer) => {
           if (!layer.enabled || !layer.text.trim()) return null;
 
@@ -817,6 +821,81 @@ function TitleLayerCanvas({
  * fade). Shared by the Export preview and the Stage's Beat view so per-beat
  * titles look identical in both. Must live in a `position: relative` container.
  */
+/**
+ * The Sticker layer, shared by the Cut preview and the Beat preview the way
+ * BeatTitleOverlay is (ADR-0011). Draws through the SHARED renderer onto a
+ * full-frame bitmap at export resolution and shows it CSS-scaled — the same
+ * bitmap the export composites, so placement cannot drift between them.
+ */
+export function StickerOverlay({
+  stickers,
+  beats,
+  aspect,
+  cutSec,
+}: {
+  stickers?: Sticker[];
+  /** Needed to resolve a fitToBeat Sticker's window at read time. */
+  beats: { durationSec: number }[];
+  aspect: Aspect;
+  cutSec: number;
+}) {
+  // One bitmap PER STICKER, not one for all of them: each carries its own blend
+  // mode, and a merged layer could only have one. This also matches the export,
+  // which emits one PNG per Sticker for the same reason.
+  const [bitmaps, setBitmaps] = useState<Record<string, string>>({});
+  const visible = activeStickers(resolveStickers(stickers, beatSpans(beats)), cutSec);
+  // Derived from the renderer's own key so it cannot go stale when a visual
+  // property is added.
+  const key = visible.map(stickerRenderKey).join("|");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!key) { setBitmaps({}); return; }
+    const [cw, ch] = canvasDims(aspect);
+    Promise.all(
+      visible.map(async (st) => {
+        const canvas = await renderStickersToCanvas([st], cw, ch);
+        return [st.id, canvas ? canvas.toDataURL("image/png") : ""] as const;
+      }),
+    )
+      .then((pairs) => {
+        if (cancelled) return;
+        setBitmaps(Object.fromEntries(pairs.filter(([, url]) => url)));
+      })
+      .catch((err) => {
+        console.warn("[sticker] preview layer failed to render", err);
+        if (!cancelled) setBitmaps({});
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, aspect]);
+
+  if (!visible.length) return null;
+  return (
+    <>
+      {visible.map((st) => {
+        const url = bitmaps[st.id];
+        if (!url) return null;
+        return (
+          <img
+            key={st.id}
+            src={url}
+            alt=""
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 6,
+            }}
+          />
+        );
+      })}
+    </>
+  );
+}
+
 export function BeatTitleOverlay({
   layers,
   aspect,

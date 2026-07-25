@@ -68,6 +68,14 @@ does not advance the Cut — it plays *on top of* whatever Beats it spans. Its
 blend mode is load-bearing (see ADR-0009).
 _Avoid_: B-roll, layer, PiP
 
+**Sticker**:
+An image (PNG/SVG/WebP) placed over the Cut on its own lane, with its own start
+and duration, positioned freely and given a scale and a rotation. The asset comes
+from the author's `stickers/` folder; the placement is what lives in the Cut, so
+one asset can be placed many times. Unlike an Overlay it is not a Clip and
+carries no audio; unlike a Title overlay it is not text.
+_Avoid_: overlay, decal, graphic, emoji, image overlay
+
 **Title overlay**:
 The optional title card burned over the video — text laid out by the shared
 canvas renderer (ADR-0008) and composited on top. Distinct from the Project's

@@ -109,6 +109,110 @@ describe("projectReducer", () => {
     expect(s.cut?.voSegments?.map((v) => v.id)).toEqual(["vo1-dup"]);
   });
 
+  it("adds, updates, duplicates, and removes Stickers on the cut", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const sticker = {
+      id: "st1", fileName: "star.png", startTimeSec: 1, durationSec: 2,
+      x: 0.5, y: 0.5, scale: 0.25, rotation: 0, opacity: 1,
+    };
+
+    s = projectReducer(s, { type: "ADD_STICKER", sticker });
+    expect(s.cut?.stickers).toHaveLength(1);
+    expect(s.cut?.stickers?.[0].fileName).toBe("star.png");
+
+    s = projectReducer(s, { type: "UPDATE_STICKER", sticker: { ...sticker, scale: 0.4, rotation: -30 } });
+    expect(s.cut?.stickers?.[0].scale).toBe(0.4);
+    expect(s.cut?.stickers?.[0].rotation).toBe(-30);
+
+    s = projectReducer(s, { type: "DUPLICATE_STICKER", id: "st1", newStickerId: "st1-dup" });
+    expect(s.cut?.stickers).toHaveLength(2);
+    expect(s.cut?.stickers?.[1].id).toBe("st1-dup");
+    expect(s.cut?.stickers?.[1].fileName).toBe("star.png");
+    // Carries the spatial fields across, so a duplicate looks identical.
+    expect(s.cut?.stickers?.[1].scale).toBe(0.4);
+
+    s = projectReducer(s, { type: "REMOVE_STICKER", id: "st1" });
+    expect(s.cut?.stickers).toHaveLength(1);
+    expect(s.cut?.stickers?.[0].id).toBe("st1-dup");
+  });
+
+  it("offsets a duplicated Sticker by 0.5s, clamped inside the cut", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const total = s.cut!.beats.reduce((a, b) => a + b.durationSec, 0);
+
+    s = projectReducer(s, { type: "ADD_STICKER", sticker: {
+      id: "st1", fileName: "a.png", startTimeSec: 0, durationSec: 1,
+      x: 0.5, y: 0.5, scale: 0.2, rotation: 0, opacity: 1,
+    } });
+    s = projectReducer(s, { type: "DUPLICATE_STICKER", id: "st1", newStickerId: "d1" });
+    expect(s.cut?.stickers?.[1].startTimeSec).toBe(0.5);
+
+    // A sticker at the very end cannot be pushed past it.
+    s = projectReducer(s, { type: "ADD_STICKER", sticker: {
+      id: "st2", fileName: "b.png", startTimeSec: total - 1, durationSec: 1,
+      x: 0.5, y: 0.5, scale: 0.2, rotation: 0, opacity: 1,
+    } });
+    s = projectReducer(s, { type: "DUPLICATE_STICKER", id: "st2", newStickerId: "d2" });
+    const dup = s.cut?.stickers?.find((x) => x.id === "d2");
+    expect(dup!.startTimeSec + dup!.durationSec).toBeLessThanOrEqual(total + 1e-9);
+  });
+
+  it("duplicates a beat-pinned Sticker into the NEXT beat", () => {
+    // The reported bug: a fitToBeat duplicate offset by 0.5s stayed in the same
+    // beat, rendered exactly on top of the original, and looked immovable.
+    const cut: Cut = { beats: [beat("1", "a"), beat("2", "a"), beat("3", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const d0 = s.cut!.beats[0].durationSec;
+
+    s = projectReducer(s, { type: "ADD_STICKER", sticker: {
+      id: "st1", fileName: "a.png", startTimeSec: 0.2, durationSec: 1,
+      x: 0.5, y: 0.5, scale: 0.2, rotation: 0, opacity: 1, fitToBeat: true,
+    } });
+    s = projectReducer(s, { type: "DUPLICATE_STICKER", id: "st1", newStickerId: "d1" });
+
+    const dup = s.cut?.stickers?.find((x) => x.id === "d1");
+    expect(dup!.startTimeSec).toBeCloseTo(d0, 5);   // start of beat 2
+    expect(dup!.fitToBeat).toBe(true);              // still pinned
+    expect(dup!.startTimeSec).not.toBe(0.2);        // not stacked on the original
+  });
+
+  it("keeps a pinned duplicate inside the cut when there is no next beat", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const total = s.cut!.beats.reduce((a, b) => a + b.durationSec, 0);
+
+    s = projectReducer(s, { type: "ADD_STICKER", sticker: {
+      id: "st1", fileName: "a.png", startTimeSec: 0.2, durationSec: 1,
+      x: 0.5, y: 0.5, scale: 0.2, rotation: 0, opacity: 1, fitToBeat: true,
+    } });
+    s = projectReducer(s, { type: "DUPLICATE_STICKER", id: "st1", newStickerId: "d1" });
+    const dup = s.cut?.stickers?.find((x) => x.id === "d1");
+    expect(dup!.startTimeSec).toBeLessThan(total);
+  });
+
+  it("still offsets a FREE Sticker duplicate by 0.5s", () => {
+    const cut: Cut = { beats: [beat("1", "a"), beat("2", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    s = projectReducer(s, { type: "ADD_STICKER", sticker: {
+      id: "st1", fileName: "a.png", startTimeSec: 1, durationSec: 1,
+      x: 0.5, y: 0.5, scale: 0.2, rotation: 0, opacity: 1,
+    } });
+    s = projectReducer(s, { type: "DUPLICATE_STICKER", id: "st1", newStickerId: "d1" });
+    expect(s.cut?.stickers?.find((x) => x.id === "d1")!.startTimeSec).toBe(1.5);
+  });
+
+  it("leaves Sticker actions inert when there is no cut", () => {
+    const sticker = {
+      id: "st1", fileName: "a.png", startTimeSec: 0, durationSec: 1,
+      x: 0.5, y: 0.5, scale: 0.2, rotation: 0, opacity: 1,
+    };
+    expect(projectReducer(initialState, { type: "ADD_STICKER", sticker }).cut).toBeUndefined();
+    expect(projectReducer(initialState, { type: "REMOVE_STICKER", id: "st1" }).cut).toBeUndefined();
+    expect(projectReducer(initialState, { type: "DUPLICATE_STICKER", id: "st1" }).cut).toBeUndefined();
+  });
+
   it("adds, updates, duplicates, and removes SFX segments on the cut", () => {
     const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
     let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });

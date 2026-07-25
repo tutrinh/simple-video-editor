@@ -7,6 +7,8 @@ import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, cssFilterFor, getFilterPreset, rotationCoverScale } from "./util";
+import { stickerFileUrl } from "../lib/stickerLibrary";
+import { beatSpans, resolveSticker } from "../features/export/stickerCanvas";
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
@@ -49,6 +51,8 @@ interface Props {
   selectedVoId?: string | null;
   onSelectVo?: (id: string | null) => void;
   selectedSfxId?: string | null;
+  selectedStickerId?: string | null;
+  onSelectSticker?: (id: string | null) => void;
   onSelectSfx?: (id: string | null) => void;
 }
 
@@ -88,7 +92,7 @@ export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSP
   };
 }
 
-export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx }: Props) {
+export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker }: Props) {
   const { state, dispatch } = useProject();
   const { settings } = useSettings();
   const { settings: es } = useExportSettings();
@@ -99,6 +103,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
   const selectedVo = (cut?.voSegments ?? []).find((s) => s.id === selectedVoId);
   const selectedSfx = (cut?.sfxSegments ?? []).find((s) => s.id === selectedSfxId);
+  const selectedSticker = (cut?.stickers ?? []).find((s) => s.id === selectedStickerId);
 
   // Audition the selected SFX (like the music library preview): plays only the
   // trimmed window [0, durationSec] at the segment's volume.
@@ -472,6 +477,140 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     </div>
   ) : null;
 
+  // Sticker card — mirrors the SFX card's shell; the sliders reuse the same row
+  // shape as the colour panel's adjRow.
+  const stickerRow = (label: string, value: number, min: number, max: number, step: number, fmt: (v: number) => string, onChange: (v: number) => void, reset: number) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+      <span style={{ fontSize: 11, width: 62, color: "var(--ink-2)" }}>{label}</span>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        onDoubleClick={() => onChange(reset)}
+        style={sliderTrackStyle(value, min, max)}
+      />
+      <span style={{ fontSize: 10, width: 42, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{fmt(value)}</span>
+    </div>
+  );
+
+  const stickerCard = selectedSticker ? (
+    <div className="st-sec" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid rgb(167,139,250)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "rgb(167,139,250)" }}>🩹 Sticker</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11 }}
+            onClick={() => {
+              const gid = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+              const newId = `sticker-${gid()}`;
+              dispatch({ type: "DUPLICATE_STICKER", id: selectedSticker.id, newStickerId: newId });
+              onSelectSticker?.(newId);
+            }}
+            title="Duplicate this sticker"
+          >
+            Duplicate
+          </button>
+          <button
+            type="button"
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11, color: "var(--danger)" }}
+            onClick={() => { dispatch({ type: "REMOVE_STICKER", id: selectedSticker.id }); onSelectSticker?.(null); }}
+            title="Remove this sticker"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <img
+          src={stickerFileUrl(selectedSticker.fileName)}
+          alt=""
+          style={{ width: 40, height: 40, objectFit: "contain", background: "var(--panel-3)", borderRadius: 6, padding: 3, flexShrink: 0 }}
+        />
+        <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--ink)", wordBreak: "break-all", minWidth: 0 }}>{selectedSticker.fileName}</div>
+      </div>
+
+      {stickerRow("X", selectedSticker.x, 0, 1, 0.005, (v) => `${Math.round(v * 100)}%`,
+        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, x: v } }), 0.5)}
+      {stickerRow("Y", selectedSticker.y, 0, 1, 0.005, (v) => `${Math.round(v * 100)}%`,
+        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, y: v } }), 0.5)}
+      {stickerRow("Scale", selectedSticker.scale, 0.02, 1.5, 0.005, (v) => `${Math.round(v * 100)}%`,
+        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, scale: v } }), 0.25)}
+      {stickerRow("Rotation", selectedSticker.rotation, -180, 180, 1, (v) => `${v > 0 ? "+" : ""}${v.toFixed(0)}°`,
+        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, rotation: v } }), 0)}
+      {stickerRow("Opacity", selectedSticker.opacity, 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`,
+        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, opacity: v } }), 1)}
+
+      {/* Tint — strength slider plus the same swatch + picker idiom the Title
+          treatment uses. A hue rotation would be useless here: most sticker
+          assets are monochrome icons, and rotating the hue of near-black does
+          nothing. This lays a colour over the asset clipped to its alpha. */}
+      {stickerRow("Tint", selectedSticker.tintStrength ?? 0, 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`,
+        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintStrength: v } }), 0)}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, marginLeft: 70 }}>
+        {["#ffffff", "#000000", "#ff3b30", "#ffcc00", "#34c759", "#0a84ff", "#af52de"].map((hex) => (
+          <button
+            key={hex}
+            type="button"
+            onClick={() => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintColor: hex, tintStrength: selectedSticker.tintStrength || 1 } })}
+            title={`Tint ${hex}`}
+            style={{
+              width: 18, height: 18, borderRadius: 4, background: hex, cursor: "pointer", padding: 0,
+              border: (selectedSticker.tintColor ?? "#ffffff").toLowerCase() === hex ? "2px solid var(--accent)" : "1px solid var(--line)",
+            }}
+          />
+        ))}
+        <input
+          type="color"
+          value={selectedSticker.tintColor ?? "#ffffff"}
+          onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintColor: e.target.value, tintStrength: selectedSticker.tintStrength || 1 } })}
+          title="Custom tint colour"
+          style={{ width: 24, height: 22, border: "none", background: "none", cursor: "pointer" }}
+        />
+      </div>
+
+      {/* Fit to beat — the Sticker follows its Beat's trim instead of its own
+          timing. Resolved at read time, so retrimming the Beat can never leave a
+          stale duration behind. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: "var(--ink-2)" }}>Fit to beat</div>
+          <div style={{ fontSize: 10, color: "var(--ink-3)" }}>
+            {selectedSticker.fitToBeat
+              ? "Spans its whole beat and follows its trim"
+              : "Uses its own start and length"}
+          </div>
+        </div>
+        <Switch
+          checked={!!selectedSticker.fitToBeat}
+          label="Fit sticker to the length of its beat"
+          onChange={(next) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, fitToBeat: next } })}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+        {(() => {
+          const eff = resolveSticker(selectedSticker, beatSpans(cut?.beats ?? []));
+          return (
+            <>
+              <span>Start {eff.startTimeSec.toFixed(1)}s</span>
+              <span>Length {eff.durationSec.toFixed(1)}s</span>
+              {selectedSticker.fitToBeat && <span>· from its beat</span>}
+            </>
+          );
+        })()}
+      </div>
+
+      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 6 }}>
+        {selectedSticker.fitToBeat
+          ? "Timing comes from its beat — turn off Fit to beat to drag or trim the chip. Double-click a slider to reset it."
+          : "Drag the chip on the Sticker track to move; drag its right edge to change how long it shows. Double-click a slider to reset it."}
+      </div>
+    </div>
+  ) : null;
+
   if (!beat) {
     return (
       <aside className="st-col insp">
@@ -480,6 +619,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         <div className="st-insp-empty" style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
           {voCard}
           {sfxCard}
+          {stickerCard}
           <span style={{ color: "var(--ink-3)", fontSize: 12 }}>Select a beat in the timeline to edit its caption, trim, and clip.</span>
 
           {cut && (
@@ -735,6 +875,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
       <div className="st-insp-body">
         {voCard}
         {sfxCard}
+        {stickerCard}
         <div
           className="st-ip-poster"
           style={{

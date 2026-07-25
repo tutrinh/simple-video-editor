@@ -8,6 +8,7 @@ import { captionSchedule } from "../../lib/pacing";
 import { ffmpegColorLut, beatFrameFilters } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
+import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers } from "./stickerCanvas";
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
 // isolated engine — trim → scale/letterbox → BURN caption → uniform-silent
@@ -363,6 +364,21 @@ export async function exportCut(
       }
     };
 
+    // Stickers (ADR-0011). Each Sticker overlapping this Beat's window is drawn by
+    // the SHARED renderer to a full-frame transparent PNG — the same bitmap the
+    // preview shows — and composited with its own segment-local `enable` window,
+    // the treatment B-roll Overlays already get. One PNG per Sticker rather than
+    // one for all of them, because their windows differ.
+    const stickerCues: { enable: string }[] = [];
+    for (const st of resolveStickers(cut.stickers, beatSpans(cut.beats))) {
+      const win = stickerWindowInSegment(st, bStart, segDur);
+      if (!win) continue;
+      const png = await renderStickersToPng([st], w, h);
+      if (!png) continue;
+      inputs.push({ name: `sticker_${stickerCues.length}.png`, data: png });
+      stickerCues.push({ enable: `between(t,${win.startSec.toFixed(3)},${win.endSec.toFixed(3)})` });
+    }
+
     // Frame geometry — punch-in zoom and fine rotation as one scale/rotate/crop.
     // "entire" scope folds straight into the base chain; "intro" scope must be
     // time-gated, so the zoomed frame is composited over the base with an
@@ -579,9 +595,15 @@ export async function exportCut(
     });
 
     const overlayCount = segOverlays.length;
-    const audioIdx = 1 + capCount + titleCount + overlayCount;
+    // Stickers are looped stills like captions/titles, and sit LAST among the
+    // video inputs so the existing caption/title/overlay index arithmetic is
+    // untouched. Audio's index moves past them.
+    const stickerCount = stickerCues.length;
+    const stickerInputArgs = stickerCues.flatMap((_, k) => ["-loop", "1", "-t", segDurStr, "-r", "30", "-i", `sticker_${k}.png`]);
+    const stickerIdxBase = 1 + capCount + titleCount + overlayCount;
+    const audioIdx = stickerIdxBase + stickerCount;
 
-    const totalOverlaysAndTitles = titleCount + overlayCount;
+    const totalOverlaysAndTitles = titleCount + overlayCount + stickerCount;
     const baseLabel = capCount === 0 && totalOverlaysAndTitles === 0 ? "[v]" : "[vbase]";
     // For "intro" zoom: split the processed base, punch-in one branch, and overlay
     // it back gated to the first `zoomSec` (segment-local t). Outside the window the
@@ -605,7 +627,7 @@ export async function exportCut(
 
     segTitles.forEach((st, k) => {
       const tInputIdx = 1 + capCount + k;
-      const isLast = k === titleCount - 1 && overlayCount === 0;
+      const isLast = k === titleCount - 1 && overlayCount === 0 && stickerCount === 0;
       const out = isLast ? "[v]" : `[vtitle_${k}]`;
       const fObj = st.filter as any;
       const ovLabel = `[ovt_${k}]`;
@@ -624,7 +646,7 @@ export async function exportCut(
       let segLast = last;
 
       segOverlays.forEach((so, k) => {
-        const isLast = k === overlayCount - 1;
+        const isLast = k === overlayCount - 1 && stickerCount === 0;
         const out = isLast ? (rgbFormat ? `[vout_raw_${k}]` : "[v]") : `[voverlay_${k}]`;
         const mode = so.o.blendMode ?? "normal";
         const op = (so.o.opacity ?? 1).toFixed(3);
@@ -729,8 +751,18 @@ export async function exportCut(
       });
 
       if (rgbFormat && overlayCount > 0) {
-        segChains.push(`${segLast}format=yuv420p[v]`);
+        const rgbOut = stickerCount === 0 ? "[v]" : "[vrgbout]";
+        segChains.push(`${segLast}format=yuv420p${rgbOut}`);
+        if (stickerCount > 0) segLast = rgbOut;
       }
+
+      // Stickers composite last, above B-roll and captions, each gated to its own
+      // segment-local window (ADR-0011). Same `overlay` treatment as a caption cue.
+      stickerCues.forEach((cue, k) => {
+        const out = k === stickerCount - 1 ? "[v]" : `[vsticker_${k}]`;
+        segChains.push(`${segLast}[${stickerIdxBase + k}:v]overlay=x=0:y=0:eof_action=pass:enable='${cue.enable}'${out}`);
+        segLast = out;
+      });
 
       return segChains;
     };
@@ -771,6 +803,7 @@ export async function exportCut(
         ...capInputArgs,
         ...titleInputArgs,
         ...overlayInputArgs,
+        ...stickerInputArgs,
         ...audioInputArgs,
         "-filter_complex", `${vFilterString};${aFilterString}`,
         "-map", "[v]", "-map", "[a]",

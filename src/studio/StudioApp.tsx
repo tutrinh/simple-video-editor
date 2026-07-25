@@ -24,6 +24,7 @@ export default function StudioApp() {
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [selectedVoId, setSelectedVoId] = useState<string | null>(null);
   const [selectedSfxId, setSelectedSfxId] = useState<string | null>(null);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Mount the export drawer lazily on first open, then keep it mounted so its
@@ -57,7 +58,10 @@ export default function StudioApp() {
       if (e.key === "Delete" || e.key === "Backspace") {
         const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        if (selectedSfxId) {
+        if (selectedStickerId) {
+          dispatch({ type: "REMOVE_STICKER", id: selectedStickerId });
+          setSelectedStickerId(null);
+        } else if (selectedSfxId) {
           dispatch({ type: "REMOVE_SFX", id: selectedSfxId });
           setSelectedSfxId(null);
         } else if (selectedVoId) {
@@ -71,7 +75,7 @@ export default function StudioApp() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedOverlayId, selectedVoId, selectedSfxId, dispatch]);
+  }, [selectedOverlayId, selectedVoId, selectedSfxId, selectedStickerId, dispatch]);
 
   // Keep VO selection valid as segments change.
   useEffect(() => {
@@ -172,7 +176,9 @@ export default function StudioApp() {
                   selectedVoId={selectedVoId}
                   onSelectVo={(id) => { setSelectedVoId(id); if (id) { setSelectedOverlayId(null); setSelectedSfxId(null); } }}
                   selectedSfxId={selectedSfxId}
-                  onSelectSfx={(id) => { setSelectedSfxId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); } }}
+                  onSelectSfx={(id) => { setSelectedSfxId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedStickerId(null); } }}
+                  selectedStickerId={selectedStickerId}
+                  onSelectSticker={(id) => { setSelectedStickerId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedSfxId(null); } }}
                 />
               </>
             ) : (
@@ -208,6 +214,8 @@ export default function StudioApp() {
           onSelectVo={setSelectedVoId}
           selectedSfxId={selectedSfxId}
           onSelectSfx={setSelectedSfxId}
+          selectedStickerId={selectedStickerId}
+          onSelectSticker={setSelectedStickerId}
         />
 
         {/* Docked side panel — pushes the layout (see .st-main.ai-open in studio.css). */}

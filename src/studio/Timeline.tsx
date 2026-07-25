@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment } from "../domain/types";
+import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, Sticker } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { createClip } from "../features/ingest/ingest";
 import { fmtSecs, posterBg } from "./util";
 import OverlayPickerModal from "./OverlayPickerModal";
 import SfxPicker from "./SfxPicker";
+import StickerPicker from "./StickerPicker";
+import { stickerFileUrl } from "../lib/stickerLibrary";
+import { beatSpans, resolveSticker, maxStickerStart } from "../features/export/stickerCanvas";
 import { sfxDuration } from "../lib/sfxLibrary";
 
 interface Props {
@@ -20,6 +23,8 @@ interface Props {
   onSelectVo?: (id: string | null) => void;
   selectedSfxId?: string | null;
   onSelectSfx?: (id: string | null) => void;
+  selectedStickerId?: string | null;
+  onSelectSticker?: (id: string | null) => void;
 }
 
 export default function Timeline({
@@ -34,14 +39,18 @@ export default function Timeline({
   onSelectVo,
   selectedSfxId,
   onSelectSfx,
+  selectedStickerId,
+  onSelectSticker,
 }: Props) {
   const { dispatch } = useProject();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sfxPickerOpen, setSfxPickerOpen] = useState(false);
+  const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const beats = cut.beats;
   const overlays = cut.overlays ?? [];
   const voSegments = cut.voSegments ?? [];
   const sfxSegments = cut.sfxSegments ?? [];
+  const stickers = cut.stickers ?? [];
   const totalDur = cutDuration(cut) || 1;
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
 
@@ -295,6 +304,7 @@ export default function Timeline({
     onSelectSfx?.(seg.id);
     onSelectVo?.(null);
     onSelectOverlay?.(null);
+    onSelectSticker?.(null);
   }
 
   function startSfxDrag(e: React.PointerEvent, seg: SfxSegment, mode: "move" | "resize-right") {
@@ -303,6 +313,7 @@ export default function Timeline({
     onSelectSfx?.(seg.id);
     onSelectVo?.(null);
     onSelectOverlay?.(null);
+    onSelectSticker?.(null);
     setDraggingSfxId(seg.id);
     sfxDragStartRef.current = { startX: e.clientX, initialStartSec: seg.startTimeSec, initialDurationSec: seg.durationSec, mode };
   }
@@ -335,6 +346,81 @@ export default function Timeline({
     }
   }
 
+  // ── Sticker track drag/resize (mirrors the SFX track: move + trim-tail) ──
+  const stickerTrackRef = useRef<HTMLDivElement>(null);
+  const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
+  const stickerDragStartRef = useRef<{ startX: number; initialStartSec: number; initialDurationSec: number; mode: "move" | "resize-right" } | null>(null);
+
+  /** Place an asset from the library as a Sticker at the selected beat's start. */
+  function addStickerFromLibrary(fileName: string) {
+    const start = Math.round((selIndex >= 0 ? beatStarts[selIndex] : 0) * 10) / 10;
+    const durationSec = Math.min(2, Math.max(0.5, totalDur));
+    const sticker: Sticker = {
+      id: `sticker-${genId()}`,
+      fileName,
+      startTimeSec: Math.min(start, Math.max(0, totalDur - durationSec)),
+      durationSec,
+      // Centred at a quarter of the frame's width — visible immediately, then
+      // dragged/scaled from the Inspector.
+      x: 0.5,
+      y: 0.5,
+      scale: 0.25,
+      rotation: 0,
+      opacity: 1,
+      tintColor: "#ffffff",
+      tintStrength: 0,
+    };
+    dispatch({ type: "ADD_STICKER", sticker });
+    onSelectSticker?.(sticker.id);
+    onSelectSfx?.(null);
+    onSelectVo?.(null);
+    onSelectOverlay?.(null);
+  }
+
+  function startStickerDrag(e: React.PointerEvent, st: Sticker, mode: "move" | "resize-right") {
+    // Drag from where the chip is DRAWN, not from the stored start. A pinned
+    // sticker is drawn at its beat's start while its stored start sits somewhere
+    // inside that beat, so using the stored value made the pixels you drag not
+    // match the distance needed to reach the next beat.
+    const drawn = resolveSticker(st, beatSpans(beats));
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSelectSticker?.(st.id);
+    onSelectSfx?.(null);
+    onSelectVo?.(null);
+    onSelectOverlay?.(null);
+    setDraggingStickerId(st.id);
+    stickerDragStartRef.current = { startX: e.clientX, initialStartSec: drawn.startTimeSec, initialDurationSec: drawn.durationSec, mode };
+  }
+
+  function handleStickerPointerMove(e: React.PointerEvent, st: Sticker) {
+    if (draggingStickerId !== st.id || !stickerDragStartRef.current || !stickerTrackRef.current) return;
+    const rect = stickerTrackRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const deltaSec = ((e.clientX - stickerDragStartRef.current.startX) / rect.width) * totalDur;
+    const d = stickerDragStartRef.current;
+
+    if (d.mode === "move") {
+      const newStartSec = Math.max(0, Math.min(maxStickerStart(st, totalDur), d.initialStartSec + deltaSec));
+      const rounded = Math.round(newStartSec * 10) / 10;
+      if (rounded !== st.startTimeSec) dispatch({ type: "UPDATE_STICKER", sticker: { ...st, startTimeSec: rounded } });
+    } else {
+      // Trim-tail: a Sticker has no source length, so the only ceiling is the cut end.
+      const maxDur = totalDur - st.startTimeSec;
+      const newDur = Math.max(0.1, Math.min(maxDur, d.initialDurationSec + deltaSec));
+      const rounded = Math.round(newDur * 10) / 10;
+      if (rounded !== st.durationSec) dispatch({ type: "UPDATE_STICKER", sticker: { ...st, durationSec: rounded } });
+    }
+  }
+
+  function endStickerDrag(e: React.PointerEvent) {
+    if (draggingStickerId) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      setDraggingStickerId(null);
+      stickerDragStartRef.current = null;
+    }
+  }
+
   // Compute cumulative beat start times so we can position the playhead and beat dividers
   const beatStarts: number[] = [];
   let acc = 0;
@@ -353,7 +439,7 @@ export default function Timeline({
       <div className="st-tlhead">
         <span className="t">The Cut</span>
         <span className="meta st-num">
-          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {sfxSegments.length} SFX · {fmtSecs(totalDur)} · {cut.aspect}
+          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {sfxSegments.length} SFX · {stickers.length} stickers · {fmtSecs(totalDur)} · {cut.aspect}
         </span>
         {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
           <button
@@ -384,6 +470,19 @@ export default function Timeline({
           </button>
           {sfxPickerOpen && (
             <SfxPicker onPick={(fileName) => addSfxFromLibrary(fileName)} onClose={() => setSfxPickerOpen(false)} />
+          )}
+        </div>
+        <div style={{ position: "relative" }}>
+          <button
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11, borderColor: stickerPickerOpen ? "var(--accent)" : undefined }}
+            onClick={() => setStickerPickerOpen((o) => !o)}
+            title="Add a sticker to the Sticker track (pick or upload an image)"
+          >
+            + Add Sticker
+          </button>
+          {stickerPickerOpen && (
+            <StickerPicker onPick={(fileName) => addStickerFromLibrary(fileName)} onClose={() => setStickerPickerOpen(false)} />
           )}
         </div>
         <div style={{ position: "relative" }}>
@@ -670,6 +769,76 @@ export default function Timeline({
                         </button>
 
                         <div onPointerDown={(e) => startSfxDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to trim the sound's tail" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {stickers.length > 0 && (
+              <div className="st-vo-lane st-sticker-lane">
+                <div className="st-vo-label">
+                  🩹 Sticker Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim · Place it in the Inspector)</span>
+                </div>
+
+                <div ref={stickerTrackRef} className="st-vo-canvas">
+                  {beats.map((b, i) => {
+                    if (i === 0) return null;
+                    return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                  })}
+
+                  {stickers.map((raw) => {
+                    // Draw the EFFECTIVE window: a fitToBeat sticker spans its beat,
+                    // and follows that beat's trim without any stored duration.
+                    const st = resolveSticker(raw, beatSpans(beats));
+                    const pinned = !!raw.fitToBeat;
+                    const leftPct = (st.startTimeSec / totalDur) * 100;
+                    const widthPct = Math.max(1, (st.durationSec / totalDur) * 100);
+                    const isSel = st.id === selectedStickerId;
+                    return (
+                      <div
+                        key={st.id}
+                        onPointerDown={(e) => startStickerDrag(e, raw, "move")}
+                        onPointerMove={(e) => handleStickerPointerMove(e, raw)}
+                        onPointerUp={endStickerDrag}
+                        className={"st-vo-chip st-sticker-chip" + (isSel ? " sel" : "") + (pinned ? " pinned" : "")}
+                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                        title={`${st.fileName} · ${st.startTimeSec.toFixed(1)}s–${(st.startTimeSec + st.durationSec).toFixed(1)}s · ${Math.round(st.scale * 100)}% · ${st.rotation.toFixed(0)}°${pinned ? " · fits its beat — drag to another beat to move it" : ""}`}
+                      >
+                        <span className="st-vo-chip-icon"><img src={stickerFileUrl(st.fileName)} alt="" /></span>
+                        <span className="st-vo-chip-text">{st.fileName}</span>
+                        <span className="st-vo-chip-time">{st.startTimeSec.toFixed(1)}s–{(st.startTimeSec + st.durationSec).toFixed(1)}s</span>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); const newId = `sticker-${genId()}`; dispatch({ type: "DUPLICATE_STICKER", id: raw.id, newStickerId: newId }); onSelectSticker?.(newId); }}
+                          className="st-vo-action-btn"
+                          title="Duplicate sticker"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </button>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_STICKER", id: raw.id }); if (selectedStickerId === raw.id) onSelectSticker?.(null); }}
+                          className="st-vo-action-btn"
+                          title="Remove sticker"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                            <line x1="2" y1="2" x2="10" y2="10" />
+                            <line x1="10" y1="2" x2="2" y2="10" />
+                          </svg>
+                        </button>
+
+                        {!pinned && (
+                          <div onPointerDown={(e) => startStickerDrag(e, raw, "resize-right")} className="st-vo-resize-handle right" title="Drag to change how long the sticker shows" />
+                        )}
                       </div>
                     );
                   })}

@@ -271,6 +271,8 @@ function defaultMusic(filePath: string): Plugin {
 // basename()'d before joining, so a request can't escape the configured folder.
 const AUDIO_RE = /\.(mp3|m4a|aac|wav|ogg|flac)$/i;
 const VIDEO_RE = /\.(mp4|mov|webm|m4v)$/i;
+const STICKER_RE = /\.(png|svg|webp)$/i;
+const STICKER_MIME: Record<string, string> = { png: "image/png", svg: "image/svg+xml", webp: "image/webp" };
 
 function musicLibrary(dir: string): Plugin {
   return {
@@ -451,6 +453,62 @@ function audioLibrary(dir: string): Plugin {
   };
 }
 
+// Dev-only sticker library: lists/streams images in STICKERS_DIR and accepts
+// uploads that are written into that folder (so an uploaded sticker joins the
+// library). Mirrors audioLibrary — names are basename()'d before joining, so a
+// request can't escape the configured folder.
+function stickerLibrary(dir: string): Plugin {
+  return {
+    name: "sticker-library",
+    configureServer(server) {
+      server.middlewares.use("/api/stickers", async (req, res) => {
+        const u = new URL(req.url ?? "/", "http://localhost");
+        const sendJson = (code: number, body: unknown) => {
+          res.statusCode = code;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(body));
+        };
+        // GET /list → filenames in the stickers dir
+        if (req.method === "GET" && u.pathname === "/list") {
+          try {
+            const files = dir ? readdirSync(dir).filter((n) => STICKER_RE.test(n)).sort() : [];
+            sendJson(200, { files });
+          } catch { sendJson(200, { files: [] }); }
+          return;
+        }
+        // GET /file?name= → stream one sticker
+        if (req.method === "GET" && u.pathname === "/file") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !STICKER_RE.test(name)) { res.statusCode = 400; res.end(); return; }
+          try {
+            const data = readFileSync(join(dir, name));
+            const ext = name.split(".").pop()?.toLowerCase() ?? "";
+            res.statusCode = 200;
+            res.setHeader("content-type", STICKER_MIME[ext] ?? "application/octet-stream");
+            res.setHeader("content-length", String(data.length));
+            res.end(data);
+          } catch { res.statusCode = 404; res.end(); }
+          return;
+        }
+        // POST /upload?name= (raw bytes) → copy the file into the stickers dir
+        if (req.method === "POST" && u.pathname === "/upload") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !STICKER_RE.test(name)) { return sendJson(400, { error: "invalid or unsupported sticker filename" }); }
+          try {
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, name), await readBodyBuffer(req));
+            sendJson(200, { ok: true, name });
+          } catch (e) {
+            sendJson(500, { error: e instanceof Error ? e.message : String(e) });
+          }
+          return;
+        }
+        res.statusCode = 404; res.end();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   // Music bed folder + default track live in the project by default (./music).
@@ -460,6 +518,7 @@ export default defineConfig(({ mode }) => {
   const musicDir = abs(env.MUSIC_DIR ?? "", resolve(process.cwd(), "music"));
   const overlaysDir = abs(env.OVERLAYS_DIR ?? "", resolve(process.cwd(), "overlays"));
   const audioDir = abs(env.AUDIO_DIR ?? "", resolve(process.cwd(), "audio"));
+  const stickersDir = abs(env.STICKERS_DIR ?? "", resolve(process.cwd(), "stickers"));
   const defaultMusicPath = abs(env.DEFAULT_MUSIC ?? "", join(musicDir, "City Nights.mp3"));
   return {
     plugins: [
@@ -471,6 +530,7 @@ export default defineConfig(({ mode }) => {
       musicLibrary(musicDir),
       overlayLibrary(overlaysDir),
       audioLibrary(audioDir),
+      stickerLibrary(stickersDir),
     ],
     server: { headers: isolation },
     preview: { headers: isolation },

@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, ColorAdjustments } from "../domain/types";
+import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, Sticker, ColorAdjustments } from "../domain/types";
 
 /** The whole editing session. One store; every phase reads/writes it. */
 export interface ProjectState {
@@ -41,6 +41,10 @@ export type Action =
   | { type: "UPDATE_SFX"; segment: SfxSegment }
   | { type: "REMOVE_SFX"; id: string }
   | { type: "DUPLICATE_SFX"; id: string; newSfxId?: string }
+  | { type: "ADD_STICKER"; sticker: Sticker }
+  | { type: "UPDATE_STICKER"; sticker: Sticker }
+  | { type: "REMOVE_STICKER"; id: string }
+  | { type: "DUPLICATE_STICKER"; id: string; newStickerId?: string }
   | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number; adjustments?: ColorAdjustments }
   | { type: "LOAD_PROJECT"; state: ProjectState }
   | { type: "RESET" };
@@ -173,6 +177,52 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       const duplicated: SfxSegment = { ...target, id: newId, startTimeSec: Math.round(newStart * 10) / 10 };
       const sfxSegments = [...(state.cut.sfxSegments ?? []), duplicated];
       return { ...state, cut: { ...state.cut, sfxSegments } };
+    }
+    // The four Sticker cases mirror the SFX ones above, including the +0.5s
+    // nudge on duplicate so the copy is visibly offset rather than hidden.
+    case "ADD_STICKER": {
+      if (!state.cut) return state;
+      const stickers = [...(state.cut.stickers ?? []), action.sticker];
+      return { ...state, cut: { ...state.cut, stickers } };
+    }
+    case "UPDATE_STICKER": {
+      if (!state.cut) return state;
+      const stickers = (state.cut.stickers ?? []).map((s) => (s.id === action.sticker.id ? action.sticker : s));
+      return { ...state, cut: { ...state.cut, stickers } };
+    }
+    case "REMOVE_STICKER": {
+      if (!state.cut) return state;
+      const stickers = (state.cut.stickers ?? []).filter((s) => s.id !== action.id);
+      return { ...state, cut: { ...state.cut, stickers } };
+    }
+    case "DUPLICATE_STICKER": {
+      if (!state.cut) return state;
+      const target = (state.cut.stickers ?? []).find((s) => s.id === action.id);
+      if (!target) return state;
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const newId = action.newStickerId ?? `sticker-${genId()}`;
+      const durs = state.cut.beats.map((b) => b.durationSec || Math.max(0.05, b.outSec - b.inSec));
+      const totalDur = durs.reduce((acc, d) => acc + d, 0);
+      let newStart: number;
+      if (target.fitToBeat) {
+        // A beat-pinned copy goes to the NEXT beat. Offsetting by 0.5s would
+        // usually leave it in the same beat, where it renders exactly on top of
+        // the original — identical position and width — and looks like nothing
+        // happened.
+        let acc = 0;
+        let nextStart = target.startTimeSec;
+        for (const d of durs) {
+          if (target.startTimeSec < acc + d) { nextStart = acc + d; break; }
+          acc += d;
+        }
+        // No next beat: fall back to nudging within the last one.
+        newStart = nextStart < totalDur ? nextStart : Math.max(0, target.startTimeSec + 0.5);
+      } else {
+        newStart = Math.min(Math.max(0, totalDur - target.durationSec), target.startTimeSec + 0.5);
+      }
+      const duplicated: Sticker = { ...target, id: newId, startTimeSec: Math.round(newStart * 10) / 10 };
+      const stickers = [...(state.cut.stickers ?? []), duplicated];
+      return { ...state, cut: { ...state.cut, stickers } };
     }
     case "SET_GLOBAL_FILTER": {
       if (!state.cut) return state;

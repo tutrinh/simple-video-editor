@@ -280,6 +280,30 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--ui);-web
 .st-sfx-add{background:none;border:1px solid var(--line);border-radius:5px;font-size:10px;padding:3px 7px;color:var(--accent);cursor:pointer;flex-shrink:0}
 .st-sfx-add:hover{background:var(--accent-subtle,rgba(255,179,57,.15))}
 
+/* Sticker picker — same shell as the SFX picker, a thumbnail grid instead of rows */
+.st-sticker-picker{position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:300px;max-height:360px;display:flex;flex-direction:column;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 40px -12px #000;padding:8px}
+.st-sticker-grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:2px}
+.st-sticker-cell{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px}
+.st-sticker-thumb{width:100%;aspect-ratio:1;background:var(--panel-2);border:1px solid var(--line);border-radius:7px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:5px;overflow:hidden}
+.st-sticker-thumb:hover{border-color:var(--accent)}
+.st-sticker-thumb img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none}
+.st-sticker-star{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);border:none;border-radius:5px;
+  font-size:11px;line-height:1;padding:2px 4px;color:var(--ink-3);cursor:pointer}
+.st-sticker-star:hover{color:var(--ink)}
+.st-sticker-star.on{color:var(--accent)}
+.st-sticker-name{font-size:9px;font-family:var(--mono);color:var(--ink-3);max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Sticker lane — same chip shell as the VO/SFX lanes */
+.st-sticker-lane .st-vo-label{color:var(--ink-2)}
+.st-sticker-chip{background:linear-gradient(180deg,rgba(167,139,250,.30),rgba(167,139,250,.16));
+  border-color:rgba(167,139,250,.55)}
+.st-sticker-chip.sel{border-color:rgb(167,139,250)}
+.st-sticker-chip.pinned{border-style:dashed}
+.st-sticker-chip .st-vo-chip-icon img{width:11px;height:11px;object-fit:contain;vertical-align:middle}
+
 /* Beat track — no gap between beats, widths set by inline style */
 .st-track{display:flex;gap:0;align-items:stretch;position:relative;min-height:88px;
   border-radius:0 0 8px 8px;overflow:hidden;border:1px solid var(--line);border-top:none}

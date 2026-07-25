@@ -1,6 +1,6 @@
 import React, { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
-import FinalPreview, { BeatTitleOverlay } from "../features/export/FinalPreview";
+import FinalPreview, { BeatTitleOverlay, StickerOverlay } from "../features/export/FinalPreview";
 import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
 import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive } from "./util";
@@ -274,6 +274,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
             }}
           />
         )}
+        <StickerOverlay stickers={cut.stickers} beats={cut.beats} aspect={cut.aspect} cutSec={elapsedCutSec} />
         <BeatTitleOverlay layers={beat.titleLayers} aspect={cut.aspect} elapsed={beatElapsed} />
         <div className="st-badgeTL st-num">Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}</div>
         <div className="cap"><span>{caption}</span></div>

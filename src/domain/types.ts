@@ -146,6 +146,53 @@ export interface ColorAdjustments {
 
 export type OverlayBlendMode = "normal" | "screen" | "multiply" | "overlay";
 
+/**
+ * An image placed over the Cut on its own lane (ADR-0011). The asset lives in the
+ * project's stickers/ folder; this is the *placement*, so one asset can be placed
+ * many times. Shaped like SfxSegment/OverlayClip for the timeline half, plus the
+ * spatial fields those have no need for.
+ *
+ * Position and size are fractions of the frame, not pixels, so a placement stays
+ * correct across the 16:9 / 9:16 / 1:1 aspects.
+ */
+export interface Sticker {
+  id: string;
+  /** Filename within the stickers/ directory. */
+  fileName: string;
+  startTimeSec: number;
+  durationSec: number;
+  /** Centre X as a fraction of frame width (0 = left edge, 0.5 = centred, 1 = right). */
+  x: number;
+  /** Centre Y as a fraction of frame height (0 = top, 0.5 = centred, 1 = bottom). */
+  y: number;
+  /** Width as a fraction of the frame's width (0.01..2). Height follows the asset's aspect. */
+  scale: number;
+  /**
+   * Degrees, -180..180. Full range on purpose: unlike a Beat's rotation — which
+   * straightens footage and is deliberately capped at ±15° — a Sticker's rotation
+   * is placement, where any angle is legitimate.
+   */
+  rotation: number;
+  /** 0..1. */
+  opacity: number;
+  /**
+   * When true the Sticker spans the whole Beat it starts in, following that
+   * Beat's trim rather than keeping its own start/duration. The window is
+   * DERIVED at read time (see resolveSticker) rather than written back, so
+   * retrimming the Beat can never leave a stale duration behind. Its own
+   * startTimeSec still decides which Beat it belongs to.
+   */
+  fitToBeat?: boolean;
+  /** Tint colour laid over the asset, clipped to its alpha. Hex, default white. */
+  tintColor?: string;
+  /**
+   * How strongly the tint applies, 0..1. 0 leaves the asset untouched; 1 makes it
+   * a solid silhouette of `tintColor`. Recolouring a monochrome icon needs this
+   * rather than a hue rotation — hue-rotating near-black does nothing.
+   */
+  tintStrength?: number;
+}
+
 export interface OverlayClip {
   id: string;
   clipId: string;
@@ -199,6 +246,8 @@ export interface Cut {
   voSegments?: VoSegment[];
   /** Sound effects on the independent SFX track. */
   sfxSegments?: SfxSegment[];
+  /** Images placed over the Cut on the independent Sticker track (ADR-0011). */
+  stickers?: Sticker[];
   aspect: Aspect;
   /** Non-destructive global look & feel color filter preset ID. */
   globalFilterId?: string;
