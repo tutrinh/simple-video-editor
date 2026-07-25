@@ -81,3 +81,25 @@ export async function sampleFrames(src: Blob, count: number, maxEdge = 768): Pro
     revoke();
   }
 }
+
+/** Grab one frame at a specific time (seconds) — used to represent a beat for AI grading. */
+export async function sampleFrameAt(src: Blob, timeSec: number, maxEdge = 768): Promise<SampledFrame> {
+  const { video, revoke } = await loadVideo(src);
+  try {
+    const scale = Math.min(1, maxEdge / Math.max(video.videoWidth, video.videoHeight));
+    const w = Math.round(video.videoWidth * scale);
+    const h = Math.round(video.videoHeight * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d canvas context");
+    const t = Math.max(0, Math.min(video.duration || 0, timeSec));
+    await seek(video, t);
+    ctx.drawImage(video, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+    return { dataUrl, base64: dataUrl.split(",")[1] };
+  } finally {
+    revoke();
+  }
+}

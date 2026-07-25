@@ -2,6 +2,11 @@ import { useState, useEffect } from "react";
 import { getAllFilterPresets, saveCustomPreset, deleteCustomPreset, type FilterPreset } from "../lib/customPresets";
 import type { ColorAdjustments } from "../domain/types";
 import { sliderTrackStyle } from "./Inspector";
+import { useSettings } from "../state/SettingsContext";
+import { useProject } from "../state/ProjectContext";
+import { analyzeFilmLook, gradeBeatToLook, type FilmLook } from "../lib/filmLook";
+import { sampleFrameAt } from "../lib/frameSampler";
+import { loadReferences, saveReference, deleteReference, downscaleDataUrl, type SavedReference } from "../lib/lookReferences";
 
 interface Props {
   activeFilterId?: string;
@@ -19,6 +24,127 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
   const [newPresetName, setNewPresetName] = useState("");
   const [savingPreset, setSavingPreset] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<FilterPreset | null>(null);
+
+  // ── AI Film Look ──────────────────────────────────────────────────
+  const { settings } = useSettings();
+  const { state, dispatch } = useProject();
+  const [refImageUrl, setRefImageUrl] = useState<string | null>(null); // full data URL (display + base64 source)
+  const [look, setLook] = useState<FilmLook | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiLabel, setAiLabel] = useState("");
+  const [aiErr, setAiErr] = useState<string | null>(null);
+  const [savedRefs, setSavedRefs] = useState<SavedReference[]>(() => loadReferences());
+  // Snapshot of each beat's colorAdjustments before an AI grade → one-click Undo.
+  const [gradeUndo, setGradeUndo] = useState<Map<string, ColorAdjustments | undefined> | null>(null);
+  const aiCfg = { provider: settings.aiProvider, model: settings.analyzeModel };
+
+  function onRefUpload(file?: File) {
+    if (!file) return;
+    setAiErr(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRefImageUrl(String(reader.result ?? "") || null);
+      setLook(null);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function analyzeLook() {
+    const b64 = refImageUrl?.split(",")[1];
+    if (!b64) return;
+    setAiBusy(true); setAiLabel("Analyzing film look…"); setAiErr(null);
+    try {
+      const derived = await analyzeFilmLook(b64, aiCfg);
+      setLook(derived);
+      // Preview it as the global fine-tune so the user sees the look immediately.
+      setFineTuneAdj(derived.colorAdjustments);
+      onSelectFilter(activeFilterId && activeFilterId !== "none" ? activeFilterId : null, intensity / 100, derived.colorAdjustments);
+    } catch (e) {
+      setAiErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAiBusy(false); setAiLabel("");
+    }
+  }
+
+  async function applyLookToBeats() {
+    const cut = state.cut;
+    if (!look || !cut || cut.beats.length === 0) return;
+    setAiBusy(true); setAiErr(null);
+    const snapshot = new Map<string, ColorAdjustments | undefined>();
+    const refB64 = refImageUrl?.split(",")[1]; // reference image for direct comparison
+    try {
+      const clipById = new Map(state.clips.map((c) => [c.id, c]));
+      for (let i = 0; i < cut.beats.length; i++) {
+        const beat = cut.beats[i];
+        setAiLabel(`Grading beat ${i + 1} of ${cut.beats.length}…`);
+        snapshot.set(beat.id, beat.colorAdjustments);
+        const clip = clipById.get(beat.clipId);
+        const src = clip?.normalized ?? clip?.file;
+        if (!src) continue;
+        try {
+          const mid = (beat.inSec + beat.outSec) / 2;
+          const frame = await sampleFrameAt(src, mid);
+          const adj = await gradeBeatToLook(frame.base64, look, aiCfg, refB64);
+          dispatch({ type: "UPDATE_BEAT", beat: { ...beat, colorAdjustments: adj } });
+        } catch (err) {
+          console.warn(`Beat ${i + 1} grade failed; leaving it unchanged.`, err);
+        }
+      }
+      setGradeUndo(snapshot);
+    } catch (e) {
+      setAiErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAiBusy(false); setAiLabel("");
+    }
+  }
+
+  function undoGrade() {
+    const cut = state.cut;
+    if (!gradeUndo || !cut) return;
+    for (const beat of cut.beats) {
+      if (gradeUndo.has(beat.id)) dispatch({ type: "UPDATE_BEAT", beat: { ...beat, colorAdjustments: gradeUndo.get(beat.id) } });
+    }
+    setGradeUndo(null);
+  }
+
+  // Save the current reference (downscaled) + its derived Look for reuse across sessions.
+  async function saveCurrentReference() {
+    if (!refImageUrl) return;
+    const name = prompt("Name this reference:", look?.description || "Reference");
+    if (name === null) return;
+    const thumb = await downscaleDataUrl(refImageUrl);
+    saveReference(thumb, name, look ?? undefined);
+    setSavedRefs(loadReferences());
+  }
+
+  function loadSavedReference(ref: SavedReference) {
+    setRefImageUrl(ref.dataUrl);
+    setAiErr(null);
+    if (ref.look) {
+      setLook(ref.look);
+      setFineTuneAdj(ref.look.colorAdjustments);
+      onSelectFilter(activeFilterId && activeFilterId !== "none" ? activeFilterId : null, intensity / 100, ref.look.colorAdjustments);
+    } else {
+      setLook(null);
+    }
+  }
+
+  function removeSavedReference(id: string) {
+    deleteReference(id);
+    setSavedRefs(loadReferences());
+  }
+
+  const [lookPresetSaved, setLookPresetSaved] = useState(false);
+  // Save the derived Look as a custom preset — Claude's name + description, no typing.
+  function saveLookAsPreset() {
+    if (!look) return;
+    const name = (look.name || look.description || "AI Film Look").trim();
+    const saved = saveCustomPreset(name, look.colorAdjustments, look.description || "AI film look");
+    refreshPresets();
+    onSelectFilter(saved.id, intensity / 100, look.colorAdjustments);
+    setLookPresetSaved(true);
+    setTimeout(() => setLookPresetSaved(false), 1800);
+  }
 
   useEffect(() => {
     refreshPresets();
@@ -148,6 +274,102 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
           </button>
         </div>
 
+        {/* AI Film Look — analyze a reference image, then grade every beat toward it */}
+        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--line)", background: "var(--panel-2)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", marginBottom: 6 }}>🎬 AI Film Look</div>
+
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            {refImageUrl && (
+              <img
+                src={refImageUrl}
+                alt="Reference"
+                style={{ width: 96, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid var(--line)", flexShrink: 0 }}
+              />
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 }}>
+            <label className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px", cursor: "pointer" }} title="Upload a reference still with the film look you want">
+              {refImageUrl ? "🖼 Change reference…" : "🖼 Upload reference image"}
+              <input type="file" accept="image/*" style={{ display: "none" }}
+                onChange={(e) => { onRefUpload(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+            </label>
+            <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
+              onClick={analyzeLook} disabled={!refImageUrl || aiBusy} title="Claude analyzes the reference's grade">
+              Analyze look
+            </button>
+            {refImageUrl && (
+              <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
+                onClick={saveCurrentReference} disabled={aiBusy} title="Save this reference (and its Look) for future use">
+                💾 Save reference
+              </button>
+            )}
+            {look && (
+              <>
+                <button type="button" className="st-btn primary" style={{ fontSize: 11, padding: "5px 10px" }}
+                  onClick={applyLookToBeats} disabled={aiBusy || !state.cut?.beats.length}
+                  title="Grade every beat toward this look (one Claude call per beat)">
+                  ✨ Apply to all beats
+                </button>
+                <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
+                  onClick={saveLookAsPreset} disabled={aiBusy}
+                  title={`Save this look as a reusable preset${look?.name ? ` ("${look.name}")` : ""}`}>
+                  {lookPresetSaved ? "✓ Saved preset" : "💾 Save as preset"}
+                </button>
+                {gradeUndo && (
+                  <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px", color: "var(--accent)" }}
+                    onClick={undoGrade} title="Restore every beat's color to before the AI grade">
+                    ↺ Undo AI grade
+                  </button>
+                )}
+              </>
+            )}
+            </div>
+          </div>
+          {aiBusy && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 6 }}>{aiLabel || "Working…"}</div>}
+          {aiErr && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 6, cursor: "pointer" }} onClick={() => setAiErr(null)}>⚠ {aiErr} · (dismiss)</div>}
+          {look && !aiBusy && (
+            <div style={{ marginTop: 8, padding: "8px 11px", background: "var(--panel-3)", border: "1px solid var(--accent)", borderRadius: 7 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎬 {look.name || "Film Look"}</span>
+                <span style={{ fontSize: 10, color: "var(--good)" }}>✓ analyzed</span>
+              </div>
+              {look.description && (
+                <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 3, lineHeight: 1.45 }}>{look.description}</div>
+              )}
+              <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 5, lineHeight: 1.4 }}>
+                Loaded into the sliders below. <strong style={{ color: "var(--ink-2)" }}>Apply to all beats</strong> matches each beat to it; <strong style={{ color: "var(--ink-2)" }}>Save as preset</strong> keeps it for reuse.
+              </div>
+            </div>
+          )}
+
+          {savedRefs.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ink-3)", fontWeight: 700, marginBottom: 5 }}>Saved references</div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {savedRefs.map((ref) => (
+                  <div key={ref.id} style={{ position: "relative" }}>
+                    <img
+                      src={ref.dataUrl}
+                      alt={ref.name}
+                      title={`${ref.name}${ref.look ? " — has saved Look" : ""}`}
+                      onClick={() => loadSavedReference(ref)}
+                      style={{ width: 72, height: 48, objectFit: "cover", borderRadius: 5, border: refImageUrl === ref.dataUrl ? "2px solid var(--accent)" : "1px solid var(--line)", cursor: "pointer", display: "block" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSavedReference(ref.id)}
+                      title="Delete reference"
+                      style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "var(--danger)", color: "#fff", border: "none", fontSize: 11, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    >
+                      ×
+                    </button>
+                    {ref.look && <span style={{ position: "absolute", bottom: 2, left: 2, fontSize: 8, background: "rgba(0,0,0,.6)", color: "#fff", padding: "0 3px", borderRadius: 3 }}>Look</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Intensity Control & Fine-Tune Bar */}
         {activeFilterId && activeFilterId !== "none" && (
           <div
@@ -208,7 +430,12 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                     ["Contrast", "contrast"],
                     ["Color Tone", "colorTone"],
                     ["Warmth", "warmth"],
+                    ["Tint", "tint"],
                     ["Saturation", "saturation"],
+                    ["Shadow warm", "shadowWarmth"],
+                    ["Shadow tint", "shadowTint"],
+                    ["Highlt warm", "highlightWarmth"],
+                    ["Highlt tint", "highlightTint"],
                   ] as const).map(([label, key]) => {
                     const val = fineTuneAdj[key] ?? 0;
                     return (

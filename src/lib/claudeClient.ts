@@ -31,6 +31,11 @@ export async function callClaude(prompt: string, cfg: ClaudeConfig): Promise<str
   return runClaude(prompt, undefined, cfg);
 }
 
+/** Vision call with a custom prompt + base64 images (film-look analysis/grading). */
+export async function callClaudeVision(prompt: string, images: string[], cfg: ClaudeConfig): Promise<string> {
+  return runClaude(prompt, images, cfg);
+}
+
 // A neutral description of the footage — the signal the Story is built from, not
 // coaching for the creator (ADR-0007). Deliberately tone-neutral: a factual read
 // has no casual/cinematic register; Tone belongs to the Script, not here (ADR-0007,
