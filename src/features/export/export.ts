@@ -2,6 +2,7 @@ import type { Clip, Cut, Aspect, OverlayClip } from "../../domain/types";
 import { runIsolated, multithreadReady, type EngineInput } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
+import { fetchSfxBytes } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
 import { ffmpegColorFilters, ffmpegZoomFilters } from "../../studio/util";
@@ -882,10 +883,24 @@ export async function exportCut(
     }
   }
 
+  // Fetch each SFX segment's sound bytes (from the audio/ dir via the dev proxy).
+  const sfxSegs = (cut.sfxSegments ?? []).filter((s) => s.durationSec > 0);
+  const renderedSfx: { startTimeSec: number; durationSec: number; volume: number; name: string; data: Uint8Array }[] = [];
+  for (let k = 0; k < sfxSegs.length; k++) {
+    const s = sfxSegs[k];
+    try {
+      const ext = s.fileName.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() ?? "mp3";
+      const bytes = new Uint8Array(await fetchSfxBytes(s.fileName));
+      renderedSfx.push({ startTimeSec: s.startTimeSec, durationSec: s.durationSec, volume: s.volume, name: `sfx_${k}.${ext}`, data: bytes });
+    } catch (err) {
+      console.warn(`SFX segment ${k} (${s.fileName}) could not be loaded; skipping.`, err);
+    }
+  }
+
   onProgress?.(0.95, "Preparing final audio mux…");
 
   const hasMusic = !!opts.music;
-  if (!hasMusic && renderedVo.length === 0) {
+  if (!hasMusic && renderedVo.length === 0 && renderedSfx.length === 0) {
     onProgress?.(1.0, "Export complete ✓");
     return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
   }
@@ -917,11 +932,22 @@ export async function exportCut(
     inIdx++;
   }
 
+  // SFX: trim each sound to its played length, scale volume, delay to its start.
+  for (const r of renderedSfx) {
+    finalInputs.push({ name: r.name, data: r.data });
+    inputArgs.push("-i", r.name);
+    const delayMs = Math.round(r.startTimeSec * 1000);
+    const vol = Math.min(1, Math.max(0, r.volume));
+    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${r.durationSec.toFixed(3)},volume=${vol},adelay=${delayMs}|${delayMs}[sfx${inIdx}]`);
+    mixLabels.push(`[sfx${inIdx}]`);
+    inIdx++;
+  }
+
   const filter = `${mixChains.join(";")}${mixChains.length ? ";" : ""}${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[a]`;
   const muxArgs = [...inputArgs, "-filter_complex", filter, "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
 
   try {
-    const finalOut = await runIsolated(finalInputs, muxArgs, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing VO track & music…"));
+    const finalOut = await runIsolated(finalInputs, muxArgs, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing VO, SFX & music…"));
     onProgress?.(1.0, "Export complete ✓");
     return { blob: new Blob([new Uint8Array(finalOut)], { type: "video/mp4" }), timings };
   } catch (err) {

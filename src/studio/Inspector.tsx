@@ -11,6 +11,7 @@ import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
 import { synthesizeVoiceover } from "../lib/tts";
+import { sfxFileUrl } from "../lib/sfxLibrary";
 import Switch from "./Switch";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -46,6 +47,8 @@ interface Props {
   onSelectOverlay?: (id: string | null) => void;
   selectedVoId?: string | null;
   onSelectVo?: (id: string | null) => void;
+  selectedSfxId?: string | null;
+  onSelectSfx?: (id: string | null) => void;
 }
 
 export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
@@ -84,7 +87,7 @@ export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSP
   };
 }
 
-export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo }: Props) {
+export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx }: Props) {
   const { state, dispatch } = useProject();
   const { settings } = useSettings();
   const { settings: es } = useExportSettings();
@@ -94,6 +97,32 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const overlays = cut?.overlays ?? [];
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
   const selectedVo = (cut?.voSegments ?? []).find((s) => s.id === selectedVoId);
+  const selectedSfx = (cut?.sfxSegments ?? []).find((s) => s.id === selectedSfxId);
+
+  // Audition the selected SFX (like the music library preview): plays only the
+  // trimmed window [0, durationSec] at the segment's volume.
+  const sfxPreviewRef = useRef<HTMLAudioElement>(null);
+  const [sfxPreviewing, setSfxPreviewing] = useState(false);
+
+  function toggleSfxPreview() {
+    const a = sfxPreviewRef.current;
+    if (!a || !selectedSfx) return;
+    if (sfxPreviewing) { a.pause(); setSfxPreviewing(false); return; }
+    if (a.src !== location.origin + sfxFileUrl(selectedSfx.fileName)) a.src = sfxFileUrl(selectedSfx.fileName);
+    a.volume = Math.min(1, Math.max(0, selectedSfx.volume));
+    try { a.currentTime = 0; } catch { /* pre-metadata */ }
+    a.play().then(() => setSfxPreviewing(true)).catch(() => {});
+  }
+
+  // Keep the preview volume live while a segment is auditioning, and stop the
+  // preview whenever the selected segment changes.
+  useEffect(() => {
+    if (sfxPreviewRef.current && selectedSfx) sfxPreviewRef.current.volume = Math.min(1, Math.max(0, selectedSfx.volume));
+  }, [selectedSfx?.volume, selectedSfx]);
+  useEffect(() => {
+    const a = sfxPreviewRef.current;
+    return () => { if (a) { a.pause(); } };
+  }, [selectedSfx?.id]);
   const [trimOpen, setTrimOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
@@ -335,6 +364,80 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     </div>
   ) : null;
 
+  // SFX Segment editor — sound file + volume, decoupled from the beat (mirrors the VO card).
+  const sfxCard = selectedSfx ? (
+    <div className="st-sec" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid #8b7cff" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "#8b7cff" }}>🔊 SFX Segment</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11 }}
+            onClick={() => {
+              const gid = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+              const newId = `sfx-${gid()}`;
+              dispatch({ type: "DUPLICATE_SFX", id: selectedSfx.id, newSfxId: newId });
+              onSelectSfx?.(newId);
+            }}
+            title="Duplicate this SFX segment"
+          >
+            📋 Duplicate
+          </button>
+          <button
+            type="button"
+            className="st-btn danger"
+            style={{ padding: "2px 8px", fontSize: 11 }}
+            onClick={() => { dispatch({ type: "REMOVE_SFX", id: selectedSfx.id }); onSelectSfx?.(null); }}
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button
+          type="button"
+          className="st-btn ghost"
+          style={{ padding: "4px 9px", fontSize: 12, flexShrink: 0 }}
+          onClick={toggleSfxPreview}
+          title="Preview this sound at its trimmed length and volume"
+        >
+          {sfxPreviewing ? "⏸" : "▶"}
+        </button>
+        <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--ink)", wordBreak: "break-all", minWidth: 0 }}>{selectedSfx.fileName}</div>
+      </div>
+      <audio
+        ref={sfxPreviewRef}
+        onEnded={() => setSfxPreviewing(false)}
+        onPause={() => setSfxPreviewing(false)}
+        onTimeUpdate={(e) => { if (e.currentTarget.currentTime >= selectedSfx.durationSec) { e.currentTarget.pause(); } }}
+      />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }} title="Playback volume for this sound.">
+        <span style={{ fontSize: 11, width: 60, color: "var(--ink-2)" }}>Volume</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={selectedSfx.volume}
+          onChange={(e) => dispatch({ type: "UPDATE_SFX", segment: { ...selectedSfx, volume: Number(e.target.value) } })}
+          style={sliderTrackStyle(selectedSfx.volume, 0, 1)}
+        />
+        <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(selectedSfx.volume * 100)}%</span>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+        <span>Start {selectedSfx.startTimeSec.toFixed(1)}s</span>
+        <span>Length {selectedSfx.durationSec.toFixed(1)}s</span>
+        <span>· of {selectedSfx.sourceDurationSec.toFixed(1)}s</span>
+      </div>
+
+      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 6 }}>Drag the chip on the SFX track to move; drag its right edge to trim the tail.</div>
+    </div>
+  ) : null;
+
   if (!beat) {
     return (
       <aside className="st-col insp">
@@ -342,6 +445,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         <div className="st-colhead">Inspector</div>
         <div className="st-insp-empty" style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
           {voCard}
+          {sfxCard}
           <span style={{ color: "var(--ink-3)", fontSize: 12 }}>Select a beat in the timeline to edit its caption, trim, and clip.</span>
 
           {cut && (
@@ -595,6 +699,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
       <div className="st-colhead">Beat {String(index + 1).padStart(2, "0")} <span className="cnt">of {total}</span></div>
       <div className="st-insp-body">
         {voCard}
+        {sfxCard}
         <div
           className="st-ip-poster"
           style={{

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment } from "../domain/types";
+import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { createClip } from "../features/ingest/ingest";
 import { fmtSecs, posterBg } from "./util";
 import OverlayPickerModal from "./OverlayPickerModal";
+import SfxPicker from "./SfxPicker";
+import { sfxDuration } from "../lib/sfxLibrary";
 
 interface Props {
   cut: Cut;
@@ -16,6 +18,8 @@ interface Props {
   onSelectOverlay?: (id: string | null) => void;
   selectedVoId?: string | null;
   onSelectVo?: (id: string | null) => void;
+  selectedSfxId?: string | null;
+  onSelectSfx?: (id: string | null) => void;
 }
 
 export default function Timeline({
@@ -28,12 +32,16 @@ export default function Timeline({
   onSelectOverlay,
   selectedVoId,
   onSelectVo,
+  selectedSfxId,
+  onSelectSfx,
 }: Props) {
   const { dispatch } = useProject();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [sfxPickerOpen, setSfxPickerOpen] = useState(false);
   const beats = cut.beats;
   const overlays = cut.overlays ?? [];
   const voSegments = cut.voSegments ?? [];
+  const sfxSegments = cut.sfxSegments ?? [];
   const totalDur = cutDuration(cut) || 1;
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
 
@@ -265,6 +273,68 @@ export default function Timeline({
     }
   }
 
+  // ── SFX track drag/resize (move + trim-tail only; no start-trim, no loop) ──
+  const sfxTrackRef = useRef<HTMLDivElement>(null);
+  const [draggingSfxId, setDraggingSfxId] = useState<string | null>(null);
+  const sfxDragStartRef = useRef<{ startX: number; initialStartSec: number; initialDurationSec: number; mode: "move" | "resize-right" } | null>(null);
+
+  /** Place a sound from the library as an SFX segment at the selected beat's start. */
+  async function addSfxFromLibrary(fileName: string) {
+    const dur = (await sfxDuration(fileName)) || 1;
+    const rounded = Math.round(dur * 10) / 10;
+    const start = Math.round((selIndex >= 0 ? beatStarts[selIndex] : 0) * 10) / 10;
+    const seg: SfxSegment = {
+      id: `sfx-${genId()}`,
+      fileName,
+      startTimeSec: Math.min(start, Math.max(0, totalDur - rounded)),
+      durationSec: rounded,
+      sourceDurationSec: dur,
+      volume: 1,
+    };
+    dispatch({ type: "ADD_SFX", segment: seg });
+    onSelectSfx?.(seg.id);
+    onSelectVo?.(null);
+    onSelectOverlay?.(null);
+  }
+
+  function startSfxDrag(e: React.PointerEvent, seg: SfxSegment, mode: "move" | "resize-right") {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSelectSfx?.(seg.id);
+    onSelectVo?.(null);
+    onSelectOverlay?.(null);
+    setDraggingSfxId(seg.id);
+    sfxDragStartRef.current = { startX: e.clientX, initialStartSec: seg.startTimeSec, initialDurationSec: seg.durationSec, mode };
+  }
+
+  function handleSfxPointerMove(e: React.PointerEvent, seg: SfxSegment) {
+    if (draggingSfxId !== seg.id || !sfxDragStartRef.current || !sfxTrackRef.current) return;
+    const rect = sfxTrackRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const deltaSec = ((e.clientX - sfxDragStartRef.current.startX) / rect.width) * totalDur;
+    const st = sfxDragStartRef.current;
+
+    if (st.mode === "move") {
+      const newStartSec = Math.max(0, Math.min(totalDur - seg.durationSec, st.initialStartSec + deltaSec));
+      const rounded = Math.round(newStartSec * 10) / 10;
+      if (rounded !== seg.startTimeSec) dispatch({ type: "UPDATE_SFX", segment: { ...seg, startTimeSec: rounded } });
+    } else {
+      // Trim-tail: clamp to [0.1, min(sourceLength, room-to-cut-end)].
+      const maxDur = Math.min(seg.sourceDurationSec, totalDur - seg.startTimeSec);
+      const newDur = Math.max(0.1, Math.min(maxDur, st.initialDurationSec + deltaSec));
+      const rounded = Math.round(newDur * 10) / 10;
+      if (rounded !== seg.durationSec) dispatch({ type: "UPDATE_SFX", segment: { ...seg, durationSec: rounded } });
+    }
+  }
+
+  function endSfxDrag(e: React.PointerEvent) {
+    if (draggingSfxId) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      setDraggingSfxId(null);
+      sfxDragStartRef.current = null;
+    }
+  }
+
   // Compute cumulative beat start times so we can position the playhead and beat dividers
   const beatStarts: number[] = [];
   let acc = 0;
@@ -283,7 +353,7 @@ export default function Timeline({
       <div className="st-tlhead">
         <span className="t">The Cut</span>
         <span className="meta st-num">
-          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {fmtSecs(totalDur)} · {cut.aspect}
+          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {sfxSegments.length} SFX · {fmtSecs(totalDur)} · {cut.aspect}
         </span>
         {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
           <button
@@ -303,6 +373,19 @@ export default function Timeline({
         >
           + Add VO
         </button>
+        <div style={{ position: "relative" }}>
+          <button
+            className="st-btn ghost"
+            style={{ padding: "2px 8px", fontSize: 11, borderColor: sfxPickerOpen ? "var(--accent)" : undefined }}
+            onClick={() => setSfxPickerOpen((o) => !o)}
+            title="Add a sound effect to the SFX track (pick or upload a sound)"
+          >
+            + Add SFX
+          </button>
+          {sfxPickerOpen && (
+            <SfxPicker onPick={(fileName) => addSfxFromLibrary(fileName)} onClose={() => setSfxPickerOpen(false)} />
+          )}
+        </div>
         <div style={{ position: "relative" }}>
           <button
             className="st-btn ghost"
@@ -522,6 +605,71 @@ export default function Timeline({
                         </button>
 
                         <div onPointerDown={(e) => startVoDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to adjust duration" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* SFX Track Lane — sound effects on the same proportional ruler */}
+            {sfxSegments.length > 0 && (
+              <div className="st-vo-lane st-sfx-lane">
+                <div className="st-vo-label">
+                  🔊 SFX Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim)</span>
+                </div>
+
+                <div ref={sfxTrackRef} className="st-vo-canvas">
+                  {beats.map((b, i) => {
+                    if (i === 0) return null;
+                    return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                  })}
+
+                  {sfxSegments.map((seg) => {
+                    const leftPct = (seg.startTimeSec / totalDur) * 100;
+                    const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
+                    const isSel = seg.id === selectedSfxId;
+                    return (
+                      <div
+                        key={seg.id}
+                        onPointerDown={(e) => startSfxDrag(e, seg, "move")}
+                        onPointerMove={(e) => handleSfxPointerMove(e, seg)}
+                        onPointerUp={endSfxDrag}
+                        className={"st-vo-chip st-sfx-chip" + (isSel ? " sel" : "")}
+                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                        title={`${seg.fileName} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · vol ${Math.round(seg.volume * 100)}%`}
+                      >
+                        <span className="st-vo-chip-icon">{seg.volume === 0 ? "🔇" : "🔊"}</span>
+                        <span className="st-vo-chip-text">{seg.fileName}</span>
+                        <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); const newId = `sfx-${genId()}`; dispatch({ type: "DUPLICATE_SFX", id: seg.id, newSfxId: newId }); onSelectSfx?.(newId); }}
+                          className="st-vo-action-btn"
+                          title="Duplicate SFX segment"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </button>
+
+                        <button
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_SFX", id: seg.id }); if (selectedSfxId === seg.id) onSelectSfx?.(null); }}
+                          className="st-vo-action-btn"
+                          title="Remove SFX segment"
+                        >
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                            <line x1="2" y1="2" x2="10" y2="10" />
+                            <line x1="10" y1="2" x2="2" y2="10" />
+                          </svg>
+                        </button>
+
+                        <div onPointerDown={(e) => startSfxDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to trim the sound's tail" />
                       </div>
                     );
                   })}
