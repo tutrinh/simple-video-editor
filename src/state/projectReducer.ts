@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, ColorAdjustments } from "../domain/types";
+import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, ColorAdjustments } from "../domain/types";
 
 /** The whole editing session. One store; every phase reads/writes it. */
 export interface ProjectState {
@@ -37,6 +37,10 @@ export type Action =
   | { type: "UPDATE_VO"; segment: VoSegment }
   | { type: "REMOVE_VO"; id: string }
   | { type: "DUPLICATE_VO"; id: string; newVoId?: string }
+  | { type: "ADD_SFX"; segment: SfxSegment }
+  | { type: "UPDATE_SFX"; segment: SfxSegment }
+  | { type: "REMOVE_SFX"; id: string }
+  | { type: "DUPLICATE_SFX"; id: string; newSfxId?: string }
   | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number; adjustments?: ColorAdjustments }
   | { type: "LOAD_PROJECT"; state: ProjectState }
   | { type: "RESET" };
@@ -142,6 +146,33 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       const duplicated: VoSegment = { ...target, id: newId, startTimeSec: Math.round(newStart * 10) / 10 };
       const voSegments = [...(state.cut.voSegments ?? []), duplicated];
       return { ...state, cut: { ...state.cut, voSegments } };
+    }
+    case "ADD_SFX": {
+      if (!state.cut) return state;
+      const sfxSegments = [...(state.cut.sfxSegments ?? []), action.segment];
+      return { ...state, cut: { ...state.cut, sfxSegments } };
+    }
+    case "UPDATE_SFX": {
+      if (!state.cut) return state;
+      const sfxSegments = (state.cut.sfxSegments ?? []).map((s) => (s.id === action.segment.id ? action.segment : s));
+      return { ...state, cut: { ...state.cut, sfxSegments } };
+    }
+    case "REMOVE_SFX": {
+      if (!state.cut) return state;
+      const sfxSegments = (state.cut.sfxSegments ?? []).filter((s) => s.id !== action.id);
+      return { ...state, cut: { ...state.cut, sfxSegments } };
+    }
+    case "DUPLICATE_SFX": {
+      if (!state.cut) return state;
+      const target = (state.cut.sfxSegments ?? []).find((s) => s.id === action.id);
+      if (!target) return state;
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const newId = action.newSfxId ?? `sfx-${genId()}`;
+      const totalDur = state.cut.beats.reduce((acc, b) => acc + (b.durationSec || Math.max(0.05, b.outSec - b.inSec)), 0);
+      const newStart = Math.min(Math.max(0, totalDur - target.durationSec), target.startTimeSec + 0.5);
+      const duplicated: SfxSegment = { ...target, id: newId, startTimeSec: Math.round(newStart * 10) / 10 };
+      const sfxSegments = [...(state.cut.sfxSegments ?? []), duplicated];
+      return { ...state, cut: { ...state.cut, sfxSegments } };
     }
     case "SET_GLOBAL_FILTER": {
       if (!state.cut) return state;

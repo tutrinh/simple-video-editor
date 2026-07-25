@@ -22,6 +22,16 @@ function readBody(req: NodeJS.ReadableStream): Promise<string> {
   });
 }
 
+// Raw binary body (for file uploads — the string reader above corrupts bytes).
+function readBodyBuffer(req: NodeJS.ReadableStream): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
 // Claude Code exposes model aliases (opus/sonnet/haiku), not full API ids.
 function modelAlias(m?: string): string {
   if (!m) return "";
@@ -387,6 +397,60 @@ function overlayLibrary(dir: string): Plugin {
   };
 }
 
+// Dev-only SFX library: lists/streams sounds in AUDIO_DIR and accepts uploads that
+// are written into that folder (so uploaded SFX join the library). Names are
+// basename()'d before joining, so a request can't escape the configured folder.
+function audioLibrary(dir: string): Plugin {
+  return {
+    name: "audio-library",
+    configureServer(server) {
+      server.middlewares.use("/api/audio", async (req, res) => {
+        const u = new URL(req.url ?? "/", "http://localhost");
+        const sendJson = (code: number, body: unknown) => {
+          res.statusCode = code;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(body));
+        };
+        // GET /list → filenames in the audio dir
+        if (req.method === "GET" && u.pathname === "/list") {
+          try {
+            const files = dir ? readdirSync(dir).filter((n) => AUDIO_RE.test(n)).sort() : [];
+            sendJson(200, { files });
+          } catch { sendJson(200, { files: [] }); }
+          return;
+        }
+        // GET /file?name= → stream one sound
+        if (req.method === "GET" && u.pathname === "/file") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !AUDIO_RE.test(name)) { res.statusCode = 400; res.end(); return; }
+          try {
+            const data = readFileSync(join(dir, name));
+            res.statusCode = 200;
+            res.setHeader("content-type", "audio/mpeg");
+            res.setHeader("content-length", String(data.length));
+            res.end(data);
+          } catch { res.statusCode = 404; res.end(); }
+          return;
+        }
+        // POST /upload?name= (raw bytes) → copy the file into the audio dir
+        if (req.method === "POST" && u.pathname === "/upload") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !AUDIO_RE.test(name)) { return sendJson(400, { error: "invalid or unsupported audio filename" }); }
+          try {
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, name), await readBodyBuffer(req));
+            sendJson(200, { ok: true, name });
+          } catch (e) {
+            sendJson(500, { error: e instanceof Error ? e.message : String(e) });
+          }
+          return;
+        }
+        res.statusCode = 404; res.end();
+      });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   // Music bed folder + default track live in the project by default (./music).
@@ -395,6 +459,7 @@ export default defineConfig(({ mode }) => {
     p ? (isAbsolute(p) ? p : resolve(process.cwd(), p)) : fallback;
   const musicDir = abs(env.MUSIC_DIR ?? "", resolve(process.cwd(), "music"));
   const overlaysDir = abs(env.OVERLAYS_DIR ?? "", resolve(process.cwd(), "overlays"));
+  const audioDir = abs(env.AUDIO_DIR ?? "", resolve(process.cwd(), "audio"));
   const defaultMusicPath = abs(env.DEFAULT_MUSIC ?? "", join(musicDir, "City Nights.mp3"));
   return {
     plugins: [
@@ -405,6 +470,7 @@ export default defineConfig(({ mode }) => {
       defaultMusic(defaultMusicPath),
       musicLibrary(musicDir),
       overlayLibrary(overlaysDir),
+      audioLibrary(audioDir),
     ],
     server: { headers: isolation },
     preview: { headers: isolation },
