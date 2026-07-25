@@ -118,7 +118,9 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
     return {
       ...clip,
       file: clipFile,
-      normalized: fileBlob,
+      // A Still is never "normalized" — sourceName() would otherwise be free to
+      // hand ffmpeg an image under an .mp4 name (ADR-0012).
+      ...(clip.kind === "still" ? {} : { normalized: fileBlob }),
       poster: mediaInfo.poster || clip.poster,
     };
   });

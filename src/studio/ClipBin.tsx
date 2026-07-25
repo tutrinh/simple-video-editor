@@ -1,10 +1,10 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Clip, Beat, OverlayBlendMode } from "../domain/types";
-import { sampleFrames } from "../lib/frameSampler";
+import { sampleFrames, stillFrame } from "../lib/frameSampler";
 import { runPool } from "../lib/pool";
 import { multithreadReady } from "../lib/ffmpegEngine";
-import { createClip, needsNormalize, normalizeTo1080p } from "../features/ingest/ingest";
+import { createClip, needsNormalize, normalizeTo1080p, isStillFile, CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
 import { fmtClock, posterBg } from "./util";
 
 type Phase = "pending" | "normalizing" | "ready" | "error";
@@ -61,20 +61,24 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
   const clipById = new Map(state.clips.map((c) => [c.id, c]));
 
   async function handleFiles(files: File[]) {
-    const videos = files.filter((f) => f.type.startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(f.name));
-    if (videos.length === 0) return;
+    // Footage or a Still (ADR-0012); anything else is ignored silently.
+    const usable = files.filter((f) => isStillFile(f) || f.type.startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(f.name));
+    if (usable.length === 0) return;
 
     const created: Clip[] = [];
-    for (const f of videos) {
+    for (const f of usable) {
       try { created.push(await createClip(f)); } catch { /* unreadable — skip */ }
     }
     if (created.length) dispatch({ type: "ADD_CLIPS", clips: created });
 
     // Poster + normalize each clip, up to `normalizeConcurrency()` at once.
+    // A Still is its own poster and never normalizes (needsNormalize says so).
     await runPool(created, normalizeConcurrency(), async (clip) => {
       setStatus(clip.id, { phase: "pending", progress: 0 });
       try {
-        const [frame] = await sampleFrames(clip.file, 1);
+        const frame = clip.kind === "still"
+          ? await stillFrame(clip.file)
+          : (await sampleFrames(clip.file, 1))[0];
         if (frame) dispatch({ type: "SET_POSTER", id: clip.id, poster: frame.dataUrl });
       } catch { /* poster best-effort */ }
 
@@ -124,6 +128,7 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
           <div className="st-cname">{clip.name}</div>
           <div className="st-crow">
             <span className="st-cdur st-num">{fmtClock(clip.durationSec)}</span>
+            {clip.kind === "still" && <span className="st-status" title="Imported image — runs 10s as a beat">still</span>}
             {st?.phase === "normalizing" && <span className="st-status">normalizing {Math.round(st.progress * 100)}%</span>}
             {st?.phase === "error" && <span className="st-status err" title={st.error}>failed</span>}
             {addable ? (
@@ -137,7 +142,10 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                 >
                   + Beat
                 </button>
-                <button
+                {/* B-roll Overlays are pre-trimmed with -ss/-t against a video
+                    source, so a Still cannot be one. Over-the-Cut images are
+                    the Sticker track's job (ADR-0011). */}
+                {clip.kind !== "still" && <button
                   type="button"
                   className="st-btn ghost"
                   style={{ fontSize: 9, padding: "1px 5px", color: "var(--accent)", borderColor: "var(--accent)" }}
@@ -164,7 +172,7 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                   title="Layer clip as a video overlay on top of beats"
                 >
                   + Overlay
-                </button>
+                </button>}
               </div>
             ) : described ? (
               <UsabilityDots score={clip.description!.usability} />
@@ -190,8 +198,8 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
         onClick={() => inputRef.current?.click()}
       >
         <b>Drop clips here</b>
-        or click to choose · 4K → 1080p on import
-        <input ref={inputRef} type="file" accept="video/*" multiple hidden onChange={onPick} />
+        video or images · 4K → 1080p · stills run 10s
+        <input ref={inputRef} type="file" accept={CLIP_FILE_ACCEPT} multiple hidden onChange={onPick} />
       </div>
 
       <div className="st-cliplist">

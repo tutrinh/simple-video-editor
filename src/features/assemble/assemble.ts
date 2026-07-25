@@ -15,9 +15,23 @@ export function newId(): string {
 
 /**
  * The script-driven trim window (ADR-0004): duration from the script's spoken
- * length, centered in the clip. Shared by assemble, swap-clip, and add-back.
+ * length, centered in the clip.
+ *
+ * A Still takes its whole source window instead (ADR-0012). ADR-0004 paces a
+ * Beat by its Script line because footage has a most-interesting moment to land
+ * on; a Still has one frame, so pacing it by word count buys nothing and a
+ * predictable length is worth more.
  */
-export function computeWindow(clipDurationSec: number, scriptText: string, defaultSec = EDITOR_DEFAULTS.DEFAULT_BEAT_DURATION_SEC): Pick<Beat, "inSec" | "outSec" | "durationSec"> {
+export function computeWindow(
+  clipDurationSec: number,
+  scriptText: string,
+  defaultSec = EDITOR_DEFAULTS.DEFAULT_BEAT_DURATION_SEC,
+  kind?: Clip["kind"],
+): Pick<Beat, "inSec" | "outSec" | "durationSec"> {
+  if (kind === "still") {
+    const dur = clipDurationSec || EDITOR_DEFAULTS.STILL_CLIP_DURATION_SEC;
+    return { inSec: 0, outSec: dur, durationSec: dur };
+  }
   const target = scriptText.trim() ? estimateSpokenSeconds(scriptText) : defaultSec;
   const clipDur = clipDurationSec || target;
   const durationSec = Math.min(target, clipDur);
@@ -26,7 +40,7 @@ export function computeWindow(clipDurationSec: number, scriptText: string, defau
 }
 
 export function makeBeat(clip: Clip, scriptText: string = ""): Beat {
-  return { id: newId(), clipId: clip.id, scriptText, captionText: "", ...computeWindow(clip.durationSec, scriptText, EDITOR_DEFAULTS.DEFAULT_BEAT_DURATION_SEC) };
+  return { id: newId(), clipId: clip.id, scriptText, captionText: "", ...computeWindow(clip.durationSec, scriptText, EDITOR_DEFAULTS.DEFAULT_BEAT_DURATION_SEC, clip.kind) };
 }
 
 export function assembleCut(clips: Clip[], story: Story, aspect: Aspect = "16:9"): Cut {

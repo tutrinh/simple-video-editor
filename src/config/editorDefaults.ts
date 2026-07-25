@@ -22,6 +22,14 @@ export const EDITOR_DEFAULTS = {
   /** Words per second reading pace estimation (~150 wpm) */
   WORDS_PER_SEC: 2.5,
 
+  /**
+   * Synthetic length given to a Still on import (ADR-0012). A Still has no
+   * natural duration, so it is modelled as a source exactly this long — which
+   * makes it both the length of a Beat created from one and the ceiling the
+   * trimmer bounds itself by.
+   */
+  STILL_CLIP_DURATION_SEC: 10.0,
+
   /** Default aspect ratio */
   DEFAULT_ASPECT: "16:9" as const,
 

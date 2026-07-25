@@ -120,10 +120,37 @@ export function canvasDims(aspect: Aspect): [number, number] {
   return [1920, 1080];
 }
 
-function sourceName(clip: Clip): string {
-  if (clip.normalized) return "in.mp4";
+/** What the Clip is called inside the engine's virtual FS. */
+export function sourceName(clip: Pick<Clip, "name" | "kind"> & Partial<Pick<Clip, "normalized">>): string {
   const ext = clip.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase() ?? "mp4";
+  // `kind` is read BEFORE `normalized` on purpose: importing a .vidstr used to
+  // set `normalized` on every clip, and a Still handed to ffmpeg as `in.mp4`
+  // gives it an mp4 demuxer for a JPEG.
+  if (clip.kind === "still") return `in.${ext}`;
+  if (clip.normalized) return "in.mp4";
   return `in.${ext}`;
+}
+
+/**
+ * The Beat's own input stage. A Still has no timeline to seek into, so it is
+ * looped for the segment's length the way captions, Title overlays and Stickers
+ * already are (ADR-0012); footage is seek-and-trim as before. Everything
+ * downstream reads `[0:v]` either way.
+ */
+export function beatInputArgs(clip: Pick<Clip, "name" | "kind"> & Partial<Pick<Clip, "normalized">>, inSec: number, footageLen: number): string[] {
+  if (clip.kind === "still") {
+    return ["-loop", "1", "-t", String(footageLen), "-r", "30", "-i", sourceName(clip)];
+  }
+  return ["-ss", String(inSec), "-t", String(footageLen), "-i", sourceName(clip)];
+}
+
+/**
+ * Where a Beat segment's audio comes from. A Still has no audio stream at all,
+ * so mapping `[0:a]` would fail the whole segment however loud the Beat is set.
+ */
+export function beatAudioStrategy(clip: Pick<Clip, "kind">, beatVolume: number): "source" | "silent" {
+  if (clip.kind === "still") return "silent";
+  return beatVolume > 0 ? "source" : "silent";
 }
 
 async function bytesOf(src: Blob): Promise<Uint8Array> {
@@ -444,7 +471,7 @@ export async function exportCut(
     const beatVol = b.volume ?? 1;
     // Beat audio is just the (optionally muted) source clip now; narration is the
     // master VO bed mixed in at the final stage.
-    const strategy: "source" | "silent" = beatVol > 0 ? "source" : "silent";
+    const strategy: "source" | "silent" = beatAudioStrategy(clip, beatVol);
 
     const capCount = captionCues.length;
     const segDurStr = segDur.toFixed(3);
@@ -799,7 +826,7 @@ export async function exportCut(
       const aFilterString = aChains.join(";");
 
       return [
-        "-ss", String(inSec), "-t", String(footageLen), "-i", sourceName(clip),
+        ...beatInputArgs(clip, inSec, footageLen),
         ...capInputArgs,
         ...titleInputArgs,
         ...overlayInputArgs,

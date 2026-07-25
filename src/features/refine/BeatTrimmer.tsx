@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Beat, Clip } from "../../domain/types";
+import { advanceStillPos } from "../../studio/util";
 
 // Drag-to-trim: a timeline with in/out handles over a scrub video. Dragging a
 // handle seeks the video to that frame (live preview) and, on release, commits
@@ -19,6 +20,10 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const dur = clip.durationSec || Math.max(beat.outSec, 1);
+  // A Still shows its image rather than a scrub video (ADR-0012). `dur` is the
+  // synthetic 10s, so the handles, the region and the readout are unchanged.
+  const isStill = clip.kind === "still";
+  const [stillUrl, setStillUrl] = useState<string | null>(null);
 
   const [inSec, setInSec] = useState(beat.inSec);
   const [outSec, setOutSec] = useState(beat.outSec);
@@ -36,7 +41,12 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
   // Load the clip source. The object URL is created AND revoked here so its
   // lifetime matches the <video> src (StrictMode-safe). Reload only on clip change.
   useEffect(() => {
-    if (compact) return; // no <video> in compact mode
+    if (compact) return; // no preview element in compact mode
+    if (isStill) {
+      const url = URL.createObjectURL(clip.normalized ?? clip.file);
+      setStillUrl(url);
+      return () => { setStillUrl(null); URL.revokeObjectURL(url); };
+    }
     const v = videoRef.current;
     if (!v) return;
     const url = URL.createObjectURL(clip.normalized ?? clip.file);
@@ -48,12 +58,31 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
       URL.revokeObjectURL(url);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clip.id, compact]);
+  }, [clip.id, compact, isStill]);
 
   function seek(t: number) {
     const v = videoRef.current;
     if (v && Number.isFinite(t)) v.currentTime = t;
   }
+
+  // "Play range" for a Still: nothing to seek, so the button just runs the
+  // range's length off the shared clock and releases itself at the out-point.
+  useEffect(() => {
+    if (!isStill || !playing) return;
+    let raf = 0;
+    let last = performance.now();
+    let pos = 0;
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      const next = advanceStillPos(pos, dt, outSec - inSec);
+      pos = next.pos;
+      if (next.ended) { setPlaying(false); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isStill, playing, inSec, outSec]);
 
   function timeFromX(clientX: number): number {
     const el = trackRef.current;
@@ -94,6 +123,7 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
 
   // Play just the selected [in, out] range as a preview.
   function playRange() {
+    if (isStill) { setPlaying(true); return; } // the effect above times it out
     const v = videoRef.current;
     if (!v) return;
     v.currentTime = inSec;
@@ -127,7 +157,13 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
 
   return (
     <div style={{ marginTop: compact ? 2 : 8, width: "100%", maxWidth: 520 }}>
-      {!compact && (
+      {!compact && (isStill ? (
+        <img
+          src={stillUrl ?? undefined}
+          alt=""
+          style={{ width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: 6, objectFit: "contain" }}
+        />
+      ) : (
         <video
           ref={videoRef}
           onTimeUpdate={onTimeUpdate}
@@ -135,7 +171,7 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
           playsInline
           style={{ width: "100%", aspectRatio: "16/9", background: "#000", borderRadius: 6, objectFit: "contain" }}
         />
-      )}
+      ))}
       <div
         ref={trackRef}
         onPointerMove={onPointerMove}

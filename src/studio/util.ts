@@ -132,6 +132,19 @@ export function isBeatZoomActive(zoom?: number, zoomScope?: "entire" | "intro", 
   return elapsedSec < (zoomSec ?? 3);
 }
 
+/**
+ * The Still transport clock (ADR-0012). A Still has no `<video>` to fire
+ * `timeupdate`, so its preview and trimmer advance a normalized 0..1 position
+ * over the Beat's window themselves. `ended` is the out-point: the caller stops
+ * there rather than wrapping, matching how a video Beat pauses at `outSec`.
+ */
+export function advanceStillPos(pos: number, dtSec: number, spanSec: number): { pos: number; ended: boolean } {
+  const span = Math.max(0.01, spanSec);
+  const next = pos + dtSec / span;
+  if (!Number.isFinite(next) || next >= 1) return { pos: 1, ended: true };
+  return { pos: Math.max(0, next), ended: false };
+}
+
 /** Below this a rotation is treated as none — 0.05° is under a pixel of skew at 1080p. */
 const ROTATION_EPSILON = 0.05;
 

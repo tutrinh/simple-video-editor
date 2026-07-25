@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canvasDims, buildScriptText, buildSrt, wrapCaption } from "./export";
+import { canvasDims, buildScriptText, buildSrt, wrapCaption, sourceName, beatInputArgs, beatAudioStrategy } from "./export";
 import type { Cut } from "../../domain/types";
 
 const cut: Cut = {
@@ -59,5 +59,77 @@ describe("script export", () => {
     expect(srt).toContain("1\n00:00:00,000 --> 00:00:02,000\nServe");
     expect(srt).toContain("2\n00:00:03,000 --> 00:00:05,000\nSet");
     expect(srt).toContain("3\n00:00:05,000 --> 00:00:08,000\nSpike");
+  });
+});
+
+// --- Stills (ADR-0012) ------------------------------------------------------
+
+const stillClip = (name = "beach.jpg", normalized?: Blob) => ({ name, kind: "still" as const, normalized });
+const videoClip = (name = "surf.mov", normalized?: Blob) => ({ name, kind: undefined, normalized });
+
+describe("sourceName", () => {
+  it("keeps a Still's real extension", () => {
+    expect(sourceName(stillClip("beach.jpg"))).toBe("in.jpg");
+    expect(sourceName(stillClip("SHOT.PNG"))).toBe("in.png");
+    expect(sourceName(stillClip("a.webp"))).toBe("in.webp");
+  });
+
+  it("reads kind BEFORE normalized", () => {
+    // Importing a .vidstr used to set `normalized` on every clip; a Still under
+    // an .mp4 name gives ffmpeg an mp4 demuxer for a JPEG.
+    expect(sourceName(stillClip("beach.jpg", new Blob([])))).toBe("in.jpg");
+  });
+
+  it("is unchanged for footage", () => {
+    expect(sourceName(videoClip("surf.mov"))).toBe("in.mov");
+    expect(sourceName(videoClip("surf.mov", new Blob([])))).toBe("in.mp4");
+    expect(sourceName(videoClip("noext"))).toBe("in.mp4");
+  });
+});
+
+describe("beatInputArgs", () => {
+  it("loops a Still for the segment's length instead of seeking into it", () => {
+    const args = beatInputArgs(stillClip("beach.jpg"), 0, 10);
+    expect(args).toEqual(["-loop", "1", "-t", "10", "-r", "30", "-i", "in.jpg"]);
+    expect(args).not.toContain("-ss");
+  });
+
+  it("passes a trimmed Still's length through to -t", () => {
+    expect(beatInputArgs(stillClip(), 0, 4.5)).toContain("4.5");
+    expect(beatInputArgs(stillClip(), 0, 4.5)[3]).toBe("4.5");
+  });
+
+  it("ignores inSec for a Still — every frame is the same frame", () => {
+    expect(beatInputArgs(stillClip(), 0, 10)).toEqual(beatInputArgs(stillClip(), 3.7, 10));
+  });
+
+  it("seeks and trims footage exactly as before", () => {
+    const args = beatInputArgs(videoClip("surf.mov"), 2.5, 3);
+    expect(args).toEqual(["-ss", "2.5", "-t", "3", "-i", "in.mov"]);
+    expect(args).not.toContain("-loop");
+  });
+
+  it("emits exactly one input either way, so downstream indices are unchanged", () => {
+    // The caption/title/overlay/sticker index arithmetic counts inputs from 1.
+    for (const clip of [stillClip(), videoClip()]) {
+      const args = beatInputArgs(clip, 1, 5);
+      expect(args.filter((a) => a === "-i")).toHaveLength(1);
+      expect(args[args.length - 2]).toBe("-i"); // the source is always last
+    }
+  });
+});
+
+describe("beatAudioStrategy", () => {
+  it("forces a Still silent however loud the Beat is set", () => {
+    // There is no [0:a] to map; mapping it fails the whole segment.
+    expect(beatAudioStrategy({ kind: "still" }, 1)).toBe("silent");
+    expect(beatAudioStrategy({ kind: "still" }, 0.5)).toBe("silent");
+    expect(beatAudioStrategy({ kind: "still" }, 0)).toBe("silent");
+  });
+
+  it("leaves footage on its volume switch", () => {
+    expect(beatAudioStrategy({ kind: "video" }, 1)).toBe("source");
+    expect(beatAudioStrategy({ kind: undefined }, 1)).toBe("source");
+    expect(beatAudioStrategy({ kind: undefined }, 0)).toBe("silent");
   });
 });

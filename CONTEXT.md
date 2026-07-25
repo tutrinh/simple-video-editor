@@ -19,8 +19,17 @@ the video) — that is a separate thing.
 _Avoid_: filename, heading, title overlay
 
 **Clip**:
-A single uploaded video file — the raw input unit the editor works with.
+A single uploaded source file — the raw input unit the editor works with. Either
+video footage or a Still.
 _Avoid_: video, footage, asset
+
+**Still**:
+A Clip imported from an image (JPG/PNG/WebP/GIF/AVIF) rather than a video. It
+has no natural length, so ingest gives it a synthetic 10-second duration and
+every consumer treats it as a 10-second source (ADR-0012). Added to a Beat it
+runs the full 10s. Distinct from a Sticker, which is an image laid *over* the
+Cut rather than being the Beat's own footage.
+_Avoid_: photo, image clip, static
 
 **Story**:
 The coherent narrative arc the editor discovers across the Clips. Discovered

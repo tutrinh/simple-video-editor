@@ -3,7 +3,7 @@ import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview, { BeatTitleOverlay, StickerOverlay } from "../features/export/FinalPreview";
 import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
-import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive } from "./util";
+import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, advanceStillPos } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 
 interface ErrorBoundaryProps {
@@ -57,15 +57,23 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const [pos, setPos] = useState(0); // 0..1 within the beat window
   const [isScrubbing, setIsScrubbing] = useState(false);
 
+  // A Still is an <img> with no clock of its own (ADR-0012), so the transport
+  // below drives `pos` on rAF instead of reading video.currentTime. posRef
+  // mirrors pos so the rAF loop can advance without re-subscribing each frame.
+  const isStill = clip?.kind === "still";
+  const stillUrl = isStill ? getClipBlobUrl(clip.normalized ?? clip.file) : null;
+  const posRef = useRef(0);
+  const setPosBoth = (p: number) => { posRef.current = p; setPos(p); };
+
   // 1. Load the selected clip's source using permanent blob cache
   useEffect(() => {
     if (mode !== "beat") return;
+    setPosBoth(0);
+    setPlaying(false);
     const v = videoRef.current;
     if (!v || !clip || !beat) return;
     const url = getClipBlobUrl(clip.normalized ?? clip.file);
     if (url && v.src !== url) v.src = url;
-    setPos(0);
-    setPlaying(false);
     const onMeta = () => { v.currentTime = beat.inSec; };
     if (v.readyState >= 1) {
       v.currentTime = beat.inSec;
@@ -83,6 +91,26 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     v.volume = beat.volume ?? 1;
     v.muted = (beat.volume ?? 1) === 0;
   }, [beat?.volume]);
+
+  // 2b. The Still transport: advance `pos` in real time over the Beat's window
+  // and stop at the out-point, the way the video path stops at `outSec`.
+  useEffect(() => {
+    if (!isStill || !playing || !beat) return;
+    const span = beat.outSec - beat.inSec;
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+      const next = advanceStillPos(posRef.current, dt, span);
+      setPosBoth(next.pos);
+      if (next.ended) { setPlaying(false); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStill, playing, beat?.id, beat?.inSec, beat?.outSec]);
 
   // 3. Calculations for active beat & overlay
   const beatIndex = beat ? cut.beats.indexOf(beat) : -1;
@@ -111,29 +139,35 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   }, [elapsedCutSec, activeOverlay, playing]);
 
   function togglePlay() {
+    if (!beat) return;
+    if (isStill) {
+      if (playing) { setPlaying(false); return; }
+      if (pos >= 0.999) setPosBoth(0); // replay from the top
+      setPlaying(true);
+      return;
+    }
     const v = videoRef.current;
-    if (!v || !beat) return;
+    if (!v) return;
     if (playing) { v.pause(); setPlaying(false); return; }
     if (v.currentTime < beat.inSec || v.currentTime >= beat.outSec - 0.05) {
       v.currentTime = beat.inSec;
-      setPos(0);
+      setPosBoth(0);
     }
     v.play().then(() => setPlaying(true)).catch(() => {});
   }
 
   function handleScrubPointer(e: React.PointerEvent<HTMLDivElement>) {
-    const v = videoRef.current;
     const el = scrubRef.current;
-    if (!v || !beat || !el) return;
+    if (!beat || !el) return;
     const rect = el.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const newTime = beat.inSec + pct * (beat.outSec - beat.inSec);
-    if (playing) {
-      v.pause();
-      setPlaying(false);
-    }
-    v.currentTime = newTime;
-    setPos(pct);
+    if (playing) setPlaying(false);
+    if (isStill) { setPosBoth(pct); return; } // no frame to seek to — the position IS the state
+    const v = videoRef.current;
+    if (!v) return;
+    v.pause();
+    v.currentTime = beat.inSec + pct * (beat.outSec - beat.inSec);
+    setPosBoth(pct);
   }
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
@@ -154,17 +188,25 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   }
 
   function stepFrame(frames: number) {
+    if (!beat) return;
+    const frameTime = 1 / 30; // ~33.3ms 30fps frame stepping
+    const span = Math.max(0.01, beat.outSec - beat.inSec);
+    if (isStill) {
+      // Every frame of a Still is the same frame; stepping still moves the
+      // playhead so the scrubber, Stickers and Title overlays track with it.
+      if (playing) setPlaying(false);
+      setPosBoth(Math.max(0, Math.min(1, pos + (frames * frameTime) / span)));
+      return;
+    }
     const v = videoRef.current;
-    if (!v || !beat) return;
+    if (!v) return;
     if (playing) {
       v.pause();
       setPlaying(false);
     }
-    const frameTime = 1 / 30; // ~33.3ms 30fps frame stepping
-    const span = Math.max(0.01, beat.outSec - beat.inSec);
     const newTime = Math.max(beat.inSec, Math.min(beat.outSec, v.currentTime + frames * frameTime));
     v.currentTime = newTime;
-    setPos((newTime - beat.inSec) / span);
+    setPosBoth((newTime - beat.inSec) / span);
   }
 
   function onTimeUpdate() {
@@ -172,11 +214,11 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     if (!v || !beat) return;
     const span = Math.max(0.01, beat.outSec - beat.inSec);
     const newPos = Math.min(1, Math.max(0, (v.currentTime - beat.inSec) / span));
-    setPos(newPos);
+    setPosBoth(newPos);
     if (playing && v.currentTime >= beat.outSec - 0.02) {
       v.pause();
       v.currentTime = beat.outSec;
-      setPos(1);
+      setPosBoth(1);
       setPlaying(false);
     }
   }
@@ -250,7 +292,12 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
             rotate-then-zoom order. */}
         <div style={{ position: "absolute", inset: 0, ...beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY, isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed)) }}>
           <div style={{ position: "absolute", inset: 0, ...beatRotationStyle(...canvasDims(cut.aspect), beat.rotation) }}>
-            <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments) }} />
+            {isStill ? (
+              // Same wrappers, same grade — only the element differs (ADR-0012).
+              <img src={stillUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments) }} />
+            ) : (
+              <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments) }} />
+            )}
           </div>
         </div>
         {activeOverlay && activeOverlayClip && overlayBlobUrl && (

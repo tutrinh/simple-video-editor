@@ -1,5 +1,5 @@
 import type { Clip, ClipDescription } from "../../domain/types";
-import { sampleFrames } from "../../lib/frameSampler";
+import { sampleFrames, stillFrame } from "../../lib/frameSampler";
 import { describeClip, type ClaudeConfig } from "../../lib/claudeClient";
 
 // Analyze one clip (ADR-0001): sample ~8 frames from the normalized 1080p source
@@ -13,6 +13,10 @@ export function hintFromName(name: string): string {
 
 export async function analyzeClip(clip: Clip, cfg: ClaudeConfig, frames = 8): Promise<ClipDescription> {
   const source = clip.normalized ?? clip.file;
-  const sampled = await sampleFrames(source, frames);
+  // A Still has one frame, and it is the whole clip (ADR-0012). Sampling eight
+  // copies of it would only cost tokens.
+  const sampled = clip.kind === "still"
+    ? [await stillFrame(source)]
+    : await sampleFrames(source, frames);
   return describeClip(sampled, hintFromName(clip.name), cfg);
 }

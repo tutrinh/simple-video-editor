@@ -5,7 +5,7 @@ import { sliderTrackStyle } from "./Inspector";
 import { useSettings } from "../state/SettingsContext";
 import { useProject } from "../state/ProjectContext";
 import { analyzeFilmLook, gradeBeatToLook, type FilmLook } from "../lib/filmLook";
-import { sampleFrameAt } from "../lib/frameSampler";
+import { sampleFrameAt, stillFrame } from "../lib/frameSampler";
 import { loadReferences, saveReference, deleteReference, downscaleDataUrl, type SavedReference } from "../lib/lookReferences";
 import { captureGradeSnapshot, clearedGlobal, restoredBeatGrade, restoredGlobal, wasSnapshotted, type GradeSnapshot } from "../lib/lookApply";
 
@@ -95,7 +95,9 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
         if (!src) continue;
         try {
           const mid = (beat.inSec + beat.outSec) / 2;
-          const frame = await sampleFrameAt(src, mid);
+          // A Still has no midpoint to seek to (ADR-0012). Without this branch
+          // the catch below would quietly skip it rather than grade it.
+          const frame = clip?.kind === "still" ? await stillFrame(src) : await sampleFrameAt(src, mid);
           const adj = await gradeBeatToLook(frame.base64, look, aiCfg, refB64);
           dispatch({ type: "UPDATE_BEAT", beat: { ...beat, colorAdjustments: adj } });
         } catch (err) {

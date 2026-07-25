@@ -485,6 +485,23 @@ export default function FinalPreview({
             ...beatRotationStyle(...canvasDims(cut.aspect), beat?.rotation),
           }}
         >
+          {/* A Still is an <img> in the same wrappers with the same grade and
+              transition animation (ADR-0012). The beat clock above runs on rAF
+              from b.durationSec, not from this element, so nothing else in the
+              transport needs to know which one is mounted. */}
+          {currentBeatClip?.kind === "still" ? (
+            <img
+              src={mainBeatBlobUrl}
+              alt=""
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                filter: cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
+                animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
+              }}
+            />
+          ) : (
           <video
             ref={videoRef}
             src={mainBeatBlobUrl}
@@ -498,6 +515,7 @@ export default function FinalPreview({
               animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
             }}
           />
+          )}
         </div>
         </div>
 

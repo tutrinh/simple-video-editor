@@ -3,7 +3,7 @@
 
 export type Aspect = "16:9" | "9:16" | "1:1";
 
-/** A single uploaded video file — the raw input unit. */
+/** A single uploaded source file — video footage, or a Still. */
 export interface Clip {
   id: string;
   file: File;
@@ -11,6 +11,12 @@ export interface Clip {
   durationSec: number;
   width: number;
   height: number;
+  /**
+   * "still" = imported from an image, so `durationSec` is the synthetic
+   * `STILL_CLIP_DURATION_SEC` rather than a measured length (ADR-0012).
+   * Undefined means video — saved projects predate this field.
+   */
+  kind?: "video" | "still";
   /** 1080p-normalized source (ADR-0002: 4K normalized on ingest). */
   normalized?: Blob;
   /** Poster thumbnail (data URL) generated on ingest. */
