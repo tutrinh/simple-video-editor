@@ -28,6 +28,58 @@ export const SYSTEM_TITLE_FONTS = [
   { id: "sf-mono", name: "SF Mono", cssFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace" },
 ];
 
+// --- Arbitrary Google families (ADR-0014) -----------------------------------
+// A family typed by name rides inside the existing `fontId` as `google:Anton`
+// rather than in a new field: fontId is already an opaque string that
+// round-trips through .vidstr packages, title presets, the style clipboard and
+// every per-beat layer, so encoding it there needs no schema change and no
+// migration.
+
+export const GOOGLE_FAMILY_PREFIX = "google:";
+
+/** `"Anton"` → `"google:Anton"`. */
+export function googleFamilyId(family: string): string {
+  return `${GOOGLE_FAMILY_PREFIX}${family.trim()}`;
+}
+
+/** `"google:Anton"` → `"Anton"`; anything else → null. */
+export function parseGoogleFamilyId(id: string): string | null {
+  if (typeof id !== "string" || !id.startsWith(GOOGLE_FAMILY_PREFIX)) return null;
+  const family = id.slice(GOOGLE_FAMILY_PREFIX.length).trim();
+  return family ? family : null;
+}
+
+/**
+ * The Fontsource CDN slug: lowercased, whitespace collapsed to single hyphens,
+ * punctuation dropped. "Playfair Display" → "playfair-display", matching the
+ * `fontsourceSlug` values the built-in list already carries.
+ */
+export function slugifyFamily(family: string): string {
+  return family
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * A `GoogleFontOption` for a family that is not in the built-in list, so the
+ * existing loader and byte-fetcher work on it unchanged.
+ */
+export function syntheticGoogleFont(family: string): GoogleFontOption {
+  const name = family.trim();
+  return {
+    id: googleFamilyId(name),
+    name,
+    category: "sans-serif",
+    // The Google CSS API takes `+` for spaces.
+    googleFontName: name.replace(/\s+/g, "+"),
+    fontsourceSlug: slugifyFamily(name),
+    cssFamily: `'${name}', sans-serif`,
+    weight: "300;400;600;700;800",
+  };
+}
+
 const loadedLinks = new Set<string>();
 
 /** Inject Google Font stylesheet into document head if not already loaded. */
@@ -43,10 +95,60 @@ export function ensureGoogleFontLoaded(font: GoogleFontOption) {
   loadedLinks.add(href);
 }
 
+/**
+ * Does a fetched body look like real, uncompressed font outlines? Split out from
+ * the fetch so it can be tested without the network, and shared with
+ * fetchGoogleFontBytes's tier-2 checks: HTML means a 404 page dressed as a 200,
+ * `wOF` magic means a compressed web font that ffmpeg cannot read, and a tiny
+ * body means neither.
+ */
+export function looksLikeFontBytes(ok: boolean, contentType: string, bytes: Uint8Array): boolean {
+  if (!ok) return false;
+  if (contentType.includes("text/html")) return false;
+  if (bytes.length <= 1000) return false;
+  if (bytes[0] === 0x77 && bytes[1] === 0x4f && bytes[2] === 0x46) return false; // 'wOF'
+  if (bytes[0] === 0x3c) return false; // '<' — an HTML body with the wrong content-type
+  return true;
+}
+
+/**
+ * Whether a family name actually resolves to a font.
+ *
+ * Needed because fetchGoogleFontBytes ends in a guaranteed title-sans.ttf
+ * fallback, so a misspelled family cannot be detected from its result — it
+ * silently renders in the wrong face. The picker probes first and reports.
+ */
+export async function probeGoogleFamily(family: string): Promise<boolean> {
+  const slug = slugifyFamily(family);
+  if (!slug) return false;
+  try {
+    const res = await fetch(`https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-400-normal.ttf`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return looksLikeFontBytes(res.ok, res.headers.get("content-type") || "", bytes);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load whatever stylesheet a font id needs, listed or typed by name. The
+ * callers used to look the id up in GOOGLE_TITLE_FONTS themselves, which meant
+ * a `google:` family got no stylesheet and previewed in the fallback face.
+ */
+export function ensureFontLoadedById(fontId: string): void {
+  const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === fontId);
+  if (gf) { ensureGoogleFontLoaded(gf); return; }
+  const family = parseGoogleFamilyId(fontId);
+  if (family) ensureGoogleFontLoaded(syntheticGoogleFont(family));
+}
+
 /** Find a font option by ID (Google Font or System Font). */
 export function findFontById(id: string): (GoogleFontOption & { isGoogle?: boolean }) | { id: string; name: string; cssFamily: string; isGoogle?: boolean } | undefined {
   const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === id);
   if (gf) return { ...gf, isGoogle: true };
+  // A family typed by name (ADR-0014) — synthesised rather than listed.
+  const family = parseGoogleFamilyId(id);
+  if (family) return { ...syntheticGoogleFont(family), isGoogle: true };
   const sf = SYSTEM_TITLE_FONTS.find((f) => f.id === id);
   if (sf) return { ...sf, isGoogle: false };
   return undefined;

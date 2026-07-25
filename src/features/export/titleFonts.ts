@@ -3,7 +3,7 @@
 // glyphs. Fetching is cached per font+weight so the preview (which redraws
 // often) fetches each font at most once.
 
-import { GOOGLE_TITLE_FONTS, fetchGoogleFontBytes } from "../../lib/googleFonts";
+import { GOOGLE_TITLE_FONTS, fetchGoogleFontBytes, parseGoogleFamilyId, syntheticGoogleFont } from "../../lib/googleFonts";
 
 const cache = new Map<string, Promise<Uint8Array | undefined>>();
 
@@ -26,6 +26,10 @@ export function getTitleFontBytes(
       }
       const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === fontId);
       if (gf) return await fetchGoogleFontBytes(gf, weight);
+      // A family typed by name (ADR-0014) takes the same path as a listed one —
+      // Fontsource serves uncompressed TTF, which is what drawtext wants.
+      const family = parseGoogleFamilyId(fontId);
+      if (family) return await fetchGoogleFontBytes(syntheticGoogleFont(family), weight);
       // System sans/serif/sf-mono ship as bundled TTFs.
       const url = fontId === "serif" ? "/fonts/title-serif.ttf"
         : fontId === "sf-mono" ? "/fonts/sf-mono.ttf"

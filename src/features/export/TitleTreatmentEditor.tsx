@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
-import { GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded } from "../../lib/googleFonts";
+import { ensureFontLoadedById, findFontById } from "../../lib/googleFonts";
 import { extractTitleStyle, setCopiedTitleStyle, useCopiedTitleStyle } from "../../lib/titleClipboard";
 import ColorField from "../../studio/ColorField";
+import FontPicker from "../../studio/FontPicker";
+
+/** The weight ladder, shown as a row of `A`s rather than a dropdown. */
+const TITLE_WEIGHTS = [
+  { value: 300, label: "Light" },
+  { value: 400, label: "Normal" },
+  { value: 600, label: "Semi-Bold" },
+  { value: 700, label: "Bold" },
+  { value: 800, label: "Extra Bold" },
+];
 
 function sliderTrackStyle(val: number, min: number, max: number) {
   const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
@@ -83,10 +93,7 @@ export default function TitleTreatmentEditor({
   // Preload any Google fonts referenced by enabled layers so preview matches export.
   useEffect(() => {
     layers.forEach((l) => {
-      if (l.enabled && l.text.trim()) {
-        const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === l.fontId);
-        if (gf) ensureGoogleFontLoaded(gf);
-      }
+      if (l.enabled && l.text.trim()) ensureFontLoadedById(l.fontId);
     });
   }, [layers]);
 
@@ -106,6 +113,11 @@ export default function TitleTreatmentEditor({
   // "(Layer Disabled)" at someone about to type in it is noise, and the greyed
   // checkbox already says why it is off.
   const dimmed = !!curLayer.text.trim() && !curLayer.enabled;
+
+  // The layer's own family, so the weight swatches preview the real typeface.
+  // A custom upload has no CSS family here — it falls back to inherit, where the
+  // weight difference still reads even if the shapes are the panel's font.
+  const curFamily = findFontById(curLayer.fontId)?.cssFamily ?? "inherit";
 
   return (
     <>
@@ -216,41 +228,80 @@ export default function TitleTreatmentEditor({
         {curLayer.text.trim() && (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", fontSize: 12 }}>
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              {/* Each row renders in its own face — a native <select> cannot,
+                  since browsers do not reliably honour font-family on <option>. */}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 Font
-                <select value={curLayer.fontId} onChange={(e) => updateLayer(activeIdx, { fontId: e.target.value })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
-                  <optgroup label="Google Fonts">
-                    {GOOGLE_TITLE_FONTS.map((f) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="System Fonts">
-                    {SYSTEM_TITLE_FONTS.map((f) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </optgroup>
-                  <option value="custom">Custom upload…</option>
-                </select>
-              </label>
+                <FontPicker value={curLayer.fontId} onChange={(fontId) => updateLayer(activeIdx, { fontId })} />
+              </span>
 
-              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                Weight
-                <select
-                  value={curLayer.weight}
-                  onChange={(e) => updateLayer(activeIdx, { weight: Number(e.target.value) })}
-                  style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}
-                >
-                  <option value={300}>Light (300)</option>
-                  <option value={400}>Normal (400)</option>
-                  <option value={600}>Semi-Bold (600)</option>
-                  <option value={700}>Bold (700)</option>
-                  <option value={800}>Extra Bold (800)</option>
-                </select>
-              </label>
-
+              {/* flexBasis 100% puts this on its own line in the wrapping row, so
+                  it reads as belonging to Font rather than trailing Weight. */}
               {curLayer.fontId === "custom" && (
-                <input type="file" accept=".ttf,.otf,font/ttf,font/otf" onChange={(e) => updateLayer(activeIdx, { fontFile: e.target.files?.[0] ?? null })} style={{ fontSize: 11 }} />
+                <div style={{ flexBasis: "100%", display: "flex", flexDirection: "column", gap: 4, padding: "8px 10px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7 }}>
+                  <div style={{ fontSize: 11, color: "var(--ink-2)" }}>
+                    Upload a <strong>.ttf</strong> or <strong>.otf</strong> font file.
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--ink-3)", lineHeight: 1.5 }}>
+                    Web fonts (<code>.woff</code>, <code>.woff2</code>) will not work — the export
+                    draws text from the font's raw outlines, which those formats compress away.
+                    The file travels with the project, so it survives save and reload.
+                  </div>
+                  <input
+                    type="file"
+                    accept=".ttf,.otf,font/ttf,font/otf"
+                    onChange={(e) => updateLayer(activeIdx, { fontFile: e.target.files?.[0] ?? null })}
+                    style={{ fontSize: 11, marginTop: 2 }}
+                  />
+                  {curLayer.fontFile && (
+                    <div style={{ fontSize: 10.5, color: "var(--accent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      ✓ {curLayer.fontFile.name}
+                    </div>
+                  )}
+                </div>
               )}
+
+              {/* Each square shows its own weight in the layer's own font, so
+                  the row previews the choice instead of naming it. A <span>
+                  rather than a <label>: a label points at one control, and this
+                  is five. */}
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Weight
+                <span style={{ display: "inline-flex", gap: 4 }}>
+                  {TITLE_WEIGHTS.map((w) => {
+                    const on = curLayer.weight === w.value;
+                    return (
+                      <button
+                        key={w.value}
+                        type="button"
+                        onClick={() => updateLayer(activeIdx, { weight: w.value })}
+                        title={`${w.label} (${w.value})`}
+                        aria-label={`${w.label} (${w.value})`}
+                        aria-pressed={on}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: 6,
+                          border: on ? "2px solid var(--accent)" : "1px solid var(--line)",
+                          background: on ? "rgba(255, 179, 57, 0.15)" : "var(--panel-3)",
+                          color: on ? "var(--accent)" : "var(--ink-2)",
+                          fontFamily: curFamily,
+                          fontWeight: w.value,
+                          fontSize: 15,
+                          lineHeight: 1,
+                          cursor: "pointer",
+                          padding: 0,
+                        }}
+                      >
+                        A
+                      </button>
+                    );
+                  })}
+                </span>
+              </span>
 
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 Size

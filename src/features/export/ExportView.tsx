@@ -7,7 +7,7 @@ import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
 import { ELEVEN_VOICES, ELEVEN_MODELS, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
 import type { TtsEngine } from "../../lib/tts";
 import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./FinalPreview";
-import { GOOGLE_TITLE_FONTS, ensureGoogleFontLoaded, findFontById } from "../../lib/googleFonts";
+import { ensureFontLoadedById, findFontById } from "../../lib/googleFonts";
 import { getTitleFontBytes } from "./titleFonts";
 import TitleTreatmentEditor from "./TitleTreatmentEditor";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, type TitlePreset } from "../../lib/titlePresets";
@@ -153,8 +153,7 @@ export default function ExportView() {
       const pl = target.layers[idx];
       if (!pl) return l;
 
-      const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === pl.fontId);
-      if (gf) ensureGoogleFontLoaded(gf);
+      ensureFontLoadedById(pl.fontId);
 
       return {
         ...l,
