@@ -5,7 +5,7 @@ import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { fetchSfxBytes } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
-import { ffmpegColorFilters, ffmpegZoomFilters } from "../../studio/util";
+import { ffmpegColorLut, ffmpegZoomFilters } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
 
@@ -369,13 +369,20 @@ export async function exportCut(
     const zoomFilters = ffmpegZoomFilters(w, h, b.zoom, b.zoomX, b.zoomY);
     const zoomIntro = zoomFilters.length > 0 && (b.zoomScope ?? "entire") === "intro";
 
+    // The Grade rides in as a baked 3D LUT written to the engine FS, not as a
+    // filter chain — one generator drives it and the preview both (ADR-0010).
+    const colorLut = ffmpegColorLut(
+      "grade.cube", b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments,
+    );
+    if (colorLut) inputs.push(colorLut.input);
+
     const vf = [
       "setpts=PTS-STARTPTS",
       `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
       `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
       "setsar=1",
       ...(zoomIntro ? [] : zoomFilters),
-      ...ffmpegColorFilters(b.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
+      ...(colorLut ? [colorLut.filter] : []),
     ];
 
     if (i === 0 && b.transition && b.transition !== "none" && (b.transitionPosition ?? "start") === "start") {

@@ -162,6 +162,11 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const splitToneRows = (adj: ColorAdjustments, set: (k: keyof ColorAdjustments, v: number) => void) => (
     <>
       {adjRow("Tint", adj.tint ?? 0, (v) => set("tint", v))}
+      {/* Tonal range: brightness of the dark/bright regions. Distinct from the
+          split-tone rows below, which colour those same regions. */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Tone</div>
+      {adjRow("Shadows", adj.shadows ?? 0, (v) => set("shadows", v))}
+      {adjRow("Highlights", adj.highlights ?? 0, (v) => set("highlights", v))}
       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Split tone</div>
       {adjRow("Shadow warm", adj.shadowWarmth ?? 0, (v) => set("shadowWarmth", v))}
       {adjRow("Shadow tint", adj.shadowTint ?? 0, (v) => set("shadowTint", v))}

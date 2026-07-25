@@ -87,6 +87,24 @@ and ducked beneath the Voiceover. The app arranges the track but does not source
 it; the author supplies it.
 _Avoid_: soundtrack, score, BGM
 
+**Look**:
+A named, reusable colour style — either built in or derived by Claude from an
+author-supplied reference image. A Look is a *target* the Beats are carried
+toward, not an offset added on top of them (ADR-0010). Saving a Look under a name
+is all a "preset" is; it is not a separate concept.
+_Avoid_: filter, filter preset, film look, style, LUT
+
+**Grade**:
+The colour adjustment values carried by a single Beat — the bounded ±100 axes
+that move that Beat toward a Look. Each Beat gets its own Grade, because clips
+shot differently need different corrections to land in the same place. The axes
+fall in three groups: overall (exposure, contrast, saturation, hue, white
+balance), **tonal range** (Shadows and Highlights — brightness of the dark and
+bright regions, each holding its own end of the scale), and **split tone**
+(warmth/tint applied to shadows and highlights separately — colour in those same
+regions, not brightness).
+_Avoid_: color adjustments, correction, filter, tweak
+
 **Cut**:
 The assembled, editable draft — the ordered sequence of Beats that the user
 refines and exports as a single video. Claude proposes the first Cut; the user

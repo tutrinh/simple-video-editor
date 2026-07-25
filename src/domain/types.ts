@@ -108,6 +108,17 @@ export interface ColorAdjustments {
   exposure?: number;
   /** Contrast offset (-100 to +100, default 0). */
   contrast?: number;
+  /**
+   * Shadows — brightness of the dark region only (-100 to +100, default 0).
+   * Tapers to zero at true black, so blacks stay black; use shadowWarmth/
+   * shadowTint for a lifted, faded look.
+   */
+  shadows?: number;
+  /**
+   * Highlights — brightness of the bright region only (-100 to +100, default 0).
+   * Tapers to zero at pure white, mirroring Shadows.
+   */
+  highlights?: number;
   /** Color tone / Hue offset (-100 to +100, default 0). */
   colorTone?: number;
   /** Warmth / Color temperature offset — blue↔amber (-100 to +100, default 0). */

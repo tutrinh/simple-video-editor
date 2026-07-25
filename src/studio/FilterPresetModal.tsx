@@ -7,6 +7,7 @@ import { useProject } from "../state/ProjectContext";
 import { analyzeFilmLook, gradeBeatToLook, type FilmLook } from "../lib/filmLook";
 import { sampleFrameAt } from "../lib/frameSampler";
 import { loadReferences, saveReference, deleteReference, downscaleDataUrl, type SavedReference } from "../lib/lookReferences";
+import { captureGradeSnapshot, clearedGlobal, restoredBeatGrade, restoredGlobal, wasSnapshotted, type GradeSnapshot } from "../lib/lookApply";
 
 interface Props {
   activeFilterId?: string;
@@ -34,8 +35,9 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
   const [aiLabel, setAiLabel] = useState("");
   const [aiErr, setAiErr] = useState<string | null>(null);
   const [savedRefs, setSavedRefs] = useState<SavedReference[]>(() => loadReferences());
-  // Snapshot of each beat's colorAdjustments before an AI grade → one-click Undo.
-  const [gradeUndo, setGradeUndo] = useState<Map<string, ColorAdjustments | undefined> | null>(null);
+  // Snapshot of the per-Beat Grades *and* the global override before an AI grade
+  // → one-click Undo that puts both back.
+  const [gradeUndo, setGradeUndo] = useState<GradeSnapshot | null>(null);
   const aiCfg = { provider: settings.aiProvider, model: settings.analyzeModel };
 
   function onRefUpload(file?: File) {
@@ -54,11 +56,12 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
     if (!b64) return;
     setAiBusy(true); setAiLabel("Analyzing film look…"); setAiErr(null);
     try {
-      const derived = await analyzeFilmLook(b64, aiCfg);
-      setLook(derived);
-      // Preview it as the global fine-tune so the user sees the look immediately.
-      setFineTuneAdj(derived.colorAdjustments);
-      onSelectFilter(activeFilterId && activeFilterId !== "none" ? activeFilterId : null, intensity / 100, derived.colorAdjustments);
+      // Deriving a Look does NOT touch the global override (ADR-0010). Claude is
+      // asked for values that push *neutral* footage toward the reference, so
+      // applying them flat to footage that is nowhere near neutral overshoots —
+      // vivid scenes blow out to primaries. "Apply to all beats" is what grades
+      // each Beat toward the Look, accounting for where that shot already sits.
+      setLook(await analyzeFilmLook(b64, aiCfg));
     } catch (e) {
       setAiErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -70,14 +73,23 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
     const cut = state.cut;
     if (!look || !cut || cut.beats.length === 0) return;
     setAiBusy(true); setAiErr(null);
-    const snapshot = new Map<string, ColorAdjustments | undefined>();
+    const snapshot = captureGradeSnapshot(cut.beats, {
+      filterId: activeFilterId, intensity: intensity / 100, adjustments: fineTuneAdj,
+    });
     const refB64 = refImageUrl?.split(",")[1]; // reference image for direct comparison
+
+    // A Look is a target, not an offset (ADR-0010): clear the global override
+    // first, or the Look lands twice — flat across every Beat here, and again as
+    // the per-shot match below.
+    const cleared = clearedGlobal(snapshot.global);
+    setFineTuneAdj(cleared.adjustments ?? {});
+    onSelectFilter(cleared.filterId ?? null, cleared.intensity, cleared.adjustments);
+
     try {
       const clipById = new Map(state.clips.map((c) => [c.id, c]));
       for (let i = 0; i < cut.beats.length; i++) {
         const beat = cut.beats[i];
         setAiLabel(`Grading beat ${i + 1} of ${cut.beats.length}…`);
-        snapshot.set(beat.id, beat.colorAdjustments);
         const clip = clipById.get(beat.clipId);
         const src = clip?.normalized ?? clip?.file;
         if (!src) continue;
@@ -102,8 +114,13 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
     const cut = state.cut;
     if (!gradeUndo || !cut) return;
     for (const beat of cut.beats) {
-      if (gradeUndo.has(beat.id)) dispatch({ type: "UPDATE_BEAT", beat: { ...beat, colorAdjustments: gradeUndo.get(beat.id) } });
+      if (!wasSnapshotted(gradeUndo, beat.id)) continue;
+      dispatch({ type: "UPDATE_BEAT", beat: { ...beat, colorAdjustments: restoredBeatGrade(gradeUndo, beat.id) } });
     }
+    // Undo restores the global the apply cleared, not just the per-Beat Grades.
+    const prior = restoredGlobal(gradeUndo);
+    setFineTuneAdj(prior.adjustments ?? {});
+    onSelectFilter(prior.filterId ?? null, prior.intensity, prior.adjustments);
     setGradeUndo(null);
   }
 
@@ -120,13 +137,9 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
   function loadSavedReference(ref: SavedReference) {
     setRefImageUrl(ref.dataUrl);
     setAiErr(null);
-    if (ref.look) {
-      setLook(ref.look);
-      setFineTuneAdj(ref.look.colorAdjustments);
-      onSelectFilter(activeFilterId && activeFilterId !== "none" ? activeFilterId : null, intensity / 100, ref.look.colorAdjustments);
-    } else {
-      setLook(null);
-    }
+    // Same rule as analyzeLook: loading a saved reference restores its Look as a
+    // target to grade toward, never as a flat global offset.
+    setLook(ref.look ?? null);
   }
 
   function removeSavedReference(id: string) {
@@ -428,6 +441,8 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                   {([
                     ["Exposure", "exposure"],
                     ["Contrast", "contrast"],
+                    ["Shadows", "shadows"],
+                    ["Highlights", "highlights"],
                     ["Color Tone", "colorTone"],
                     ["Warmth", "warmth"],
                     ["Tint", "tint"],

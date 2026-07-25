@@ -13,14 +13,17 @@ export interface FilmLook {
 }
 
 const ADJ_KEYS: (keyof ColorAdjustments)[] = [
-  "exposure", "contrast", "colorTone", "warmth", "saturation",
-  "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
+  "exposure", "contrast", "shadows", "highlights", "colorTone", "warmth",
+  "saturation", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
 ];
 
 const COLOR_KEYS_DOC =
-  "exposure, contrast, colorTone (global hue), warmth (blue↔amber), tint (green↔magenta), " +
+  "exposure, contrast, shadows (brightness of the dark region only), highlights (brightness " +
+  "of the bright region only), colorTone (global hue), warmth (blue↔amber), tint (green↔magenta), " +
   "saturation, shadowWarmth, shadowTint, highlightWarmth, highlightTint — each an integer " +
-  "from -100 to 100 where 0 means no change. Use split-tone (shadow*/highlight*) for cinematic looks.";
+  "from -100 to 100 where 0 means no change. Use shadows/highlights for TONAL range (they hold " +
+  "true black and pure white, like Lightroom) and split-tone (shadow*/highlight*) for COLOUR in " +
+  "those ranges. Use split-tone for cinematic looks.";
 
 /** Keep only known keys with a finite numeric value; clamp to ±100 integers. */
 export function parseAdjustments(obj: unknown): ColorAdjustments {
@@ -73,11 +76,11 @@ export async function analyzeFilmLook(refBase64: string, cfg: ClaudeConfig): Pro
     `description, then the color-grade values that would push neutral footage TOWARD this look. ` +
     `Values: ${COLOR_KEYS_DOC}\n\n` +
     `Reply with ONLY this JSON, no prose:\n` +
-    `{"name":"<2-4 word name>","description":"<short phrase>","adjustments":{"exposure":0,"contrast":0,"colorTone":0,"warmth":0,"tint":0,"saturation":0,"shadowWarmth":0,"shadowTint":0,"highlightWarmth":0,"highlightTint":0}}`;
+    `{"name":"<2-4 word name>","description":"<short phrase>","adjustments":{"exposure":0,"contrast":0,"shadows":0,"highlights":0,"colorTone":0,"warmth":0,"tint":0,"saturation":0,"shadowWarmth":0,"shadowTint":0,"highlightWarmth":0,"highlightTint":0}}`;
   return parseLookResponse(await callClaudeVision(prompt, [refBase64], cfg));
 }
 
-const GRADE_JSON = `{"adjustments":{"exposure":0,"contrast":0,"colorTone":0,"warmth":0,"tint":0,"saturation":0,"shadowWarmth":0,"shadowTint":0,"highlightWarmth":0,"highlightTint":0}}`;
+const GRADE_JSON = `{"adjustments":{"exposure":0,"contrast":0,"shadows":0,"highlights":0,"colorTone":0,"warmth":0,"tint":0,"saturation":0,"shadowWarmth":0,"shadowTint":0,"highlightWarmth":0,"highlightTint":0}}`;
 
 /**
  * Phase 2 — grade one beat toward the Look. When `refBase64` is given, Claude sees

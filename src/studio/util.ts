@@ -39,81 +39,47 @@ export function posterBg(clip: Clip | undefined): string | undefined {
   return clip?.poster ? `#0a0b0d url(${JSON.stringify(clip.poster)}) center/cover no-repeat` : undefined;
 }
 
-/** SVG feColorMatrix data-URL for white balance: warmth (blue↔amber) + tint
- *  (green↔magenta) as per-channel gain. Positive tint pushes magenta (down-weights G). */
-function wbMatrixFilter(warm: number, tint: number): string {
-  const w = warm / 100;
-  const t = tint / 100;
-  const r = ((1 + 0.25 * w) * (1 + 0.05 * t)).toFixed(3);
-  const g = ((1 + 0.08 * w) * (1 - 0.20 * t)).toFixed(3);
-  const b = ((1 - 0.25 * w) * (1 + 0.05 * t)).toFixed(3);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg"><filter id="w"><feColorMatrix type="matrix" values="${r} 0 0 0 0  0 ${g} 0 0 0  0 0 ${b} 0 0  0 0 0 1 0"/></filter></svg>`;
-  return `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}#w')`;
-}
-
 import { getFilterPresetById, type FilterPreset } from "../lib/customPresets";
+import { resolveGrade, gradeSvgFilter, gradeCube, isIdentityGrade } from "../lib/grade";
 export { getFilterPresetById as getFilterPreset, type FilterPreset };
 
-/** Convert Beat color adjustments & optional Global Filter to a CSS filter string for live HTML video preview. */
-export function cssFilterFor(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1, customGlobalAdj?: ColorAdjustments): string {
+/** The Grade in effect for a Beat: its own values plus the global override, clamped. */
+export function gradeFor(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1, customGlobalAdj?: ColorAdjustments): ColorAdjustments {
   const preset = getFilterPresetById(globalFilterId);
-  const globalAdj = customGlobalAdj ?? preset?.colorAdjustments;
-
-  const g = (k: keyof ColorAdjustments) => (adj?.[k] ?? 0) + (globalAdj?.[k] ?? 0) * globalIntensity;
-  const exp = g("exposure"), con = g("contrast"), tone = g("colorTone"), sat = g("saturation");
-  // White balance + split-tone. Preview is global (CSS can't tone-target), so the
-  // shadow/highlight tints are folded into the overall WB at reduced strength — a
-  // directional hint; the export (ffmpeg colorbalance) applies them per tonal range.
-  const warm = g("warmth") + 0.4 * (g("shadowWarmth") + g("highlightWarmth"));
-  const tint = g("tint") + 0.4 * (g("shadowTint") + g("highlightTint"));
-
-  if (!exp && !con && !tone && !warm && !sat && !tint) return "none";
-  const filters: string[] = [];
-  if (exp !== 0) filters.push(`brightness(${(1 + exp / 100).toFixed(2)})`);
-  if (con !== 0) filters.push(`contrast(${(1 + con / 100).toFixed(2)})`);
-  if (sat !== 0) filters.push(`saturate(${(1 + sat / 100).toFixed(2)})`);
-  if (tone !== 0) filters.push(`hue-rotate(${(tone * 1.8).toFixed(1)}deg)`);
-  if (warm !== 0 || tint !== 0) filters.push(wbMatrixFilter(warm, tint));
-  return filters.join(" ");
+  return resolveGrade(adj, customGlobalAdj ?? preset?.colorAdjustments, globalIntensity);
 }
 
-/** Convert Beat color adjustments & optional Global Filter to FFmpeg filtergraph strings for export encoding. */
-export function ffmpegColorFilters(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1, customGlobalAdj?: ColorAdjustments): string[] {
-  const preset = getFilterPresetById(globalFilterId);
-  const globalAdj = customGlobalAdj ?? preset?.colorAdjustments;
+/**
+ * The Grade as a CSS `filter` for the live preview. Delegates to the one grade
+ * generator (ADR-0010), so this and the export's baked LUT are two renderings
+ * of the same transform rather than two implementations of it.
+ */
+export function cssFilterFor(adj?: ColorAdjustments, globalFilterId?: string | null, globalIntensity = 1, customGlobalAdj?: ColorAdjustments): string {
+  return gradeSvgFilter(gradeFor(adj, globalFilterId, globalIntensity, customGlobalAdj));
+}
 
-  const g = (k: keyof ColorAdjustments) => (adj?.[k] ?? 0) + (globalAdj?.[k] ?? 0) * globalIntensity;
-  const exp = g("exposure"), con = g("contrast"), tone = g("colorTone"), sat = g("saturation");
-  const warm = g("warmth"), tint = g("tint");
-  const sWarm = g("shadowWarmth"), sTint = g("shadowTint"), hWarm = g("highlightWarmth"), hTint = g("highlightTint");
-
-  const anyWB = warm || tint || sWarm || sTint || hWarm || hTint;
-  if (!exp && !con && !tone && !sat && !anyWB) return [];
-  const filters: string[] = [];
-  if (exp !== 0 || con !== 0 || sat !== 0) {
-    const brightness = (exp / 200).toFixed(3);
-    const contrast = (1 + con / 100).toFixed(3);
-    const saturation = (1 + sat / 100).toFixed(3);
-    filters.push(`eq=brightness=${brightness}:contrast=${contrast}:saturation=${saturation}`);
-  }
-  if (tone !== 0) {
-    filters.push(`hue=h=${(tone * 1.8).toFixed(1)}`);
-  }
-  if (anyWB) {
-    // One colorbalance carrying midtones (global WB), shadows, and highlights.
-    // warmth: R+ B- ; tint(magenta+): G- (R,B slight+). Scaled per tonal range.
-    const wb = (w: number, t: number) => ({
-      r: 0.25 * (w / 100) + 0.05 * (t / 100),
-      g: 0.08 * (w / 100) - 0.20 * (t / 100),
-      b: -0.25 * (w / 100) + 0.05 * (t / 100),
-    });
-    const m = wb(warm, tint), s = wb(sWarm, sTint), h = wb(hWarm, hTint);
-    const f = (n: number) => n.toFixed(3);
-    filters.push(
-      `colorbalance=rs=${f(s.r)}:gs=${f(s.g)}:bs=${f(s.b)}:rm=${f(m.r)}:gm=${f(m.g)}:bm=${f(m.b)}:rh=${f(h.r)}:gh=${f(h.g)}:bh=${f(h.b)}`,
-    );
-  }
-  return filters;
+/**
+ * The Grade as an ffmpeg LUT for one exported segment (ADR-0010).
+ *
+ * Returns the `.cube` bytes to hand to `runIsolated` as an `EngineInput` plus
+ * the `-vf` entry that consumes it, or `null` for an identity Grade. This
+ * replaced the `eq`/`hue`/`colorbalance` chain: `eq=brightness` was an additive
+ * offset where the preview's `brightness()` was a multiplicative gain, so the
+ * two could never agree on exposure no matter how they were tuned.
+ */
+export function ffmpegColorLut(
+  name: string,
+  adj?: ColorAdjustments,
+  globalFilterId?: string | null,
+  globalIntensity = 1,
+  customGlobalAdj?: ColorAdjustments,
+): { input: { name: string; data: Uint8Array }; filter: string } | null {
+  const grade = gradeFor(adj, globalFilterId, globalIntensity, customGlobalAdj);
+  if (isIdentityGrade(grade)) return null;
+  return {
+    input: { name, data: new TextEncoder().encode(gradeCube(grade)) },
+    filter: `lut3d=${name}`,
+  };
 }
 
 /** Normalized zoom focus point (0..1) from the beat's -50..50 pan sliders. */
