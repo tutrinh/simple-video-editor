@@ -141,6 +141,34 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
       adjustments: nextAdj,
     });
   }
+
+  // A labeled ±100 color slider row (matches the existing adjustment rows). Used for
+  // the tint + split-tone controls in both the per-beat and global adjustment groups.
+  const adjRow = (label: string, value: number, onChange: (v: number) => void) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>{label}</span>
+      <input
+        type="range" min={-100} max={100} value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        onDoubleClick={() => onChange(0)}
+        style={sliderTrackStyle(value)}
+      />
+      <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+        {value > 0 ? `+${value}` : value}
+      </span>
+    </div>
+  );
+  // The tint + split-tone rows for an adjustment group (per-beat or global).
+  const splitToneRows = (adj: ColorAdjustments, set: (k: keyof ColorAdjustments, v: number) => void) => (
+    <>
+      {adjRow("Tint", adj.tint ?? 0, (v) => set("tint", v))}
+      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Split tone</div>
+      {adjRow("Shadow warm", adj.shadowWarmth ?? 0, (v) => set("shadowWarmth", v))}
+      {adjRow("Shadow tint", adj.shadowTint ?? 0, (v) => set("shadowTint", v))}
+      {adjRow("Highlt warm", adj.highlightWarmth ?? 0, (v) => set("highlightWarmth", v))}
+      {adjRow("Highlt tint", adj.highlightTint ?? 0, (v) => set("highlightTint", v))}
+    </>
+  );
   // Per-line caption alternatives: model + mood chosen here (seeded from settings),
   // results aligned to caption rows (row i → its suggestions).
   const [altModel, setAltModel] = useState<string>(settings.authorModel);
@@ -567,6 +595,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                         {(currentGlobalAdj.saturation ?? 0) > 0 ? `+${currentGlobalAdj.saturation}` : (currentGlobalAdj.saturation ?? 0)}
                       </span>
                     </div>
+                    {splitToneRows(currentGlobalAdj, updateGlobalAdj)}
                   </div>
                 </div>
               )}
@@ -967,6 +996,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     {(b.colorAdjustments?.saturation ?? 0) > 0 ? `+${b.colorAdjustments?.saturation}` : (b.colorAdjustments?.saturation ?? 0)}
                   </span>
                 </div>
+
+                {splitToneRows(b.colorAdjustments ?? {}, updateColorAdjustment)}
 
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   <button
@@ -1405,6 +1436,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                         {(currentGlobalAdj.saturation ?? 0) > 0 ? `+${currentGlobalAdj.saturation}` : (currentGlobalAdj.saturation ?? 0)}
                       </span>
                     </div>
+                    {splitToneRows(currentGlobalAdj, updateGlobalAdj)}
                   </div>
                 </div>
               )}

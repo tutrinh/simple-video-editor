@@ -110,10 +110,20 @@ export interface ColorAdjustments {
   contrast?: number;
   /** Color tone / Hue offset (-100 to +100, default 0). */
   colorTone?: number;
-  /** Warmth / Color temperature offset (-100 to +100, default 0). */
+  /** Warmth / Color temperature offset — blue↔amber (-100 to +100, default 0). */
   warmth?: number;
   /** Saturation offset (-100 to +100, default 0). */
   saturation?: number;
+  /** Tint — green↔magenta, the second white-balance axis (-100 to +100, default 0). */
+  tint?: number;
+  /** Split-tone: shadows warmth — blue↔amber (-100 to +100, default 0). */
+  shadowWarmth?: number;
+  /** Split-tone: shadows tint — green↔magenta (-100 to +100, default 0). */
+  shadowTint?: number;
+  /** Split-tone: highlights warmth — blue↔amber (-100 to +100, default 0). */
+  highlightWarmth?: number;
+  /** Split-tone: highlights tint — green↔magenta (-100 to +100, default 0). */
+  highlightTint?: number;
 }
 
 export type OverlayBlendMode = "normal" | "screen" | "multiply" | "overlay";
