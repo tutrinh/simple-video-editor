@@ -144,12 +144,33 @@ export interface VoSegment {
   captionVisible: boolean;
 }
 
+/**
+ * A sound effect placed on the SFX track — its own timeline lane, independent of the
+ * beats (like VoSegment/OverlayClip). References a file in the `audio/` directory by
+ * name (resolved via the dev proxy). `durationSec` is the played window, clamped to
+ * `sourceDurationSec` (the file's true length) — trim-tail only, no loop. Mixed into
+ * the live Cut preview and the export at `startTimeSec` with per-segment `volume`.
+ */
+export interface SfxSegment {
+  id: string;
+  /** Filename within the audio/ directory. */
+  fileName: string;
+  startTimeSec: number;
+  durationSec: number;
+  /** The sound file's full decoded length (clamp ceiling for trimming). */
+  sourceDurationSec: number;
+  /** 0..1 playback volume. */
+  volume: number;
+}
+
 /** The assembled, editable draft — the ordered sequence of Beats and Overlays. */
 export interface Cut {
   beats: Beat[];
   overlays?: OverlayClip[];
   /** Narration + caption segments on the independent VO track. */
   voSegments?: VoSegment[];
+  /** Sound effects on the independent SFX track. */
+  sfxSegments?: SfxSegment[];
   aspect: Aspect;
   /** Non-destructive global look & feel color filter preset ID. */
   globalFilterId?: string;

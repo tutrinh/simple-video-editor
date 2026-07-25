@@ -109,6 +109,28 @@ describe("projectReducer", () => {
     expect(s.cut?.voSegments?.map((v) => v.id)).toEqual(["vo1-dup"]);
   });
 
+  it("adds, updates, duplicates, and removes SFX segments on the cut", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const seg = { id: "sfx1", fileName: "whoosh.mp3", startTimeSec: 1, durationSec: 0.8, sourceDurationSec: 0.8, volume: 1 };
+
+    s = projectReducer(s, { type: "ADD_SFX", segment: seg });
+    expect(s.cut?.sfxSegments).toHaveLength(1);
+    expect(s.cut?.sfxSegments?.[0].fileName).toBe("whoosh.mp3");
+
+    s = projectReducer(s, { type: "UPDATE_SFX", segment: { ...seg, volume: 0.5, durationSec: 0.5 } });
+    expect(s.cut?.sfxSegments?.[0].volume).toBe(0.5);
+    expect(s.cut?.sfxSegments?.[0].durationSec).toBe(0.5);
+
+    s = projectReducer(s, { type: "DUPLICATE_SFX", id: "sfx1", newSfxId: "sfx1-dup" });
+    expect(s.cut?.sfxSegments).toHaveLength(2);
+    expect(s.cut?.sfxSegments?.[1].id).toBe("sfx1-dup");
+    expect(s.cut?.sfxSegments?.[1].fileName).toBe("whoosh.mp3");
+
+    s = projectReducer(s, { type: "REMOVE_SFX", id: "sfx1" });
+    expect(s.cut?.sfxSegments?.map((x) => x.id)).toEqual(["sfx1-dup"]);
+  });
+
   it("sets and resets global look and feel filter on cut", () => {
     const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
     let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });

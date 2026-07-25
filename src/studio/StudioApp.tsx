@@ -23,6 +23,7 @@ export default function StudioApp() {
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [selectedVoId, setSelectedVoId] = useState<string | null>(null);
+  const [selectedSfxId, setSelectedSfxId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   // Mount the export drawer lazily on first open, then keep it mounted so its
@@ -56,7 +57,10 @@ export default function StudioApp() {
       if (e.key === "Delete" || e.key === "Backspace") {
         const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        if (selectedVoId) {
+        if (selectedSfxId) {
+          dispatch({ type: "REMOVE_SFX", id: selectedSfxId });
+          setSelectedSfxId(null);
+        } else if (selectedVoId) {
           dispatch({ type: "REMOVE_VO", id: selectedVoId });
           setSelectedVoId(null);
         } else if (selectedOverlayId) {
@@ -67,13 +71,19 @@ export default function StudioApp() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedOverlayId, selectedVoId, dispatch]);
+  }, [selectedOverlayId, selectedVoId, selectedSfxId, dispatch]);
 
   // Keep VO selection valid as segments change.
   useEffect(() => {
     const segs = cut?.voSegments ?? [];
     if (selectedVoId && !segs.some((s) => s.id === selectedVoId)) setSelectedVoId(null);
   }, [cut?.voSegments, selectedVoId]);
+
+  // Keep SFX selection valid as segments change.
+  useEffect(() => {
+    const segs = cut?.sfxSegments ?? [];
+    if (selectedSfxId && !segs.some((s) => s.id === selectedSfxId)) setSelectedSfxId(null);
+  }, [cut?.sfxSegments, selectedSfxId]);
 
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
   const selectedBeat = selIndex >= 0 ? beats[selIndex] : null;
@@ -158,9 +168,11 @@ export default function StudioApp() {
                   selectedBeatId={selectedBeatId}
                   onSelectBeat={setSelectedBeatId}
                   selectedOverlayId={selectedOverlayId}
-                  onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) setSelectedVoId(null); }}
+                  onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) { setSelectedVoId(null); setSelectedSfxId(null); } }}
                   selectedVoId={selectedVoId}
-                  onSelectVo={(id) => { setSelectedVoId(id); if (id) setSelectedOverlayId(null); }}
+                  onSelectVo={(id) => { setSelectedVoId(id); if (id) { setSelectedOverlayId(null); setSelectedSfxId(null); } }}
+                  selectedSfxId={selectedSfxId}
+                  onSelectSfx={(id) => { setSelectedSfxId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); } }}
                 />
               </>
             ) : (
@@ -194,6 +206,8 @@ export default function StudioApp() {
           onSelectOverlay={setSelectedOverlayId}
           selectedVoId={selectedVoId}
           onSelectVo={setSelectedVoId}
+          selectedSfxId={selectedSfxId}
+          onSelectSfx={setSelectedSfxId}
         />
 
         {/* Docked side panel — pushes the layout (see .st-main.ai-open in studio.css). */}

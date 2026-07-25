@@ -5,6 +5,7 @@ import { canvasDims, type TitleAnimation } from "./export";
 import { activeVoSegment, activeVoCaption } from "../../lib/pacing";
 import { cssFilterFor, beatZoomStyle, isBeatZoomActive } from "../../studio/util";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
+import { sfxFileUrl } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
 import { getClipBlobUrl } from "../../lib/blobUrlCache";
 import { drawTitleLayer, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
@@ -257,6 +258,43 @@ export default function FinalPreview({
     // Re-run when the active segment (or its text) changes, or play toggles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeVo?.id, activeVo?.text, playing, ttsEngine, voice, elevenVoiceId, voiceoverSpeed]);
+
+  // SFX track — one HTMLAudio "voice" per active segment (overlaps allowed), synced
+  // to the global `elapsed` clock like the overlay/VO effects. Trim is enforced by
+  // stopping the voice once the playhead passes the segment's window end.
+  const sfxVoicesRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  useEffect(() => {
+    const voices = sfxVoicesRef.current;
+    if (!playing) { voices.forEach((a) => a.pause()); return; }
+    for (const seg of cut.sfxSegments ?? []) {
+      const inWindow = elapsed >= seg.startTimeSec && elapsed < seg.startTimeSec + seg.durationSec;
+      const existing = voices.get(seg.id);
+      const vol = Math.min(1, Math.max(0, seg.volume));
+      if (inWindow) {
+        const offset = elapsed - seg.startTimeSec;
+        if (!existing) {
+          const a = new Audio(sfxFileUrl(seg.fileName));
+          a.volume = vol;
+          voices.set(seg.id, a);
+          const start = () => { try { a.currentTime = offset; } catch { /* pre-metadata */ } a.play().catch(() => {}); };
+          if (a.readyState >= 1) start(); else a.addEventListener("loadedmetadata", start, { once: true });
+        } else {
+          existing.volume = vol;
+          if (Math.abs(existing.currentTime - offset) > 0.2) { try { existing.currentTime = offset; } catch { /* ignore */ } }
+          if (existing.paused) existing.play().catch(() => {});
+        }
+      } else if (existing) {
+        existing.pause();
+        voices.delete(seg.id);
+      }
+    }
+  }, [elapsed, playing, cut.sfxSegments]);
+
+  // Stop and release all SFX voices on unmount.
+  useEffect(() => {
+    const voices = sfxVoicesRef.current;
+    return () => { voices.forEach((a) => { a.pause(); a.src = ""; }); voices.clear(); };
+  }, []);
 
   const play = () => {
     if (index >= cut.beats.length - 1) {
