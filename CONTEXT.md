@@ -59,7 +59,20 @@ _Avoid_: narration, screenplay
 The on-screen text rendering of a Script segment over its Clip in the finished
 video. Distinct in role from the spoken Voiceover, but in v1 a Caption shows its
 Script segment verbatim — there is no separate on-screen wording yet.
-_Avoid_: subtitle, overlay, title card
+_Avoid_: subtitle, title card
+
+**Overlay**:
+A Clip composited over the Cut on its own lane, with its own in/out points, a
+blend mode (normal, screen, multiply, overlay) and an opacity. Unlike a Beat it
+does not advance the Cut — it plays *on top of* whatever Beats it spans. Its
+blend mode is load-bearing (see ADR-0009).
+_Avoid_: B-roll, layer, PiP
+
+**Title overlay**:
+The optional title card burned over the video — text laid out by the shared
+canvas renderer (ADR-0008) and composited on top. Distinct from the Project's
+Title, which is only its name, and from an Overlay, which is a Clip.
+_Avoid_: title, title card, caption
 
 **Voiceover**:
 The spoken rendering of the Script, synthesized inside the app (see ADR-0006) —
