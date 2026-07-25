@@ -11,6 +11,7 @@ import { stickerFileUrl } from "../lib/stickerLibrary";
 import { beatSpans, resolveSticker } from "../features/export/stickerCanvas";
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
+import ColorField from "./ColorField";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
 import { canvasDims } from "../features/export/export";
 import { synthesizeVoiceover } from "../lib/tts";
@@ -549,25 +550,14 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           nothing. This lays a colour over the asset clipped to its alpha. */}
       {stickerRow("Tint", selectedSticker.tintStrength ?? 0, 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`,
         (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintStrength: v } }), 0)}
+      {/* The shared palette (ADR-0013) — same swatches the Title row shows.
+          Picking a colour still turns the tint on when it was off. */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, marginLeft: 70 }}>
-        {["#ffffff", "#000000", "#ff3b30", "#ffcc00", "#34c759", "#0a84ff", "#af52de"].map((hex) => (
-          <button
-            key={hex}
-            type="button"
-            onClick={() => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintColor: hex, tintStrength: selectedSticker.tintStrength || 1 } })}
-            title={`Tint ${hex}`}
-            style={{
-              width: 18, height: 18, borderRadius: 4, background: hex, cursor: "pointer", padding: 0,
-              border: (selectedSticker.tintColor ?? "#ffffff").toLowerCase() === hex ? "2px solid var(--accent)" : "1px solid var(--line)",
-            }}
-          />
-        ))}
-        <input
-          type="color"
+        <ColorField
           value={selectedSticker.tintColor ?? "#ffffff"}
-          onChange={(e) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintColor: e.target.value, tintStrength: selectedSticker.tintStrength || 1 } })}
-          title="Custom tint colour"
-          style={{ width: 24, height: 22, border: "none", background: "none", cursor: "pointer" }}
+          onChange={(hex) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintColor: hex, tintStrength: selectedSticker.tintStrength || 1 } })}
+          label=""
+          noun="tint"
         />
       </div>
 

@@ -2,12 +2,7 @@ import { useEffect, useState } from "react";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded } from "../../lib/googleFonts";
 import { extractTitleStyle, setCopiedTitleStyle, useCopiedTitleStyle } from "../../lib/titleClipboard";
-
-const TITLE_SWATCHES = [
-  { label: "White", value: "#ffffff" },
-  { label: "Black", value: "#000000" },
-  { label: "Yellow", value: "#ffd400" },
-];
+import ColorField from "../../studio/ColorField";
 
 function sliderTrackStyle(val: number, min: number, max: number) {
   const pct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
@@ -194,27 +189,14 @@ export default function TitleTreatmentEditor({
                 <input type="number" min={16} max={300} step={2} value={curLayer.sizePx} onChange={(e) => updateLayer(activeIdx, { sizePx: Number(e.target.value) })} style={{ width: 56, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 6px", fontSize: 12, textAlign: "right", outline: "none" }} /> px
               </label>
 
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                Color
-                {TITLE_SWATCHES.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => updateLayer(activeIdx, { color: s.value })}
-                    title={s.label}
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 4,
-                      background: s.value,
-                      border: curLayer.color.toLowerCase() === s.value ? "2px solid var(--accent)" : "1px solid var(--line)",
-                      cursor: "pointer",
-                      padding: 0,
-                    }}
-                  />
-                ))}
-                <input type="color" value={curLayer.color} onChange={(e) => updateLayer(activeIdx, { color: e.target.value })} title="Custom color" style={{ width: 24, height: 22, border: "none", background: "none", cursor: "pointer" }} />
-              </span>
+              {/* The shared palette (ADR-0013) — same swatches the Sticker
+                  tint row shows, and a colour picked here shows up there. */}
+              <ColorField
+                value={curLayer.color}
+                onChange={(hex) => updateLayer(activeIdx, { color: hex })}
+                label="Color"
+                noun="text colour"
+              />
 
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                 <input
