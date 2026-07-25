@@ -68,7 +68,9 @@ export interface ExportSettings {
 const DEFAULT_TITLE_LAYERS: TitleLayerSettings[] = [
   {
     id: "layer-1",
-    enabled: true,
+    // Off until it has text, matching makeBeatTitleLayers() and the invariant
+    // TitleTreatmentEditor enforces — typing turns it on.
+    enabled: false,
     text: "",
     fontId: "outfit",
     fontFile: null,

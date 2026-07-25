@@ -44,8 +44,28 @@ export default function TitleTreatmentEditor({
   const copiedStyle = useCopiedTitleStyle();
   const [copiedToast, setCopiedToast] = useState(false);
 
+  /**
+   * The one edit funnel — typing, the clear button and paste all land here — so
+   * it is also where `enabled` is kept honest about `text`. Every consumer
+   * downstream guards `l.enabled && l.text.trim()`, so an empty layer already
+   * renders nothing; leaving its box ticked claimed something the export would
+   * not do.
+   */
   function updateLayer(index: number, patch: Partial<TitleLayerSettings>) {
-    onChange(layers.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+    onChange(layers.map((l, i) => {
+      if (i !== index) return l;
+      const next = { ...l, ...patch };
+      if (patch.text !== undefined) {
+        const had = l.text.trim().length > 0;
+        const has = next.text.trim().length > 0;
+        // Emptying always disables — that invariant outranks any explicit
+        // `enabled` in the patch. Giving an empty layer text turns it back on,
+        // since it was only off for want of something to show.
+        if (!has) next.enabled = false;
+        else if (!had && patch.enabled === undefined) next.enabled = true;
+      }
+      return next;
+    }));
   }
 
   // Copy the active layer's styling to the shared clipboard; paste applies it to
@@ -72,6 +92,20 @@ export default function TitleTreatmentEditor({
 
   const curLayer = layers[activeIdx] ?? layers[0];
   if (!curLayer) return null;
+
+  /**
+   * What every consumer downstream actually means by "on" — the flag AND
+   * something to show. Derived rather than read straight off `enabled` so a
+   * project persisted before this invariant existed still displays honestly,
+   * with no migration.
+   */
+  const isLive = (l: TitleLayerSettings) => l.enabled && !!l.text.trim();
+
+  // "Switched off" is only worth signalling for a layer that HAS something to
+  // show. An empty layer is the normal starting state — dimming it and shouting
+  // "(Layer Disabled)" at someone about to type in it is noise, and the greyed
+  // checkbox already says why it is off.
+  const dimmed = !!curLayer.text.trim() && !curLayer.enabled;
 
   return (
     <>
@@ -100,11 +134,12 @@ export default function TitleTreatmentEditor({
           >
             <input
               type="checkbox"
-              checked={layer.enabled}
+              checked={isLive(layer)}
+              disabled={!layer.text.trim()}
               onChange={(e) => updateLayer(idx, { enabled: e.target.checked })}
               onClick={(e) => e.stopPropagation()}
-              style={{ accentColor: "var(--accent)", cursor: "pointer" }}
-              title="Enable/disable this title layer"
+              style={{ accentColor: "var(--accent)", cursor: layer.text.trim() ? "pointer" : "not-allowed" }}
+              title={layer.text.trim() ? "Enable/disable this title layer" : "Add text to enable this layer"}
             />
             Layer {idx + 1} {layerLabels[idx] ?? ""}
           </button>
@@ -112,15 +147,48 @@ export default function TitleTreatmentEditor({
       </div>
 
       {/* Active Layer Editor */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, opacity: curLayer.enabled ? 1 : 0.55 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, opacity: dimmed ? 0.55 : 1 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            value={curLayer.text}
-            onChange={(e) => updateLayer(activeIdx, { text: e.target.value })}
-            placeholder={activeIdx === 0 ? "e.g. SUMMER VIBES 2026" : activeIdx === 1 ? "e.g. Official Highlight Reel" : "e.g. Presented by VIDSTR"}
-            style={{ flex: 1, padding: "7px 10px", fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none" }}
-          />
-          {!curLayer.enabled && <span style={{ fontSize: 10, color: "var(--danger)", whiteSpace: "nowrap" }}>(Layer Disabled)</span>}
+          {/* The clear button sits inside the field, so the input reserves room
+              for it only while there is something to clear. */}
+          <div style={{ flex: 1, position: "relative", display: "flex" }}>
+            <input
+              value={curLayer.text}
+              onChange={(e) => updateLayer(activeIdx, { text: e.target.value })}
+              placeholder={activeIdx === 0 ? "e.g. SUMMER VIBES 2026" : activeIdx === 1 ? "e.g. Official Highlight Reel" : "e.g. Presented by VIDSTR"}
+              style={{ flex: 1, padding: "7px 10px", paddingRight: curLayer.text ? 26 : 10, fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none" }}
+            />
+            {curLayer.text && (
+              <button
+                type="button"
+                onClick={() => updateLayer(activeIdx, { text: "" })}
+                title="Clear this layer's text"
+                aria-label="Clear title text"
+                style={{
+                  position: "absolute",
+                  right: 6,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 16,
+                  height: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "50%",
+                  border: "none",
+                  background: "var(--line)",
+                  color: "var(--ink-2)",
+                  cursor: "pointer",
+                  padding: 0,
+                  fontSize: 12,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+          {dimmed && <span style={{ fontSize: 10, color: "var(--danger)", whiteSpace: "nowrap" }}>(Layer Disabled)</span>}
         </div>
 
         <div style={{ display: "flex", gap: 6 }}>
