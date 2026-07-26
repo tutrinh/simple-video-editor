@@ -65,10 +65,12 @@ export const EDITOR_DEFAULTS = {
   /** Default Audio & Voiceover Settings */
   AUDIO: {
     DEFAULT_MUSIC_VOLUME: 0.2,
+    DEFAULT_VOICEOVER_VOLUME: 1.0,
     DEFAULT_VOICEOVER_SPEED: 0.9,
     DEFAULT_VOICEOVER_LEAD_SEC: 0.5,
     DEFAULT_VOICEOVER_GAP_SEC: 0,
   },
+
 
   /** Default Caption Styling */
   CAPTIONS: {

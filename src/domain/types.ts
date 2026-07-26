@@ -252,7 +252,9 @@ export interface VoSegment {
   startTimeSec: number;
   durationSec: number;
   captionVisible: boolean;
+  volume?: number; // 0..1 volume multiplier (default 1)
 }
+
 
 /**
  * A sound effect placed on the SFX track — its own timeline lane, independent of the

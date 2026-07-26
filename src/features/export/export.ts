@@ -1,4 +1,4 @@
-import type { Clip, Cut, Aspect, OverlayClip } from "../../domain/types";
+import type { Clip, Cut, Aspect, OverlayClip, Sticker } from "../../domain/types";
 import { runIsolated, multithreadReady, type EngineInput } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -10,6 +10,7 @@ import { ffmpegColorLut, beatFrameFilters, kenBurnsChain, kenBurnsPreScale } fro
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
 import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers } from "./stickerCanvas";
+import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LayerSpec } from "./segmentGraph";
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
 // isolated engine — trim → scale/letterbox → BURN caption → uniform-silent
@@ -56,7 +57,10 @@ export interface ExportOptions {
   musicVolume?: number;
   /** Narrate each beat's scriptText instead of silence. */
   voiceover?: boolean;
+  /** Narration volume, 0–1 (default 1.0). */
+  voiceoverVolume?: number;
   /** Which TTS engine (default "kokoro", in-browser). */
+
   ttsEngine?: TtsEngine;
   /** Kokoro voice to narrate with (default af_heart). */
   voice?: Voice;
@@ -295,8 +299,41 @@ export async function exportCut(
     }
   }
 
+  // Pre-render resolved stickers (ADR-0011). Each sticker asset is rendered ONCE to a PNG
+  // buffer and reused across all beat segments it overlaps (avoiding re-rendering 2D canvas per beat).
+  interface PreRenderedSticker {
+    st: Sticker;
+    png: Uint8Array;
+    pngName: string;
+  }
+  const preRenderedStickers: PreRenderedSticker[] = [];
+  const resolvedStickers = resolveStickers(cut.stickers, beatSpans(cut.beats));
+  for (let k = 0; k < resolvedStickers.length; k++) {
+    const st = resolvedStickers[k];
+    const png = await renderStickersToPng([st], w, h);
+    if (png) {
+      preRenderedStickers.push({ st, png, pngName: `sticker_${k}.png` });
+    }
+  }
+
+  // Pre-render Ken Burns pre-scaled JPEG buffers once per still clip to eliminate canvas stalls during workers
+  const kenBurnsStills = new Map<string, Uint8Array>();
+  for (const b of cut.beats) {
+    const clip = clipById.get(b.clipId);
+    if (clip && clip.kind === "still" && b.framing === "kenBurns" && b.kenBurns && !kenBurnsStills.has(clip.id)) {
+      try {
+        const ps = kenBurnsPreScale(w, h, clip.width, clip.height);
+        const data = await renderStillContained(clip.file, ps.w, ps.h);
+        kenBurnsStills.set(clip.id, data);
+      } catch (err) {
+        console.warn(`Failed to pre-render Ken Burns still for clip ${clip.id}`, err);
+      }
+    }
+  }
+
   // Pre-trim active B-roll overlays concurrently before segment rendering
   const activeOverlays = (cut.overlays ?? []).filter((o) => clips.some((c) => c.id === o.clipId));
+
   interface PreTrimmedOverlay {
     data: Uint8Array<ArrayBuffer>;
     o: OverlayClip;
@@ -395,22 +432,31 @@ export async function exportCut(
     let data: Uint8Array;
     let srcName = sourceName(clip);
     if (isKenBurns) {
-      const ps = kenBurnsPreScale(w, h, clip.width, clip.height);
-      data = await renderStillContained(clip.file, ps.w, ps.h);
+      const cached = kenBurnsStills.get(clip.id);
+      if (cached) {
+        data = cached;
+      } else {
+        const ps = kenBurnsPreScale(w, h, clip.width, clip.height);
+        data = await renderStillContained(clip.file, ps.w, ps.h);
+      }
       srcName = "in.jpg";
     } else {
+
       data = await bytesOf(clip.normalized ?? clip.file);
     }
 
     const inputs: EngineInput[] = [{ name: srcName, data }];
 
-    const captionCues: { enable: string }[] = [];
+    // Captions (Task 3: now collected as CaptionLayerSpec[], compositing handled
+    // by buildSegmentGraph inside buildVideoChains below).
+    const captionLayers: CaptionLayerSpec[] = [];
     const addCaption = async (text: string, enable: string) => {
       if (!text.trim()) return;
       const png = await renderCaptionToPng({ text, fontSizePx: fontsize, bgOpacity, lineHeight, marginPx: margin }, w, h);
       if (png) {
-        inputs.push({ name: `cap_${captionCues.length}.png`, data: png });
-        captionCues.push({ enable });
+        const k = captionLayers.length;
+        inputs.push({ name: `cap_${k}.png`, data: png });
+        captionLayers.push({ kind: "caption", pngName: `cap_${k}.png`, png, enable });
       }
     };
 
@@ -419,15 +465,20 @@ export async function exportCut(
     // preview shows — and composited with its own segment-local `enable` window,
     // the treatment B-roll Overlays already get. One PNG per Sticker rather than
     // one for all of them, because their windows differ.
-    const stickerCues: { enable: string }[] = [];
-    for (const st of resolveStickers(cut.stickers, beatSpans(cut.beats))) {
-      const win = stickerWindowInSegment(st, bStart, segDur);
+    // (Task 2: Stickers are now managed by buildSegmentGraph — see below.)
+    const stickerLayers: StickerLayerSpec[] = [];
+    for (const rs of preRenderedStickers) {
+      const win = stickerWindowInSegment(rs.st, bStart, segDur);
       if (!win) continue;
-      const png = await renderStickersToPng([st], w, h);
-      if (!png) continue;
-      inputs.push({ name: `sticker_${stickerCues.length}.png`, data: png });
-      stickerCues.push({ enable: `between(t,${win.startSec.toFixed(3)},${win.endSec.toFixed(3)})` });
+      inputs.push({ name: rs.pngName, data: rs.png });
+      stickerLayers.push({
+        kind: "sticker",
+        pngName: rs.pngName,
+        png: rs.png,
+        enable: `between(t,${win.startSec.toFixed(3)},${win.endSec.toFixed(3)})`,
+      });
     }
+
 
     // Frame geometry — punch-in zoom and fine rotation as one scale/rotate/crop.
     // "entire" scope folds straight into the base chain; "intro" scope must be
@@ -509,16 +560,11 @@ export async function exportCut(
     // master VO bed mixed in at the final stage.
     const strategy: "source" | "silent" = beatAudioStrategy(clip, beatVol);
 
-    const capCount = captionCues.length;
     const segDurStr = segDur.toFixed(3);
-    const capInputArgs = captionCues.flatMap((_, k) => ["-loop", "1", "-t", segDurStr, "-r", "30", "-i", `cap_${k}.png`]);
 
-    interface SegmentTitleOverlay {
-      pngName: string;
-      filter: string;
-    }
-    const segTitles: SegmentTitleOverlay[] = [];
-    const titleInputArgs: string[] = [];
+    // Titles (Task 4: now collected as TitleLayerSpec[], compositing handled
+    // by buildSegmentGraph inside buildVideoChains below).
+    const titleLayers: TitleLayerSpec[] = [];
 
     for (let k = 0; k < preRenderedTitleLayers.length; k++) {
       const rtl = preRenderedTitleLayers[k];
@@ -529,7 +575,6 @@ export async function exportCut(
 
       const tName = `title_seg_${k}.png`;
       inputs.push({ name: tName, data: rtl.png });
-      titleInputArgs.push("-loop", "1", "-t", segDurStr, "-r", "30", "-i", tName);
 
       const anim = l.animation ?? "none";
       const animDur = l.animDurationSec ?? 0.5;
@@ -568,10 +613,7 @@ export async function exportCut(
       const enExpr = bStart > 0 ? `between(t+${bStartStr},0,${scopeDur.toFixed(3)})` : `between(t,0,${scopeDur.toFixed(3)})`;
       const enable = l.scope === "intro" ? `:enable='${enExpr}'` : "";
 
-      segTitles.push({
-        pngName: tName,
-        filter: { fadeParts, xExpr, yExpr, enable } as any,
-      });
+      titleLayers.push({ kind: "title", pngName: tName, png: rtl.png, fadeParts, xExpr, yExpr, enable });
     }
 
     // Per-beat titles: same compositing pipeline, but timed segment-locally
@@ -586,7 +628,6 @@ export async function exportCut(
 
       const tName = rtl.pngName;
       inputs.push({ name: tName, data: rtl.png });
-      titleInputArgs.push("-loop", "1", "-t", segDurStr, "-r", "30", "-i", tName);
 
       const anim = l.animation ?? "none";
       const animDur = l.animDurationSec ?? 0.5;
@@ -618,24 +659,11 @@ export async function exportCut(
 
       const enable = l.scope === "intro" ? `:enable='between(t,0,${scopeDur.toFixed(3)})'` : "";
 
-      segTitles.push({
-        pngName: tName,
-        filter: { fadeParts, xExpr, yExpr, enable } as any,
-      });
+      titleLayers.push({ kind: "title", pngName: tName, png: rtl.png, fadeParts, xExpr, yExpr, enable });
     }
-
-    const titleCount = segTitles.length;
 
     // Check which pre-trimmed B-roll overlays overlap this beat segment's window [bStart, bEnd]
-    interface SegmentOverlay {
-      data: Uint8Array<ArrayBuffer>;
-      o: OverlayClip;
-      stLocalSec: number;
-      durLocalSec: number;
-      inputIdx: number;
-    }
-    const segOverlays: SegmentOverlay[] = [];
-    const overlayInputArgs: string[] = [];
+    const overlayLayers: OverlayLayerSpec[] = [];
 
     preTrimmedOverlays.forEach(({ data: ovData, o }) => {
       const oStart = o.startTimeSec;
@@ -643,31 +671,36 @@ export async function exportCut(
       if (oStart < bEnd && oEnd > bStart) {
         const stLocal = Math.max(0, oStart - bStart);
         const durLocal = Math.min(oEnd, bEnd) - Math.max(oStart, bStart);
-        const ovIdx = segOverlays.length;
+        const ovIdx = overlayLayers.length;
         const ovName = `ov_seg_${ovIdx}.mp4`;
         inputs.push({ name: ovName, data: ovData });
-        overlayInputArgs.push("-i", ovName);
-        segOverlays.push({
-          data: ovData,
-          o,
+        overlayLayers.push({
+          kind: "overlay",
+          mp4Name: ovName,
+          mp4: ovData,
+          overlayClip: o,
           stLocalSec: stLocal,
           durLocalSec: durLocal,
-          inputIdx: 1 + capCount + titleCount + ovIdx,
+          bStart,
+          segDur,
+          w,
+          h,
         });
       }
     });
 
-    const overlayCount = segOverlays.length;
-    // Stickers are looped stills like captions/titles, and sit LAST among the
-    // video inputs so the existing caption/title/overlay index arithmetic is
-    // untouched. Audio's index moves past them.
-    const stickerCount = stickerCues.length;
-    const stickerInputArgs = stickerCues.flatMap((_, k) => ["-loop", "1", "-t", segDurStr, "-r", "30", "-i", `sticker_${k}.png`]);
-    const stickerIdxBase = 1 + capCount + titleCount + overlayCount;
-    const audioIdx = stickerIdxBase + stickerCount;
 
-    const totalOverlaysAndTitles = titleCount + overlayCount + stickerCount;
-    const baseLabel = capCount === 0 && totalOverlaysAndTitles === 0 ? "[v]" : "[vbase]";
+
+    const allLayers: LayerSpec[] = [
+      ...captionLayers,
+      ...titleLayers,
+      ...overlayLayers,
+      ...stickerLayers,
+    ];
+
+    const audioIdx = 1 + allLayers.length;
+
+    const baseLabel = allLayers.length === 0 ? "[v]" : "[vbase]";
     // For "intro" zoom: split the processed base, punch-in one branch, and overlay
     // it back gated to the first `zoomSec` (segment-local t). Outside the window the
     // un-zoomed base shows through. "Entire"/no zoom → the base is a single chain.
@@ -678,163 +711,26 @@ export async function exportCut(
           `[vzbase][vzoomed]overlay=x=0:y=0:eof_action=pass:enable='between(t,0,${(b.zoomSec ?? 3).toFixed(3)})'${baseLabel}`,
         ]
       : [`[0:v]${vf.join(",")}${baseLabel}`];
-    let last = baseLabel;
 
-    captionCues.forEach((c, k) => {
-      const isLast = k === capCount - 1 && totalOverlaysAndTitles === 0;
-      const out = isLast ? "[v]" : `[vcap_${k}]`;
-      const en = c.enable ? `:enable='${c.enable}'` : "";
-      chains.push(`${last}[${k + 1}:v]overlay=x=0:y=0:eof_action=pass${en}${out}`);
-      last = out;
-    });
 
-    segTitles.forEach((st, k) => {
-      const tInputIdx = 1 + capCount + k;
-      const isLast = k === titleCount - 1 && overlayCount === 0 && stickerCount === 0;
-      const out = isLast ? "[v]" : `[vtitle_${k}]`;
-      const fObj = st.filter as any;
-      const ovLabel = `[ovt_${k}]`;
-      const head = `[${tInputIdx}:v]format=rgba`;
-      if (fObj.fadeParts.length > 0) {
-        chains.push(`${head},${fObj.fadeParts.join(",")}${ovLabel}`);
-      } else {
-        chains.push(`${head}${ovLabel}`);
-      }
-      chains.push(`${last}${ovLabel}overlay=x='${fObj.xExpr}':y='${fObj.yExpr}':eof_action=pass${fObj.enable}${out}`);
-      last = out;
-    });
-
-    const buildVideoChains = (rgbFormat: string | null): string[] => {
-      const segChains = [...chains];
-      let segLast = last;
-
-      segOverlays.forEach((so, k) => {
-        const isLast = k === overlayCount - 1 && stickerCount === 0;
-        const out = isLast ? (rgbFormat ? `[vout_raw_${k}]` : "[v]") : `[voverlay_${k}]`;
-        const mode = so.o.blendMode ?? "normal";
-        const op = (so.o.opacity ?? 1).toFixed(3);
-        const stSec = so.stLocalSec;
-        const dur = so.durLocalSec;
-        const scaleF = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
-
-        // When an overlay spans a beat boundary, seek to the right position
-        // within the pre-trimmed clip (avoid replaying from the start on beat N+1).
-        const beatIntoOverlay = Math.max(0, bStart - so.o.startTimeSec);
-        const seekStart = beatIntoOverlay.toFixed(3);
-        const seekEnd = (beatIntoOverlay + dur).toFixed(3);
-        const stStr = stSec.toFixed(3);
-        const trailDur = Math.max(0, segDur - stSec - dur);
-        const trailStr = trailDur.toFixed(3);
-
-        // Build a FULL-SEGMENT-DURATION overlay stream so the blend/overlay filter
-        // always has matching-duration inputs from t=0 — no sync stalls that cause
-        // the "briefly plays → freeze → loops" artifact.
-        //
-        // Layout:  [neutral lead: stSec] ++ [overlay content: dur] ++ [neutral trail: trailDur]
-        //          → concat → single stream of length ≈ segDur
-
-        if (mode === "normal") {
-          // Alpha-composite path. Neutral = fully transparent black.
-          const concatParts: string[] = [];
-
-          if (stSec > 0.001) {
-            const lbl = `[ov_lead_${k}]`;
-            segChains.push(`color=c=black@0.0:s=${w}x${h}:r=30:d=${stStr},format=rgba${lbl}`);
-            concatParts.push(lbl);
-          }
-
-          const contLbl = `[ov_cont_${k}]`;
-          segChains.push(
-            `[${so.inputIdx}:v]trim=start=${seekStart}:end=${seekEnd},setpts=PTS-STARTPTS,` +
-            `${scaleF},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,` +
-            `format=rgba,colorchannelmixer=aa=${op}${contLbl}`
-          );
-          concatParts.push(contLbl);
-
-          if (trailDur > 0.001) {
-            const lbl = `[ov_trail_${k}]`;
-            segChains.push(`color=c=black@0.0:s=${w}x${h}:r=30:d=${trailStr},format=rgba${lbl}`);
-            concatParts.push(lbl);
-          }
-
-          let ovFull: string;
-          if (concatParts.length > 1) {
-            ovFull = `[ov_full_${k}]`;
-            segChains.push(`${concatParts.join("")}concat=n=${concatParts.length}:v=1:a=0${ovFull}`);
-          } else {
-            ovFull = concatParts[0];
-          }
-
-          segChains.push(`${segLast}${ovFull}overlay=x=0:y=0:eof_action=pass${out}`);
-
-        } else {
-          // Blend modes (screen / multiply / overlay).
-          // Neutral color = identity for each mode, so lead/trail regions are invisible.
-          const neutralColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";
-          const pixFmt = rgbFormat ?? "yuv420p";
-          const concatParts: string[] = [];
-
-          if (stSec > 0.001) {
-            const lbl = `[ov_lead_${k}]`;
-            segChains.push(`color=c=${neutralColor}:s=${w}x${h}:r=30:d=${stStr},format=${pixFmt}${lbl}`);
-            concatParts.push(lbl);
-          }
-
-          const contLbl = `[ov_cont_${k}]`;
-          segChains.push(
-            `[${so.inputIdx}:v]trim=start=${seekStart}:end=${seekEnd},setpts=PTS-STARTPTS,` +
-            `${scaleF},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=${neutralColor},setsar=1,format=${pixFmt}${contLbl}`
-          );
-          concatParts.push(contLbl);
-
-          if (trailDur > 0.001) {
-            const lbl = `[ov_trail_${k}]`;
-            segChains.push(`color=c=${neutralColor}:s=${w}x${h}:r=30:d=${trailStr},format=${pixFmt}${lbl}`);
-            concatParts.push(lbl);
-          }
-
-          let ovFull: string;
-          if (concatParts.length > 1) {
-            ovFull = `[ov_full_${k}]`;
-            segChains.push(`${concatParts.join("")}concat=n=${concatParts.length}:v=1:a=0${ovFull}`);
-          } else {
-            ovFull = concatParts[0];
-          }
-
-          if (rgbFormat) {
-            const base = `[base_${k}]`;
-            segChains.push(`${segLast}format=${rgbFormat}${base}`);
-            segChains.push(`${base}${ovFull}blend=all_mode=${mode}:all_opacity=${op}${out}`);
-          } else {
-            segChains.push(`${segLast}${ovFull}blend=all_mode=${mode}:all_opacity=${op}${out}`);
-          }
-        }
-
-        segLast = out;
-      });
-
-      if (rgbFormat && overlayCount > 0) {
-        const rgbOut = stickerCount === 0 ? "[v]" : "[vrgbout]";
-        segChains.push(`${segLast}format=yuv420p${rgbOut}`);
-        if (stickerCount > 0) segLast = rgbOut;
-      }
-
-      // Stickers composite last, above B-roll and captions, each gated to its own
-      // segment-local window (ADR-0011). Same `overlay` treatment as a caption cue.
-      stickerCues.forEach((cue, k) => {
-        const out = k === stickerCount - 1 ? "[v]" : `[vsticker_${k}]`;
-        segChains.push(`${segLast}[${stickerIdxBase + k}:v]overlay=x=0:y=0:eof_action=pass:enable='${cue.enable}'${out}`);
-        segLast = out;
-      });
-
-      return segChains;
-    };
-
-    const audibleOverlays = segOverlays.filter(({ o }) => (o.volume ?? 0) > 0);
+    const audibleOverlays = overlayLayers
+      .map((ol, k) => ({
+        o: ol.overlayClip,
+        stLocalSec: ol.stLocalSec,
+        inputIdx: 1 + captionLayers.length + titleLayers.length + k,
+      }))
+      .filter(({ o }) => (o.volume ?? 0) > 0);
 
     const buildSegArgs = (strat: "source" | "silent", rgbFormat: string | null = null): string[] => {
       let audioInputArgs: string[];
       const aChains: string[] = [];
+
+      const sgResult = buildSegmentGraph(allLayers, {
+        inputIndexBase: 1,
+        baseLabel,
+        segDurStr,
+        rgbFormat,
+      });
 
       if (strat === "source") {
         audioInputArgs = [];
@@ -858,15 +754,13 @@ export async function exportCut(
         aChains[0] = aChains[0].replace("[abase]", "[a]");
       }
 
-      const vFilterString = buildVideoChains(rgbFormat).join(";");
+      const segChains = [...chains, ...sgResult.chains];
+      const vFilterString = segChains.join(";");
       const aFilterString = aChains.join(";");
 
       return [
         ...beatInputArgs(clip, inSec, footageLen, srcName),
-        ...capInputArgs,
-        ...titleInputArgs,
-        ...overlayInputArgs,
-        ...stickerInputArgs,
+        ...sgResult.inputArgs,
         ...audioInputArgs,
         "-filter_complex", `${vFilterString};${aFilterString}`,
         "-map", "[v]", "-map", "[a]",
@@ -876,8 +770,8 @@ export async function exportCut(
       ];
     };
 
-    const hasRgbBlend = segOverlays.some((so) => {
-      const m = so.o.blendMode ?? "normal";
+    const hasRgbBlend = overlayLayers.some((ol) => {
+      const m = ol.overlayClip.blendMode ?? "normal";
       return m === "screen" || m === "multiply" || m === "overlay";
     });
 
@@ -962,28 +856,47 @@ export async function exportCut(
 
     video = await runIsolated(
       inputs,
-      [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "video.mp4"],
+      [...ffmpegArgs, "-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "video.mp4"],
       "video.mp4",
-      (f) => onProgress?.(0.80 + f * 0.15, "Applying video transitions & concatenating…"),
+      (f) => {
+        const pct = Math.round(f * 100);
+        onProgress?.(0.80 + f * 0.08, `Applying video transitions & concatenating (${pct}%)…`);
+      },
     );
   } else {
-    onProgress?.(0.88, "Concatenating video segments…");
+    onProgress?.(0.86, "Concatenating video segments…");
     const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
-    video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
+    try {
+      video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-fflags", "+genpts", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
+    } catch (err) {
+      console.warn("Fast stream copy concat failed; falling back to filter concat...", err);
+      const ffmpegArgs: string[] = [];
+      segments.forEach((_, i) => ffmpegArgs.push("-i", `seg_${i}.mp4`));
+      const vConcat = segments.map((_, i) => `[${i}:v]`).join("") + `concat=n=${segments.length}:v=1:a=0[v]`;
+      const aConcat = segments.map((_, i) => `[${i}:a]`).join("") + `concat=n=${segments.length}:v=0:a=1[a]`;
+      video = await runIsolated(
+        concatInputs,
+        [...ffmpegArgs, "-filter_complex", `${vConcat};${aConcat}`, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "video.mp4"],
+        "video.mp4",
+      );
+    }
   }
+
 
   // Synthesize the VO-track narration and mix it — plus any music bed — over the
   // assembled video's audio at absolute times. VO lives here now (it can span beat
   // boundaries), replacing per-beat voiceover.
-  onProgress?.(0.9, "Synthesizing VO track narration…");
+  onProgress?.(0.88, "Synthesizing VO track narration…");
   const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed, elevenModel: opts.elevenModel, elevenStability: opts.elevenStability, elevenStyle: opts.elevenStyle };
   const voSegs = (cut.voSegments ?? []).filter((s) => s.text.trim());
-  const renderedVo: { startTimeSec: number; name: string; data: Uint8Array }[] = [];
+  const renderedVo: { startTimeSec: number; volume: number; name: string; data: Uint8Array }[] = [];
   for (let k = 0; k < voSegs.length; k++) {
     try {
+      const frac = 0.88 + ((k + 0.5) / Math.max(1, voSegs.length)) * 0.06;
+      onProgress?.(frac, `Synthesizing VO narration ${k + 1} of ${voSegs.length}…`);
       const vo = await synthesizeVoiceover(voSegs[k].text.trim(), ttsOpts);
-      renderedVo.push({ startTimeSec: voSegs[k].startTimeSec, name: `voseg_${k}.${vo.ext}`, data: vo.data });
+      renderedVo.push({ startTimeSec: voSegs[k].startTimeSec, volume: voSegs[k].volume ?? 1.0, name: `voseg_${k}.${vo.ext}`, data: vo.data });
     } catch (err) {
       console.warn(`VO segment ${k} synthesis failed; skipping its audio.`, err);
     }
@@ -1029,14 +942,18 @@ export async function exportCut(
     inIdx++;
   }
 
+  const globalVoVol = Math.min(1, Math.max(0, opts.voiceoverVolume ?? 1.0));
   for (const r of renderedVo) {
     finalInputs.push({ name: r.name, data: r.data });
     inputArgs.push("-i", r.name);
     const delayMs = Math.round(r.startTimeSec * 1000);
-    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay=${delayMs}|${delayMs}[vo${inIdx}]`);
+    const segVol = Math.min(1, Math.max(0, (r.volume ?? 1.0) * globalVoVol));
+    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${segVol.toFixed(2)},adelay=${delayMs}|${delayMs}[vo${inIdx}]`);
     mixLabels.push(`[vo${inIdx}]`);
     inIdx++;
   }
+
+
 
   // SFX: trim each sound to its played length, scale volume, delay to its start.
   for (const r of renderedSfx) {

@@ -465,6 +465,23 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         />
       </div>
 
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }} title="Playback volume for this voiceover segment.">
+        <span style={{ fontSize: 11, width: 60, color: "var(--ink-2)" }}>Volume</span>
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={selectedVo.volume ?? 1}
+          onChange={(e) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, volume: Number(e.target.value) } })}
+          style={sliderTrackStyle(selectedVo.volume ?? 1, 0, 1)}
+        />
+        <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+          {Math.round((selectedVo.volume ?? 1) * 100)}%
+        </span>
+      </div>
+
+
       <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
         <span>Start {selectedVo.startTimeSec.toFixed(1)}s</span>
         <span>Length {selectedVo.durationSec.toFixed(1)}s</span>

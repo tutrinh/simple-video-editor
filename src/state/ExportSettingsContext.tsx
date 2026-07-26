@@ -43,8 +43,11 @@ export interface ExportSettings {
   elevenStability: number;
   /** ElevenLabs style exaggeration 0..1 (0 = off). */
   elevenStyle: number;
+  /** Narration audio volume multiplier 0..1. */
+  voiceoverVolume: number;
   /** Narration speed, 0.7 (slow) .. 1.2 (fast); 1 = natural. */
   voiceoverSpeed: number;
+
   /** Silent lead-in before each beat's narration begins, seconds. */
   voiceoverLeadSec: number;
   /** Silent tail after each beat's narration ends, seconds. */
@@ -151,7 +154,9 @@ const DEFAULTS: ExportSettings = {
   elevenModel: DEFAULT_ELEVEN_MODEL,
   elevenStability: 0.5,
   elevenStyle: 0,
+  voiceoverVolume: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_VOLUME,
   voiceoverSpeed: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_SPEED,
+
   voiceoverLeadSec: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_LEAD_SEC,
   voiceoverGapSec: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_GAP_SEC,
   music: null,

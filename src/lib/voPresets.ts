@@ -13,10 +13,12 @@ export interface VoSettings {
   elevenModel: string;
   elevenStability: number;
   elevenStyle: number;
+  voiceoverVolume?: number;
   voiceoverSpeed: number;
   voiceoverLeadSec: number;
   voiceoverGapSec: number;
 }
+
 
 export interface VoPreset {
   id: string;

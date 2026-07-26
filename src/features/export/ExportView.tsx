@@ -58,17 +58,19 @@ export default function ExportView() {
   const [voBaseline, setVoBaseline] = useState<VoSettings>(() => ({
     voiceover: es.voiceover, ttsEngine: es.ttsEngine, voice: es.voice, elevenVoiceId: es.elevenVoiceId,
     elevenModel: es.elevenModel, elevenStability: es.elevenStability, elevenStyle: es.elevenStyle,
-    voiceoverSpeed: es.voiceoverSpeed, voiceoverLeadSec: es.voiceoverLeadSec, voiceoverGapSec: es.voiceoverGapSec,
+    voiceoverVolume: es.voiceoverVolume, voiceoverSpeed: es.voiceoverSpeed, voiceoverLeadSec: es.voiceoverLeadSec, voiceoverGapSec: es.voiceoverGapSec,
   }));
   // Two-step confirm before overwriting the selected preset with the current settings.
   const [confirmSaveMod, setConfirmSaveMod] = useState(false);
   const {
-    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
+    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
   } = es;
+
   // Transient per-render state (fine to reset on navigation).
   const [progress, setProgress] = useState<number | null>(null);
   const [statusText, setStatusText] = useState<string>("");
   const [elapsedSec, setElapsedSec] = useState<number>(0);
+  const [lastExportSec, setLastExportSec] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [modelMsg, setModelMsg] = useState("");
@@ -231,9 +233,10 @@ export default function ExportView() {
     return {
       voiceover: es.voiceover, ttsEngine: es.ttsEngine, voice: es.voice, elevenVoiceId: es.elevenVoiceId,
       elevenModel: es.elevenModel, elevenStability: es.elevenStability, elevenStyle: es.elevenStyle,
-      voiceoverSpeed: es.voiceoverSpeed, voiceoverLeadSec: es.voiceoverLeadSec, voiceoverGapSec: es.voiceoverGapSec,
+      voiceoverVolume: es.voiceoverVolume, voiceoverSpeed: es.voiceoverSpeed, voiceoverLeadSec: es.voiceoverLeadSec, voiceoverGapSec: es.voiceoverGapSec,
     };
   }
+
 
   function applyVoPreset(id: string) {
     const preset = voPresets.find((p) => p.id === id);
@@ -315,6 +318,8 @@ export default function ExportView() {
     setVideoUrl("");
     setProgress(0);
     setStatusText("Initializing export…");
+    setLastExportSec(null);
+    const exportStart = Date.now();
     try {
       // Convert a UI title layer into an export-ready layer, loading the SAME
       // cached font bytes the preview uses (identical registered FontFace → pixel
@@ -361,13 +366,17 @@ export default function ExportView() {
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
+        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
+
         (p, status) => {
           setProgress(p);
           if (status) setStatusText(status);
         },
       );
+      const totalSec = Math.max(1, Math.round((Date.now() - exportStart) / 1000));
+      setLastExportSec(totalSec);
       setVideoUrl(URL.createObjectURL(blob));
+
 
       if (voiceover) {
         const byId = new Map(cut!.beats.map((b) => [b.id, b]));
@@ -568,10 +577,17 @@ export default function ExportView() {
                 style={{ height: 64, width: 110, borderRadius: 6, background: "#000", border: "1px solid var(--line)", objectFit: "contain", flexShrink: 0 }}
               />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--good)", display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--good)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span>Export Ready</span>
                   <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(107, 203, 119, 0.15)", color: "var(--good)" }}>1080p MP4</span>
+                  {lastExportSec !== null && (
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: "var(--panel-3)", color: "var(--ink-2)", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      Took {formatElapsed(lastExportSec)}
+                    </span>
+                  )}
                 </div>
+
                 <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{fileBase}.mp4</div>
               </div>
               <button className="st-btn ghost" style={{ padding: "8px 14px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }} onClick={runExport} disabled={busy} title="Re-run video export pipeline">
@@ -891,11 +907,18 @@ export default function ExportView() {
 
                     {modelMsg && <span style={{ fontSize: 11, color: "var(--accent)" }}>{modelMsg}</span>}
 
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Volume multiplier for narration audio.">
+                      <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Voiceover volume</span>
+                      <input type="range" min={0} max={1} step={0.05} value={voiceoverVolume} onChange={(e) => update({ voiceoverVolume: Number(e.target.value) })} style={sliderTrackStyle(voiceoverVolume, 0, 1)} />
+                      <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(voiceoverVolume * 100)}%</span>
+                    </div>
+
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Slows or speeds the narration read.">
                       <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Voice speed</span>
                       <input type="range" min={0.7} max={1.2} step={0.05} value={voiceoverSpeed} onChange={(e) => update({ voiceoverSpeed: Number(e.target.value) })} style={sliderTrackStyle(voiceoverSpeed, 0.7, 1.2)} />
                       <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{voiceoverSpeed.toFixed(2)}×</span>
                     </div>
+
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Silence before the voice starts in each beat.">
                       <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Lead-in before voice</span>

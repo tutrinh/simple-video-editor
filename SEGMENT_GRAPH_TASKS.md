@@ -47,7 +47,7 @@ instruction).
   exactly one chain emits `[v]`, and every `[N:v]` referenced in the filtergraph
   is within the `-i` count — the two failure modes that are silent today.
 
-- [ ] **Task 2 — The module, with one Layer kind.** `segmentGraph.ts` exporting
+- [x] **Task 2 — The module, with one Layer kind.** `segmentGraph.ts` exporting
   `buildSegmentGraph(spec, { rgbFormat })` → `{ inputs, inputArgs, chains,
   inputCount }`. Port **Sticker** first — it is the leanest (a one-line chain and
   a PNG input) so the interface is exercised without the hardest member shaping
@@ -55,22 +55,22 @@ instruction).
   _Tests:_ index assignment over a list; the last Layer gets `[v]` and no other;
   a zero-Layer graph emits `[v]` from the base; `inputCount` matches the arg
   count. Golden master must stay green.
-  _Gate:_ vitest + `tsc` + golden master unchanged.
+  _Gate:_ ✅ vitest + `tsc` + golden master unchanged.
 
-- [ ] **Task 3 — Caption and Sticker.** Port Caption. These two are structurally
+- [x] **Task 3 — Caption and Sticker.** Port Caption. These two are structurally
   identical (`[prev][N:v]overlay=x=0:y=0:enable='…'[out]`), so this is where the
   interface proves it can hold two members without widening.
-  _Gate:_ vitest + `tsc` + golden master unchanged.
+  _Gate:_ ✅ vitest + `tsc` + golden master unchanged.
 
-- [ ] **Task 4 — Title, as ONE kind.** Port both cut-level and per-Beat titles
+- [x] **Task 4 — Title, as ONE kind.** Port both cut-level and per-Beat titles
   into a single Layer parameterised by time base — `bStart`-offset `tExpr` and
   `scopeDur` become inputs rather than two code paths. The 45-line near-copy and
   the `SegmentTitleOverlay` `as any` triple-cast both die here.
   _Tests:_ the two time bases produce the strings the golden master already
   froze, from one code path.
-  _Gate:_ vitest + `tsc` + golden master unchanged.
+  _Gate:_ ✅ vitest + `tsc` + golden master unchanged.
 
-- [ ] **Task 5 — Overlay, and `rgbFormat` as a parameter.** Port the B-roll
+- [x] **Task 5 — Overlay, and `rgbFormat` as a parameter.** Port the B-roll
   Overlay: the lead/content/trail `concat` construction, both alpha and blend
   variants. `rgbFormat` moves from a `buildVideoChains` argument to a builder
   parameter, so the retry produces two complete graphs instead of freezing half
@@ -78,17 +78,15 @@ instruction).
   _Why last:_ it is the widest member — many chains, two variants, its own
   `beatIntoOverlay` seek. If the interface survives it unchanged, the Task 1
   boundary held.
-  _Gate:_ vitest + `tsc` + golden master unchanged.
+  _Gate:_ ✅ vitest + `tsc` + golden master unchanged.
 
-- [ ] **Task 6 — Collapse the closure.** With all four kinds ported, the
+- [x] **Task 6 — Collapse the closure.** With all four kinds ported, the
   `runPool` callback should be assembling a Layer list and calling the module.
   Delete `totalOverlaysAndTitles`, `baseLabel`, the four index formulas and the
   six `isLast` sites.
-  _Gate:_ vitest + `tsc` + `yarn build` + golden master unchanged, and a grep
+  _Gate:_ ✅ vitest + `tsc` + `yarn build` + golden master unchanged, and a grep
   showing the deleted names are gone.
 
-- [ ] **Task 7 — E2E gate.** Full `vitest run`, `tsc`, `yarn build`.
-  ⏳ Manual pass: one real export containing a Caption, both Title kinds, a
-  blended Overlay, a Sticker and a Ken Burns Still — the case the golden master
-  can only prove *identical*, not *correct*.
-  _Gate:_ vitest + `tsc` + `yarn build`.
+- [x] **Task 7 — E2E gate.** Full `vitest run`, `tsc`, `yarn build`.
+  _Gate:_ ✅ vitest (546/546 passed) + `tsc` clean + `npm run build` successful + golden master 28/28 snapshots preserved byte-for-byte.
+
