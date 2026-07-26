@@ -9,7 +9,8 @@ import OverlayPickerModal from "./OverlayPickerModal";
 import SfxPicker from "./SfxPicker";
 import StickerPicker from "./StickerPicker";
 import { stickerFileUrl } from "../lib/stickerLibrary";
-import { beatSpans, resolveSticker } from "../features/export/stickerCanvas";
+import { beatSpans, resolveSticker, resolveSfx } from "../features/export/stickerCanvas";
+
 
 import { sfxDuration } from "../lib/sfxLibrary";
 import { assignSubLanes } from "./subLanes";
@@ -323,6 +324,7 @@ export default function Timeline({
   }
 
   function startSfxDrag(e: React.PointerEvent, seg: SfxSegment, mode: "move" | "resize-right") {
+    const drawn = resolveSfx(seg, beatSpans(beats));
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     onSelectSfx?.(seg.id);
@@ -330,7 +332,7 @@ export default function Timeline({
     onSelectOverlay?.(null);
     onSelectSticker?.(null);
     setDraggingSfxId(seg.id);
-    sfxDragStartRef.current = { startX: e.clientX, initialStartSec: seg.startTimeSec, initialDurationSec: seg.durationSec, mode };
+    sfxDragStartRef.current = { startX: e.clientX, initialStartSec: drawn.startTimeSec, initialDurationSec: drawn.durationSec, mode };
   }
 
   function handleSfxPointerMove(e: React.PointerEvent, seg: SfxSegment) {
@@ -341,6 +343,16 @@ export default function Timeline({
     const st = sfxDragStartRef.current;
 
     if (st.mode === "move") {
+      if (seg.fitToBeat) {
+        const cursorPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const cursorSec = cursorPct * totalDur;
+        const spans = beatSpans(beats);
+        const targetSpan = spans.find((s) => cursorSec >= s.startSec && cursorSec < s.startSec + s.durationSec) ?? spans[spans.length - 1];
+        if (targetSpan && targetSpan.startSec !== seg.startTimeSec) {
+          dispatch({ type: "UPDATE_SFX", segment: { ...seg, startTimeSec: targetSpan.startSec } });
+        }
+        return;
+      }
       const maxStart = Math.max(0, totalDur - 0.5);
       const newStartSec = Math.max(0, Math.min(maxStart, st.initialStartSec + deltaSec));
       const roundedStart = Math.round(newStartSec * 10) / 10;
@@ -357,6 +369,7 @@ export default function Timeline({
       if (rounded !== seg.durationSec) dispatch({ type: "UPDATE_SFX", segment: { ...seg, durationSec: rounded } });
     }
   }
+
 
   function endSfxDrag(e: React.PointerEvent) {
     if (draggingSfxId) {
@@ -772,8 +785,10 @@ export default function Timeline({
 
             {/* SFX Track Lane — sound effects on the same proportional ruler */}
             {sfxSegments.length > 0 && (() => {
-              const sfxWithLanes = assignSubLanes(sfxSegments);
+              const resolvedSfxList = sfxSegments.map((s) => resolveSfx(s, beatSpans(beats)));
+              const sfxWithLanes = assignSubLanes(resolvedSfxList);
               const maxLane = Math.max(0, ...sfxWithLanes.map((s) => s.lane));
+
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (

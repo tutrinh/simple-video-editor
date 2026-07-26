@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Sticker } from "../../domain/types";
-import { stickerRect, activeStickers, stickerWindowInSegment, beatSpans, resolveSticker, resolveStickers, stickerTint, stickerRenderKey, maxStickerStart } from "./stickerCanvas";
+import { stickerRect, activeStickers, stickerWindowInSegment, beatSpans, resolveSticker, resolveStickers, resolveSfx, stickerTint, stickerRenderKey, maxStickerStart } from "./stickerCanvas";
+
 
 const W16 = 1920, H16 = 1080;
 const W9 = 1080, H9 = 1920;
@@ -203,6 +204,30 @@ describe("resolveSticker (fit to beat)", () => {
     expect(activeStickers(resolved, 5.0)).toHaveLength(0);
   });
 });
+
+describe("resolveSfx (fit to beat)", () => {
+  const spans = beatSpans([{ durationSec: 2 }, { durationSec: 5 }, { durationSec: 1 }]);
+
+  it("leaves a free SFX segment un-modified", () => {
+    const sfx = { id: "s1", fileName: "woosh.mp3", startTimeSec: 2.5, durationSec: 1.2, sourceDurationSec: 4.0, volume: 1 };
+    expect(resolveSfx(sfx, spans)).toBe(sfx);
+  });
+
+  it("locks a fitToBeat SFX segment to beat duration clamped by sourceDuration", () => {
+    const sfx = { id: "s1", fileName: "woosh.mp3", startTimeSec: 2.5, durationSec: 1.2, sourceDurationSec: 4.0, volume: 1, fitToBeat: true };
+    const r = resolveSfx(sfx, spans);
+    expect(r.startTimeSec).toBe(2);
+    expect(r.durationSec).toBe(4); // clamped by sourceDurationSec (4.0s < 5.0s beat)
+  });
+
+  it("locks to full beat duration when sourceDuration is longer than beat", () => {
+    const sfx = { id: "s1", fileName: "long.mp3", startTimeSec: 0.5, durationSec: 1.0, sourceDurationSec: 10.0, volume: 1, fitToBeat: true };
+    const r = resolveSfx(sfx, spans);
+    expect(r.startTimeSec).toBe(0);
+    expect(r.durationSec).toBe(2);
+  });
+});
+
 
 describe("stickerTint", () => {
   it("is off by default, so an untouched sticker keeps its own colours", () => {

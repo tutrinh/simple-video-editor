@@ -273,7 +273,10 @@ export interface SfxSegment {
   sourceDurationSec: number;
   /** 0..1 playback volume. */
   volume: number;
+  /** When true, durationSec dynamically locks to the length of the beat it lands on (clamped to sourceDurationSec). */
+  fitToBeat?: boolean;
 }
+
 
 /** The assembled, editable draft — the ordered sequence of Beats and Overlays. */
 export interface Cut {

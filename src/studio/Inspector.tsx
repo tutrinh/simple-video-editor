@@ -8,7 +8,8 @@ import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, cssFilterFor, getFilterPreset, rotationCoverScale, fillMove, KEN_BURNS_PRESETS, KEN_BURNS_DEFAULT } from "./util";
 import { stickerFileUrl } from "../lib/stickerLibrary";
-import { beatSpans, resolveSticker } from "../features/export/stickerCanvas";
+import { beatSpans, resolveSticker, resolveSfx } from "../features/export/stickerCanvas";
+
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import ColorField from "./ColorField";
@@ -508,8 +509,11 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     </div>
   ) : null;
 
-  // SFX Segment editor — sound file + volume, decoupled from the beat (mirrors the VO card).
-  const sfxCard = selectedSfx ? (
+  // SFX Segment editor — sound file + volume + duration + fit-to-beat, decoupled from the beat (mirrors VO/sticker cards).
+  const effSfx = selectedSfx ? resolveSfx(selectedSfx, beatSpans(cut?.beats ?? [])) : null;
+  const maxSfxDur = selectedSfx ? Math.max(0.1, Math.round(selectedSfx.sourceDurationSec * 10) / 10) : 1;
+
+  const sfxCard = selectedSfx && effSfx ? (
     <div className="st-sec" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid #8b7cff" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "#8b7cff" }}>🔊 SFX Segment</span>
@@ -555,7 +559,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         ref={sfxPreviewRef}
         onEnded={() => setSfxPreviewing(false)}
         onPause={() => setSfxPreviewing(false)}
-        onTimeUpdate={(e) => { if (e.currentTarget.currentTime >= selectedSfx.durationSec) { e.currentTarget.pause(); } }}
+        onTimeUpdate={(e) => { if (e.currentTarget.currentTime >= effSfx.durationSec) { e.currentTarget.pause(); } }}
       />
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }} title="Playback volume for this sound.">
@@ -572,13 +576,41 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(selectedSfx.volume * 100)}%</span>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-        <span>Start {selectedSfx.startTimeSec.toFixed(1)}s</span>
-        <span>Length {selectedSfx.durationSec.toFixed(1)}s</span>
-        <span>· of {selectedSfx.sourceDurationSec.toFixed(1)}s</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }} title="Duration for this sound effect.">
+        <span style={{ fontSize: 11, width: 60, color: "var(--ink-2)" }}>Duration</span>
+        <input
+          type="range"
+          min={0.1}
+          max={maxSfxDur}
+          step={0.1}
+          disabled={!!selectedSfx.fitToBeat}
+          value={effSfx.durationSec}
+          onChange={(e) => dispatch({ type: "UPDATE_SFX", segment: { ...selectedSfx, durationSec: Number(e.target.value) } })}
+          style={sliderTrackStyle(effSfx.durationSec, 0.1, maxSfxDur)}
+        />
+        <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+          {effSfx.durationSec.toFixed(1)}s
+        </span>
       </div>
 
-      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 6 }}>Drag the chip on the SFX track to move; drag its right edge to trim the tail.</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }} title="Lock this sound effect's duration to the length of the beat it lands on.">
+        <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Fit to beat</span>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "var(--ink-2)" }}>
+          <input
+            type="checkbox"
+            checked={!!selectedSfx.fitToBeat}
+            onChange={(e) => dispatch({ type: "UPDATE_SFX", segment: { ...selectedSfx, fitToBeat: e.target.checked } })}
+            style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+          />
+          <span>Match beat duration</span>
+        </label>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+        <span>Start {effSfx.startTimeSec.toFixed(1)}s</span>
+        <span>Length {effSfx.durationSec.toFixed(1)}s</span>
+        <span>· of {selectedSfx.sourceDurationSec.toFixed(1)}s</span>
+      </div>
     </div>
   ) : null;
 

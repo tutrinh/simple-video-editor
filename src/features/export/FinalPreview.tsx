@@ -4,7 +4,8 @@ import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
 import { activeVoSegment, activeVoCaption } from "../../lib/pacing";
 import { cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, kenBurnsStyleAt } from "../../studio/util";
-import { activeStickers, renderStickersToCanvas, beatSpans, resolveStickers, stickerRenderKey } from "./stickerCanvas";
+import { activeStickers, renderStickersToCanvas, beatSpans, resolveStickers, resolveSfxSegments, stickerRenderKey } from "./stickerCanvas";
+
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { sfxFileUrl } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
@@ -270,7 +271,8 @@ export default function FinalPreview({
   useEffect(() => {
     const voices = sfxVoicesRef.current;
     if (!playing) { voices.forEach((a) => a.pause()); return; }
-    for (const seg of cut.sfxSegments ?? []) {
+    for (const seg of resolveSfxSegments(cut.sfxSegments, beatSpans(cut.beats))) {
+
       const inWindow = elapsed >= seg.startTimeSec && elapsed < seg.startTimeSec + seg.durationSec;
       const existing = voices.get(seg.id);
       const vol = Math.min(1, Math.max(0, seg.volume));

@@ -9,7 +9,8 @@ import { renderStillContained } from "../../lib/frameSampler";
 import { ffmpegColorLut, beatFrameFilters, kenBurnsChain, kenBurnsPreScale } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
-import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers } from "./stickerCanvas";
+import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers, resolveSfxSegments } from "./stickerCanvas";
+
 import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LayerSpec } from "./segmentGraph";
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
@@ -909,7 +910,8 @@ export async function exportCut(
   }
 
   // Fetch each SFX segment's sound bytes (from the audio/ dir via the dev proxy).
-  const sfxSegs = (cut.sfxSegments ?? []).filter((s) => s.durationSec > 0);
+  const sfxSegs = resolveSfxSegments(cut.sfxSegments, beatSpans(cut.beats)).filter((s) => s.durationSec > 0);
+
   const renderedSfx: { startTimeSec: number; durationSec: number; volume: number; name: string; data: Uint8Array }[] = [];
   for (let k = 0; k < sfxSegs.length; k++) {
     const s = sfxSegs[k];

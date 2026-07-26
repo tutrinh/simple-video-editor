@@ -1,5 +1,6 @@
-import type { Sticker } from "../../domain/types";
+import type { Sticker, SfxSegment } from "../../domain/types";
 import { stickerFileUrl } from "../../lib/stickerLibrary";
+
 
 // The SHARED Sticker renderer (ADR-0011, obeying ADR-0008). One function composes
 // a Sticker onto a full-frame transparent bitmap at export resolution; the preview
@@ -286,3 +287,22 @@ export function maxStickerStart(sticker: Sticker, totalDurSec: number): number {
 export function resolveStickers(stickers: Sticker[] | undefined, spans: BeatSpan[]): Sticker[] {
   return (stickers ?? []).map((s) => resolveSticker(s, spans));
 }
+
+/**
+ * An SfxSegment with its EFFECTIVE window applied.
+ * `fitToBeat` is resolved dynamically here based on beatSpans.
+ */
+export function resolveSfx(seg: SfxSegment, spans: BeatSpan[]): SfxSegment {
+  if (!seg.fitToBeat || spans.length === 0) return seg;
+  const span =
+    spans.find((s) => seg.startTimeSec >= s.startSec && seg.startTimeSec < s.startSec + s.durationSec) ??
+    spans[spans.length - 1];
+  const targetDur = Math.round(Math.min(span.durationSec, seg.sourceDurationSec) * 10) / 10;
+  return { ...seg, startTimeSec: span.startSec, durationSec: targetDur };
+}
+
+/** Every SfxSegment with its effective window applied. */
+export function resolveSfxSegments(segs: SfxSegment[] | undefined, spans: BeatSpan[]): SfxSegment[] {
+  return (segs ?? []).map((s) => resolveSfx(s, spans));
+}
+
