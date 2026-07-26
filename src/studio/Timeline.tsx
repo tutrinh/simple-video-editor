@@ -10,6 +10,8 @@ import StickerPicker from "./StickerPicker";
 import { stickerFileUrl } from "../lib/stickerLibrary";
 import { beatSpans, resolveSticker, maxStickerStart } from "../features/export/stickerCanvas";
 import { sfxDuration } from "../lib/sfxLibrary";
+import { assignSubLanes } from "./subLanes";
+
 
 interface Props {
   cut: Cut;
@@ -515,336 +517,383 @@ export default function Timeline({
         >
           {/* ── SHARED TIME RULER + BOTH TRACKS ── */}
           <div className="st-tl-ruler-area">
+            {/* Overlay Track Lane — video clips placed over beats on a proportional ruler */}
 
-            {/* Overlay Track Lane — positioned ABOVE the beats, sharing the same proportional ruler */}
-            {overlays.length > 0 && (
-              <div className="st-ov-lane">
-                <div className="st-ov-label">
-                  🎞️ Overlay Track <span className="st-ov-label-hint">(Drag to reposition · Drag edges to resize)</span>
-                </div>
+            {overlays.length > 0 && (() => {
+              const overlaysWithLanes = assignSubLanes(overlays);
+              const maxLane = Math.max(0, ...overlaysWithLanes.map((o) => o.lane));
+              const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
-                {/* The overlay canvas: same width as beats ruler, uses % positioning */}
-                <div
-                  ref={overlayTrackRef}
-                  className="st-ov-canvas"
-                >
-                  {/* Beat dividers shown inside the overlay canvas for alignment reference */}
-                  {beats.map((b, i) => {
-                    if (i === 0) return null;
-                    const leftPct = (beatStarts[i] / totalDur) * 100;
-                    return (
-                      <div
-                        key={b.id}
-                        className="st-ov-divider"
-                        style={{ left: `${leftPct}%` }}
-                        title={`Beat ${i + 1} starts at ${fmtSecs(beatStarts[i])}`}
-                      />
-                    );
-                  })}
+              return (
+                <div className="st-ov-lane">
+                  <div className="st-ov-label">
+                    🎞️ Overlay Track <span className="st-ov-label-hint">(Drag to reposition · Drag edges to resize)</span>
+                  </div>
 
-                  {/* Beat number labels inside overlay canvas */}
-                  {beats.map((b, i) => {
-                    const leftPct = (beatStarts[i] / totalDur) * 100;
-                    const widthPct = (b.durationSec / totalDur) * 100;
-                    return (
-                      <div
-                        key={b.id}
-                        className="st-ov-beat-label"
-                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                      >
-                        {String(i + 1).padStart(2, "0")}
-                      </div>
-                    );
-                  })}
-
-                  {/* Overlay clips */}
-                  {overlays.map((ov) => {
-                    const leftPct = (ov.startTimeSec / totalDur) * 100;
-                    const widthPct = Math.max(1, (ov.durationSec / totalDur) * 100);
-                    const ovClip = clipById.get(ov.clipId);
-                    const isSel = ov.id === selectedOverlayId;
-
-                    return (
-                      <div
-                        key={ov.id}
-                        onPointerDown={(e) => startOverlayDrag(e, ov, "move")}
-                        onPointerMove={(e) => handleOverlayPointerMove(e, ov)}
-                        onPointerUp={endOverlayDrag}
-                        className={"st-ov-chip" + (isSel ? " sel" : "")}
-                        style={{
-                          left: `${leftPct}%`,
-                          width: `${widthPct}%`,
-                        }}
-                        title={`${ovClip?.name ?? "Overlay"} · Start: ${ov.startTimeSec.toFixed(1)}s · Dur: ${ov.durationSec.toFixed(1)}s · Drag to reposition`}
-                      >
-                        {/* Left Resize Handle */}
+                  <div
+                    ref={overlayTrackRef}
+                    className="st-ov-canvas"
+                    style={{ height: canvasHeight }}
+                  >
+                    {/* Beat dividers shown inside the overlay canvas for alignment reference */}
+                    {beats.map((b, i) => {
+                      if (i === 0) return null;
+                      const leftPct = (beatStarts[i] / totalDur) * 100;
+                      return (
                         <div
-                          onPointerDown={(e) => startOverlayDrag(e, ov, "resize-left")}
-                          className="st-ov-resize-handle left"
-                          title="Drag left edge to adjust start time"
+                          key={b.id}
+                          className="st-ov-divider"
+                          style={{ left: `${leftPct}%` }}
+                          title={`Beat ${i + 1} starts at ${fmtSecs(beatStarts[i])}`}
                         />
+                      );
+                    })}
 
-                        <span className="st-ov-chip-mode">{ov.blendMode.toUpperCase()}</span>
-                        <span className="st-ov-chip-dot">·</span>
-                        <span className="st-ov-chip-name">
-                          {ovClip?.name ?? "Overlay"}
-                        </span>
-                        <span className="st-ov-chip-time">
-                          {ov.startTimeSec.toFixed(1)}s–{(ov.startTimeSec + ov.durationSec).toFixed(1)}s
-                        </span>
-
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-                            const newId = `overlay-${genId()}`;
-                            dispatch({ type: "DUPLICATE_OVERLAY", id: ov.id, newOverlayId: newId });
-                            onSelectOverlay?.(newId);
-                          }}
-                          className="st-ov-action-btn"
-                          title="Duplicate overlay clip (Cmd+D / Ctrl+D)"
-                        >
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        </button>
-
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            dispatch({ type: "REMOVE_OVERLAY", id: ov.id });
-                            if (selectedOverlayId === ov.id) onSelectOverlay?.(null);
-                          }}
-                          className="st-ov-action-btn"
-                          title="Remove overlay clip"
-                        >
-                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                            <line x1="2" y1="2" x2="10" y2="10" />
-                            <line x1="10" y1="2" x2="2" y2="10" />
-                          </svg>
-                        </button>
-
-                        {/* Right Resize Handle */}
+                    {/* Beat number labels inside overlay canvas */}
+                    {beats.map((b, i) => {
+                      const leftPct = (beatStarts[i] / totalDur) * 100;
+                      const widthPct = (b.durationSec / totalDur) * 100;
+                      return (
                         <div
-                          onPointerDown={(e) => startOverlayDrag(e, ov, "resize-right")}
-                          className="st-ov-resize-handle right"
-                          title="Drag right edge to adjust duration"
-                        />
-                      </div>
-                    );
-                  })}
+                          key={b.id}
+                          className="st-ov-beat-label"
+                          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                        >
+                          {String(i + 1).padStart(2, "0")}
+                        </div>
+                      );
+                    })}
+
+                    {/* Overlay clips */}
+                    {overlaysWithLanes.map((ov) => {
+                      const leftPct = (ov.startTimeSec / totalDur) * 100;
+                      const widthPct = Math.max(1, (ov.durationSec / totalDur) * 100);
+                      const ovClip = clipById.get(ov.clipId);
+                      const isSel = ov.id === selectedOverlayId;
+
+                      return (
+                        <div
+                          key={ov.id}
+                          onPointerDown={(e) => startOverlayDrag(e, ov, "move")}
+                          onPointerMove={(e) => handleOverlayPointerMove(e, ov)}
+                          onPointerUp={endOverlayDrag}
+                          className={"st-ov-chip" + (isSel ? " sel" : "")}
+                          style={{
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                            top: 3 + ov.lane * 28,
+                            height: 24,
+                            bottom: "auto",
+                            zIndex: isSel ? 30 : 2 + ov.lane,
+                          }}
+                          title={`${ovClip?.name ?? "Overlay"} · Start: ${ov.startTimeSec.toFixed(1)}s · Dur: ${ov.durationSec.toFixed(1)}s · Drag to reposition`}
+                        >
+                          {/* Left Resize Handle */}
+                          <div
+                            onPointerDown={(e) => startOverlayDrag(e, ov, "resize-left")}
+                            className="st-ov-resize-handle left"
+                            title="Drag left edge to adjust start time"
+                          />
+
+                          <span className="st-ov-chip-mode">{ov.blendMode.toUpperCase()}</span>
+                          <span className="st-ov-chip-dot">·</span>
+                          <span className="st-ov-chip-name">
+                            {ovClip?.name ?? "Overlay"}
+                          </span>
+                          <span className="st-ov-chip-time">
+                            {ov.startTimeSec.toFixed(1)}s–{(ov.startTimeSec + ov.durationSec).toFixed(1)}s
+                          </span>
+
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+                              const newId = `overlay-${genId()}`;
+                              dispatch({ type: "DUPLICATE_OVERLAY", id: ov.id, newOverlayId: newId });
+                              onSelectOverlay?.(newId);
+                            }}
+                            className="st-ov-action-btn"
+                            title="Duplicate overlay clip (Cmd+D / Ctrl+D)"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          </button>
+
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dispatch({ type: "REMOVE_OVERLAY", id: ov.id });
+                              if (selectedOverlayId === ov.id) onSelectOverlay?.(null);
+                            }}
+                            className="st-ov-action-btn"
+                            title="Remove overlay clip"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                              <line x1="2" y1="2" x2="10" y2="10" />
+                              <line x1="10" y1="2" x2="2" y2="10" />
+                            </svg>
+                          </button>
+
+                          {/* Right Resize Handle */}
+                          <div
+                            onPointerDown={(e) => startOverlayDrag(e, ov, "resize-right")}
+                            className="st-ov-resize-handle right"
+                            title="Drag right edge to adjust duration"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* VO Track Lane — narration + captions on an independent proportional ruler */}
-            {voSegments.length > 0 && (
-              <div className="st-vo-lane">
-                <div className="st-vo-label">
-                  🎙️ VO Track <span className="st-vo-label-hint">(Drag to reposition · Drag edges to resize)</span>
-                </div>
+            {voSegments.length > 0 && (() => {
+              const voWithLanes = assignSubLanes(voSegments);
+              const maxLane = Math.max(0, ...voWithLanes.map((s) => s.lane));
+              const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
-                <div ref={voTrackRef} className="st-vo-canvas">
-                  {/* Beat dividers for alignment reference */}
-                  {beats.map((b, i) => {
-                    if (i === 0) return null;
-                    return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
-                  })}
+              return (
+                <div className="st-vo-lane">
+                  <div className="st-vo-label">
+                    🎙️ VO Track <span className="st-vo-label-hint">(Drag to reposition · Drag edges to resize)</span>
+                  </div>
 
-                  {voSegments.map((seg) => {
-                    const leftPct = (seg.startTimeSec / totalDur) * 100;
-                    const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
-                    const isSel = seg.id === selectedVoId;
-                    const snippet = seg.text.trim() || "Empty — type in Inspector";
-                    return (
-                      <div
-                        key={seg.id}
-                        onPointerDown={(e) => startVoDrag(e, seg, "move")}
-                        onPointerMove={(e) => handleVoPointerMove(e, seg)}
-                        onPointerUp={endVoDrag}
-                        className={"st-vo-chip" + (isSel ? " sel" : "") + (seg.text.trim() ? "" : " empty")}
-                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                        title={`${snippet} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · ${seg.captionVisible ? "caption visible" : "voiceover only"}`}
-                      >
-                        <div onPointerDown={(e) => startVoDrag(e, seg, "resize-left")} className="st-vo-resize-handle left" title="Drag to adjust start time" />
+                  <div ref={voTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
+                    {/* Beat dividers for alignment reference */}
+                    {beats.map((b, i) => {
+                      if (i === 0) return null;
+                      return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                    })}
 
-                        <span className="st-vo-chip-icon">{seg.captionVisible ? "👁" : "🔇"}</span>
-                        <span className="st-vo-chip-text">{snippet}</span>
-                        <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
-
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); const newId = `vo-${genId()}`; dispatch({ type: "DUPLICATE_VO", id: seg.id, newVoId: newId }); onSelectVo?.(newId); }}
-                          className="st-vo-action-btn"
-                          title="Duplicate VO segment"
+                    {voWithLanes.map((seg) => {
+                      const leftPct = (seg.startTimeSec / totalDur) * 100;
+                      const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
+                      const isSel = seg.id === selectedVoId;
+                      const snippet = seg.text.trim() || "Empty — type in Inspector";
+                      return (
+                        <div
+                          key={seg.id}
+                          onPointerDown={(e) => startVoDrag(e, seg, "move")}
+                          onPointerMove={(e) => handleVoPointerMove(e, seg)}
+                          onPointerUp={endVoDrag}
+                          className={"st-vo-chip" + (isSel ? " sel" : "") + (seg.text.trim() ? "" : " empty")}
+                          style={{
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                            top: 3 + seg.lane * 28,
+                            height: 24,
+                            bottom: "auto",
+                            zIndex: isSel ? 30 : 2 + seg.lane,
+                          }}
+                          title={`${snippet} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · ${seg.captionVisible ? "caption visible" : "voiceover only"}`}
                         >
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        </button>
+                          <div onPointerDown={(e) => startVoDrag(e, seg, "resize-left")} className="st-vo-resize-handle left" title="Drag to adjust start time" />
 
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_VO", id: seg.id }); if (selectedVoId === seg.id) onSelectVo?.(null); }}
-                          className="st-vo-action-btn"
-                          title="Remove VO segment"
-                        >
-                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                            <line x1="2" y1="2" x2="10" y2="10" />
-                            <line x1="10" y1="2" x2="2" y2="10" />
-                          </svg>
-                        </button>
+                          <span className="st-vo-chip-icon">{seg.captionVisible ? "👁" : "🔇"}</span>
+                          <span className="st-vo-chip-text">{snippet}</span>
+                          <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
 
-                        <div onPointerDown={(e) => startVoDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to adjust duration" />
-                      </div>
-                    );
-                  })}
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); const newId = `vo-${genId()}`; dispatch({ type: "DUPLICATE_VO", id: seg.id, newVoId: newId }); onSelectVo?.(newId); }}
+                            className="st-vo-action-btn"
+                            title="Duplicate VO segment"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          </button>
+
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_VO", id: seg.id }); if (selectedVoId === seg.id) onSelectVo?.(null); }}
+                            className="st-vo-action-btn"
+                            title="Remove VO segment"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                              <line x1="2" y1="2" x2="10" y2="10" />
+                              <line x1="10" y1="2" x2="2" y2="10" />
+                            </svg>
+                          </button>
+
+                          <div onPointerDown={(e) => startVoDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to adjust duration" />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* SFX Track Lane — sound effects on the same proportional ruler */}
-            {sfxSegments.length > 0 && (
-              <div className="st-vo-lane st-sfx-lane">
-                <div className="st-vo-label">
-                  🔊 SFX Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim)</span>
-                </div>
+            {sfxSegments.length > 0 && (() => {
+              const sfxWithLanes = assignSubLanes(sfxSegments);
+              const maxLane = Math.max(0, ...sfxWithLanes.map((s) => s.lane));
+              const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
-                <div ref={sfxTrackRef} className="st-vo-canvas">
-                  {beats.map((b, i) => {
-                    if (i === 0) return null;
-                    return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
-                  })}
+              return (
+                <div className="st-vo-lane st-sfx-lane">
+                  <div className="st-vo-label">
+                    🔊 SFX Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim)</span>
+                  </div>
 
-                  {sfxSegments.map((seg) => {
-                    const leftPct = (seg.startTimeSec / totalDur) * 100;
-                    const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
-                    const isSel = seg.id === selectedSfxId;
-                    return (
-                      <div
-                        key={seg.id}
-                        onPointerDown={(e) => startSfxDrag(e, seg, "move")}
-                        onPointerMove={(e) => handleSfxPointerMove(e, seg)}
-                        onPointerUp={endSfxDrag}
-                        className={"st-vo-chip st-sfx-chip" + (isSel ? " sel" : "")}
-                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                        title={`${seg.fileName} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · vol ${Math.round(seg.volume * 100)}%`}
-                      >
-                        <span className="st-vo-chip-icon">{seg.volume === 0 ? "🔇" : "🔊"}</span>
-                        <span className="st-vo-chip-text">{seg.fileName}</span>
-                        <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
+                  <div ref={sfxTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
+                    {beats.map((b, i) => {
+                      if (i === 0) return null;
+                      return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                    })}
 
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); const newId = `sfx-${genId()}`; dispatch({ type: "DUPLICATE_SFX", id: seg.id, newSfxId: newId }); onSelectSfx?.(newId); }}
-                          className="st-vo-action-btn"
-                          title="Duplicate SFX segment"
+                    {sfxWithLanes.map((seg) => {
+                      const leftPct = (seg.startTimeSec / totalDur) * 100;
+                      const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
+                      const isSel = seg.id === selectedSfxId;
+                      return (
+                        <div
+                          key={seg.id}
+                          onPointerDown={(e) => startSfxDrag(e, seg, "move")}
+                          onPointerMove={(e) => handleSfxPointerMove(e, seg)}
+                          onPointerUp={endSfxDrag}
+                          className={"st-vo-chip st-sfx-chip" + (isSel ? " sel" : "")}
+                          style={{
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                            top: 3 + seg.lane * 28,
+                            height: 24,
+                            bottom: "auto",
+                            zIndex: isSel ? 30 : 2 + seg.lane,
+                          }}
+                          title={`${seg.fileName} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · vol ${Math.round(seg.volume * 100)}%`}
                         >
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        </button>
+                          <span className="st-vo-chip-icon">{seg.volume === 0 ? "🔇" : "🔊"}</span>
+                          <span className="st-vo-chip-text">{seg.fileName}</span>
+                          <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
 
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_SFX", id: seg.id }); if (selectedSfxId === seg.id) onSelectSfx?.(null); }}
-                          className="st-vo-action-btn"
-                          title="Remove SFX segment"
-                        >
-                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                            <line x1="2" y1="2" x2="10" y2="10" />
-                            <line x1="10" y1="2" x2="2" y2="10" />
-                          </svg>
-                        </button>
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); const newId = `sfx-${genId()}`; dispatch({ type: "DUPLICATE_SFX", id: seg.id, newSfxId: newId }); onSelectSfx?.(newId); }}
+                            className="st-vo-action-btn"
+                            title="Duplicate SFX segment"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          </button>
 
-                        <div onPointerDown={(e) => startSfxDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to trim the sound's tail" />
-                      </div>
-                    );
-                  })}
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_SFX", id: seg.id }); if (selectedSfxId === seg.id) onSelectSfx?.(null); }}
+                            className="st-vo-action-btn"
+                            title="Remove SFX segment"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                              <line x1="2" y1="2" x2="10" y2="10" />
+                              <line x1="10" y1="2" x2="2" y2="10" />
+                            </svg>
+                          </button>
+
+                          <div onPointerDown={(e) => startSfxDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to trim the sound's tail" />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
-            {stickers.length > 0 && (
-              <div className="st-vo-lane st-sticker-lane">
-                <div className="st-vo-label">
-                  🩹 Sticker Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim · Place it in the Inspector)</span>
-                </div>
+            {stickers.length > 0 && (() => {
+              const resolvedStickers = stickers.map((raw) => ({ raw, ...resolveSticker(raw, beatSpans(beats)) }));
+              const stickersWithLanes = assignSubLanes(resolvedStickers);
+              const maxLane = Math.max(0, ...stickersWithLanes.map((s) => s.lane));
+              const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
-                <div ref={stickerTrackRef} className="st-vo-canvas">
-                  {beats.map((b, i) => {
-                    if (i === 0) return null;
-                    return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
-                  })}
+              return (
+                <div className="st-vo-lane st-sticker-lane">
+                  <div className="st-vo-label">
+                    🩹 Sticker Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim · Place it in the Inspector)</span>
+                  </div>
 
-                  {stickers.map((raw) => {
-                    // Draw the EFFECTIVE window: a fitToBeat sticker spans its beat,
-                    // and follows that beat's trim without any stored duration.
-                    const st = resolveSticker(raw, beatSpans(beats));
-                    const pinned = !!raw.fitToBeat;
-                    const leftPct = (st.startTimeSec / totalDur) * 100;
-                    const widthPct = Math.max(1, (st.durationSec / totalDur) * 100);
-                    const isSel = st.id === selectedStickerId;
-                    return (
-                      <div
-                        key={st.id}
-                        onPointerDown={(e) => startStickerDrag(e, raw, "move")}
-                        onPointerMove={(e) => handleStickerPointerMove(e, raw)}
-                        onPointerUp={endStickerDrag}
-                        className={"st-vo-chip st-sticker-chip" + (isSel ? " sel" : "") + (pinned ? " pinned" : "")}
-                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                        title={`${st.fileName} · ${st.startTimeSec.toFixed(1)}s–${(st.startTimeSec + st.durationSec).toFixed(1)}s · ${Math.round(st.scale * 100)}% · ${st.rotation.toFixed(0)}°${pinned ? " · fits its beat — drag to another beat to move it" : ""}`}
-                      >
-                        <span className="st-vo-chip-icon"><img src={stickerFileUrl(st.fileName)} alt="" /></span>
-                        <span className="st-vo-chip-text">{st.fileName}</span>
-                        <span className="st-vo-chip-time">{st.startTimeSec.toFixed(1)}s–{(st.startTimeSec + st.durationSec).toFixed(1)}s</span>
+                  <div ref={stickerTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
+                    {beats.map((b, i) => {
+                      if (i === 0) return null;
+                      return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                    })}
 
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); const newId = `sticker-${genId()}`; dispatch({ type: "DUPLICATE_STICKER", id: raw.id, newStickerId: newId }); onSelectSticker?.(newId); }}
-                          className="st-vo-action-btn"
-                          title="Duplicate sticker"
+                    {stickersWithLanes.map(({ raw, ...st }) => {
+                      const pinned = !!raw.fitToBeat;
+                      const leftPct = (st.startTimeSec / totalDur) * 100;
+                      const widthPct = Math.max(1, (st.durationSec / totalDur) * 100);
+                      const isSel = st.id === selectedStickerId;
+                      return (
+                        <div
+                          key={st.id}
+                          onPointerDown={(e) => startStickerDrag(e, raw, "move")}
+                          onPointerMove={(e) => handleStickerPointerMove(e, raw)}
+                          onPointerUp={endStickerDrag}
+                          className={"st-vo-chip st-sticker-chip" + (isSel ? " sel" : "") + (pinned ? " pinned" : "")}
+                          style={{
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                            top: 3 + st.lane * 28,
+                            height: 24,
+                            bottom: "auto",
+                            zIndex: isSel ? 30 : 2 + st.lane,
+                          }}
+                          title={`${st.fileName} · ${st.startTimeSec.toFixed(1)}s–${(st.startTimeSec + st.durationSec).toFixed(1)}s · ${Math.round(st.scale * 100)}% · ${st.rotation.toFixed(0)}°${pinned ? " · fits its beat — drag to another beat to move it" : ""}`}
                         >
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        </button>
+                          <span className="st-vo-chip-icon"><img src={stickerFileUrl(st.fileName)} alt="" /></span>
+                          <span className="st-vo-chip-text">{st.fileName}</span>
+                          <span className="st-vo-chip-time">{st.startTimeSec.toFixed(1)}s–{(st.startTimeSec + st.durationSec).toFixed(1)}s</span>
 
-                        <button
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_STICKER", id: raw.id }); if (selectedStickerId === raw.id) onSelectSticker?.(null); }}
-                          className="st-vo-action-btn"
-                          title="Remove sticker"
-                        >
-                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                            <line x1="2" y1="2" x2="10" y2="10" />
-                            <line x1="10" y1="2" x2="2" y2="10" />
-                          </svg>
-                        </button>
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); const newId = `sticker-${genId()}`; dispatch({ type: "DUPLICATE_STICKER", id: raw.id, newStickerId: newId }); onSelectSticker?.(newId); }}
+                            className="st-vo-action-btn"
+                            title="Duplicate sticker"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                          </button>
 
-                        {!pinned && (
-                          <div onPointerDown={(e) => startStickerDrag(e, raw, "resize-right")} className="st-vo-resize-handle right" title="Drag to change how long the sticker shows" />
-                        )}
-                      </div>
-                    );
-                  })}
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_STICKER", id: raw.id }); if (selectedStickerId === raw.id) onSelectSticker?.(null); }}
+                            className="st-vo-action-btn"
+                            title="Remove sticker"
+                          >
+                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                              <line x1="2" y1="2" x2="10" y2="10" />
+                              <line x1="10" y1="2" x2="2" y2="10" />
+                            </svg>
+                          </button>
+
+                          {!pinned && (
+                            <div onPointerDown={(e) => startStickerDrag(e, raw, "resize-right")} className="st-vo-resize-handle right" title="Drag to change how long the sticker shows" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Beat Track — proportional widths */}
             <div className={"st-track" + (beats.length === 0 ? " empty" : "")}>
