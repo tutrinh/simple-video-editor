@@ -8,7 +8,8 @@ import OverlayPickerModal from "./OverlayPickerModal";
 import SfxPicker from "./SfxPicker";
 import StickerPicker from "./StickerPicker";
 import { stickerFileUrl } from "../lib/stickerLibrary";
-import { beatSpans, resolveSticker, maxStickerStart } from "../features/export/stickerCanvas";
+import { beatSpans, resolveSticker } from "../features/export/stickerCanvas";
+
 import { sfxDuration } from "../lib/sfxLibrary";
 import { assignSubLanes } from "./subLanes";
 
@@ -177,10 +178,13 @@ export default function Timeline({
     const deltaSec = (deltaX / rect.width) * totalDur;
 
     if (dragStartRef.current.mode === "move") {
-      const newStartSec = Math.max(0, Math.min(totalDur - overlay.durationSec, dragStartRef.current.initialStartSec + deltaSec));
+      const maxStart = Math.max(0, totalDur - 0.5);
+      const newStartSec = Math.max(0, Math.min(maxStart, dragStartRef.current.initialStartSec + deltaSec));
       const roundedStart = Math.round(newStartSec * 10) / 10;
-      if (roundedStart !== overlay.startTimeSec) {
-        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: roundedStart } });
+      const maxDur = Math.max(0.5, totalDur - roundedStart);
+      const roundedDur = Math.round(Math.min(overlay.durationSec, maxDur) * 10) / 10;
+      if (roundedStart !== overlay.startTimeSec || roundedDur !== overlay.durationSec) {
+        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: roundedStart, durationSec: roundedDur } });
       }
     } else if (dragStartRef.current.mode === "resize-right") {
       const newDur = Math.max(0.5, Math.min(totalDur - overlay.startTimeSec, dragStartRef.current.initialDurationSec + deltaSec));
@@ -258,9 +262,14 @@ export default function Timeline({
     const st = voDragStartRef.current;
 
     if (st.mode === "move") {
-      const newStartSec = Math.max(0, Math.min(totalDur - seg.durationSec, st.initialStartSec + deltaSec));
-      const rounded = Math.round(newStartSec * 10) / 10;
-      if (rounded !== seg.startTimeSec) dispatch({ type: "UPDATE_VO", segment: { ...seg, startTimeSec: rounded } });
+      const maxStart = Math.max(0, totalDur - 0.5);
+      const newStartSec = Math.max(0, Math.min(maxStart, st.initialStartSec + deltaSec));
+      const roundedStart = Math.round(newStartSec * 10) / 10;
+      const maxDur = Math.max(0.5, totalDur - roundedStart);
+      const roundedDur = Math.round(Math.min(seg.durationSec, maxDur) * 10) / 10;
+      if (roundedStart !== seg.startTimeSec || roundedDur !== seg.durationSec) {
+        dispatch({ type: "UPDATE_VO", segment: { ...seg, startTimeSec: roundedStart, durationSec: roundedDur } });
+      }
     } else if (st.mode === "resize-right") {
       const newDur = Math.max(0.5, Math.min(totalDur - seg.startTimeSec, st.initialDurationSec + deltaSec));
       const rounded = Math.round(newDur * 10) / 10;
@@ -328,9 +337,14 @@ export default function Timeline({
     const st = sfxDragStartRef.current;
 
     if (st.mode === "move") {
-      const newStartSec = Math.max(0, Math.min(totalDur - seg.durationSec, st.initialStartSec + deltaSec));
-      const rounded = Math.round(newStartSec * 10) / 10;
-      if (rounded !== seg.startTimeSec) dispatch({ type: "UPDATE_SFX", segment: { ...seg, startTimeSec: rounded } });
+      const maxStart = Math.max(0, totalDur - 0.5);
+      const newStartSec = Math.max(0, Math.min(maxStart, st.initialStartSec + deltaSec));
+      const roundedStart = Math.round(newStartSec * 10) / 10;
+      const maxDur = Math.max(0.1, Math.min(seg.sourceDurationSec, totalDur - roundedStart));
+      const roundedDur = Math.round(Math.min(seg.durationSec, maxDur) * 10) / 10;
+      if (roundedStart !== seg.startTimeSec || roundedDur !== seg.durationSec) {
+        dispatch({ type: "UPDATE_SFX", segment: { ...seg, startTimeSec: roundedStart, durationSec: roundedDur } });
+      }
     } else {
       // Trim-tail: clamp to [0.1, min(sourceLength, room-to-cut-end)].
       const maxDur = Math.min(seg.sourceDurationSec, totalDur - seg.startTimeSec);
@@ -403,9 +417,24 @@ export default function Timeline({
     const d = stickerDragStartRef.current;
 
     if (d.mode === "move") {
-      const newStartSec = Math.max(0, Math.min(maxStickerStart(st, totalDur), d.initialStartSec + deltaSec));
-      const rounded = Math.round(newStartSec * 10) / 10;
-      if (rounded !== st.startTimeSec) dispatch({ type: "UPDATE_STICKER", sticker: { ...st, startTimeSec: rounded } });
+      if (st.fitToBeat) {
+        const cursorPct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const cursorSec = cursorPct * totalDur;
+        const spans = beatSpans(beats);
+        const targetSpan = spans.find((s) => cursorSec >= s.startSec && cursorSec < s.startSec + s.durationSec) ?? spans[spans.length - 1];
+        if (targetSpan && targetSpan.startSec !== st.startTimeSec) {
+          dispatch({ type: "UPDATE_STICKER", sticker: { ...st, startTimeSec: targetSpan.startSec } });
+        }
+        return;
+      }
+      const maxStart = Math.max(0, totalDur - 0.5);
+      const newStartSec = Math.max(0, Math.min(maxStart, d.initialStartSec + deltaSec));
+      const roundedStart = Math.round(newStartSec * 10) / 10;
+      const maxDur = Math.max(0.5, totalDur - roundedStart);
+      const roundedDur = Math.round(Math.min(st.durationSec, maxDur) * 10) / 10;
+      if (roundedStart !== st.startTimeSec || roundedDur !== st.durationSec) {
+        dispatch({ type: "UPDATE_STICKER", sticker: { ...st, startTimeSec: roundedStart, durationSec: roundedDur } });
+      }
     } else {
       // Trim-tail: a Sticker has no source length, so the only ceiling is the cut end.
       const maxDur = totalDur - st.startTimeSec;
@@ -414,6 +443,7 @@ export default function Timeline({
       if (rounded !== st.durationSec) dispatch({ type: "UPDATE_STICKER", sticker: { ...st, durationSec: rounded } });
     }
   }
+
 
   function endStickerDrag(e: React.PointerEvent) {
     if (draggingStickerId) {
