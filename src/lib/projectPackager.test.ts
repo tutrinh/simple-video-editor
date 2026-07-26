@@ -61,3 +61,66 @@ describe("importProjectFile — Stills", () => {
     expect(state.clips[0].normalized).toBeInstanceOf(Blob);
   });
 });
+
+// --- Ken Burns persistence (ADR-0015) --------------------------------------
+// framing/kenBurns live on Beat, inside cut, inside stateJson — so they should
+// ride along for free. "Should" is why this test exists: stripTitleFonts and
+// reinjectTitleFonts both rebuild every Beat on the way through.
+
+function vidstrWithCut(beats: unknown[]): File {
+  const pkg = {
+    version: 1,
+    exportedAt: 0,
+    title: "kb",
+    stateJson: JSON.stringify({
+      title: "kb",
+      direction: "",
+      clips: [still],
+      cut: { aspect: "16:9", beats },
+    }),
+    media: [{
+      clipId: still.id, fileName: still.name, fileType: "image/jpeg",
+      fileDataUrl: dataUrl("image/jpeg"), poster: undefined,
+    }],
+  };
+  return new File([JSON.stringify(pkg)], "p.vidstr", { type: "application/json" });
+}
+
+const kbBeat = {
+  id: "b1", clipId: "s1", inSec: 0, outSec: 10, durationSec: 10,
+  scriptText: "", captionText: "",
+  framing: "kenBurns",
+  kenBurns: { fromScale: 1, fromX: -8, fromY: -5, toScale: 1.2, toX: 8, toY: 5 },
+};
+
+describe("importProjectFile — Ken Burns", () => {
+  it("round-trips the framing mode and all six values", async () => {
+    const state = await importProjectFile(vidstrWithCut([kbBeat]));
+    const b = state.cut!.beats[0];
+    expect(b.framing).toBe("kenBurns");
+    expect(b.kenBurns).toEqual({ fromScale: 1, fromX: -8, fromY: -5, toScale: 1.2, toX: 8, toY: 5 });
+  });
+
+  it("survives a Beat that also carries title layers", async () => {
+    // The title-font strip/reinject rebuilds every Beat; a spread that dropped
+    // unknown fields would lose the move and only show up on reload.
+    const withTitles = {
+      ...kbBeat,
+      titleLayers: [{ id: "l1", enabled: true, text: "Hi", fontId: "outfit", fontFile: null, weight: 700, sizePx: 120, color: "#fff", posX: 0, posY: 0, scope: "entire", introSec: 3 }],
+    };
+    const state = await importProjectFile(vidstrWithCut([withTitles]));
+    const b = state.cut!.beats[0];
+    expect(b.framing).toBe("kenBurns");
+    expect(b.kenBurns?.toScale).toBe(1.2);
+    expect(b.titleLayers?.[0].text).toBe("Hi");
+  });
+
+  it("leaves a Beat with no move untouched — undefined means Zoom", async () => {
+    const plain = { id: "b2", clipId: "s1", inSec: 0, outSec: 5, durationSec: 5, scriptText: "", captionText: "", zoom: 1.4 };
+    const state = await importProjectFile(vidstrWithCut([plain]));
+    const b = state.cut!.beats[0];
+    expect(b.framing).toBeUndefined();
+    expect(b.kenBurns).toBeUndefined();
+    expect(b.zoom).toBe(1.4);
+  });
+});

@@ -3,7 +3,7 @@ import type { Aspect, Clip, Cut, Sticker } from "../../domain/types";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
 import { activeVoSegment, activeVoCaption } from "../../lib/pacing";
-import { cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive } from "../../studio/util";
+import { cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, kenBurnsStyleAt } from "../../studio/util";
 import { activeStickers, renderStickersToCanvas, beatSpans, resolveStickers, stickerRenderKey } from "./stickerCanvas";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { sfxFileUrl } from "../../lib/sfxLibrary";
@@ -475,7 +475,13 @@ export default function FinalPreview({
           style={{
             position: "absolute",
             inset: 0,
-            ...beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY, isBeatZoomActive(beat?.zoom, beat?.zoomScope, beat?.zoomSec, beatElapsed)),
+            // Ken Burns replaces the Zoom layer (ADR-0015). Sampled per frame
+            // here rather than animated: this preview already advances
+            // `beatElapsed` on its own rAF clock and scrubs through the whole
+            // Cut, so there is no playback phase a CSS animation could own.
+            ...(currentBeatClip?.kind === "still" && beat?.framing === "kenBurns" && beat.kenBurns
+              ? kenBurnsStyleAt(beat.kenBurns, beatElapsed / Math.max(0.05, beat.durationSec))
+              : beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY, isBeatZoomActive(beat?.zoom, beat?.zoomScope, beat?.zoomSec, beatElapsed))),
           }}
         >
         <div

@@ -135,6 +135,23 @@ unit. A Clip may be dropped (unused) but appears in at most one Beat; Beats are
 not split or reused in v1.
 _Avoid_: segment, shot, scene, track item
 
+**Zoom**:
+A Beat's **static** framing: how far the frame is punched in, and on what point.
+It holds one position for as long as it is active — it does not travel. Its
+scope is either the whole Beat or only its opening seconds, and when that scope
+expires the framing returns to full. Distinct from a Sticker's scale, which
+sizes an overlaid asset rather than the footage itself.
+_Avoid_: crop, scale, punch-in, magnify
+
+**Ken Burns**:
+A Beat's **moving** framing: the frame travels from one position to another
+across the Beat, drifting and pushing in or out rather than holding still. It
+exists because a Still has nothing else to give the eye — the picture does not
+change, so the framing must. A Beat's framing is either a Zoom or a Ken Burns,
+never both, because the two command the same thing. Available on Still Beats
+only for now.
+_Avoid_: pan, zoom, animation, motion, effect
+
 ## Working docs & known issues
 
 Root-level living docs that track cross-cutting bugs, their fixes, and rules to

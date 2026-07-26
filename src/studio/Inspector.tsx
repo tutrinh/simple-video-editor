@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
-import type { Beat, Clip, ColorAdjustments, VideoTransitionType } from "../domain/types";
+import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType } from "../domain/types";
 import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
 import { cutDuration } from "../features/assemble/assemble";
-import { fmtSecs, cssFilterFor, getFilterPreset, rotationCoverScale } from "./util";
+import { fmtSecs, cssFilterFor, getFilterPreset, rotationCoverScale, fillMove, KEN_BURNS_PRESETS, KEN_BURNS_DEFAULT } from "./util";
 import { stickerFileUrl } from "../lib/stickerLibrary";
 import { beatSpans, resolveSticker } from "../features/export/stickerCanvas";
 import FilterPresetModal from "./FilterPresetModal";
@@ -91,6 +91,89 @@ export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSP
     height: 6,
     borderRadius: 3,
   };
+}
+
+/**
+ * The moving-framing controls (ADR-0015): named moves, then the six values
+ * underneath them. The presets write the same fields the sliders edit — they
+ * are an affordance, not a separate data model — so nothing is lost by nudging
+ * a preset afterwards.
+ */
+function KenBurnsControls({ beat, clip, aspect, update }: {
+  beat: Beat; clip: Clip; aspect: Aspect; update: (b: Beat) => void;
+}) {
+  const move = beat.kenBurns ?? KEN_BURNS_DEFAULT;
+  const set = (patch: Partial<KenBurns>) => update({ ...beat, kenBurns: { ...move, ...patch } });
+  const [cw, ch] = canvasDims(aspect);
+  // Fill is computed per-Still rather than tabled: the scale that just covers
+  // depends on THIS photo's aspect (~2.37x for a 3:4 in 16:9).
+  const fill = fillMove(clip.width || 1, clip.height || 1, cw, ch);
+  const presets = [...KEN_BURNS_PRESETS, { id: "fill", label: "Fill", move: fill }];
+  const same = (a: KenBurns, b2: KenBurns) =>
+    Math.abs(a.fromScale - b2.fromScale) < 1e-6 && Math.abs(a.toScale - b2.toScale) < 1e-6 &&
+    a.fromX === b2.fromX && a.toX === b2.toX && a.fromY === b2.fromY && a.toY === b2.toY;
+
+  const row = (label: string, value: number, min: number, max: number, step: number, fmt: (v: number) => string, key: keyof KenBurns, reset: number) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>{label}</span>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<KenBurns>)}
+        onDoubleClick={() => set({ [key]: reset } as Partial<KenBurns>)}
+        style={sliderTrackStyle(value, min, max)}
+      />
+      <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{fmt(value)}</span>
+    </div>
+  );
+  const pct = (v: number) => (v > 0 ? `+${v}` : String(v));
+  const zoomFmt = (v: number) => `${v.toFixed(2)}×`;
+  // The ceiling is available pixels, not a fixed number — a Fill on a tall
+  // photo legitimately needs more than 2x (ADR-0015).
+  const maxScale = Math.max(2, Math.ceil(fill.fromScale * 10) / 10);
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)", paddingTop: 4 }}>Move</span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {presets.map((p) => {
+            const on = same(move, p.move);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => update({ ...beat, kenBurns: p.move })}
+                title={p.id === "fill" ? `Fill the frame (${p.move.fromScale.toFixed(2)}× for this photo)` : p.label}
+                style={{
+                  fontSize: 10, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+                  border: on ? "1px solid var(--accent)" : "1px solid var(--line)",
+                  background: on ? "rgba(255, 179, 57, 0.15)" : "var(--panel-3)",
+                  color: on ? "var(--accent)" : "var(--ink-2)",
+                }}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 2 }}>Start</div>
+      {row("Scale", move.fromScale, 1, maxScale, 0.01, zoomFmt, "fromScale", 1)}
+      {row("Focus X", move.fromX, -50, 50, 1, pct, "fromX", 0)}
+      {row("Focus Y", move.fromY, -50, 50, 1, pct, "fromY", 0)}
+
+      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>End</div>
+      {row("Scale", move.toScale, 1, maxScale, 0.01, zoomFmt, "toScale", 1)}
+      {row("Focus X", move.toX, -50, 50, 1, pct, "toX", 0)}
+      {row("Focus Y", move.toY, -50, 50, 1, pct, "toY", 0)}
+
+      <div style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5, marginTop: 2 }}>
+        The move always spans the whole Beat, so retrimming makes the same journey
+        run faster or slower. Scale 1.00× is the photo fitted to frame, bars and all.
+      </div>
+    </>
+  );
 }
 
 export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker }: Props) {
@@ -1259,6 +1342,43 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           <div className={"st-color-collapsible" + (zoomOpen ? " open" : "")}>
             <div className="st-color-collapsible-inner">
               <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+
+                {/* A Beat's framing is static (Zoom) or moving (Ken Burns) —
+                    a mode, never both (ADR-0015). Stills only for now, so a
+                    video Beat never sees the switch and keeps the Zoom it had. */}
+                {clip?.kind === "still" && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Framing</span>
+                    <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+                      {([["zoom", "Zoom"], ["kenBurns", "Ken Burns"]] as const).map(([mode, label]) => {
+                        const on = (b.framing ?? "zoom") === mode;
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => update(mode === "kenBurns"
+                              // Seed a visible-but-subtle move, and clear the Zoom
+                              // so nothing is left set that no longer applies.
+                              ? { ...b, framing: "kenBurns", kenBurns: b.kenBurns ?? KEN_BURNS_DEFAULT, zoom: 1, zoomX: 0, zoomY: 0 }
+                              : { ...b, framing: "zoom" })}
+                            style={{
+                              fontSize: 10, padding: "3px 10px", border: "none", cursor: "pointer",
+                              background: on ? "rgba(255, 179, 57, 0.15)" : "var(--panel-3)",
+                              color: on ? "var(--accent)" : "var(--ink-2)", fontWeight: on ? 600 : 400,
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {b.framing === "kenBurns" && clip?.kind === "still" ? (
+                  <KenBurnsControls beat={b} clip={clip} aspect={cut?.aspect ?? "16:9"} update={update} />
+                ) : (
+                <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Zoom</span>
                   <input
@@ -1347,6 +1467,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     </label>
                   )}
                 </div>
+                </>
+                )}
               </div>
             </div>
           </div>

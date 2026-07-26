@@ -5,7 +5,8 @@ import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { fetchSfxBytes } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
 import { captionSchedule } from "../../lib/pacing";
-import { ffmpegColorLut, beatFrameFilters } from "../../studio/util";
+import { renderStillContained } from "../../lib/frameSampler";
+import { ffmpegColorLut, beatFrameFilters, kenBurnsChain, kenBurnsPreScale } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
 import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers } from "./stickerCanvas";
@@ -137,11 +138,19 @@ export function sourceName(clip: Pick<Clip, "name" | "kind"> & Partial<Pick<Clip
  * already are (ADR-0012); footage is seek-and-trim as before. Everything
  * downstream reads `[0:v]` either way.
  */
-export function beatInputArgs(clip: Pick<Clip, "name" | "kind"> & Partial<Pick<Clip, "normalized">>, inSec: number, footageLen: number): string[] {
+export function beatInputArgs(
+  clip: Pick<Clip, "name" | "kind"> & Partial<Pick<Clip, "normalized">>,
+  inSec: number,
+  footageLen: number,
+  /** Overrides the derived name — a Ken Burns Still is pre-rendered to JPEG
+   *  regardless of what the original file was called (ADR-0015). */
+  nameOverride?: string,
+): string[] {
+  const name = nameOverride ?? sourceName(clip);
   if (clip.kind === "still") {
-    return ["-loop", "1", "-t", String(footageLen), "-r", "30", "-i", sourceName(clip)];
+    return ["-loop", "1", "-t", String(footageLen), "-r", "30", "-i", name];
   }
-  return ["-ss", String(inSec), "-t", String(footageLen), "-i", sourceName(clip)];
+  return ["-ss", String(inSec), "-t", String(footageLen), "-i", name];
 }
 
 /**
@@ -377,9 +386,23 @@ export async function exportCut(
     const { clip, inSec, footageLen, segDur } = pre;
     const bStart = beatStartSecs[i];
     const bEnd = bStart + segDur;
-    const data = await bytesOf(clip.normalized ?? clip.file);
 
-    const inputs: EngineInput[] = [{ name: sourceName(clip), data }];
+    // Ken Burns is a Still's moving framing (ADR-0015). Its source is
+    // pre-scaled ONCE here, on the GPU, rather than by a `scale` in the filter
+    // chain — the spike measured that as slower than no pre-scale at all,
+    // because -loop 1 made ffmpeg re-scale the same picture 300 times.
+    const isKenBurns = clip.kind === "still" && b.framing === "kenBurns" && !!b.kenBurns;
+    let data: Uint8Array;
+    let srcName = sourceName(clip);
+    if (isKenBurns) {
+      const ps = kenBurnsPreScale(w, h, clip.width, clip.height);
+      data = await renderStillContained(clip.file, ps.w, ps.h);
+      srcName = "in.jpg";
+    } else {
+      data = await bytesOf(clip.normalized ?? clip.file);
+    }
+
+    const inputs: EngineInput[] = [{ name: srcName, data }];
 
     const captionCues: { enable: string }[] = [];
     const addCaption = async (text: string, enable: string) => {
@@ -411,7 +434,11 @@ export async function exportCut(
     // time-gated, so the zoomed frame is composited over the base with an
     // `enable` window (below) rather than baked into vf. The rotation always
     // lives in the base, so it outlives the intro window.
-    const frame = beatFrameFilters(w, h, b);
+    // A Ken Burns Beat has no Zoom — they are a mode, not a stack (ADR-0015) —
+    // so the zoom fields are withheld from the geometry builder and only the
+    // rotation survives into the base chain.
+    const kbMove = isKenBurns ? b.kenBurns! : null;
+    const frame = beatFrameFilters(w, h, kbMove ? { rotation: b.rotation } : b);
     const zoomFilters = frame.introZoom ?? [];
     const zoomIntro = zoomFilters.length > 0;
 
@@ -424,8 +451,17 @@ export async function exportCut(
 
     const vf = [
       "setpts=PTS-STARTPTS",
-      `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
-      `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
+      // Ken Burns REPLACES the fit-and-pad rather than following it: the static
+      // Zoom runs after the pad and so scales the letterbox bars too, which for
+      // a Still would also discard the native resolution ADR-0012 preserved.
+      // The one-time pre-render already contained and padded to canvas aspect,
+      // so zoompan crops straight to canvas dimensions.
+      ...(kbMove
+        ? kenBurnsChain(w, h, kbMove, segDur)
+        : [
+            `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
+            `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
+          ]),
       "setsar=1",
       ...frame.base,
       ...(colorLut ? [colorLut.filter] : []),
@@ -826,7 +862,7 @@ export async function exportCut(
       const aFilterString = aChains.join(";");
 
       return [
-        ...beatInputArgs(clip, inSec, footageLen),
+        ...beatInputArgs(clip, inSec, footageLen, srcName),
         ...capInputArgs,
         ...titleInputArgs,
         ...overlayInputArgs,

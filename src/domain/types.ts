@@ -59,6 +59,25 @@ export interface Story {
   beats: StoryBeat[];
 }
 
+/**
+ * A Ken Burns move (ADR-0015): the frame travels from one framing to another
+ * across the Beat, rather than holding one. Stored as start and end rather than
+ * as a rate, so retrimming the Beat re-fits the move — the same journey, faster.
+ *
+ * Scale is relative to the CONTAINED frame, exactly as `Beat.zoom` is: 1.0 is
+ * the untouched frame, letterbox bars and all. Focus is -50..50 on each axis
+ * with 0 centred, the same convention as `zoomX`/`zoomY`, so both framings read
+ * their focus through the same helper.
+ */
+export interface KenBurns {
+  fromScale: number;
+  fromX: number;
+  fromY: number;
+  toScale: number;
+  toX: number;
+  toY: number;
+}
+
 export type VideoTransitionType =
   | "none"
   | "fade"
@@ -105,6 +124,16 @@ export interface Beat {
   /** When the zoom is active within the beat: "entire" (whole beat) or "intro"
    *  (only the first `zoomSec` seconds). Default "entire". */
   zoomScope?: "entire" | "intro";
+  /**
+   * Which framing is in force (ADR-0015). Zoom and Ken Burns both command the
+   * scale and centre of the frame, so they are a MODE, not a stack — composing
+   * them would make the real start scale `zoom × fromScale` and every number in
+   * the UI a lie. Undefined means "zoom", which is every Beat authored before
+   * Ken Burns existed.
+   */
+  framing?: "zoom" | "kenBurns";
+  /** The move, when `framing === "kenBurns"`. Still Beats only for now. */
+  kenBurns?: KenBurns;
   /** Duration in seconds the zoom holds when zoomScope === "intro" (default 3). */
   zoomSec?: number;
   /**

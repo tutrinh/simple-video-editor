@@ -93,6 +93,41 @@ export async function stillFrame(src: Blob, maxEdge = 768): Promise<SampledFrame
   }
 }
 
+/**
+ * Render a Still contained-and-padded onto a w×h canvas and return JPEG bytes —
+ * the ONE-TIME pre-scale a Ken Burns Beat needs (ADR-0015).
+ *
+ * This exists because doing the same work with a `scale` inside the filter
+ * chain was measured as the slowest option of four: `-loop 1` pushes one frame
+ * per output frame through the graph, so ffmpeg re-scaled the identical picture
+ * 300 times. Here it happens once, on the GPU.
+ *
+ * Contained and padded to the canvas aspect, so `zoompan` can crop straight to
+ * canvas dimensions and scale 1.0 means the same framing `Beat.zoom` 1× does.
+ */
+export async function renderStillContained(src: Blob, w: number, h: number): Promise<Uint8Array> {
+  const { img, revoke } = await loadImage(src);
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(w));
+    canvas.height = Math.max(1, Math.round(h));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2d canvas context");
+    ctx.imageSmoothingQuality = "high";
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const k = Math.min(canvas.width / img.naturalWidth, canvas.height / img.naturalHeight);
+    const dw = img.naturalWidth * k;
+    const dh = img.naturalHeight * k;
+    ctx.drawImage(img, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.95));
+    if (!blob) throw new Error("could not encode the pre-scaled still");
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally {
+    revoke();
+  }
+}
+
 function seek(video: HTMLVideoElement, t: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const done = () => { cleanup(); resolve(); };

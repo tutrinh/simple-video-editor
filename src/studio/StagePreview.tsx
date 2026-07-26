@@ -3,7 +3,7 @@ import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview, { BeatTitleOverlay, StickerOverlay } from "../features/export/FinalPreview";
 import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
-import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, advanceStillPos } from "./util";
+import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, advanceStillPos, kenBurnsStyleAt, kenBurnsKeyframes } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 
 interface ErrorBoundaryProps {
@@ -278,6 +278,13 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     );
   }
 
+  // The move, if this Beat has one. Its keyframes are injected rather than
+  // written inline because CSS has no inline @keyframes; the name is derived
+  // from the move so two Beats with different moves cannot share a rule.
+  const kbMove = clip?.kind === "still" && beat.framing === "kenBurns" ? beat.kenBurns ?? null : null;
+  const kbFrames = kbMove ? kenBurnsKeyframes(kbMove) : null;
+  const kbAnimName = `kb-${beat.id.replace(/[^a-z0-9]/gi, "")}`;
+
   const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
   // Captions now come from the VO track by absolute cut time (decoupled from beats).
   const caption = activeVoCaption(cut.voSegments, elapsedCutSec);
@@ -285,12 +292,23 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
 
   return (
     <>
+      {kbFrames && (
+        <style>{`@keyframes ${kbAnimName}{from{transform:${kbFrames.from}}to{transform:${kbFrames.to}}}`}</style>
+      )}
       <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
         {/* Zoom and rotation are separate layers with separate pivots: zoom
             outside on the focus point, rotation inside on the centre. Nested
             transforms apply child-first, which matches the export's
             rotate-then-zoom order. */}
-        <div style={{ position: "absolute", inset: 0, ...beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY, isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed)) }}>
+        {/* Ken Burns REPLACES the Zoom layer — they are a mode, not a stack
+            (ADR-0015). While playing, one CSS animation between the move's two
+            ends; while paused or scrubbing, the transform sampled from the same
+            contract, because a running animation cannot be scrubbed. */}
+        <div style={{ position: "absolute", inset: 0, ...(kbMove
+          ? (playing
+              ? { animation: `${kbAnimName} ${Math.max(0.05, beat.outSec - beat.inSec)}s linear forwards` }
+              : kenBurnsStyleAt(kbMove, pos))
+          : beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY, isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed))) }}>
           <div style={{ position: "absolute", inset: 0, ...beatRotationStyle(...canvasDims(cut.aspect), beat.rotation) }}>
             {isStill ? (
               // Same wrappers, same grade — only the element differs (ADR-0012).
