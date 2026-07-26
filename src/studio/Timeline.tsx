@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, Sticker } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { createClip } from "../features/ingest/ingest";
-import { fmtSecs, posterBg } from "./util";
+import { fmtSecs } from "./util";
+
 import OverlayPickerModal from "./OverlayPickerModal";
 import SfxPicker from "./SfxPicker";
 import StickerPicker from "./StickerPicker";
@@ -12,6 +13,7 @@ import { beatSpans, resolveSticker } from "../features/export/stickerCanvas";
 
 import { sfxDuration } from "../lib/sfxLibrary";
 import { assignSubLanes } from "./subLanes";
+import { beatPosterBg } from "../lib/beatPosterCache";
 
 
 interface Props {
@@ -46,6 +48,8 @@ export default function Timeline({
   onSelectSticker,
 }: Props) {
   const { dispatch } = useProject();
+  const [, forceUpdate] = useReducer((x) => x + 1, 0);
+
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sfxPickerOpen, setSfxPickerOpen] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
@@ -946,7 +950,8 @@ export default function Timeline({
                           onSelectOverlay?.(null);
                         }}
                       >
-                        <div className="st-bt" style={{ background: posterBg(clip) }}>
+                        <div className="st-bt" style={{ background: beatPosterBg(b, clip, forceUpdate) }}>
+
                           <span className="bn st-num">{String(i + 1).padStart(2, "0")}</span>
                         </div>
                         <div className="st-bcap">{b.captionText}</div>

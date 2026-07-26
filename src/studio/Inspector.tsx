@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
 import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType } from "../domain/types";
@@ -17,6 +17,8 @@ import { canvasDims } from "../features/export/export";
 import { synthesizeVoiceover } from "../lib/tts";
 import { sfxFileUrl } from "../lib/sfxLibrary";
 import Switch from "./Switch";
+import { beatPosterBg } from "../lib/beatPosterCache";
+
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
 const modelLabel = (m: string) => m.replace(/^claude-/, "");
@@ -178,6 +180,8 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
 
 export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker }: Props) {
   const { state, dispatch } = useProject();
+  const [, forceUpdate] = useReducer((x) => x + 1, 0);
+
   const { settings } = useSettings();
   const { settings: es } = useExportSettings();
   const [fitting, setFitting] = useState(false);
@@ -956,7 +960,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     return !!(adj.exposure || adj.contrast || adj.colorTone || adj.warmth || adj.saturation);
   }
 
-  const posterAspect = clip?.width && clip?.height ? `${clip.width} / ${clip.height}` : "16 / 9";
+  const projectAspect = state.cut?.aspect === "9:16" ? "9 / 16" : state.cut?.aspect === "1:1" ? "1 / 1" : "16 / 9";
 
   return (
     <aside className="st-col insp">
@@ -969,13 +973,17 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         <div
           className="st-ip-poster"
           style={{
-            aspectRatio: posterAspect,
-            background: clip?.poster ? `#0a0b0d url(${JSON.stringify(clip.poster)}) center/cover no-repeat` : undefined,
+            aspectRatio: projectAspect,
+            maxHeight: 180,
+            width: "auto",
+            margin: "0 auto 12px",
+            background: beatPosterBg(b, clip, forceUpdate),
             filter: cssFilterFor(b.colorAdjustments),
           }}
         >
           <div className="cap">{b.captionText}</div>
         </div>
+
 
         {SHOW_PER_BEAT_CAPTION_BOX && (
         <div className="st-field">

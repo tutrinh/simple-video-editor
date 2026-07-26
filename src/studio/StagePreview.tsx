@@ -65,24 +65,38 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const posRef = useRef(0);
   const setPosBoth = (p: number) => { posRef.current = p; setPos(p); };
 
-  // 1. Load the selected clip's source using permanent blob cache
+  // 1. Load the selected clip's source using permanent blob cache & sync time to inSec
   useEffect(() => {
     if (mode !== "beat") return;
-    setPosBoth(0);
-    setPlaying(false);
     const v = videoRef.current;
     if (!v || !clip || !beat) return;
+
     const url = getClipBlobUrl(clip.normalized ?? clip.file);
-    if (url && v.src !== url) v.src = url;
-    const onMeta = () => { v.currentTime = beat.inSec; };
-    if (v.readyState >= 1) {
-      v.currentTime = beat.inSec;
-    } else {
-      v.addEventListener("loadedmetadata", onMeta, { once: true });
+    if (url && v.src !== url) {
+      v.src = url;
     }
-    return () => { v.removeEventListener("loadedmetadata", onMeta); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clip?.id, beat?.id, mode]);
+
+    const targetSec = beat.inSec + posRef.current * (beat.outSec - beat.inSec);
+    const syncTime = () => {
+      if (v.readyState >= 1) {
+        v.currentTime = Math.min(targetSec, Math.max(0, (v.duration || 0) - 0.05));
+      }
+    };
+
+    syncTime();
+    v.addEventListener("loadedmetadata", syncTime, { once: true });
+    return () => { v.removeEventListener("loadedmetadata", syncTime); };
+  }, [clip?.id, beat?.id, beat?.inSec, beat?.outSec, mode]);
+
+  // Sync currentTime while paused or when dragging position / inSec
+  useEffect(() => {
+    if (mode !== "beat" || playing) return;
+    const v = videoRef.current;
+    if (!v || !beat || v.readyState < 1) return;
+    const targetSec = beat.inSec + pos * (beat.outSec - beat.inSec);
+    v.currentTime = Math.min(targetSec, Math.max(0, (v.duration || 0) - 0.05));
+  }, [mode, playing, pos, beat?.inSec, beat?.outSec]);
+
 
   // 2. Update beat video volume and muted state dynamically
   useEffect(() => {
