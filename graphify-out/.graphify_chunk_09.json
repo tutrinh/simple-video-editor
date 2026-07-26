@@ -1,0 +1,614 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_real_export_defaults_exportpanel",
+      "label": "Export Panel (right-side overlay drawer)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_exportsummaryline",
+      "label": "Export Summary Line (6 beats · 29.2s · 16:9 · 1080p · burned-in captions)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_captionstyledefaults",
+      "label": "Caption Style Defaults (size 0.5x, underlay opacity 0%, line height 1.00)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_voiceoversettings",
+      "label": "Voiceover Settings (on by default, ElevenLabs provider, Rachel (F) voice)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_musicbedcontrol",
+      "label": "Music Bed Control (optional file, looped/trimmed, ducked, volume 20%)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_titleoverlayfield",
+      "label": "Title Overlay Field (optional, highlighted with focus ring)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_exportpreviewplayer",
+      "label": "Export Preview Player (approx. of final output, Play preview / Restart, beat 1 / 6)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_exportoutputactions",
+      "label": "Export Output Actions (Export video, Script .txt, Captions .srt)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_export_defaults_dimmededitorbackdrop",
+      "label": "Dimmed Editor Backdrop Behind Export Drawer",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_finishedprojectstate",
+      "label": "Finished Project State (7 clips imported, 6-beat cut, 29.2s)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_topbar",
+      "label": "Top Bar (project chips, Start over, Regenerate cut, Export video)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_clipslibrary",
+      "label": "Clips Library Rail (dropzone, thumbnails, durations, usage dots, UNUSED badge)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_previewplayer",
+      "label": "Preview Player with Beat / Cut Scope Toggle",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_storystrip",
+      "label": "Story Strip (project prompt, tone field, '6 of 7 clips used')",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_cuttimeline",
+      "label": "The Cut Timeline (6 numbered beat cards with captions and durations)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_beatinspector",
+      "label": "Beat Inspector Panel (BEAT 05 OF 6)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_trimcontrol",
+      "label": "Trim Control (in/out of source, 20.0–25.5s of 88.0s, Open video scrubber)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_ainudges",
+      "label": "AI Nudges — This Beat Only (Rewrite caption, swap Clip, Remove beat)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_clipdescriptionclaude",
+      "label": "Clip Description · Claude (vlog move, energy, usability 5/5, claude-haiku-4-5)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_final_captionscriptsegment",
+      "label": "Caption / Script Segment Editor",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_real_export_defaults_exportpanel",
+      "target": "design_demos_real_export_defaults_exportsummaryline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportpanel",
+      "target": "design_demos_real_export_defaults_captionstyledefaults",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportpanel",
+      "target": "design_demos_real_export_defaults_voiceoversettings",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportpanel",
+      "target": "design_demos_real_export_defaults_musicbedcontrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportpanel",
+      "target": "design_demos_real_export_defaults_titleoverlayfield",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportpanel",
+      "target": "design_demos_real_export_defaults_exportpreviewplayer",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportpanel",
+      "target": "design_demos_real_export_defaults_exportoutputactions",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_captionstyledefaults",
+      "target": "design_demos_real_export_defaults_exportpreviewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_titleoverlayfield",
+      "target": "design_demos_real_export_defaults_exportpreviewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_voiceoversettings",
+      "target": "design_demos_real_export_defaults_musicbedcontrol",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_dimmededitorbackdrop",
+      "target": "design_demos_real_export_defaults_exportpanel",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportoutputactions",
+      "target": "design_demos_real_export_defaults_voiceoversettings",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_finishedprojectstate",
+      "target": "design_demos_real_final_topbar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_finishedprojectstate",
+      "target": "design_demos_real_final_clipslibrary",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_finishedprojectstate",
+      "target": "design_demos_real_final_previewplayer",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_finishedprojectstate",
+      "target": "design_demos_real_final_storystrip",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_finishedprojectstate",
+      "target": "design_demos_real_final_cuttimeline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_finishedprojectstate",
+      "target": "design_demos_real_final_beatinspector",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_beatinspector",
+      "target": "design_demos_real_final_captionscriptsegment",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_beatinspector",
+      "target": "design_demos_real_final_trimcontrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_beatinspector",
+      "target": "design_demos_real_final_ainudges",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_beatinspector",
+      "target": "design_demos_real_final_clipdescriptionclaude",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_cuttimeline",
+      "target": "design_demos_real_final_beatinspector",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_cuttimeline",
+      "target": "design_demos_real_final_previewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_clipslibrary",
+      "target": "design_demos_real_final_cuttimeline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_storystrip",
+      "target": "design_demos_real_final_cuttimeline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_clipdescriptionclaude",
+      "target": "design_demos_real_final_clipslibrary",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_ainudges",
+      "target": "design_demos_real_final_captionscriptsegment",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_topbar",
+      "target": "design_demos_real_export_defaults_exportpanel",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_captionscriptsegment",
+      "target": "design_demos_real_export_defaults_voiceoversettings",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_cuttimeline",
+      "target": "design_demos_real_export_defaults_exportsummaryline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_exportpreviewplayer",
+      "target": "design_demos_real_final_previewplayer",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_export_defaults_titleoverlayfield",
+      "target": "design_demos_real_final_storystrip",
+      "relation": "semantically_similar_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.3,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_final_trimcontrol",
+      "target": "design_demos_real_final_previewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "export_render_configuration_surface",
+      "label": "Export render configuration: captions, voiceover, music, title feed one preview and three outputs",
+      "nodes": [
+        "design_demos_real_export_defaults_captionstyledefaults",
+        "design_demos_real_export_defaults_voiceoversettings",
+        "design_demos_real_export_defaults_musicbedcontrol",
+        "design_demos_real_export_defaults_titleoverlayfield",
+        "design_demos_real_export_defaults_exportpreviewplayer",
+        "design_demos_real_export_defaults_exportoutputactions"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-export-defaults.png"
+    },
+    {
+      "id": "beat_selection_three_pane_flow",
+      "label": "Beat selection propagates across clips rail, timeline, preview, and inspector",
+      "nodes": [
+        "design_demos_real_final_clipslibrary",
+        "design_demos_real_final_cuttimeline",
+        "design_demos_real_final_previewplayer",
+        "design_demos_real_final_beatinspector"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png"
+    },
+    {
+      "id": "ai_authored_cut_provenance",
+      "label": "AI-authored cut: prompt/tone brief, per-clip Claude description, and per-beat nudges shape the beats",
+      "nodes": [
+        "design_demos_real_final_storystrip",
+        "design_demos_real_final_clipdescriptionclaude",
+        "design_demos_real_final_ainudges",
+        "design_demos_real_final_captionscriptsegment"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-final.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

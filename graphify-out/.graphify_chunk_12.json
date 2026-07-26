@@ -1,0 +1,491 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_real_tone_editorshell",
+      "label": "Reel Editor Three-Column Shell (Tone State)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_topcommandbar",
+      "label": "Top Command Bar (Aspect, 1080p, Duration, Export)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_storybar",
+      "label": "Story Bar — Logline, Vibe Input, Tone Selector",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_toneselectorcinematic",
+      "label": "Tone Selector Set To 'Cinematic / dramatic'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_clipslibrary",
+      "label": "Clips Library Panel With Drop Zone",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_previewplayer",
+      "label": "Preview Player With Caption Overlay And Beat/Cut Toggle",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_thecuttimeline",
+      "label": "The Cut — Numbered Beat Strip Timeline",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_beatinspector",
+      "label": "Beat Inspector Rail (Beat 01 of 6)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_trimcontrol",
+      "label": "Trim In/Out Of Source Range Control",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_ainudges",
+      "label": "AI Nudges — Rewrite Caption / Swap Clip / Remove Beat",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_tone_clipdescriptionclaude",
+      "label": "Claude Clip Description Readout (Vlog Move, Energy, Usability)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_wide_wideaspectstate",
+      "label": "16:9 Wide Aspect Editor State",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_wide_aspectratiotoggle",
+      "label": "Aspect Ratio Segmented Toggle (16:9 / 9:16 / 1:1)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_wide_clipreorderlist",
+      "label": "'In The Cut · Drag To Reorder' Ordered Clip List",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_wide_notinthecutgroup",
+      "label": "'Not In The Cut' Group With +ADD Affordance",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_wide_toneselectorcasual",
+      "label": "Tone Selector Set To 'Casual / authentic'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_wide_widersidebarlayout",
+      "label": "Widened Clips Sidebar Reflow",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_wide_regeneratecutaction",
+      "label": "Start Over / Regenerate Cut / Export Video Actions",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_real_tone_editorshell",
+      "target": "design_demos_real_tone_clipslibrary",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_editorshell",
+      "target": "design_demos_real_tone_previewplayer",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_editorshell",
+      "target": "design_demos_real_tone_beatinspector",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_editorshell",
+      "target": "design_demos_real_tone_topcommandbar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_editorshell",
+      "target": "design_demos_real_tone_storybar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_storybar",
+      "target": "design_demos_real_tone_toneselectorcinematic",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_beatinspector",
+      "target": "design_demos_real_tone_trimcontrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_beatinspector",
+      "target": "design_demos_real_tone_ainudges",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_beatinspector",
+      "target": "design_demos_real_tone_clipdescriptionclaude",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_thecuttimeline",
+      "target": "design_demos_real_tone_beatinspector",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_thecuttimeline",
+      "target": "design_demos_real_tone_previewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_toneselectorcinematic",
+      "target": "design_demos_real_tone_thecuttimeline",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_toneselectorcinematic",
+      "target": "design_demos_real_tone_clipdescriptionclaude",
+      "relation": "conceptually_related_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.25,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_tone_clipslibrary",
+      "target": "design_demos_real_tone_thecuttimeline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_wideaspectstate",
+      "target": "design_demos_real_wide_aspectratiotoggle",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_wideaspectstate",
+      "target": "design_demos_real_wide_widersidebarlayout",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_widersidebarlayout",
+      "target": "design_demos_real_wide_clipreorderlist",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_clipreorderlist",
+      "target": "design_demos_real_wide_notinthecutgroup",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_notinthecutgroup",
+      "target": "design_demos_real_wide_clipreorderlist",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_regeneratecutaction",
+      "target": "design_demos_real_wide_toneselectorcasual",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_toneselectorcasual",
+      "target": "design_demos_real_tone_toneselectorcinematic",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_clipreorderlist",
+      "target": "design_demos_real_tone_clipslibrary",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_wideaspectstate",
+      "target": "design_demos_real_tone_editorshell",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_wide_aspectratiotoggle",
+      "target": "design_demos_real_tone_topcommandbar",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "beat_editing_loop",
+      "label": "Beat Editing Loop: Timeline Selection Drives Preview, Inspector, And AI Nudges",
+      "nodes": [
+        "design_demos_real_tone_thecuttimeline",
+        "design_demos_real_tone_previewplayer",
+        "design_demos_real_tone_beatinspector",
+        "design_demos_real_tone_ainudges",
+        "design_demos_real_tone_trimcontrol"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-tone.png"
+    },
+    {
+      "id": "story_direction_controls",
+      "label": "Story Direction Controls: Logline, Vibe, Tone, And Regenerate Together Steer The Cut",
+      "nodes": [
+        "design_demos_real_tone_storybar",
+        "design_demos_real_tone_toneselectorcinematic",
+        "design_demos_real_wide_toneselectorcasual",
+        "design_demos_real_wide_regeneratecutaction"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png"
+    },
+    {
+      "id": "clip_inclusion_model",
+      "label": "Clip Inclusion Model: In-The-Cut Ordering Versus Unused Pool Versus Timeline",
+      "nodes": [
+        "design_demos_real_wide_clipreorderlist",
+        "design_demos_real_wide_notinthecutgroup",
+        "design_demos_real_tone_clipslibrary",
+        "design_demos_real_tone_thecuttimeline"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-wide.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

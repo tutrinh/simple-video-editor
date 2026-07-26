@@ -1,0 +1,603 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_land_cta_closingctasection",
+      "label": "Closing CTA Section (Reel landing page)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_headline",
+      "label": "Two-Tone Conversion Headline: 'Turn your footage into a reel.'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_primarycta",
+      "label": "Primary CTA Button 'Start editing free' with Amber Glow",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_subheadpromise",
+      "label": "Supporting Promise Line: free, browser-based, no install",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_floatingpillnav",
+      "label": "Floating Pill Navigation Bar with Persistent 'Start editing'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_minimalfooter",
+      "label": "Minimal Three-Zone Footer (logo / links / reassurance)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_privacyreassurance",
+      "label": "Local-Processing Privacy Reassurance: 'Your footage never leaves it'",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_darkambersystem",
+      "label": "Dark Canvas + Single Amber Accent Visual System",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_cta_emptyspacefocus",
+      "label": "Deliberate Empty Space Isolating a Single Action",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_featuressection",
+      "label": "Features Section (Reel landing page)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_painfirstheadline",
+      "label": "Pain-First Headline: 'It does the editing you dread.'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_leftalignedintro",
+      "label": "Left-Aligned Section Intro with Narrow Measure Paragraph",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_bentogrid",
+      "label": "Asymmetric Bento Grid of Four Feature Cards",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_framereadcard",
+      "label": "Hero Photo Card: 'Claude watches every frame'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_storycard",
+      "label": "Feature Card: 'Finds the story across clips'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_captionscard",
+      "label": "Feature Card: 'Writes the captions'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_exportcard",
+      "label": "Amber-Tinted Terminal Card: 'Exports in a click'",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_iconbadges",
+      "label": "Rounded-Square Amber Icon Tiles as Card Signifiers",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_directionsteering",
+      "label": "Single-Line 'Direction' as the User's Only Steering Input",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_desaturatedmedia",
+      "label": "Desaturated Media with Bottom Gradient Scrim for Text Legibility",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_features_pipelinenarrative",
+      "label": "Cards Ordered as the Product Pipeline: watch, story, caption, export",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_land_cta_closingctasection",
+      "target": "design_demos_land_cta_headline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_closingctasection",
+      "target": "design_demos_land_cta_primarycta",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_closingctasection",
+      "target": "design_demos_land_cta_subheadpromise",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_closingctasection",
+      "target": "design_demos_land_cta_floatingpillnav",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_closingctasection",
+      "target": "design_demos_land_cta_minimalfooter",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_minimalfooter",
+      "target": "design_demos_land_cta_privacyreassurance",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_darkambersystem",
+      "target": "design_demos_land_cta_primarycta",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_darkambersystem",
+      "target": "design_demos_land_cta_headline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_emptyspacefocus",
+      "target": "design_demos_land_cta_primarycta",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_privacyreassurance",
+      "target": "design_demos_land_cta_primarycta",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_subheadpromise",
+      "target": "design_demos_land_cta_privacyreassurance",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_cta_floatingpillnav",
+      "target": "design_demos_land_cta_primarycta",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_featuressection",
+      "target": "design_demos_land_features_painfirstheadline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_featuressection",
+      "target": "design_demos_land_features_leftalignedintro",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_featuressection",
+      "target": "design_demos_land_features_bentogrid",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_bentogrid",
+      "target": "design_demos_land_features_framereadcard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_bentogrid",
+      "target": "design_demos_land_features_storycard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_bentogrid",
+      "target": "design_demos_land_features_captionscard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_bentogrid",
+      "target": "design_demos_land_features_exportcard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_storycard",
+      "target": "design_demos_land_features_iconbadges",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_captionscard",
+      "target": "design_demos_land_features_iconbadges",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_exportcard",
+      "target": "design_demos_land_features_iconbadges",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_storycard",
+      "target": "design_demos_land_features_directionsteering",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_desaturatedmedia",
+      "target": "design_demos_land_features_framereadcard",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_pipelinenarrative",
+      "target": "design_demos_land_features_bentogrid",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_painfirstheadline",
+      "target": "design_demos_land_features_framereadcard",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_exportcard",
+      "target": "design_demos_land_cta_primarycta",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_featuressection",
+      "target": "design_demos_land_cta_floatingpillnav",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_exportcard",
+      "target": "design_demos_land_cta_darkambersystem",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_desaturatedmedia",
+      "target": "design_demos_land_cta_emptyspacefocus",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_directionsteering",
+      "target": "design_demos_land_cta_subheadpromise",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.6,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_features_framereadcard",
+      "target": "design_demos_land_cta_privacyreassurance",
+      "relation": "conceptually_related_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.25,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "reel_feature_pipeline_story",
+      "label": "Four cards narrate the watch-to-export pipeline",
+      "nodes": [
+        "design_demos_land_features_framereadcard",
+        "design_demos_land_features_storycard",
+        "design_demos_land_features_captionscard",
+        "design_demos_land_features_exportcard"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-features.png"
+    },
+    {
+      "id": "reel_closing_conversion_stack",
+      "label": "Closing conversion stack: headline, promise, button, reassurance",
+      "nodes": [
+        "design_demos_land_cta_headline",
+        "design_demos_land_cta_subheadpromise",
+        "design_demos_land_cta_primarycta",
+        "design_demos_land_cta_privacyreassurance"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png"
+    },
+    {
+      "id": "reel_amber_on_dark_language",
+      "label": "Amber-on-dark accent language applied across sections",
+      "nodes": [
+        "design_demos_land_cta_darkambersystem",
+        "design_demos_land_cta_primarycta",
+        "design_demos_land_features_iconbadges",
+        "design_demos_land_features_exportcard"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-cta.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

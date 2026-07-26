@@ -1,0 +1,612 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_a_studio_v2_screenshot",
+      "label": "Studio v2 Mockup — Beat 04 Selected",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_clicked_screenshot",
+      "label": "Studio v2 Mockup — Beat 01 Selected (Clicked State)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_projectheaderbar",
+      "label": "Project Header Bar (Reel / Dolomites Weekend, 16:9 1080p, 0:29 6 beats)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_regeneratecutaction",
+      "label": "Regenerate Cut Action",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_exportvideoaction",
+      "label": "Export Video Primary Action",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_clipslibrarypanel",
+      "label": "Clips Library Panel (left rail, 7 source clips with thumbnails, durations, quality dots)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_unusedclipbadge",
+      "label": "UNUSED Clip Badge (camp_night.mov flagged as not in the cut)",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_previewplayer",
+      "label": "Preview Player with Beat Provenance Chip and Burned-in Caption",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_storydirectionbar",
+      "label": "Story / Direction Bar (logline, 'quiet, earned, no hype' direction, 6 of 7 clips used, Edit Direction)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_thecuttimeline",
+      "label": "THE CUT — Beat Strip Timeline (6 numbered beat cards with caption text and per-beat seconds)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_beatinspectorpanel",
+      "label": "Beat Inspector Panel (BEAT n OF 6, right rail)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_captionscriptsegment",
+      "label": "Caption · Script Segment Editor",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_trimwindowcontrol",
+      "label": "Trim · In/Out of Source Window Scrubber",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_ainudgesthisbeatonly",
+      "label": "AI Nudges · This Beat Only (Rewrite caption, Re-pick trim, Swap clip)",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_clipdescriptionclaude",
+      "label": "Clip Description · Claude (Subject/Action, Setting/Mood, Usability score)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_beatcentricediting",
+      "label": "Beat-Centric Editing Model (the beat, not the frame, is the unit of edit)",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_scopedairevision",
+      "label": "Scoped AI Revision — Regenerate All vs. Nudge One Beat",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_clicked_beatselectionsync",
+      "label": "Beat Selection Synchronizes Timeline, Preview and Inspector",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_clicked_playheadmarker",
+      "label": "Playhead Marker Snapping to Selected Beat Card",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_v2_clicked_darkstudiotheme",
+      "label": "Dark Studio Theme with Amber Accent and Warm Gradient Thumbnails",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_a_studio_v2_screenshot",
+      "target": "design_demos_a_studio_v2_projectheaderbar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_screenshot",
+      "target": "design_demos_a_studio_v2_clipslibrarypanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_screenshot",
+      "target": "design_demos_a_studio_v2_previewplayer",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_screenshot",
+      "target": "design_demos_a_studio_v2_storydirectionbar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_screenshot",
+      "target": "design_demos_a_studio_v2_thecuttimeline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_screenshot",
+      "target": "design_demos_a_studio_v2_beatinspectorpanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_projectheaderbar",
+      "target": "design_demos_a_studio_v2_regeneratecutaction",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_projectheaderbar",
+      "target": "design_demos_a_studio_v2_exportvideoaction",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clipslibrarypanel",
+      "target": "design_demos_a_studio_v2_unusedclipbadge",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_beatinspectorpanel",
+      "target": "design_demos_a_studio_v2_captionscriptsegment",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_beatinspectorpanel",
+      "target": "design_demos_a_studio_v2_trimwindowcontrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_beatinspectorpanel",
+      "target": "design_demos_a_studio_v2_ainudgesthisbeatonly",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_beatinspectorpanel",
+      "target": "design_demos_a_studio_v2_clipdescriptionclaude",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_beatcentricediting",
+      "target": "design_demos_a_studio_v2_thecuttimeline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_beatcentricediting",
+      "target": "design_demos_a_studio_v2_beatinspectorpanel",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_scopedairevision",
+      "target": "design_demos_a_studio_v2_ainudgesthisbeatonly",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_scopedairevision",
+      "target": "design_demos_a_studio_v2_regeneratecutaction",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_captionscriptsegment",
+      "target": "design_demos_a_studio_v2_previewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_captionscriptsegment",
+      "target": "design_demos_a_studio_v2_thecuttimeline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clipdescriptionclaude",
+      "target": "design_demos_a_studio_v2_clipslibrarypanel",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_storydirectionbar",
+      "target": "design_demos_a_studio_v2_regeneratecutaction",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_storydirectionbar",
+      "target": "design_demos_a_studio_v2_unusedclipbadge",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_trimwindowcontrol",
+      "target": "design_demos_a_studio_v2_clipslibrarypanel",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_screenshot",
+      "target": "design_demos_a_studio_v2_screenshot",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_screenshot",
+      "target": "design_demos_a_studio_v2_clicked_beatselectionsync",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_screenshot",
+      "target": "design_demos_a_studio_v2_clicked_playheadmarker",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_screenshot",
+      "target": "design_demos_a_studio_v2_clicked_darkstudiotheme",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_beatselectionsync",
+      "target": "design_demos_a_studio_v2_thecuttimeline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_beatselectionsync",
+      "target": "design_demos_a_studio_v2_beatinspectorpanel",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_beatselectionsync",
+      "target": "design_demos_a_studio_v2_previewplayer",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clicked_playheadmarker",
+      "target": "design_demos_a_studio_v2_previewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_clipdescriptionclaude",
+      "target": "design_demos_a_studio_v2_unusedclipbadge",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.7,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_beatcentricediting",
+      "target": "design_demos_a_studio_v2_clicked_beatselectionsync",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_v2_previewplayer",
+      "target": "design_demos_a_studio_v2_clipslibrarypanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "beat_selection_three_panel_sync",
+      "label": "Selecting a Beat Drives Timeline, Preview and Inspector Together",
+      "nodes": [
+        "design_demos_a_studio_v2_thecuttimeline",
+        "design_demos_a_studio_v2_previewplayer",
+        "design_demos_a_studio_v2_beatinspectorpanel",
+        "design_demos_a_studio_v2_clicked_playheadmarker"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2-clicked.png"
+    },
+    {
+      "id": "per_beat_refinement_loop",
+      "label": "Per-Beat Refinement Loop: Caption, Trim, Clip Swap, AI Nudge",
+      "nodes": [
+        "design_demos_a_studio_v2_captionscriptsegment",
+        "design_demos_a_studio_v2_trimwindowcontrol",
+        "design_demos_a_studio_v2_ainudgesthisbeatonly",
+        "design_demos_a_studio_v2_clipdescriptionclaude"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png"
+    },
+    {
+      "id": "footage_to_export_pipeline",
+      "label": "Footage-to-Export Pipeline: Clips, Direction, Generated Cut, Export",
+      "nodes": [
+        "design_demos_a_studio_v2_clipslibrarypanel",
+        "design_demos_a_studio_v2_storydirectionbar",
+        "design_demos_a_studio_v2_thecuttimeline",
+        "design_demos_a_studio_v2_exportvideoaction"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio-v2.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

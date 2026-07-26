@@ -1,0 +1,577 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_real_916_verticalaspectstate",
+      "label": "9:16 Vertical Aspect Ratio App State",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_aspectratiosegmentedcontrol",
+      "label": "Aspect Ratio Segmented Control (16:9 / 9:16 / 1:1)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_topbar",
+      "label": "Reel Top Bar (project title, format chips, Start over / Regenerate cut / Export video)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_verticalpreviewcanvas",
+      "label": "Vertical Preview Canvas with Pillarboxing",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_clipslibrarypanel",
+      "label": "Clips Library Panel with Drop Zone",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_unusedclipbadge",
+      "label": "UNUSED Clip Badge (camp_night.mov excluded from cut)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_beatinspectorpanel",
+      "label": "Beat Inspector Panel (Beat 01 of 6)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_trimcontrol",
+      "label": "Trim In/Out of Source Range Slider",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_ainudgessection",
+      "label": "AI Nudges (Rewrite caption, clip swap, Remove beat)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_thecuttimeline",
+      "label": "The Cut Timeline Strip (numbered beat cards with captions and durations)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_storybar",
+      "label": "Story Bar (logline plus tone prompt and clips-used counter)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_beatcuttoggle",
+      "label": "Beat / Cut Playback Scope Toggle",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_916_clipdescriptionclaude",
+      "label": "Clip Description by Claude (Vlog Move / Energy / Usability score)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_addclipflowstate",
+      "label": "Add-Clip Flow State (7 of 7 clips used, 16:9)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_appendedbeat07",
+      "label": "Appended Beat 07 (camp_night.mov added to the cut)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_clipsourcedropdown",
+      "label": "Beat Clip Source Dropdown (Clip: camp_night.mov)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_selectedclipcard",
+      "label": "Selected Clip Card (camp_night.mov, badge replaced by quality dots)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_lowusabilitywarning",
+      "label": "Low Usability Verdict (2/5 - too dark to read, breaks the daylight arc)",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_captioneditor",
+      "label": "Caption / Script Segment Text Editor",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_durationrecompute",
+      "label": "Cut Duration Recompute (0:29 6 beats to 0:32 7 beats)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_widepreviewcanvas",
+      "label": "16:9 Wide Preview Canvas with Letterboxed Caption Overlay",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_addclip_threepanelshell",
+      "label": "Three-Panel Editor Shell (library / stage / inspector over timeline)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_real_916_topbar",
+      "target": "design_demos_real_916_aspectratiosegmentedcontrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_aspectratiosegmentedcontrol",
+      "target": "design_demos_real_916_verticalaspectstate",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_verticalaspectstate",
+      "target": "design_demos_real_916_verticalpreviewcanvas",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_clipslibrarypanel",
+      "target": "design_demos_real_916_unusedclipbadge",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_unusedclipbadge",
+      "target": "design_demos_real_916_storybar",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_beatinspectorpanel",
+      "target": "design_demos_real_916_trimcontrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_beatinspectorpanel",
+      "target": "design_demos_real_916_ainudgessection",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_beatinspectorpanel",
+      "target": "design_demos_real_916_clipdescriptionclaude",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_thecuttimeline",
+      "target": "design_demos_real_916_beatinspectorpanel",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_thecuttimeline",
+      "target": "design_demos_real_916_verticalpreviewcanvas",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_beatcuttoggle",
+      "target": "design_demos_real_916_verticalpreviewcanvas",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_trimcontrol",
+      "target": "design_demos_real_916_thecuttimeline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_storybar",
+      "target": "design_demos_real_916_thecuttimeline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_clipsourcedropdown",
+      "target": "design_demos_real_addclip_appendedbeat07",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_appendedbeat07",
+      "target": "design_demos_real_addclip_addclipflowstate",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_appendedbeat07",
+      "target": "design_demos_real_addclip_durationrecompute",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_selectedclipcard",
+      "target": "design_demos_real_addclip_appendedbeat07",
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_lowusabilitywarning",
+      "target": "design_demos_real_addclip_appendedbeat07",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_captioneditor",
+      "target": "design_demos_real_addclip_widepreviewcanvas",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_threepanelshell",
+      "target": "design_demos_real_addclip_widepreviewcanvas",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_threepanelshell",
+      "target": "design_demos_real_916_clipslibrarypanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_threepanelshell",
+      "target": "design_demos_real_916_beatinspectorpanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_addclipflowstate",
+      "target": "design_demos_real_916_unusedclipbadge",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_widepreviewcanvas",
+      "target": "design_demos_real_916_verticalpreviewcanvas",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_lowusabilitywarning",
+      "target": "design_demos_real_916_clipdescriptionclaude",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_addclip_lowusabilitywarning",
+      "target": "design_demos_real_916_ainudgessection",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_unusedclipbadge",
+      "target": "design_demos_real_addclip_lowusabilitywarning",
+      "relation": "rationale_for",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.3,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_916_aspectratiosegmentedcontrol",
+      "target": "design_demos_real_addclip_durationrecompute",
+      "relation": "conceptually_related_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.2,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "add_clip_to_cut_flow",
+      "label": "Adding an unused clip promotes it into a new trailing beat",
+      "nodes": [
+        "design_demos_real_916_unusedclipbadge",
+        "design_demos_real_addclip_selectedclipcard",
+        "design_demos_real_addclip_clipsourcedropdown",
+        "design_demos_real_addclip_appendedbeat07",
+        "design_demos_real_addclip_durationrecompute"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-addclip.png"
+    },
+    {
+      "id": "aspect_ratio_reframing_surface",
+      "label": "Aspect ratio choice reframes preview, caption layout, and timeline readout",
+      "nodes": [
+        "design_demos_real_916_aspectratiosegmentedcontrol",
+        "design_demos_real_916_verticalaspectstate",
+        "design_demos_real_916_verticalpreviewcanvas",
+        "design_demos_real_addclip_widepreviewcanvas",
+        "design_demos_real_916_thecuttimeline"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png"
+    },
+    {
+      "id": "beat_level_ai_editorial_loop",
+      "label": "Per-beat AI editorial loop: caption, nudges, and clip usability verdict",
+      "nodes": [
+        "design_demos_real_916_beatinspectorpanel",
+        "design_demos_real_916_ainudgessection",
+        "design_demos_real_916_clipdescriptionclaude",
+        "design_demos_real_addclip_captioneditor",
+        "design_demos_real_addclip_lowusabilitywarning"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-916.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -1,0 +1,508 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_c_guided",
+      "label": "Design Direction C — Guided Wizard (light theme)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_c_guided_stepprogresssidebar",
+      "label": "Step Progress Sidebar (Add footage / Let Claude cut it / Refine & export)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_c_guided_storyfoundcard",
+      "label": "'The Story Claude Found' Summary Card with Beats/Runtime/Clips Stats",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_c_guided_beatcardgrid",
+      "label": "Beat Card Grid ('THE CUT · 6 BEATS' with Reorder)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_c_guided_readytoexportbar",
+      "label": "'Ready to export' Bar with Aspect Ratio Toggles and Voiceover",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_c_guided_recutwithdirection",
+      "label": "'Re-cut with a Direction' Action",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_c_guided_claudeproposesyoudecide",
+      "label": "Rationale: 'Claude proposes the first cut. You have the final say on every beat.'",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11",
+      "label": "Shipped Editor Workspace — Three-Pane Dark Layout (REAL-11)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_topbar",
+      "label": "Top Bar (aspect ratio, 1080p, 0:29 · 6 beats, 7 clips, Start over, Regenerate cut, Export video)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_clipspanel",
+      "label": "Clips Panel with Drop Zone, Usability Dots and UNUSED Badge",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_previewplayer",
+      "label": "Preview Player with Burned-in Caption and Beat/Cut Scope Toggle",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_storystrip",
+      "label": "Story Strip — Logline plus Direction Input ('quiet, earned, no hype')",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_cutfilmstrip",
+      "label": "'THE CUT' Beat Filmstrip Timeline with Per-Beat Trim Handles",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_beatinspector",
+      "label": "Beat Inspector (Beat 01 of 6 — caption editor, trim in/out, video scrubber)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_ainudges",
+      "label": "AI Nudges · This Beat Only (Rewrite caption, swap clip, Remove beat)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_11_clipdescription",
+      "label": "Clip Description · Claude (Vlog Move, Energy, Usability 5/5, claude-haiku-4-5)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_c_guided",
+      "target": "design_demos_c_guided_stepprogresssidebar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided",
+      "target": "design_demos_c_guided_storyfoundcard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided",
+      "target": "design_demos_c_guided_beatcardgrid",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided",
+      "target": "design_demos_c_guided_readytoexportbar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided",
+      "target": "design_demos_c_guided_recutwithdirection",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_claudeproposesyoudecide",
+      "target": "design_demos_c_guided_beatcardgrid",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_claudeproposesyoudecide",
+      "target": "design_demos_c_guided_stepprogresssidebar",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_storyfoundcard",
+      "target": "design_demos_c_guided_beatcardgrid",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_recutwithdirection",
+      "target": "design_demos_c_guided_beatcardgrid",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11",
+      "target": "design_demos_real_11_topbar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11",
+      "target": "design_demos_real_11_clipspanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11",
+      "target": "design_demos_real_11_previewplayer",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11",
+      "target": "design_demos_real_11_storystrip",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11",
+      "target": "design_demos_real_11_cutfilmstrip",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11",
+      "target": "design_demos_real_11_beatinspector",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11_beatinspector",
+      "target": "design_demos_real_11_ainudges",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11_beatinspector",
+      "target": "design_demos_real_11_clipdescription",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11_cutfilmstrip",
+      "target": "design_demos_real_11_beatinspector",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11_cutfilmstrip",
+      "target": "design_demos_real_11_previewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11_clipspanel",
+      "target": "design_demos_real_11_clipdescription",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11_clipspanel",
+      "target": "design_demos_real_11_ainudges",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_11_storystrip",
+      "target": "design_demos_real_11_topbar",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_beatcardgrid",
+      "target": "design_demos_real_11_cutfilmstrip",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_recutwithdirection",
+      "target": "design_demos_real_11_storystrip",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_storyfoundcard",
+      "target": "design_demos_real_11_topbar",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_readytoexportbar",
+      "target": "design_demos_real_11_topbar",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided_claudeproposesyoudecide",
+      "target": "design_demos_real_11_ainudges",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_c_guided",
+      "target": "design_demos_real_11",
+      "relation": "conceptually_related_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.3,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "guided_three_step_cut_flow",
+      "label": "Guided three-step flow: import footage, Claude cuts, refine and export",
+      "nodes": [
+        "design_demos_c_guided_stepprogresssidebar",
+        "design_demos_c_guided_storyfoundcard",
+        "design_demos_c_guided_beatcardgrid",
+        "design_demos_c_guided_readytoexportbar"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/C-guided.png"
+    },
+    {
+      "id": "shipped_beat_editing_loop",
+      "label": "Shipped beat-editing loop: select on filmstrip, preview, tweak in inspector",
+      "nodes": [
+        "design_demos_real_11_cutfilmstrip",
+        "design_demos_real_11_previewplayer",
+        "design_demos_real_11_beatinspector",
+        "design_demos_real_11_ainudges"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png"
+    },
+    {
+      "id": "claude_authored_surfaces",
+      "label": "Claude-authored surfaces: story logline, per-clip description, and beat nudges",
+      "nodes": [
+        "design_demos_real_11_storystrip",
+        "design_demos_real_11_clipdescription",
+        "design_demos_real_11_ainudges",
+        "design_demos_c_guided_storyfoundcard"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-11.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

@@ -1,0 +1,541 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_a_studio_mockup",
+      "label": "Design Direction A — Studio (dark NLE workspace mockup)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_topbar",
+      "label": "A-Studio Top Bar (Reel / Dolomites Weekend, 16:9 1080p, 0:29 6 beats)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_clipslibrarypanel",
+      "label": "A-Studio Clips Library Panel (left rail, 7 clips with thumbnails, durations, usability dots, UNUSED badge)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_previewplayer",
+      "label": "A-Studio Preview Player (center canvas, beat badge overlay, burned-in caption, scrub bar 0:16 / 0:29)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_thecuttimeline",
+      "label": "A-Studio THE CUT Timeline Strip (6 numbered beat cards with captions and durations, playhead on beat 04)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_beatinspector",
+      "label": "A-Studio Beat Inspector (right rail: BEAT 04 OF 6, caption/script segment, trim in-out of source)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_ainudgespanel",
+      "label": "A-Studio AI Nudges — This Beat Only (Rewrite caption, Re-pick trim, Swap clip)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_clipdescriptionclaude",
+      "label": "A-Studio Clip Description by Claude (Subject/Action, Setting/Mood, Usability score 5/5)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_rationale_prosumernle",
+      "label": "Rationale A — Familiar prosumer NLE layout: dark chrome, four-rail workspace, direct manipulation of every beat",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_rationale_beatasunit",
+      "label": "Design Decision — The beat is the editing unit (clip + caption + trim window), not the raw frame",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_a_studio_rationale_scopedai",
+      "label": "Design Decision — AI assistance is scoped and reversible: per-beat nudges rather than a whole-timeline regenerate",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_mockup",
+      "label": "Design Direction B — Storyboard (light editorial document mockup)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_curatorheader",
+      "label": "B-Storyboard Curator Header (brand mark, 6 beats 0:29 meta, Re-cut the story, Export film)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_storymasthead",
+      "label": "B-Storyboard Story Masthead (serif headline of the generated narrative, Claude's rationale paragraph)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_directionchips",
+      "label": "B-Storyboard Direction Chips (Direction: quiet, earned, no hype / 16:9 1080p / 1 clip set aside)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_beatcardlist",
+      "label": "B-Storyboard THE CUT Beat Card List (numbered vertical spine, thumbnail + filename + duration, caption, sub-line, time range, Rewrite)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_rationale_editorialdocument",
+      "label": "Rationale B — Read the edit as a document: warm paper palette, serif typography, single scrolling column instead of an NLE",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_rationale_narrativefirst",
+      "label": "Design Decision — Narrative-first framing: the AI states the story it found and the direction it followed before showing any footage controls",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_b_storyboard_rationale_noscrubbing",
+      "label": "Design Decision — No timeline scrubbing or preview player; editing is limited to rewriting lines and re-cutting the whole story",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_a_studio_mockup",
+      "target": "design_demos_a_studio_topbar",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_mockup",
+      "target": "design_demos_a_studio_clipslibrarypanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_mockup",
+      "target": "design_demos_a_studio_previewplayer",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_mockup",
+      "target": "design_demos_a_studio_thecuttimeline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_mockup",
+      "target": "design_demos_a_studio_beatinspector",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_beatinspector",
+      "target": "design_demos_a_studio_ainudgespanel",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_beatinspector",
+      "target": "design_demos_a_studio_clipdescriptionclaude",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_thecuttimeline",
+      "target": "design_demos_a_studio_beatinspector",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_thecuttimeline",
+      "target": "design_demos_a_studio_previewplayer",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_clipslibrarypanel",
+      "target": "design_demos_a_studio_thecuttimeline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_clipdescriptionclaude",
+      "target": "design_demos_a_studio_clipslibrarypanel",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_rationale_prosumernle",
+      "target": "design_demos_a_studio_mockup",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_rationale_beatasunit",
+      "target": "design_demos_a_studio_beatinspector",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_a_studio_rationale_scopedai",
+      "target": "design_demos_a_studio_ainudgespanel",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_mockup",
+      "target": "design_demos_b_storyboard_curatorheader",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_mockup",
+      "target": "design_demos_b_storyboard_storymasthead",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_mockup",
+      "target": "design_demos_b_storyboard_beatcardlist",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_storymasthead",
+      "target": "design_demos_b_storyboard_directionchips",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_directionchips",
+      "target": "design_demos_b_storyboard_beatcardlist",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_rationale_editorialdocument",
+      "target": "design_demos_b_storyboard_mockup",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_rationale_narrativefirst",
+      "target": "design_demos_b_storyboard_storymasthead",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_rationale_noscrubbing",
+      "target": "design_demos_b_storyboard_beatcardlist",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_mockup",
+      "target": "design_demos_a_studio_mockup",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_beatcardlist",
+      "target": "design_demos_a_studio_thecuttimeline",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_directionchips",
+      "target": "design_demos_a_studio_topbar",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_storymasthead",
+      "target": "design_demos_a_studio_clipdescriptionclaude",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_rationale_editorialdocument",
+      "target": "design_demos_a_studio_rationale_prosumernle",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_b_storyboard_curatorheader",
+      "target": "design_demos_a_studio_topbar",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "a_studio_four_rail_beat_editing_workspace",
+      "label": "A-Studio four-rail workspace: select a clip, scrub the preview, pick a beat on the timeline, refine it in the inspector",
+      "nodes": [
+        "design_demos_a_studio_clipslibrarypanel",
+        "design_demos_a_studio_previewplayer",
+        "design_demos_a_studio_thecuttimeline",
+        "design_demos_a_studio_beatinspector"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png"
+    },
+    {
+      "id": "b_storyboard_narrative_scroll_flow",
+      "label": "B-Storyboard top-to-bottom narrative flow: brand/export header, story premise, constraint chips, then the beat cards",
+      "nodes": [
+        "design_demos_b_storyboard_curatorheader",
+        "design_demos_b_storyboard_storymasthead",
+        "design_demos_b_storyboard_directionchips",
+        "design_demos_b_storyboard_beatcardlist"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/B-storyboard.png"
+    },
+    {
+      "id": "competing_directions_ai_authored_beat_cut",
+      "label": "Both directions render the same underlying artifact — an AI-authored 6-beat, 0:29 cut of 7 clips with one set aside",
+      "nodes": [
+        "design_demos_a_studio_mockup",
+        "design_demos_b_storyboard_mockup",
+        "design_demos_a_studio_thecuttimeline",
+        "design_demos_b_storyboard_beatcardlist"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/A-studio.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

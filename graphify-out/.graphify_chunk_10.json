@@ -1,0 +1,583 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_real_music_lib_exportpanel",
+      "label": "Export Panel (Right Drawer)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_music_lib_musicbedlibrary",
+      "label": "Music Bed Library Picker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_music_lib_trackauditionrow",
+      "label": "Track Row with Play/Pause Audition and Single-Select Checkbox",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_music_lib_customtrackupload",
+      "label": "Choose Your Own Music File Upload",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_music_lib_voiceovercontrols",
+      "label": "Voiceover Controls (ElevenLabs Provider, Voice, Speed, Pause)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_music_lib_captionstyling",
+      "label": "Burned-in Caption Styling Sliders",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_music_lib_musicduckingrationale",
+      "label": "Music Ducked Under Voiceover, Looped and Trimmed to Length",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_music_lib_exportpreview",
+      "label": "Export Preview of Approximate Final Output",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_editorshell",
+      "label": "Three-Column Editor Shell (Clips, Stage, Beat Inspector)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_clipsrail",
+      "label": "Clips Rail with Drop Zone and Usage Dots",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_thecuttimeline",
+      "label": "The Cut Beat Timeline Strip",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_beatinspector",
+      "label": "Beat Inspector Panel (Beat 05 of 6)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_trimrangecontrol",
+      "label": "Trim In/Out of Source Dual-Handle Control",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_ainudges",
+      "label": "AI Nudges for This Beat Only (Rewrite Caption, Swap Clip, Remove Beat)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_clipdescriptionclaude",
+      "label": "Clip Description by Claude (Vlog Move, Energy, Usability)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_storybar",
+      "label": "Story Bar with Tone Prompt and Clip Usage Counter",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_stagepreview",
+      "label": "Stage Preview with Beat/Cut Scope Toggle",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_beatselectionstate",
+      "label": "Beat Selection State (Clip, Timeline, Inspector Co-highlight)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_unusedclipbadge",
+      "label": "Unused Clip Badge (camp_night.mov)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_real_seeded_click_topbaractions",
+      "label": "Top Bar Actions (Start Over, Regenerate Cut, Export Video)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_real_music_lib_exportpanel",
+      "target": "design_demos_real_music_lib_musicbedlibrary",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_musicbedlibrary",
+      "target": "design_demos_real_music_lib_trackauditionrow",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_musicbedlibrary",
+      "target": "design_demos_real_music_lib_customtrackupload",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_musicduckingrationale",
+      "target": "design_demos_real_music_lib_musicbedlibrary",
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_musicbedlibrary",
+      "target": "design_demos_real_music_lib_voiceovercontrols",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_exportpanel",
+      "target": "design_demos_real_music_lib_captionstyling",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_exportpanel",
+      "target": "design_demos_real_music_lib_voiceovercontrols",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_exportpreview",
+      "target": "design_demos_real_music_lib_captionstyling",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_trackauditionrow",
+      "target": "design_demos_real_music_lib_customtrackupload",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_editorshell",
+      "target": "design_demos_real_seeded_click_clipsrail",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_editorshell",
+      "target": "design_demos_real_seeded_click_stagepreview",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_editorshell",
+      "target": "design_demos_real_seeded_click_beatinspector",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_editorshell",
+      "target": "design_demos_real_seeded_click_thecuttimeline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_beatinspector",
+      "target": "design_demos_real_seeded_click_trimrangecontrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_beatinspector",
+      "target": "design_demos_real_seeded_click_ainudges",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_beatinspector",
+      "target": "design_demos_real_seeded_click_clipdescriptionclaude",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_beatselectionstate",
+      "target": "design_demos_real_seeded_click_thecuttimeline",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_beatselectionstate",
+      "target": "design_demos_real_seeded_click_clipsrail",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_beatselectionstate",
+      "target": "design_demos_real_seeded_click_beatinspector",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_unusedclipbadge",
+      "target": "design_demos_real_seeded_click_storybar",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_unusedclipbadge",
+      "target": "design_demos_real_seeded_click_clipsrail",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_storybar",
+      "target": "design_demos_real_seeded_click_thecuttimeline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_topbaractions",
+      "target": "design_demos_real_music_lib_exportpanel",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_topbaractions",
+      "target": "design_demos_real_seeded_click_thecuttimeline",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_ainudges",
+      "target": "design_demos_real_seeded_click_clipdescriptionclaude",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_seeded_click_trimrangecontrol",
+      "target": "design_demos_real_seeded_click_stagepreview",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_exportpreview",
+      "target": "design_demos_real_seeded_click_stagepreview",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_trackauditionrow",
+      "target": "design_demos_real_seeded_click_clipsrail",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_voiceovercontrols",
+      "target": "design_demos_real_seeded_click_beatinspector",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_exportpanel",
+      "target": "design_demos_real_seeded_click_editorshell",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_real_music_lib_captionstyling",
+      "target": "design_demos_real_seeded_click_beatinspector",
+      "relation": "shares_data_with",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.3,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "export_audio_bed_composition",
+      "label": "Export audio composition: voiceover narration, music bed, and ducking policy resolved together",
+      "nodes": [
+        "design_demos_real_music_lib_voiceovercontrols",
+        "design_demos_real_music_lib_musicbedlibrary",
+        "design_demos_real_music_lib_customtrackupload",
+        "design_demos_real_music_lib_musicduckingrationale"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-music-lib.png"
+    },
+    {
+      "id": "selected_beat_tri_pane_sync",
+      "label": "Selecting a beat synchronizes clips rail, timeline, stage preview, and inspector",
+      "nodes": [
+        "design_demos_real_seeded_click_beatselectionstate",
+        "design_demos_real_seeded_click_clipsrail",
+        "design_demos_real_seeded_click_thecuttimeline",
+        "design_demos_real_seeded_click_stagepreview",
+        "design_demos_real_seeded_click_beatinspector"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png"
+    },
+    {
+      "id": "ai_authored_cut_loop",
+      "label": "AI-authored cut loop: story prompt drives generated beats, per-beat nudges, and Claude clip descriptions",
+      "nodes": [
+        "design_demos_real_seeded_click_storybar",
+        "design_demos_real_seeded_click_ainudges",
+        "design_demos_real_seeded_click_clipdescriptionclaude",
+        "design_demos_real_seeded_click_topbaractions"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/REAL-seeded-click.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

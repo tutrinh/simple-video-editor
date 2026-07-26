@@ -1,0 +1,528 @@
+{
+  "nodes": [
+    {
+      "id": "stickers_arrow_down_arrowdown",
+      "label": "Arrow Down Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_arrow_left_arrowleft",
+      "label": "Arrow Left Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-left.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_arrow_right_arrowright",
+      "label": "Arrow Right Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-right.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_camera_camera",
+      "label": "Camera Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/camera.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_chevron_down_chevrondown",
+      "label": "Chevron Down Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-down.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_chevron_left_chevronleft",
+      "label": "Chevron Left Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-left.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_chevron_right_chevronright",
+      "label": "Chevron Right Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-right.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_chevron_up_chevronup",
+      "label": "Chevron Up Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-up.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_circle_check_circlecheck",
+      "label": "Circle Check Sticker",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle-check.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_arrow_down_viewbox24grid",
+      "label": "Shared 24x24 viewBox Grid",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_arrow_down_currentcolorfill",
+      "label": "currentColor Fill Convention",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_chevron_down_filledpathnostroke",
+      "label": "Filled Path, No Stroke Icon Style",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-down.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_chevron_right_kebabcasenaming",
+      "label": "Kebab-Case Sticker Naming Scheme",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-right.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "stickers_arrow_down_arrowdown",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_left_arrowleft",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-left.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_right_arrowright",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-right.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_camera_camera",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/camera.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_down_chevrondown",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_left_chevronleft",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-left.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_right_chevronright",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-right.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_up_chevronup",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-up.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_circle_check_circlecheck",
+      "target": "stickers_arrow_down_viewbox24grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle-check.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_down_arrowdown",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_left_arrowleft",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-left.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_right_arrowright",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-right.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_down_chevrondown",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_left_chevronleft",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-left.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_right_chevronright",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-right.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_up_chevronup",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-up.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_circle_check_circlecheck",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle-check.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_camera_camera",
+      "target": "stickers_arrow_down_currentcolorfill",
+      "relation": "conceptually_related_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.2,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/camera.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_down_arrowdown",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_left_arrowleft",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-left.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_right_arrowright",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-right.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_camera_camera",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/camera.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_down_chevrondown",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_left_chevronleft",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-left.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_right_chevronright",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-right.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_up_chevronup",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-up.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_circle_check_circlecheck",
+      "target": "stickers_chevron_down_filledpathnostroke",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle-check.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_down_arrowdown",
+      "target": "stickers_chevron_right_kebabcasenaming",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_chevron_up_chevronup",
+      "target": "stickers_chevron_right_kebabcasenaming",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-up.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_circle_check_circlecheck",
+      "target": "stickers_chevron_right_kebabcasenaming",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle-check.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_camera_camera",
+      "target": "stickers_chevron_right_kebabcasenaming",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/camera.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_arrow_down_arrowdown",
+      "target": "stickers_chevron_down_chevrondown",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_circle_check_circlecheck",
+      "target": "stickers_camera_camera",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.55,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle-check.svg",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "directional_arrow_family",
+      "label": "Directional Arrow Sticker Family",
+      "nodes": [
+        "stickers_arrow_down_arrowdown",
+        "stickers_arrow_left_arrowleft",
+        "stickers_arrow_right_arrowright"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg"
+    },
+    {
+      "id": "chevron_direction_family",
+      "label": "Four-Way Chevron Sticker Family",
+      "nodes": [
+        "stickers_chevron_down_chevrondown",
+        "stickers_chevron_left_chevronleft",
+        "stickers_chevron_right_chevronright",
+        "stickers_chevron_up_chevronup"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/chevron-down.svg"
+    },
+    {
+      "id": "themeable_46px_sticker_cohort",
+      "label": "Themeable 46px currentColor Sticker Cohort",
+      "nodes": [
+        "stickers_arrow_down_arrowdown",
+        "stickers_arrow_left_arrowleft",
+        "stickers_arrow_right_arrowright",
+        "stickers_chevron_down_chevrondown",
+        "stickers_chevron_left_chevronleft",
+        "stickers_chevron_right_chevronright",
+        "stickers_chevron_up_chevronup",
+        "stickers_circle_check_circlecheck"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/arrow-down.svg"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

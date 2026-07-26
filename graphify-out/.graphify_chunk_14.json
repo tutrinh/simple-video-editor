@@ -1,0 +1,542 @@
+{
+  "nodes": [
+    {
+      "id": "design_demos_land_hero_herosection",
+      "label": "Full-Bleed Cinematic Hero Section",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_heroheadline",
+      "label": "Headline: Drop the Footage. Keep the Story.",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_twotonesplitheadline",
+      "label": "Two-Tone Split Headline Pattern",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_amberondarkpalette",
+      "label": "Amber-on-Near-Black Accent Palette",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_floatingpillnav",
+      "label": "Floating Pill Navigation Bar",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_reelbrandmark",
+      "label": "Reel Brand Mark and Play-Glyph Logo",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_dualctapair",
+      "label": "Dual CTA Pair: Start Editing Free / See How It Works",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_browsernativepromise",
+      "label": "Messaging: All In The Browser, No Install",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_aiwatchesclipssubhead",
+      "label": "Subhead: AI Watches Clips, Finds Story, Writes Captions",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_hero_darkenedfootagebackdrop",
+      "label": "Darkened Full-Bleed Footage Backdrop",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_howitworkssection",
+      "label": "How It Works Section",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_sectionheadline",
+      "label": "Headline: From Raw Clips To A Finished Reel",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_inlineimagechipheadline",
+      "label": "Inline Image-Chip Headline Treatment",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_threestepcardgrid",
+      "label": "Three-Column Numbered Step Card Grid",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_stepdropyourclips",
+      "label": "Step 01: Drop Your Clips",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_stepclaudecutsit",
+      "label": "Step 02: Claude Cuts It",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_steprefineandexport",
+      "label": "Step 03: Refine And Export",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_grayscaletocolorprogression",
+      "label": "Grayscale-To-Color Card Progression",
+      "file_type": "rationale",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "design_demos_land_how_persistentpillnavoverlay",
+      "label": "Persistent Pill Nav Overlaying Scrolled Sections",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "design_demos_land_hero_herosection",
+      "target": "design_demos_land_hero_heroheadline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_herosection",
+      "target": "design_demos_land_hero_floatingpillnav",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_herosection",
+      "target": "design_demos_land_hero_dualctapair",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_herosection",
+      "target": "design_demos_land_hero_aiwatchesclipssubhead",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_herosection",
+      "target": "design_demos_land_hero_darkenedfootagebackdrop",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_floatingpillnav",
+      "target": "design_demos_land_hero_reelbrandmark",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_twotonesplitheadline",
+      "target": "design_demos_land_hero_heroheadline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_amberondarkpalette",
+      "target": "design_demos_land_hero_twotonesplitheadline",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_amberondarkpalette",
+      "target": "design_demos_land_hero_dualctapair",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_darkenedfootagebackdrop",
+      "target": "design_demos_land_hero_heroheadline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_aiwatchesclipssubhead",
+      "target": "design_demos_land_hero_browsernativepromise",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_hero_dualctapair",
+      "target": "design_demos_land_how_howitworkssection",
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_howitworkssection",
+      "target": "design_demos_land_how_sectionheadline",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_howitworkssection",
+      "target": "design_demos_land_how_threestepcardgrid",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_howitworkssection",
+      "target": "design_demos_land_how_persistentpillnavoverlay",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_threestepcardgrid",
+      "target": "design_demos_land_how_stepdropyourclips",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_threestepcardgrid",
+      "target": "design_demos_land_how_stepclaudecutsit",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_threestepcardgrid",
+      "target": "design_demos_land_how_steprefineandexport",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_stepdropyourclips",
+      "target": "design_demos_land_how_stepclaudecutsit",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_stepclaudecutsit",
+      "target": "design_demos_land_how_steprefineandexport",
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_grayscaletocolorprogression",
+      "target": "design_demos_land_how_threestepcardgrid",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_grayscaletocolorprogression",
+      "target": "design_demos_land_how_steprefineandexport",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_inlineimagechipheadline",
+      "target": "design_demos_land_how_sectionheadline",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_persistentpillnavoverlay",
+      "target": "design_demos_land_hero_floatingpillnav",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_stepclaudecutsit",
+      "target": "design_demos_land_hero_aiwatchesclipssubhead",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_sectionheadline",
+      "target": "design_demos_land_hero_heroheadline",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_grayscaletocolorprogression",
+      "target": "design_demos_land_hero_darkenedfootagebackdrop",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "design_demos_land_how_steprefineandexport",
+      "target": "design_demos_land_hero_browsernativepromise",
+      "relation": "conceptually_related_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.3,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "three_step_editing_narrative",
+      "label": "Three-Step Editing Narrative: Drop, Cut, Export",
+      "nodes": [
+        "design_demos_land_how_stepdropyourclips",
+        "design_demos_land_how_stepclaudecutsit",
+        "design_demos_land_how_steprefineandexport",
+        "design_demos_land_how_grayscaletocolorprogression"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-how.png"
+    },
+    {
+      "id": "hero_conversion_stack",
+      "label": "Hero Conversion Stack: Headline, Subhead, Dual CTA over Footage",
+      "nodes": [
+        "design_demos_land_hero_heroheadline",
+        "design_demos_land_hero_aiwatchesclipssubhead",
+        "design_demos_land_hero_dualctapair",
+        "design_demos_land_hero_darkenedfootagebackdrop"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png"
+    },
+    {
+      "id": "reel_dark_amber_design_language",
+      "label": "Reel Dark + Amber Design Language",
+      "nodes": [
+        "design_demos_land_hero_amberondarkpalette",
+        "design_demos_land_hero_floatingpillnav",
+        "design_demos_land_hero_reelbrandmark",
+        "design_demos_land_how_persistentpillnavoverlay",
+        "design_demos_land_how_threestepcardgrid"
+      ],
+      "relation": "implement",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/design-demos/land-hero.png"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

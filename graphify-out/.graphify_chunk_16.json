@@ -1,0 +1,484 @@
+{
+  "nodes": [
+    {
+      "id": "stickers_circle_circle",
+      "label": "Circle Sticker (Ring Outline)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_close_close",
+      "label": "Close Sticker (X Cross)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/close.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_compass_compass",
+      "label": "Compass Sticker (Ring with Needle)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_favorite_favorite",
+      "label": "Favorite Sticker (Five-Point Star Outline)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/favorite.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_layers_layers",
+      "label": "Layers Sticker (Three Stacked Sheets)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/layers.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_location_location",
+      "label": "Location Sticker (Map Pin with Center Dot)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/location.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_message_alt_message_alt",
+      "label": "Message-Alt Sticker (Speech Bubble with Three Dots)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message-alt.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_message_message",
+      "label": "Message Sticker (Speech Bubble with Text Lines)",
+      "file_type": "image",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_circle_24_unit_viewbox_grid",
+      "label": "24-Unit viewBox Drawing Grid",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_close_currentcolor_fill_theming",
+      "label": "currentColor Fill Theming (No Strokes)",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/close.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_favorite_46px_render_size",
+      "label": "46x46 Sticker Render Size",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/favorite.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_compass_hardcoded_fill_outlier",
+      "label": "Hardcoded #0D0D0D Fill / 24px Size Outlier",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "stickers_message_alt_hyphenated_variant_naming",
+      "label": "Lowercase Hyphenated Naming with -alt Variant Suffix",
+      "file_type": "concept",
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message-alt.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "stickers_circle_circle",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_close_close",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/close.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_compass_compass",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_favorite_favorite",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/favorite.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_layers_layers",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/layers.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_location_location",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/location.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_alt_message_alt",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message-alt.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_message",
+      "target": "stickers_circle_24_unit_viewbox_grid",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_circle_circle",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_close_close",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/close.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_favorite_favorite",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/favorite.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_layers_layers",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/layers.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_location_location",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/location.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_alt_message_alt",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message-alt.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_message",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_circle_circle",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_close_close",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/close.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_favorite_favorite",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/favorite.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_layers_layers",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/layers.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_location_location",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/location.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_alt_message_alt",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message-alt.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_message",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_compass_compass",
+      "target": "stickers_compass_hardcoded_fill_outlier",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_compass_hardcoded_fill_outlier",
+      "target": "stickers_close_currentcolor_fill_theming",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_compass_hardcoded_fill_outlier",
+      "target": "stickers_favorite_46px_render_size",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_alt_message_alt",
+      "target": "stickers_message_alt_hyphenated_variant_naming",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message-alt.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_message_message",
+      "target": "stickers_message_alt_hyphenated_variant_naming",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/message.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_compass_compass",
+      "target": "stickers_circle_circle",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_compass_compass",
+      "target": "stickers_location_location",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/compass.svg",
+      "source_location": null,
+      "weight": 1.0
+    },
+    {
+      "source": "stickers_layers_layers",
+      "target": "stickers_message_alt_message_alt",
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.65,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/layers.svg",
+      "source_location": null,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "sticker_overlay_icon_set",
+      "label": "Sticker Overlay Icon Set for Video Clips",
+      "nodes": [
+        "stickers_circle_circle",
+        "stickers_close_close",
+        "stickers_compass_compass",
+        "stickers_favorite_favorite",
+        "stickers_layers_layers",
+        "stickers_location_location",
+        "stickers_message_alt_message_alt",
+        "stickers_message_message"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/circle.svg"
+    },
+    {
+      "id": "sticker_asset_authoring_contract",
+      "label": "Shared Sticker Authoring Contract (24-unit grid, currentColor, 46px render)",
+      "nodes": [
+        "stickers_circle_24_unit_viewbox_grid",
+        "stickers_close_currentcolor_fill_theming",
+        "stickers_favorite_46px_render_size"
+      ],
+      "relation": "form",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "/Users/prime/Documents/Web/projects/simple-video-editor/stickers/close.svg"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}
