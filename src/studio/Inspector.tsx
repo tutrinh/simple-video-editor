@@ -960,7 +960,12 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     return !!(adj.exposure || adj.contrast || adj.colorTone || adj.warmth || adj.saturation);
   }
 
-  const projectAspect = state.cut?.aspect === "9:16" ? "9 / 16" : state.cut?.aspect === "1:1" ? "1 / 1" : "16 / 9";
+  const aspect = state.cut?.aspect ?? "16:9";
+  const posterStyle: React.CSSProperties = aspect === "9:16"
+    ? { height: 180, aspectRatio: "9 / 16", width: "auto", margin: "0 auto 12px" }
+    : aspect === "1:1"
+    ? { height: 180, aspectRatio: "1 / 1", width: "auto", margin: "0 auto 12px" }
+    : { width: "100%", aspectRatio: "16 / 9", maxHeight: 180, margin: "0 auto 12px" };
 
   return (
     <aside className="st-col insp">
@@ -973,16 +978,14 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         <div
           className="st-ip-poster"
           style={{
-            aspectRatio: projectAspect,
-            maxHeight: 180,
-            width: "auto",
-            margin: "0 auto 12px",
+            ...posterStyle,
             background: beatPosterBg(b, clip, forceUpdate),
             filter: cssFilterFor(b.colorAdjustments),
           }}
         >
           <div className="cap">{b.captionText}</div>
         </div>
+
 
 
         {SHOW_PER_BEAT_CAPTION_BOX && (
