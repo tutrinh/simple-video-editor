@@ -10,8 +10,12 @@ import { ffmpegColorLut, beatFrameFilters, kenBurnsChain, kenBurnsPreScale } fro
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { renderCaptionToPng } from "./captionCanvas";
 import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers, resolveSfxSegments } from "./stickerCanvas";
-
+import { normalizeSplitConfig, buildSplitScreenFilterGraph } from "./splitScreenCanvas";
 import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LayerSpec } from "./segmentGraph";
+
+
+
+
 
 // Full export (ADR-0002, ADR-0003): render the Cut client-side, one Beat per
 // isolated engine — trim → scale/letterbox → BURN caption → uniform-silent
@@ -452,7 +456,24 @@ export async function exportCut(
       data = await bytesOf(clip.normalized ?? clip.file);
     }
 
-    const inputs: EngineInput[] = [{ name: srcName, data }];
+    const isSplitScreen = !!(b.splitScreen && b.splitScreen.layout !== "none" && b.splitScreen.slots.length > 1);
+    const normSplitCfg = isSplitScreen ? normalizeSplitConfig(b.splitScreen, clip.id, inSec) : null;
+
+    const inputs: EngineInput[] = [];
+
+    if (isSplitScreen && normSplitCfg) {
+      for (let sIdx = 0; sIdx < normSplitCfg.slots.length; sIdx++) {
+        const slot = normSplitCfg.slots[sIdx];
+        const slotClip = clips.find((c: Clip) => c.id === slot.clipId) ?? clip;
+        const slotData = await bytesOf(slotClip.normalized ?? slotClip.file);
+        inputs.push({ name: `slot_${sIdx}_${sourceName(slotClip)}`, data: slotData });
+      }
+    } else {
+
+      inputs.push({ name: srcName, data });
+    }
+    const numVideoInputs = inputs.length;
+
 
     // Captions (Task 3: now collected as CaptionLayerSpec[], compositing handled
     // by buildSegmentGraph inside buildVideoChains below).
@@ -705,26 +726,35 @@ export async function exportCut(
       ...stickerLayers,
     ];
 
-    const audioIdx = 1 + allLayers.length;
+    const audioIdx = numVideoInputs + allLayers.length;
 
     const baseLabel = allLayers.length === 0 ? "[v]" : "[vbase]";
-    // For "intro" zoom: split the processed base, punch-in one branch, and overlay
-    // it back gated to the first `zoomSec` (segment-local t). Outside the window the
-    // un-zoomed base shows through. "Entire"/no zoom → the base is a single chain.
-    const chains: string[] = zoomIntro
-      ? [
-          `[0:v]${vf.join(",")},split=2[vzbase][vzsrc]`,
-          `[vzsrc]${zoomFilters.join(",")}[vzoomed]`,
-          `[vzbase][vzoomed]overlay=x=0:y=0:eof_action=pass:enable='between(t,0,${(b.zoomSec ?? 3).toFixed(3)})'${baseLabel}`,
-        ]
-      : [`[0:v]${vf.join(",")}${baseLabel}`];
+    let chains: string[] = [];
 
+    if (isSplitScreen && normSplitCfg) {
+      const splitRes = buildSplitScreenFilterGraph(normSplitCfg, w, h, 0);
+      chains = [
+        splitRes.filterGraph,
+        `${splitRes.outputLabel}${vf.join(",")}${baseLabel}`,
+      ];
+    } else {
+      // For "intro" zoom: split the processed base, punch-in one branch, and overlay
+      // it back gated to the first `zoomSec` (segment-local t). Outside the window the
+      // un-zoomed base shows through. "Entire"/no zoom → the base is a single chain.
+      chains = zoomIntro
+        ? [
+            `[0:v]${vf.join(",")},split=2[vzbase][vzsrc]`,
+            `[vzsrc]${zoomFilters.join(",")}[vzoomed]`,
+            `[vzbase][vzoomed]overlay=x=0:y=0:eof_action=pass:enable='between(t,0,${(b.zoomSec ?? 3).toFixed(3)})'${baseLabel}`,
+          ]
+        : [`[0:v]${vf.join(",")}${baseLabel}`];
+    }
 
     const audibleOverlays = overlayLayers
       .map((ol, k) => ({
         o: ol.overlayClip,
         stLocalSec: ol.stLocalSec,
-        inputIdx: 1 + captionLayers.length + titleLayers.length + k,
+        inputIdx: numVideoInputs + captionLayers.length + titleLayers.length + k,
       }))
       .filter(({ o }) => (o.volume ?? 0) > 0);
 
@@ -733,11 +763,12 @@ export async function exportCut(
       const aChains: string[] = [];
 
       const sgResult = buildSegmentGraph(allLayers, {
-        inputIndexBase: 1,
+        inputIndexBase: numVideoInputs,
         baseLabel,
         segDurStr,
         rgbFormat,
       });
+
 
       if (strat === "source") {
         audioInputArgs = [];
@@ -765,17 +796,34 @@ export async function exportCut(
       const vFilterString = segChains.join(";");
       const aFilterString = aChains.join(";");
 
+      const videoInputArgs: string[] = [];
+      if (isSplitScreen && normSplitCfg) {
+        normSplitCfg.slots.forEach((s: any, slotIdx: number) => {
+          const slotClip = clips.find((c: Clip) => c.id === s.clipId) ?? clip;
+          const sName = inputs[slotIdx].name;
+          const sInSec = Math.max(0, s.inSec ?? 0);
+          videoInputArgs.push(...beatInputArgs(slotClip, sInSec, footageLen, sName));
+        });
+      } else {
+
+        videoInputArgs.push(...beatInputArgs(clip, inSec, footageLen, srcName));
+      }
+
+      const segPreset = isSplitScreen ? "ultrafast" : preset;
+
       return [
-        ...beatInputArgs(clip, inSec, footageLen, srcName),
+        ...videoInputArgs,
         ...sgResult.inputArgs,
         ...audioInputArgs,
         "-filter_complex", `${vFilterString};${aFilterString}`,
         "-map", "[v]", "-map", "[a]",
         "-shortest",
-        "-r", "30", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+        "-r", "30", "-c:v", "libx264", "-preset", segPreset, "-crf", String(crf), "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4",
       ];
+
     };
+
 
     const hasRgbBlend = overlayLayers.some((ol) => {
       const m = ol.overlayClip.blendMode ?? "normal";

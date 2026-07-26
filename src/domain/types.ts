@@ -88,6 +88,37 @@ export type VideoTransitionType =
   | "slideleft"
   | "slideright";
 
+export type SplitLayoutType =
+  | "none"
+  | "v2-stacked" // 2 rows (top / bottom)
+  | "v2-side"    // 2 columns (left / right)
+  | "3-col"      // 3 columns
+  | "4-grid";    // 2x2 quad grid
+
+export interface SplitScreenSlot {
+  /** Project clip ID assigned to this slot. */
+  clipId: string;
+  /** In-point (seconds) within the source clip. */
+  inSec: number;
+  /** Individual volume for this slot (0..1, default: slot 0 = 1.0, others = 0). */
+  volume?: number;
+  /** Zoom/scale multiplier inside slot (1.0..3.0, default 1.0). */
+  scale?: number;
+  /** Horizontal pan offset x (-50..50%, default 0). */
+  panX?: number;
+  /** Vertical pan offset y (-50..50%, default 0). */
+  panY?: number;
+  /** Rotation angle in degrees (-180..180, default 0). */
+  rotation?: number;
+}
+
+
+export interface SplitScreenConfig {
+  layout: SplitLayoutType;
+  slots: SplitScreenSlot[];
+}
+
+
 /**
  * One entry in the Cut: a trimmed Clip plus the Script segment shown as a
  * Caption. Duration derives from the Script segment's spoken length (ADR-0004).
@@ -111,6 +142,9 @@ export interface Beat {
   transition?: VideoTransitionType;
   /** When true, moving inSec or outSec recalculates the other bound to preserve exact timeline duration (slip edit). */
   lockDuration?: boolean;
+  /** Optional multi-clip split screen configuration for this beat. */
+  splitScreen?: SplitScreenConfig;
+
   /** Duration of the transition in seconds (default 0.5s). */
   transitionSec?: number;
   /** Position of the transition relative to beat timing ("start" for entering beat, "end" for exiting beat). */

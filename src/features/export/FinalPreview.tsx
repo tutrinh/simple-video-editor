@@ -10,6 +10,8 @@ import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { sfxFileUrl } from "../../lib/sfxLibrary";
 import type { Voice } from "../../lib/kokoroTts";
 import { getClipBlobUrl } from "../../lib/blobUrlCache";
+import { getSplitLayoutCss, normalizeSplitConfig, getSlotTransformStyle } from "./splitScreenCanvas";
+
 import { drawTitleLayer, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { getTitleFontBytes } from "./titleFonts";
 import { drawCaptionBlock } from "./captionCanvas";
@@ -504,33 +506,70 @@ export default function FinalPreview({
               transition animation (ADR-0012). The beat clock above runs on rAF
               from b.durationSec, not from this element, so nothing else in the
               transport needs to know which one is mounted. */}
-          {currentBeatClip?.kind === "still" ? (
-            <img
-              src={mainBeatBlobUrl}
-              alt=""
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                filter: cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
-                animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
-              }}
-            />
-          ) : (
-          <video
-            ref={videoRef}
-            src={mainBeatBlobUrl}
-            muted={(beat?.volume ?? 1) === 0}
-            playsInline
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              filter: cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments),
-              animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
-            }}
-          />
-          )}
+          {(() => {
+            const splitCfg = beat?.splitScreen;
+            const filterStyle = cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments);
+
+            if (splitCfg && splitCfg.layout !== "none" && splitCfg.slots.length > 1) {
+              const normConfig = normalizeSplitConfig(splitCfg, currentBeatClip?.id ?? "", beat?.inSec ?? 0);
+              const gridCss = getSplitLayoutCss(normConfig.layout);
+
+              return (
+                <div style={{ ...gridCss, filter: filterStyle, animation: videoAnimStyle ? `${videoAnimStyle}` : undefined }}>
+                  {normConfig.slots.map((slot, idx) => {
+                    const slotClip = clips.find((c) => c.id === slot.clipId) ?? currentBeatClip;
+                    const slotBlob = slotClip ? getClipBlobUrl(slotClip.normalized ?? slotClip.file) : null;
+                    const tfStyle = getSlotTransformStyle(slot);
+
+                    return (
+                      <div key={`${slot.clipId}-${idx}`} style={{ position: "relative", overflow: "hidden", background: "#000" }}>
+                        {slotClip?.kind === "still" ? (
+                          <img src={slotBlob ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }} />
+                        ) : (
+                          <video
+                            ref={idx === 0 ? videoRef : undefined}
+                            src={slotBlob ?? undefined}
+                            muted={(slot.volume ?? (idx === 0 ? (beat?.volume ?? 1) : 0)) === 0}
+                            playsInline
+                            style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
+
+            return currentBeatClip?.kind === "still" ? (
+              <img
+                src={mainBeatBlobUrl}
+                alt=""
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  filter: filterStyle,
+                  animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
+                }}
+              />
+            ) : (
+              <video
+                ref={videoRef}
+                src={mainBeatBlobUrl}
+                muted={(beat?.volume ?? 1) === 0}
+                playsInline
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  filter: filterStyle,
+                  animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
+                }}
+              />
+            );
+          })()}
+
         </div>
         </div>
 
