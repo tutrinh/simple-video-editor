@@ -135,6 +135,14 @@ unit. A Clip may be dropped (unused) but appears in at most one Beat; Beats are
 not split or reused in v1.
 _Avoid_: segment, shot, scene, track item
 
+**Layer**:
+Something laid **over** a Beat's picture rather than being it: a Caption, a Title
+overlay, a B-roll Overlay, or a Sticker. All four are placed on top of finished
+footage and can be added or removed without changing the shot underneath.
+Zoom, Ken Burns, rotation and the Grade are **not** Layers — they decide what the
+shot itself looks like (ADR-0016).
+_Avoid_: effect, element, track, composite
+
 **Zoom**:
 A Beat's **static** framing: how far the frame is punched in, and on what point.
 It holds one position for as long as it is active — it does not travel. Its
