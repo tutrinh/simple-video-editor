@@ -965,7 +965,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     ? { height: 180, aspectRatio: "9 / 16", width: "auto", margin: "0 auto 12px" }
     : aspect === "1:1"
     ? { height: 180, aspectRatio: "1 / 1", width: "auto", margin: "0 auto 12px" }
-    : { width: "100%", aspectRatio: "16 / 9", maxHeight: 180, margin: "0 auto 12px" };
+    : { width: "75%", aspectRatio: "16 / 9", maxHeight: 180, margin: "0 auto 12px" };
+
 
   return (
     <aside className="st-col insp">
