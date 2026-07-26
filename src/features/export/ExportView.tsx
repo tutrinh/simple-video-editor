@@ -347,7 +347,9 @@ export default function ExportView() {
           introSec: l.introSec,
           animation: l.animation,
           animDurationSec: l.animDurationSec,
+          boxWidthPct: l.boxWidthPct,
         };
+
       };
 
       const exportLayers: TitleLayer[] = await Promise.all(titleLayers.map(toExportLayer));
@@ -416,7 +418,9 @@ export default function ExportView() {
       fontFile: l.fontFile,
       animation: l.animation,
       animDurationSec: l.animDurationSec,
+      boxWidthPct: l.boxWidthPct,
     };
+
   });
 
   const previewTitle: PreviewTitle | null = previewLayers.some((l) => l.enabled && l.text.trim())

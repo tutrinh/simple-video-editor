@@ -26,7 +26,9 @@ export interface TitleLayerSettings {
   introSec: number;
   animation?: TitleAnimation;
   animDurationSec?: number;
+  boxWidthPct?: number;
 }
+
 
 export interface ExportSettings {
   exportQuality: ExportQuality;

@@ -33,7 +33,9 @@ export interface TitleRenderLayer {
   color: string;
   posX: number; // -50..+50 (% horizontal offset from frame center)
   posY: number; // -50..+50 (% vertical offset from frame center)
+  boxWidthPct?: number; // 10..100 (% of frame width for text wrapping)
 }
+
 
 /** Animation geometry, shared by preview (CSS transform) and export (ffmpeg
  *  overlay x/y expressions), expressed as a fraction of the frame so both sides
@@ -203,7 +205,9 @@ export async function drawTitleLayer(
     ctx.shadowOffsetY = size * 0.03;
   }
 
-  const lines = wrapLines(ctx, layer.text, w * 0.9);
+  const boxWidthFrac = (layer.boxWidthPct ?? 90) / 100;
+  const lines = wrapLines(ctx, layer.text, w * boxWidthFrac);
+
   const lineH = size * 1.15;
   const totalH = (lines.length - 1) * lineH;
   lines.forEach((ln, i) => {

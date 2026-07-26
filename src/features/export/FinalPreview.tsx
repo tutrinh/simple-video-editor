@@ -41,7 +41,9 @@ export interface PreviewTitleLayer {
   fontFile?: File | null;
   animation?: TitleAnimation;
   animDurationSec?: number;
+  boxWidthPct?: number;
 }
+
 
 export interface PreviewTitle {
   layers: PreviewTitleLayer[];
@@ -818,6 +820,7 @@ function TitleLayerCanvas({
           color: layer.color,
           posX: layer.posX,
           posY: layer.posY,
+          boxWidthPct: layer.boxWidthPct,
         }, cw, ch),
         () => cancelled,
       );
@@ -828,7 +831,7 @@ function TitleLayerCanvas({
   }, [
     layer.text, layer.fontId, layer.fontFile, layer.fontFamily, layer.fontWeight,
     layer.sizePx, layer.letterSpacing, layer.arcDeg, layer.shadow, layer.color,
-    layer.posX, layer.posY, cw, ch,
+    layer.posX, layer.posY, layer.boxWidthPct, cw, ch,
   ]);
 
   return (
@@ -952,7 +955,9 @@ export function BeatTitleOverlay({
           posX: l.posX, posY: l.posY, scope: l.scope, introSec: l.introSec,
           fontFamily: findFontById(l.fontId)?.cssFamily, fontWeight: l.weight,
           fontId: l.fontId, fontFile: l.fontFile, animation: l.animation, animDurationSec: l.animDurationSec,
+          boxWidthPct: l.boxWidthPct,
         };
+
 
         let opacity = 1;
         let visible = false;

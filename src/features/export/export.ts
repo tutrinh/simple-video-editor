@@ -38,7 +38,9 @@ export interface TitleLayer {
   introSec?: number;
   animation?: TitleAnimation;
   animDurationSec?: number;
+  boxWidthPct?: number;
 }
+
 
 export interface TitleOverlay {
   layers: TitleLayer[];
@@ -252,7 +254,9 @@ export async function exportCut(
           color: l.color,
           posX: l.posX,
           posY: l.posY,
+          boxWidthPct: l.boxWidthPct,
         },
+
         w,
         h,
       );
@@ -289,7 +293,9 @@ export async function exportCut(
             color: l.color,
             posX: l.posX,
             posY: l.posY,
+            boxWidthPct: l.boxWidthPct,
           },
+
           w,
           h,
         );

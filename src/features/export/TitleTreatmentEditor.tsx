@@ -423,6 +423,25 @@ export default function TitleTreatmentEditor({
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Text Box Width</span>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  step={1}
+                  value={curLayer.boxWidthPct ?? 90}
+                  onChange={(e) => updateLayer(activeIdx, { boxWidthPct: Number(e.target.value) })}
+                  onDoubleClick={() => updateLayer(activeIdx, { boxWidthPct: 90 })}
+                  style={sliderTrackStyle(curLayer.boxWidthPct ?? 90, 10, 100)}
+                  title="Double-click to reset box width to 90%"
+                />
+                <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                  {curLayer.boxWidthPct ?? 90}%
+                </span>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
                 <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Letter Spacing</span>
                 <input
                   type="range"
