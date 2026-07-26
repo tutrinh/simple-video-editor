@@ -14,9 +14,12 @@ interface Props {
   onChange: (inSec: number, outSec: number) => void;
   /** Compact = draggable track only (no video/preview). Always-visible inline control. */
   compact?: boolean;
+  /** When true, moving in/out handles slips the source while keeping timeline duration fixed. */
+  lockDuration?: boolean;
 }
 
-export default function BeatTrimmer({ beat, clip, onChange, compact = false }: Props) {
+export default function BeatTrimmer({ beat, clip, onChange, compact = false, lockDuration = false }: Props) {
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const dur = clip.durationSec || Math.max(beat.outSec, 1);
@@ -103,6 +106,25 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
   function onPointerMove(e: React.PointerEvent) {
     if (!drag) return;
     const t = timeFromX(e.clientX);
+
+    if (lockDuration) {
+      const fixedDur = Math.max(0.1, outSec - inSec);
+      if (drag === "in") {
+        const nextIn = Math.max(0, Math.min(t, dur - fixedDur));
+        const nextOut = nextIn + fixedDur;
+        setInSec(nextIn);
+        setOutSec(nextOut);
+        seek(nextIn);
+      } else {
+        const nextOut = Math.max(fixedDur, Math.min(t, dur));
+        const nextIn = nextOut - fixedDur;
+        setInSec(nextIn);
+        setOutSec(nextOut);
+        seek(nextOut);
+      }
+      return;
+    }
+
     if (drag === "in") {
       const next = Math.max(0, Math.min(t, outSec - MIN_GAP));
       setInSec(next);
@@ -113,6 +135,7 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false }: P
       seek(next);
     }
   }
+
 
   function endDrag(e: React.PointerEvent) {
     if (!drag) return;

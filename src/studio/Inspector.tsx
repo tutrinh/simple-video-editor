@@ -6,7 +6,8 @@ import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
 import { cutDuration } from "../features/assemble/assemble";
-import { fmtSecs, cssFilterFor, getFilterPreset, rotationCoverScale, fillMove, KEN_BURNS_PRESETS, KEN_BURNS_DEFAULT } from "./util";
+import { fmtSecs, sliderTrackStyle, cssFilterFor, getFilterPreset, rotationCoverScale, fillMove, KEN_BURNS_PRESETS, KEN_BURNS_DEFAULT } from "./util";
+
 import { stickerFileUrl } from "../lib/stickerLibrary";
 import { beatSpans, resolveSticker, resolveSfx } from "../features/export/stickerCanvas";
 
@@ -60,41 +61,8 @@ interface Props {
   onSelectSfx?: (id: string | null) => void;
 }
 
-export function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
-  const thumbPct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
 
-  if (min < 0) {
-    const centerPct = Math.max(0, Math.min(100, ((0 - min) / (max - min)) * 100));
-    if (val >= 0) {
-      return {
-        flex: 1,
-        width: "100%",
-        accentColor: "var(--accent)",
-        background: `linear-gradient(to right, var(--panel-3) 0%, var(--panel-3) ${centerPct}%, var(--accent) ${centerPct}%, var(--accent) ${thumbPct}%, var(--panel-3) ${thumbPct}%, var(--panel-3) 100%)`,
-        height: 6,
-        borderRadius: 3,
-      };
-    } else {
-      return {
-        flex: 1,
-        width: "100%",
-        accentColor: "var(--accent)",
-        background: `linear-gradient(to right, var(--panel-3) 0%, var(--panel-3) ${thumbPct}%, var(--accent) ${thumbPct}%, var(--accent) ${centerPct}%, var(--panel-3) ${centerPct}%, var(--panel-3) 100%)`,
-        height: 6,
-        borderRadius: 3,
-      };
-    }
-  }
 
-  return {
-    flex: 1,
-    width: "100%",
-    accentColor: "var(--accent)",
-    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${thumbPct}%, var(--panel-3) ${thumbPct}%, var(--panel-3) 100%)`,
-    height: 6,
-    borderRadius: 3,
-  };
-}
 
 /**
  * The moving-framing controls (ADR-0015): named moves, then the six values
@@ -968,13 +936,34 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     setAlts((a) => a.map((x, k) => (k === i ? [] : x))); // clear that line's chips once chosen
   };
   function setTrim(inSec: number, outSec: number) {
-    const maxOut = clip?.durationSec ?? outSec;
+    const maxOut = clip?.durationSec ?? Math.max(outSec, 10);
+    const targetDur = b.lockDuration ? b.durationSec : undefined;
+
+    if (targetDur != null && targetDur > 0) {
+      const fixedDur = Math.min(targetDur, maxOut);
+      const inChanged = Math.abs(inSec - b.inSec) > 0.001;
+      let nextIn = b.inSec;
+      let nextOut = b.outSec;
+
+      if (inChanged) {
+        nextIn = Math.max(0, Math.min(inSec, maxOut - fixedDur));
+        nextOut = Math.min(maxOut, Math.round((nextIn + fixedDur) * 10) / 10);
+        nextIn = Math.round(nextIn * 10) / 10;
+      } else {
+        nextOut = Math.max(fixedDur, Math.min(outSec, maxOut));
+        nextIn = Math.max(0, Math.round((nextOut - fixedDur) * 10) / 10);
+        nextOut = Math.round(nextOut * 10) / 10;
+      }
+      update({ ...b, inSec: nextIn, outSec: nextOut, durationSec: fixedDur });
+      return;
+    }
+
     const nextIn = Math.max(0, Math.min(inSec, maxOut - 0.1));
     const nextOut = Math.max(nextIn + 0.1, Math.min(outSec, maxOut));
-    // Duration follows the new trim, still honoring any timed caption sequence.
     const durationSec = durationFor(nextIn, nextOut, b.captionText, b.captionDurations);
     update({ ...b, inSec: nextIn, outSec: nextOut, durationSec });
   }
+
 
   function updateColorAdjustment(key: keyof ColorAdjustments, value: number) {
     const current = b.colorAdjustments ?? {};
@@ -1129,9 +1118,33 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
         )}
 
         <div className="st-field">
-          <label>Trim · in / out of source · {fmtSecs(b.durationSec)}</label>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <label style={{ margin: 0 }}>
+              Trim · in / out of source · {fmtSecs(b.durationSec)} {b.lockDuration ? "🔒" : ""}
+            </label>
+            <label
+              className="st-captoggle"
+              title={b.lockDuration
+                ? "Timeline duration is locked. Changing in or out slips the clip window while preserving exact timeline length."
+                : "Lock timeline duration (slip edit). Changing in or out recalculates the other bound to preserve timeline length."}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 11, color: "var(--ink-2)" }}
+            >
+              <input
+                type="checkbox"
+                checked={b.lockDuration === true}
+                onChange={(e) => update({ ...b, lockDuration: e.target.checked })}
+                style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+              />
+              <span>Lock duration</span>
+            </label>
+          </div>
+          {b.lockDuration && (
+            <div style={{ fontSize: 10.5, color: "var(--accent)", marginBottom: 6, lineHeight: 1.3 }}>
+              🔒 <strong>Duration locked ({fmtSecs(b.durationSec)})</strong> — moving IN or OUT slips the clip without shifting the timeline.
+            </div>
+          )}
           {clip
-            ? <BeatTrimmer beat={b} clip={clip} compact={!trimOpen} onChange={setTrim} />
+            ? <BeatTrimmer beat={b} clip={clip} compact={!trimOpen} onChange={setTrim} lockDuration={b.lockDuration} />
             : <div style={{ color: "var(--ink-3)", fontSize: 12 }}>Clip missing.</div>}
           {clip && (
             <button className="st-btn ghost" style={{ marginTop: 8, fontSize: 12, padding: "5px 10px" }} onClick={() => setTrimOpen((v) => !v)}>
@@ -1139,6 +1152,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
             </button>
           )}
         </div>
+
 
         <div className="st-field">
           <div

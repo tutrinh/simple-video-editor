@@ -12,6 +12,27 @@ export function fmtSecs(sec: number): string {
   return sec.toFixed(1) + "s";
 }
 
+/** Theme-consistent slider track fill style (conforms to DESIGN_PATTERNS.md). */
+export function sliderTrackStyle(val: number, min = -100, max = 100): CSSProperties {
+  const thumbPct = Math.max(0, Math.min(100, ((val - min) / (max - min)) * 100));
+
+  if (min < 0) {
+    const zeroPct = Math.max(0, Math.min(100, ((0 - min) / (max - min)) * 100));
+    const left = Math.min(thumbPct, zeroPct);
+    const width = Math.abs(thumbPct - zeroPct);
+    return {
+      accentColor: "var(--accent)",
+      background: `linear-gradient(to right, var(--panel-3) 0%, var(--panel-3) ${left}%, var(--accent) ${left}%, var(--accent) ${left + width}%, var(--panel-3) ${left + width}%, var(--panel-3) 100%)`,
+    };
+  }
+
+  return {
+    accentColor: "var(--accent)",
+    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${thumbPct}%, var(--panel-3) ${thumbPct}%, var(--panel-3) 100%)`,
+  };
+}
+
+
 /** A clip is "in play" for authoring unless explicitly excluded. */
 export function isIncluded(clip: Clip): boolean {
   return clip.included !== false;

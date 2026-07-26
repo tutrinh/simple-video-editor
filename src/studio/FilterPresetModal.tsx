@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { getAllFilterPresets, saveCustomPreset, deleteCustomPreset, type FilterPreset } from "../lib/customPresets";
 import type { ColorAdjustments } from "../domain/types";
-import { sliderTrackStyle } from "./Inspector";
+import { sliderTrackStyle } from "./util";
+
 import { useSettings } from "../state/SettingsContext";
 import { useProject } from "../state/ProjectContext";
 import { analyzeFilmLook, gradeBeatToLook, type FilmLook } from "../lib/filmLook";

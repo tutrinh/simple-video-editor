@@ -109,6 +109,8 @@ export interface Beat {
   titleLayers?: import("../state/ExportSettingsContext").TitleLayerSettings[];
   /** Video transition into this beat from the preceding beat. */
   transition?: VideoTransitionType;
+  /** When true, moving inSec or outSec recalculates the other bound to preserve exact timeline duration (slip edit). */
+  lockDuration?: boolean;
   /** Duration of the transition in seconds (default 0.5s). */
   transitionSec?: number;
   /** Position of the transition relative to beat timing ("start" for entering beat, "end" for exiting beat). */
