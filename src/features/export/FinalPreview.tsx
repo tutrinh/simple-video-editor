@@ -480,7 +480,12 @@ export default function FinalPreview({
             // `beatElapsed` on its own rAF clock and scrubs through the whole
             // Cut, so there is no playback phase a CSS animation could own.
             ...(currentBeatClip?.kind === "still" && beat?.framing === "kenBurns" && beat.kenBurns
-              ? kenBurnsStyleAt(beat.kenBurns, beatElapsed / Math.max(0.05, beat.durationSec))
+              // Normalised over the TRIM, not over `durationSec`. The export
+              // spans the move across `outSec - inSec` and StagePreview does the
+              // same; `durationSec` is a third derivation of that quantity, kept
+              // equal only by Inspector's setTrim. Agreeing by expression rather
+              // than by coincidence is free here.
+              ? kenBurnsStyleAt(beat.kenBurns, beatElapsed / Math.max(0.05, beat.outSec - beat.inSec))
               : beatZoomStyle(beat?.zoom, beat?.zoomX, beat?.zoomY, isBeatZoomActive(beat?.zoom, beat?.zoomScope, beat?.zoomSec, beatElapsed))),
           }}
         >
@@ -551,7 +556,11 @@ export default function FinalPreview({
               inset: 0,
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              // `contain`, not `cover`: the export fits a B-roll Overlay with
+              // `force_original_aspect_ratio=decrease` and pads it with
+              // `black@0.0` — fully transparent — so a mismatched aspect shows
+              // the Beat's own footage around it rather than being cropped.
+              objectFit: "contain",
               pointerEvents: "none",
               opacity: activeOverlay.opacity,
               mixBlendMode: activeOverlay.blendMode as any,

@@ -14,29 +14,36 @@ across N callers (it was earning its keep)?
 
 ---
 
-## Live defects — not architecture, fix regardless
+## Defects — both addressed 2026-07-26
 
-Both are instances of Candidate B. Verified in source.
+### 1. Ken Burns time base — NOT a live defect; claim corrected
 
-### 1. Ken Burns runs on a different clock in the Cut preview
+The review reported that `FinalPreview.tsx:483` divided by `beat.durationSec`
+while `StagePreview` and `export.ts` used `outSec − inSec`, and called it a live
+bug. **That was an over-claim.** `Inspector.setTrim` sets
+`durationSec = footageLenOf(inSec, outSec)` — the same clamp `export.ts` applies
+— so the two are held equal on every path that edits a trim, and the surfaces
+agreed in practice.
 
-| where | time base |
-| --- | --- |
-| `StagePreview.tsx:310` | `pos`, normalised over `outSec − inSec` |
-| `export.ts:460` | `segDur`, which is `outSec − inSec` clamped |
-| **`FinalPreview.tsx:483`** | **`beatElapsed / beat.durationSec`** |
+What remains true is the fragility underneath: **three expressions for one
+quantity**, agreeing by coincidence rather than by construction. `FinalPreview`
+now derives its `t01` from `outSec − inSec` like the other two, which removes one
+of the three for free. The real fix is Candidate B.
 
-The Beat view and the export agree; the Cut view does not, unless
-`durationSec === outSec − inSec`. A Beat trimmed after its duration was set
-plays its move at the wrong speed in the Cut preview only.
+### 2. B-roll Overlays: previews cropped, the export contains — FIXED
 
-### 2. B-roll Overlays: the previews crop, the export letterboxes
+`StagePreview.tsx` and `FinalPreview.tsx` fitted Overlays with
+`objectFit: "cover"` (fill and crop) while `export.ts:717` uses
+`force_original_aspect_ratio=decrease` and pads with `color=black@0.0` —
+**fully transparent**, so a mismatched aspect shows the Beat's own footage
+around the Overlay rather than cropping it. Genuinely different pictures. Both
+previews now use `contain`.
 
-`StagePreview.tsx:333` and `FinalPreview.tsx:554` both use
-`objectFit: "cover"` — fill and crop. `export.ts:717` uses
-`scale=…:force_original_aspect_ratio=decrease` — fit and letterbox. Any Overlay
-whose aspect differs from the canvas previews as a different shot than it
-exports.
+**Open design question, deliberately not decided:** `contain` makes the previews
+*honest*, but `cover` may be what an author actually wants for a grain / light-leak
+Overlay. Changing the export to fill instead would alter the output of existing
+projects, so the previews were moved to match the export rather than the reverse.
+Worth revisiting as a product decision.
 
 ---
 

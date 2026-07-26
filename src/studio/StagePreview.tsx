@@ -330,7 +330,9 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
               inset: 0,
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              // `contain` to match the export, which fits with
+              // `force_original_aspect_ratio=decrease` and pads transparently.
+              objectFit: "contain",
               pointerEvents: "none",
               opacity: activeOverlay.opacity,
               mixBlendMode: activeOverlay.blendMode as any,
