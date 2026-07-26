@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Handoff prompts — segment graph refactor</title>
+<style>
+  :root {
+    --bg:#0d0e11; --panel:#15171c; --panel-2:#1b1e24; --panel-3:#22262e;
+    --line:#282c34; --ink:#e6e8ec; --ink-2:#9aa0ab; --ink-3:#6b7280; --accent:#ffb339;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:#f3f4f8; --panel:#fff; --panel-2:#edf0f6; --panel-3:#e0e5ef;
+      --line:#d2d7e2; --ink:#15171c; --ink-2:#4b5563; --ink-3:#6b7280; --accent:#b3760f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:40px 20px; background:var(--bg); color:var(--ink);
+    font:14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  .sub { color:var(--ink-2); font-size:13px; margin:0 0 32px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; margin-bottom:24px; overflow:hidden; }
+  .head {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 18px; border-bottom:1px solid var(--line); background:var(--panel-2);
+  }
+  .title { font-weight:600; font-size:14px; }
+  .note { color:var(--ink-3); font-size:12px; margin-top:2px; }
+  textarea {
+    width:100%; min-height:420px; resize:vertical; display:block;
+    background:var(--panel); color:var(--ink); border:none; outline:none;
+    padding:18px; font:12.5px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    white-space:pre; overflow-wrap:normal; overflow-x:auto; tab-size:2;
+  }
+  textarea.short { min-height:300px; }
+  button {
+    flex:none; font:600 12px/1 inherit; padding:8px 16px; border-radius:8px; cursor:pointer;
+    background:var(--accent); color:#15171c; border:1px solid var(--accent);
+    transition:opacity .15s ease;
+  }
+  button:hover { opacity:.85; }
+  button.done { background:transparent; color:var(--accent); }
+  footer { color:var(--ink-3); font-size:12px; text-align:center; margin-top:8px; }
+  code { background:var(--panel-3); padding:1px 5px; border-radius:4px; font-size:11.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Handoff prompts — segment graph refactor</h1>
+  <p class="sub">
+    Pick one, hit copy, paste into a fresh session. Both are safe to edit before copying.
+  </p>
+
+  <!-- ── Full refactor ─────────────────────────────────────── -->
+  <div class="card">
+    <div class="head">
+      <div>
+        <div class="title">Full refactor — Tasks 2&nbsp;→&nbsp;7</div>
+        <div class="note">Commit to finishing. Tasks 2&ndash;6 are only valuable completed.</div>
+      </div>
+      <button data-copy="full">Copy</button>
+    </div>
+    <textarea id="full" spellcheck="false">Continue the segment graph refactor in this repo.
+
+Read these first; they carry decisions already made, so don't re-litigate them:
+  - SEGMENT_GRAPH_TASKS.md          (the plan; Tasks 0-1 are done)
+  - docs/adr/0016-segment-layers.md (why the boundary sits where it does)
+  - the `Layer` entry in CONTEXT.md
+
+Begin at Task 2. Work one task at a time: implement -> tests -> validation gate ->
+next task. Every gate is `npx tsc --noEmit` clean plus `npx vitest run` fully
+green.
+
+THE GOLDEN MASTER IS THE CONTRACT.
+src/features/export/segmentGraph.golden.test.ts holds 26 snapshots of the
+filtergraph the current code emits. Every task must reproduce them
+byte-for-byte - that is the entire safety net for this refactor, and export.ts
+has no other test coverage.
+
+If a snapshot fails, do NOT run `vitest -u`. A red snapshot means the emitted
+filtergraph changed, which is precisely the defect the test exists to catch.
+Investigate until the strings match exactly. Updating them would leave the suite
+green while silently destroying the safety net.
+
+Guardrail from ADR-0016: the base chain - Zoom, Ken Burns, rotation, the Grade -
+is NOT a Layer. If the interface starts needing "I am the source" or "I fork the
+stream", the boundary is being forced. Stop and re-read the ADR rather than
+widening it.
+
+Scope warning: Tasks 2-6 are only valuable completed. Stopping midway leaves the
+new module and the old index arithmetic coexisting in one closure - worse than
+not starting. Task 5 (the B-roll Overlay) is the widest member and the likeliest
+to fight you. If you think you'll run short, say so before starting Task 5
+rather than leaving it half-done.
+
+Don't commit unless I ask.</textarea>
+  </div>
+
+  <!-- ── Probe ─────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="head">
+      <div>
+        <div class="title">Probe — Task 2 only</div>
+        <div class="note">Find out what one task costs before committing to all of them.</div>
+      </div>
+      <button data-copy="probe">Copy</button>
+    </div>
+    <textarea id="probe" class="short" spellcheck="false">Continue the segment graph refactor in this repo.
+
+Read these first; they carry decisions already made, so don't re-litigate them:
+  - SEGMENT_GRAPH_TASKS.md          (the plan; Tasks 0-1 are done)
+  - docs/adr/0016-segment-layers.md (why the boundary sits where it does)
+  - the `Layer` entry in CONTEXT.md
+
+Do Task 2 ONLY, then stop and report what it cost: how much of export.ts you had
+to read, whether the golden-master snapshots stayed green first time, and your
+estimate for Tasks 3-5. Task 2 is a small module used by one Layer kind, so it's
+cheap to revert if we don't continue.
+
+THE GOLDEN MASTER IS THE CONTRACT.
+src/features/export/segmentGraph.golden.test.ts holds 26 snapshots of the
+filtergraph the current code emits. Task 2 must reproduce them byte-for-byte -
+that is the entire safety net, and export.ts has no other test coverage.
+
+If a snapshot fails, do NOT run `vitest -u`. A red snapshot means the emitted
+filtergraph changed, which is precisely the defect the test exists to catch.
+Investigate until the strings match exactly.
+
+Guardrail from ADR-0016: the base chain - Zoom, Ken Burns, rotation, the Grade -
+is NOT a Layer. If the interface starts needing "I am the source" or "I fork the
+stream", the boundary is being forced. Stop and re-read the ADR.
+
+Gate: `npx tsc --noEmit` clean, `npx vitest run` fully green. Don't commit unless
+I ask.</textarea>
+  </div>
+
+  <footer>
+    Unicode arrows and dashes were flattened to ASCII so nothing mangles on paste.
+  </footer>
+</div>
+
+<script>
+  document.querySelectorAll("button[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const text = document.getElementById(btn.dataset.copy).value;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // file:// without permission, or an older browser — select and copy.
+        const ta = document.getElementById(btn.dataset.copy);
+        ta.focus();
+        ta.setSelectionRange(0, ta.value.length);
+        document.execCommand("copy");
+      }
+      const original = btn.textContent;
+      btn.textContent = "Copied";
+      btn.classList.add("done");
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.classList.remove("done");
+      }, 1400);
+    });
+  });
+</script>
+</body>
+</html>
