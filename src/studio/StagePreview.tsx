@@ -5,6 +5,9 @@ import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
 import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, advanceStillPos, kenBurnsStyleAt, kenBurnsKeyframes } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
+import { getSplitLayoutCss, normalizeSplitConfig, getSlotTransformStyle } from "../features/export/splitScreenCanvas";
+
+
 
 interface ErrorBoundaryProps {
   fallback: (reset: () => void) => ReactNode;
@@ -51,7 +54,9 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
+  const slotVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const scrubRef = useRef<HTMLDivElement>(null);
+
 
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0); // 0..1 within the beat window
@@ -151,6 +156,35 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
       el.pause();
     }
   }, [elapsedCutSec, activeOverlay, playing]);
+
+  // 6. Split screen slot sync effect
+  useEffect(() => {
+    if (!beat?.splitScreen || beat.splitScreen.layout === "none") return;
+    const norm = normalizeSplitConfig(beat.splitScreen, clip?.id ?? "", beat.inSec);
+
+    norm.slots.forEach((slot, idx) => {
+      const el = slotVideoRefs.current[idx];
+      if (!el) return;
+
+      const slotClip = clips.find((c) => c.id === slot.clipId) ?? clip;
+      if (slotClip?.kind === "still") return;
+
+      const targetTime = (slot.inSec ?? beat.inSec) + beatElapsed;
+      if (Math.abs(el.currentTime - targetTime) > 0.15) {
+        try { el.currentTime = targetTime; } catch {}
+      }
+      const vol = slot.volume ?? (idx === 0 ? (beat.volume ?? 1) : 0);
+      el.volume = vol;
+      el.muted = vol === 0;
+
+      if (playing && el.paused) {
+        el.play().catch(() => {});
+      } else if (!playing && !el.paused) {
+        el.pause();
+      }
+    });
+  }, [beatElapsed, beat?.splitScreen, playing, clip, clips, beat?.inSec, beat?.volume]);
+
 
   function togglePlay() {
     if (!beat) return;
@@ -324,14 +358,55 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
               : kenBurnsStyleAt(kbMove, pos))
           : beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY, isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed))) }}>
           <div style={{ position: "absolute", inset: 0, ...beatRotationStyle(...canvasDims(cut.aspect), beat.rotation) }}>
-            {isStill ? (
-              // Same wrappers, same grade — only the element differs (ADR-0012).
-              <img src={stillUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments) }} />
-            ) : (
-              <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments) }} />
-            )}
+            {(() => {
+              const splitCfg = beat.splitScreen;
+              const filterStyle = cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments);
+
+              if (splitCfg && splitCfg.layout !== "none" && splitCfg.slots.length > 1) {
+                const normConfig = normalizeSplitConfig(splitCfg, clip?.id ?? "", beat.inSec);
+                const gridCss = getSplitLayoutCss(normConfig.layout);
+                return (
+                  <div style={{ ...gridCss, filter: filterStyle }}>
+                    {normConfig.slots.map((slot, idx) => {
+                      const slotClip = clips.find((c) => c.id === slot.clipId) ?? clip;
+                      const slotBlob = slotClip ? getClipBlobUrl(slotClip.file) : null;
+                      const tfStyle = getSlotTransformStyle(slot);
+                      return (
+                        <div key={`${slot.clipId}-${idx}`} style={{ position: "relative", overflow: "hidden", background: "#000" }}>
+                          {slotClip?.kind === "still" ? (
+                            <img src={slotBlob ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }} />
+                          ) : (
+                            <video
+                              ref={(el) => {
+                                slotVideoRefs.current[idx] = el;
+                                if (idx === 0) (videoRef as any).current = el;
+                              }}
+                              src={slotBlob ?? undefined}
+                              onTimeUpdate={idx === 0 ? onTimeUpdate : undefined}
+                              muted={(slot.volume ?? (idx === 0 ? (beat.volume ?? 1) : 0)) === 0}
+                              playsInline
+                              style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }}
+                            />
+                          )}
+
+                        </div>
+                      );
+                    })}
+
+                  </div>
+                );
+              }
+
+              return isStill ? (
+                // Same wrappers, same grade — only the element differs (ADR-0012).
+                <img src={stillUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
+              ) : (
+                <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
+              );
+            })()}
           </div>
         </div>
+
         {activeOverlay && activeOverlayClip && overlayBlobUrl && (
           <video
             key={activeOverlay.id}

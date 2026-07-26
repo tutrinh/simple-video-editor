@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
-import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType } from "../domain/types";
+import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType, SplitLayoutType } from "../domain/types";
 import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, sliderTrackStyle, cssFilterFor, getFilterPreset, rotationCoverScale, fillMove, KEN_BURNS_PRESETS, KEN_BURNS_DEFAULT } from "./util";
+import { normalizeSplitConfig } from "../features/export/splitScreenCanvas";
+import { getClipBlobUrl } from "../lib/blobUrlCache";
+import SplitClipPickerModal from "./SplitClipPickerModal";
+
+
+
 
 import { stickerFileUrl } from "../lib/stickerLibrary";
 import { beatSpans, resolveSticker, resolveSfx } from "../features/export/stickerCanvas";
@@ -191,6 +197,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const [titleOpen, setTitleOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [pickerSlotIndex, setPickerSlotIndex] = useState<number | null>(null);
+
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
   const currentGlobalAdj = cut?.globalFilterAdjustments ?? activeGlobalFilter?.colorAdjustments ?? {};
 
@@ -866,6 +874,8 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const beatTitleLayers: TitleLayerSettings[] = b.titleLayers ?? makeBeatTitleLayers();
   const beatTitleCount = beatTitleLayers.filter((l) => l.enabled && l.text.trim()).length;
 
+
+
   // The caption is stored as newline-separated lines. By default they stack
   // on-screen for the whole beat. When "Timed lines" is on, each line carries a
   // seconds timer (Beat.captionDurations, aligned by row) and the lines play in
@@ -1152,6 +1162,247 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
             </button>
           )}
         </div>
+
+        {/* Split Screen Treatment Card */}
+        <div className="st-field" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <label style={{ margin: 0, fontWeight: 700, color: "var(--purple)", fontSize: 12 }}>
+              🥞 Split Screen Layout
+            </label>
+            <select
+              value={b.splitScreen?.layout ?? "none"}
+              onChange={(e) => {
+                const layout = e.target.value as SplitLayoutType;
+                if (layout === "none") {
+                  const { splitScreen: _drop, ...rest } = b;
+                  update(rest);
+                } else {
+                  const norm = normalizeSplitConfig({ layout, slots: b.splitScreen?.slots ?? [] }, clip?.id ?? b.clipId, b.inSec);
+                  update({ ...b, splitScreen: norm });
+                }
+              }}
+              style={{ fontSize: 11, padding: "3px 8px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: 4, width: "auto" }}
+            >
+              <option value="none">Single Clip (None)</option>
+              <option value="v2-stacked">🥞 Top / Bottom Stack (2)</option>
+              <option value="v2-side">📂 Left / Right Side (2)</option>
+              <option value="3-col">📊 3-Column Split (3)</option>
+              <option value="4-grid">🏁 2x2 Quad Grid (4)</option>
+            </select>
+          </div>
+
+          {b.splitScreen && b.splitScreen.layout !== "none" && (() => {
+            const norm = normalizeSplitConfig(b.splitScreen, clip?.id ?? b.clipId, b.inSec);
+            const allClips: Clip[] = state.clips ?? [];
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+                {norm.slots.map((slot, idx) => {
+                  const slotClip = allClips.find((c) => c.id === slot.clipId) ?? clip;
+                  const blobUrl = slotClip ? getClipBlobUrl(slotClip.file) : null;
+
+                  return (
+                    <div key={idx} style={{ background: "var(--panel)", padding: 8, borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, fontWeight: 600 }}>
+                        <span>Slot {idx + 1} {idx === 0 ? "(Primary)" : ""}</span>
+                        <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 10, color: "var(--ink-2)" }}>
+                          <input
+                            type="checkbox"
+                            checked={(slot.volume ?? (idx === 0 ? 1 : 0)) > 0}
+                            onChange={(e) => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, volume: e.target.checked ? 1 : 0 };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            style={{ accentColor: "var(--accent)" }}
+                          />
+                          <span>Audio</span>
+                        </label>
+                      </div>
+
+                      {/* Visual Clip Thumbnail Card Button */}
+                      <div
+                        onClick={() => setPickerSlotIndex(idx)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          background: "var(--panel-2)",
+                          border: "1px solid var(--line)",
+                          borderRadius: 6,
+                          padding: 6,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#8b7cff"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line)"; }}
+                        title="Click to change clip"
+                      >
+                        <div style={{ width: 44, height: 32, borderRadius: 4, overflow: "hidden", background: "#000", flexShrink: 0, position: "relative" }}>
+                          {slotClip?.kind === "still" ? (
+                            <img src={blobUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <video src={blobUrl ?? undefined} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline />
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {slotClip?.name ?? "Select clip..."}
+                          </div>
+                          <div style={{ fontSize: 10, color: "var(--ink-3)" }}>
+                            {slotClip ? fmtSecs(slotClip.durationSec) : "No clip selected"}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="st-btn ghost"
+                          style={{ fontSize: 10, padding: "2px 6px" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPickerSlotIndex(idx);
+                          }}
+                        >
+                          Change ▾
+                        </button>
+                      </div>
+
+                      {/* Per-Slot Reframing & Transform Sliders */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2, background: "var(--panel-2)", padding: 8, borderRadius: 6, border: "1px solid var(--line)" }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-2)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Slot Reframing & Transform</div>
+
+                        {/* Scale / Zoom */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Scale</span>
+                          <input
+                            type="range"
+                            min={1}
+                            max={3}
+                            step={0.05}
+                            value={slot.scale ?? 1}
+                            onChange={(e) => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, scale: Number(e.target.value) };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            onDoubleClick={() => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, scale: 1 };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            style={sliderTrackStyle(slot.scale ?? 1, 1, 3)}
+                            title="Double-click to reset scale to 1.0"
+                          />
+                          <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                            {(slot.scale ?? 1).toFixed(2)}x
+                          </span>
+                        </div>
+
+                        {/* Pan X */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Pan X</span>
+                          <input
+                            type="range"
+                            min={-50}
+                            max={50}
+                            step={1}
+                            value={slot.panX ?? 0}
+                            onChange={(e) => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, panX: Number(e.target.value) };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            onDoubleClick={() => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, panX: 0 };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            style={sliderTrackStyle(slot.panX ?? 0, -50, 50)}
+                            title="Double-click to reset Pan X to 0"
+                          />
+                          <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                            {slot.panX ?? 0}%
+                          </span>
+                        </div>
+
+                        {/* Pan Y */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Pan Y</span>
+                          <input
+                            type="range"
+                            min={-50}
+                            max={50}
+                            step={1}
+                            value={slot.panY ?? 0}
+                            onChange={(e) => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, panY: Number(e.target.value) };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            onDoubleClick={() => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, panY: 0 };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            style={sliderTrackStyle(slot.panY ?? 0, -50, 50)}
+                            title="Double-click to reset Pan Y to 0"
+                          />
+                          <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                            {slot.panY ?? 0}%
+                          </span>
+                        </div>
+
+                        {/* Rotation */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Rotate</span>
+                          <input
+                            type="range"
+                            min={-180}
+                            max={180}
+                            step={1}
+                            value={slot.rotation ?? 0}
+                            onChange={(e) => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, rotation: Number(e.target.value) };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            onDoubleClick={() => {
+                              const newSlots = [...norm.slots];
+                              newSlots[idx] = { ...slot, rotation: 0 };
+                              update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                            }}
+                            style={sliderTrackStyle(slot.rotation ?? 0, -180, 180)}
+                            title="Double-click to reset rotation angle to 0°"
+                          />
+                          <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                            {slot.rotation ?? 0}°
+                          </span>
+                        </div>
+                      </div>
+
+
+                      {/* Pop-Up Modal when active */}
+                      {pickerSlotIndex === idx && (
+                        <SplitClipPickerModal
+                          slotIndex={idx}
+                          activeClipId={slot.clipId}
+                          clips={allClips}
+                          onSelectClip={(newClipId) => {
+                            const newSlots = [...norm.slots];
+                            newSlots[idx] = { ...slot, clipId: newClipId };
+                            update({ ...b, splitScreen: { ...norm, slots: newSlots } });
+                          }}
+                          onClose={() => setPickerSlotIndex(null)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
+        </div>
+
 
 
         <div className="st-field">

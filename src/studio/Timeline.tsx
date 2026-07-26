@@ -965,10 +965,15 @@ export default function Timeline({
                           onSelectOverlay?.(null);
                         }}
                       >
-                        <div className="st-bt" style={{ background: beatPosterBg(b, clip, forceUpdate) }}>
-
+                        <div className="st-bt" style={{ background: beatPosterBg(b, clip, forceUpdate), position: "relative" }}>
+                          {b.splitScreen && b.splitScreen.layout !== "none" && (
+                            <span style={{ position: "absolute", top: 4, right: 4, background: "rgba(139,124,255,0.9)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, zIndex: 5, backdropFilter: "blur(4px)" }}>
+                              🥞 Split
+                            </span>
+                          )}
                           <span className="bn st-num">{String(i + 1).padStart(2, "0")}</span>
                         </div>
+
                         <div className="st-bcap">{b.captionText}</div>
                         <div className="st-bdur">
                           <span className="st-num">{fmtSecs(b.durationSec)}</span>
