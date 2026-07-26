@@ -6,6 +6,7 @@ import { runPool } from "../lib/pool";
 import { multithreadReady } from "../lib/ffmpegEngine";
 import { createClip, needsNormalize, normalizeTo1080p, isStillFile, CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
 import { fmtClock, posterBg } from "./util";
+import { getTagStyle } from "../lib/tagPresets";
 
 type Phase = "pending" | "normalizing" | "ready" | "error";
 interface Status { phase: Phase; progress: number; error?: string }
@@ -56,9 +57,13 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
   const [dragging, setDragging] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const setStatus = (id: string, s: Status) => setStatuses((p) => ({ ...p, [id]: s }));
   const clipById = new Map(state.clips.map((c) => [c.id, c]));
+
+  const allProjectTags = Array.from(new Set(state.clips.flatMap((c) => c.tags ?? [])));
 
   async function handleFiles(files: File[]) {
     // Footage or a Still (ADR-0012); anything else is ignored silently.
@@ -112,7 +117,7 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
   }
   const endDrag = () => { setDragId(null); setOverId(null); };
 
-  const unusedClips = state.clips.filter((c) => !usedClipIds.has(c.id));
+  const unusedClips = state.clips.filter((c) => !usedClipIds.has(c.id) && (!tagFilter || c.tags?.includes(tagFilter)));
 
   function IngestRow({ clip, addable }: { clip: Clip; addable: boolean }) {
     const st = statuses[clip.id];
@@ -125,7 +130,31 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
       >
         <div className="st-thumb" style={{ background: posterBg(clip) }} />
         <div className="st-cmeta">
-          <div className="st-cname">{clip.name}</div>
+          <ClipNameEditor clip={clip} />
+          {clip.tags && clip.tags.length > 0 && (
+            <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+              {clip.tags.map((tag) => {
+                const style = getTagStyle(tag);
+                return (
+                  <span
+                    key={tag}
+                    style={{
+                      fontSize: 8.5,
+                      fontWeight: 600,
+                      padding: "0px 4px",
+                      borderRadius: 3,
+                      background: style.bg,
+                      color: style.text,
+                      border: `1px solid ${style.border}`,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {tag}
+                  </span>
+                );
+              })}
+            </div>
+          )}
           <div className="st-crow">
             <span className="st-cdur st-num">{fmtClock(clip.durationSec)}</span>
             {clip.kind === "still" && <span className="st-status" title="Imported image — runs 10s as a beat">still</span>}
@@ -142,9 +171,6 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                 >
                   + Beat
                 </button>
-                {/* B-roll Overlays are pre-trimmed with -ss/-t against a video
-                    source, so a Still cannot be one. Over-the-Cut images are
-                    the Sticker track's job (ADR-0011). */}
                 {clip.kind !== "still" && <button
                   type="button"
                   className="st-btn ghost"
@@ -190,6 +216,34 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
         {state.clips.length > 0 && <span className="cnt st-num" style={{ marginLeft: 6 }}>{state.clips.length}</span>}
       </div>
 
+      {allProjectTags.length > 0 && (
+        <div style={{ padding: "6px 10px", display: "flex", gap: 4, flexWrap: "wrap", background: "var(--panel-2)", borderBottom: "1px solid var(--line)" }}>
+          <button
+            type="button"
+            className={`st-btn ${tagFilter === null ? "primary" : "ghost"}`}
+            style={{ fontSize: 9.5, padding: "1px 6px" }}
+            onClick={() => setTagFilter(null)}
+          >
+            All ({state.clips.length})
+          </button>
+          {allProjectTags.map((tag) => {
+            const active = tagFilter === tag;
+            const count = state.clips.filter((c) => c.tags?.includes(tag)).length;
+            return (
+              <button
+                key={tag}
+                type="button"
+                className={`st-btn ${active ? "primary" : "ghost"}`}
+                style={{ fontSize: 9.5, padding: "1px 6px" }}
+                onClick={() => setTagFilter(active ? null : tag)}
+              >
+                {tag} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div
         className={"st-drop" + (dragging ? " drag" : "")}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -209,6 +263,7 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
             {beats.map((b, i) => {
               const clip = clipById.get(b.clipId);
               if (!clip) return null;
+              if (tagFilter && !clip.tags?.includes(tagFilter)) return null;
               const isOver = overId === b.id && dragId !== null && dragId !== b.id;
               return (
                 <div
@@ -225,7 +280,31 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                   <Grip />
                   <div className="st-thumb" style={{ background: posterBg(clip) }} />
                   <div className="st-cmeta">
-                    <div className="st-cname">{clip.name}</div>
+                    <ClipNameEditor clip={clip} />
+                    {clip.tags && clip.tags.length > 0 && (
+                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+                        {clip.tags.map((tag) => {
+                          const style = getTagStyle(tag);
+                          return (
+                            <span
+                              key={tag}
+                              style={{
+                                fontSize: 8.5,
+                                fontWeight: 600,
+                                padding: "0px 4px",
+                                borderRadius: 3,
+                                background: style.bg,
+                                color: style.text,
+                                border: `1px solid ${style.border}`,
+                                lineHeight: 1.2,
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                     <div className="st-crow">
                       <span className="st-cdur st-num">{fmtClock(b.durationSec ?? clip.durationSec)}</span>
                       <span className="st-beatno st-num">#{i + 1}</span>
@@ -254,9 +333,93 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
             {unusedClips.map((clip) => <IngestRow key={clip.id} clip={clip} addable />)}
           </>
         ) : (
-          state.clips.map((clip) => <IngestRow key={clip.id} clip={clip} addable={false} />)
+          state.clips.filter((c) => !tagFilter || c.tags?.includes(tagFilter)).map((clip) => <IngestRow key={clip.id} clip={clip} addable={false} />)
         )}
       </div>
     </aside>
+  );
+}
+
+function ClipNameEditor({ clip }: { clip: Clip }) {
+  const { dispatch } = useProject();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(clip.name);
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        value={name}
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => {
+          setEditing(false);
+          if (name.trim() && name.trim() !== clip.name) {
+            dispatch({ type: "RENAME_CLIP", id: clip.id, name: name.trim() });
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            setEditing(false);
+            if (name.trim() && name.trim() !== clip.name) {
+              dispatch({ type: "RENAME_CLIP", id: clip.id, name: name.trim() });
+            }
+          } else if (e.key === "Escape") {
+            setEditing(false);
+            setName(clip.name);
+          }
+        }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: "var(--ink)",
+          background: "var(--panel)",
+          border: "1px solid var(--accent)",
+          borderRadius: 3,
+          padding: "1px 4px",
+          outline: "none",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="st-cname"
+      title="Click ✏️ or double-click to rename clip"
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        setEditing(true);
+      }}
+      style={{ cursor: "text", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}
+    >
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{clip.name}</span>
+      <button
+        type="button"
+        className="st-rename-btn"
+        title="Rename clip"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setEditing(true);
+        }}
+        style={{
+          background: "none",
+          border: "none",
+          color: "var(--ink-3)",
+          cursor: "pointer",
+          padding: "0 2px",
+          fontSize: 10,
+          display: "inline-flex",
+          alignItems: "center",
+          opacity: 0.6,
+        }}
+      >
+        ✏️
+      </button>
+    </div>
   );
 }

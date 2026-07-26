@@ -1,10 +1,10 @@
 import type { ProjectState } from "../state/projectReducer";
-import type { Clip } from "../domain/types";
+import type { Clip, ProjectTemplate } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
 import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, titleFontKeys } from "./titleFontPersist";
 
 const DB_NAME = "vidstr_projects_db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const ACTIVE_PROJECT_KEY = "simple_editor_active_project_id";
 
 function openDB(): Promise<IDBDatabase> {
@@ -24,6 +24,10 @@ function openDB(): Promise<IDBDatabase> {
       // v2: uploaded per-beat title fonts (structured clone preserves the File).
       if (!db.objectStoreNames.contains("title_fonts")) {
         db.createObjectStore("title_fonts", { keyPath: "key" });
+      }
+      // v3: reusable project templates (pure JSON, no blobs).
+      if (!db.objectStoreNames.contains("templates")) {
+        db.createObjectStore("templates", { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -234,4 +238,42 @@ export async function deleteProjectFromStorage(id: string): Promise<void> {
   if (typeof localStorage !== "undefined" && localStorage.getItem(ACTIVE_PROJECT_KEY) === id) {
     localStorage.removeItem(ACTIVE_PROJECT_KEY);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Template CRUD — pure JSON records, no blobs
+// ---------------------------------------------------------------------------
+
+export async function saveTemplate(template: ProjectTemplate): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction("templates", "readwrite");
+  tx.objectStore("templates").put({ ...template, updatedAt: Date.now() });
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function loadAllTemplates(): Promise<ProjectTemplate[]> {
+  const db = await openDB();
+  const tx = db.transaction("templates", "readonly");
+  return new Promise<ProjectTemplate[]>((resolve, reject) => {
+    const req = tx.objectStore("templates").getAll();
+    req.onsuccess = () => {
+      const list: ProjectTemplate[] = (req.result ?? []) as ProjectTemplate[];
+      list.sort((a, b) => b.updatedAt - a.updatedAt);
+      resolve(list);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction("templates", "readwrite");
+  tx.objectStore("templates").delete(id);
+  await new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
 }

@@ -25,6 +25,8 @@ export interface Clip {
   description?: ClipDescription;
   /** Editor's include/exclude toggle for authoring. Undefined = included. */
   included?: boolean;
+  /** User-assigned tags for clip organization (e.g. ["A-Roll", "B-Roll", "Interview"]). */
+  tags?: string[];
 }
 
 /**
@@ -87,6 +89,44 @@ export type VideoTransitionType =
   | "wiperight"
   | "slideleft"
   | "slideright";
+
+/**
+ * One structural slot in a ProjectTemplate — a generic beat description
+ * that Claude uses to assign clips during constrained generation.
+ */
+export interface TemplateBeat {
+  /** Human-readable slot label sent to Claude (e.g. "Opening wide shot"). */
+  description: string;
+  /** Approximate duration in seconds inferred from the reference video. */
+  approxDurationSec?: number;
+  zoom?: number;
+  transition?: VideoTransitionType;
+  transitionSec?: number;
+}
+
+/**
+ * A reusable project blueprint. Captures the edit structure (beat count +
+ * descriptions) and a full style bundle (color, title, VO, export settings).
+ * Created by AI extraction from an inspiration video or from a finished project.
+ */
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  /** User-visible subtitle, e.g. "Extracted from 'Tokyo Travel Vlog'". */
+  description?: string;
+  createdAt: number;
+  updatedAt: number;
+  /** Structural skeleton — one entry per beat slot. */
+  beats: TemplateBeat[];
+  /** Inferred aspect ratio. */
+  aspect?: Aspect;
+  /** Visual tone/energy hint passed to Claude during constrained generation. */
+  toneHint?: string;
+  /** Approximated color grade extracted from the reference video. */
+  colorHint?: ColorAdjustments;
+  /** Raw text from the Claude extraction — retained for debugging. */
+  extractionRaw?: string;
+}
 
 export type SplitLayoutType =
   | "none"

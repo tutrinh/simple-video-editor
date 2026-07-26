@@ -26,6 +26,7 @@ import { synthesizeVoiceover } from "../lib/tts";
 import { sfxFileUrl } from "../lib/sfxLibrary";
 import Switch from "./Switch";
 import { beatPosterBg } from "../lib/beatPosterCache";
+import ClipTagEditor from "./ClipTagEditor";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -153,7 +154,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
   );
 }
 
-export default function Inspector({ beat, clip, clips: _clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker }: Props) {
+export default function Inspector({ beat, clip, clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker }: Props) {
   const { state, dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
@@ -192,12 +193,15 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     const a = sfxPreviewRef.current;
     return () => { if (a) { a.pause(); } };
   }, [selectedSfx?.id]);
-  const [trimOpen, setTrimOpen] = useState(false);
+  const [trimOpen, setTrimOpen] = useState(true);
   const [colorOpen, setColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [pickerSlotIndex, setPickerSlotIndex] = useState<number | null>(null);
+  const [showBeatClipPicker, setShowBeatClipPicker] = useState(false);
+  const [sourceCardHovered, setSourceCardHovered] = useState(false);
+  const [trimHistory, setTrimHistory] = useState<{ inSec: number; outSec: number; durationSec: number }[]>([]);
 
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
   const currentGlobalAdj = cut?.globalFilterAdjustments ?? activeGlobalFilter?.colorAdjustments ?? {};
@@ -319,7 +323,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
   // Suggestions & modals belong to one beat — clear them when a different beat is selected.
-  useEffect(() => { setAlts([]); setAltErr(null); setConfirmRemoveOpen(false); }, [beat?.id]);
+  useEffect(() => { setAlts([]); setAltErr(null); setConfirmRemoveOpen(false); setTrimHistory([]); }, [beat?.id]);
 
   // Synthesize this segment's narration and snap its length to the exact spoken
   // duration (from ElevenLabs timestamps / decoded audio) so the caption window fits.
@@ -869,6 +873,29 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
   const b = beat;
   const update = (next: Beat) => dispatch({ type: "UPDATE_BEAT", beat: next });
 
+  function handleSwapClip(newClipId: string) {
+    if (!b || newClipId === b.clipId) return;
+    const newClip = clips.find((c) => c.id === newClipId);
+    if (!newClip) return;
+
+    const currentDur = b.durationSec ?? (b.outSec - b.inSec);
+    const targetDur = Math.min(currentDur, newClip.durationSec || currentDur);
+
+    let newIn = b.inSec;
+    if (newIn + targetDur > newClip.durationSec) {
+      newIn = Math.max(0, newClip.durationSec - targetDur);
+    }
+    const newOut = newIn + targetDur;
+
+    update({
+      ...b,
+      clipId: newClipId,
+      inSec: newIn,
+      outSec: newOut,
+      durationSec: targetDur,
+    });
+  }
+
   // Per-beat title layers (fall back to a fresh disabled stack for beats that
   // have never had a title). Editing dispatches the whole beat back.
   const beatTitleLayers: TitleLayerSettings[] = b.titleLayers ?? makeBeatTitleLayers();
@@ -945,9 +972,30 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
     editText(i, alt);
     setAlts((a) => a.map((x, k) => (k === i ? [] : x))); // clear that line's chips once chosen
   };
+
+  function undoTrim() {
+    if (trimHistory.length === 0 || !b) return;
+    const prevTrim = trimHistory[trimHistory.length - 1];
+    setTrimHistory((prev) => prev.slice(0, -1));
+    update({
+      ...b,
+      inSec: prevTrim.inSec,
+      outSec: prevTrim.outSec,
+      durationSec: prevTrim.durationSec,
+    });
+  }
+
   function setTrim(inSec: number, outSec: number) {
+    if (!b) return;
     const maxOut = clip?.durationSec ?? Math.max(outSec, 10);
     const targetDur = b.lockDuration ? b.durationSec : undefined;
+
+    if (Math.abs(inSec - b.inSec) > 0.01 || Math.abs(outSec - b.outSec) > 0.01) {
+      setTrimHistory((prev) => [
+        ...prev.slice(-20),
+        { inSec: b.inSec, outSec: b.outSec, durationSec: b.durationSec },
+      ]);
+    }
 
     if (targetDur != null && targetDur > 0) {
       const fixedDur = Math.min(targetDur, maxOut);
@@ -1018,7 +1066,141 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
           <div className="cap">{b.captionText}</div>
         </div>
 
+        {/* Source Clip Switcher */}
+        <div className="st-field" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+            <label style={{ margin: 0, fontWeight: 700, fontSize: 12, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
+              <span>🎬 Source Clip</span>
+            </label>
+            <span style={{ fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+              {clip ? fmtSecs(clip.durationSec) : ""}
+            </span>
+          </div>
 
+          <div
+            onMouseEnter={() => setSourceCardHovered(true)}
+            onMouseLeave={() => setSourceCardHovered(false)}
+            style={{ display: "flex", alignItems: "center", gap: 10 }}
+          >
+            {clip && sourceCardHovered && clip.kind !== "still" ? (
+              <video
+                src={getClipBlobUrl(clip.file)}
+                autoPlay
+                loop
+                muted
+                playsInline
+                style={{
+                  width: 44,
+                  height: 32,
+                  objectFit: "cover",
+                  borderRadius: 4,
+                  border: "1px solid var(--accent)",
+                  background: "#000",
+                  flexShrink: 0,
+                }}
+              />
+            ) : clip?.poster ? (
+              <img
+                src={clip.poster}
+                alt={clip.name}
+                style={{
+                  width: 44,
+                  height: 32,
+                  objectFit: "cover",
+                  borderRadius: 4,
+                  border: `1px solid ${sourceCardHovered ? "var(--accent)" : "var(--line)"}`,
+                  background: "#000",
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 44,
+                  height: 32,
+                  borderRadius: 4,
+                  border: `1px solid ${sourceCardHovered ? "var(--accent)" : "var(--line)"}`,
+                  background: "var(--panel-3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 14,
+                  flexShrink: 0,
+                }}
+              >
+                🎥
+              </div>
+            )}
+
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+              {clip ? (
+                <input
+                  type="text"
+                  value={clip.name}
+                  onChange={(e) => dispatch({ type: "RENAME_CLIP", id: clip.id, name: e.target.value })}
+                  placeholder="Clip title name…"
+                  title="Click to edit clip title name"
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "var(--ink)",
+                    background: "var(--panel)",
+                    border: "1px solid var(--line)",
+                    borderRadius: 4,
+                    padding: "2px 6px",
+                    outline: "none",
+                    width: "100%",
+                    boxSizing: "border-box",
+                  }}
+                />
+              ) : (
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)" }}>
+                  No clip assigned
+                </div>
+              )}
+              <div style={{ fontSize: 10.5, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
+                ⏱ Duration: {clip ? fmtSecs(clip.durationSec) : "0s"}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="st-btn primary"
+              onClick={() => setShowBeatClipPicker(true)}
+              title="Open visual clip picker to swap source clip for this beat"
+              style={{ fontSize: 11, padding: "5px 10px", whiteSpace: "nowrap", flexShrink: 0 }}
+            >
+              ⇄ Swap Clip
+            </button>
+          </div>
+
+          {clip && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)", marginBottom: 6 }}>
+                Clip Tags
+              </div>
+              <ClipTagEditor clip={clip} />
+            </div>
+          )}
+
+          <div style={{ fontSize: 10.5, color: "var(--ink-2)", marginTop: 8, lineHeight: 1.3 }}>
+            💡 Swapping clip keeps zoom, color grade, titles, and beat duration intact.
+          </div>
+        </div>
+
+        {/* Visual Clip Picker Modal for Active Beat */}
+        {showBeatClipPicker && (
+          <SplitClipPickerModal
+            title={`Swap Source Clip for Beat ${String(index + 1).padStart(2, "0")}`}
+            activeClipId={b.clipId}
+            clips={clips}
+            onSelectClip={(newClipId) => {
+              handleSwapClip(newClipId);
+              setShowBeatClipPicker(false);
+            }}
+            onClose={() => setShowBeatClipPicker(false)}
+          />
+        )}
 
         {SHOW_PER_BEAT_CAPTION_BOX && (
         <div className="st-field">
@@ -1148,18 +1330,59 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
               <span>Lock duration</span>
             </label>
           </div>
-          {b.lockDuration && (
-            <div style={{ fontSize: 10.5, color: "var(--accent)", marginBottom: 6, lineHeight: 1.3 }}>
-              🔒 <strong>Duration locked ({fmtSecs(b.durationSec)})</strong> — moving IN or OUT slips the clip without shifting the timeline.
-            </div>
-          )}
+          <div
+            style={{
+              fontSize: 10.5,
+              padding: "6px 10px",
+              borderRadius: 6,
+              marginBottom: 8,
+              lineHeight: 1.35,
+              background: b.lockDuration
+                ? "color-mix(in srgb, var(--accent) 10%, transparent)"
+                : "var(--panel-2)",
+              border: `1px solid ${b.lockDuration ? "color-mix(in srgb, var(--accent) 35%, transparent)" : "var(--line)"}`,
+              color: b.lockDuration ? "var(--accent)" : "var(--ink-2)",
+            }}
+          >
+            {b.lockDuration ? (
+              <span>
+                🔒 <strong>Duration locked ({fmtSecs(b.durationSec)})</strong>: Changing IN or OUT performs a slip edit—shifting the footage window while the timeline duration will be unchanged.
+              </span>
+            ) : (
+              <span>
+                🔓 <strong>Unlocked duration</strong>: Changing IN or OUT trims footage and expands/shrinks beat length on the timeline. Check <strong>Lock duration</strong> for slip editing.
+              </span>
+            )}
+          </div>
           {clip
             ? <BeatTrimmer beat={b} clip={clip} compact={!trimOpen} onChange={setTrim} lockDuration={b.lockDuration} />
             : <div style={{ color: "var(--ink-3)", fontSize: 12 }}>Clip missing.</div>}
           {clip && (
-            <button className="st-btn ghost" style={{ marginTop: 8, fontSize: 12, padding: "5px 10px" }} onClick={() => setTrimOpen((v) => !v)}>
-              {trimOpen ? "Hide video scrubber" : "Open video scrubber"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <button className="st-btn ghost" style={{ fontSize: 12, padding: "5px 10px" }} onClick={() => setTrimOpen((v) => !v)}>
+                {trimOpen ? "Hide video scrubber" : "Open video scrubber"}
+              </button>
+
+              {trimHistory.length > 0 && (
+                <button
+                  type="button"
+                  className="st-btn ghost"
+                  onClick={undoTrim}
+                  title="Undo previous trim change"
+                  style={{
+                    fontSize: 11.5,
+                    padding: "5px 10px",
+                    color: "var(--accent)",
+                    borderColor: "color-mix(in srgb, var(--accent) 40%, transparent)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  ↩ Undo Trim ({fmtSecs(trimHistory[trimHistory.length - 1].inSec)}–{fmtSecs(trimHistory[trimHistory.length - 1].outSec)})
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -2115,7 +2338,7 @@ export default function Inspector({ beat, clip, clips: _clips, logline, index, t
                     onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, clipId: e.target.value } })}
                     style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 12 }}
                   >
-                    {_clips.map((c) => (
+                    {clips.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>

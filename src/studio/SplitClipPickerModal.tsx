@@ -1,22 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import { fmtSecs } from "./util";
+import { getTagStyle } from "../lib/tagPresets";
 
 interface Props {
-  slotIndex: number;
+  slotIndex?: number;
+  title?: string;
   activeClipId: string;
   clips: Clip[];
   onSelectClip: (clipId: string) => void;
   onClose: () => void;
 }
 
-export default function SplitClipPickerModal({ slotIndex, activeClipId, clips, onSelectClip, onClose }: Props) {
+export default function SplitClipPickerModal({ slotIndex, title, activeClipId, clips, onSelectClip, onClose }: Props) {
   const [search, setSearch] = useState("");
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const searchLower = search.toLowerCase().trim();
   const filteredClips = clips.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
+    c.name.toLowerCase().includes(searchLower) ||
+    (c.tags && c.tags.some((t) => t.toLowerCase().includes(searchLower)))
   );
+
+  const displayTitle = title ?? (slotIndex !== undefined ? `Pick Clip for Slot ${slotIndex + 1}` : "Select Source Clip");
 
   return (
     <div
@@ -39,7 +53,7 @@ export default function SplitClipPickerModal({ slotIndex, activeClipId, clips, o
           maxWidth: 580,
           maxHeight: "80vh",
           background: "var(--panel-2)",
-          border: "1px solid #8b7cff",
+          border: "1px solid var(--accent)",
           borderRadius: 12,
           display: "flex",
           flexDirection: "column",
@@ -59,20 +73,23 @@ export default function SplitClipPickerModal({ slotIndex, activeClipId, clips, o
             background: "var(--panel)",
           }}
         >
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#8b7cff", display: "flex", alignItems: "center", gap: 8 }}>
-            <span>🎬 Pick Clip for Slot {slotIndex + 1}</span>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
+            <span>🎬 {displayTitle}</span>
             <span style={{ fontSize: 11, fontWeight: 500, color: "var(--ink-3)", background: "var(--panel-2)", padding: "2px 8px", borderRadius: 10 }}>
               {clips.length} project {clips.length === 1 ? "clip" : "clips"}
             </span>
           </div>
           <button
             type="button"
-            className="st-btn ghost"
             onClick={onClose}
-            style={{ padding: "2px 8px", fontSize: 16, lineHeight: 1 }}
-            title="Close"
+            aria-label="Close"
+            title="Close (Esc)"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink-2)", padding: 6, borderRadius: 7, display: "flex" }}
           >
-            ×
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -108,102 +125,164 @@ export default function SplitClipPickerModal({ slotIndex, activeClipId, clips, o
             gap: 12,
           }}
         >
-          {filteredClips.map((c) => {
-            const isSelected = c.id === activeClipId;
-            const blobUrl = getClipBlobUrl(c.file);
-
-            return (
-              <div
-                key={c.id}
-                onClick={() => {
-                  onSelectClip(c.id);
-                  onClose();
-                }}
-                style={{
-                  position: "relative",
-                  background: "var(--panel)",
-                  border: isSelected ? "2px solid #8b7cff" : "1px solid var(--line)",
-                  borderRadius: 8,
-                  overflow: "hidden",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                  boxShadow: isSelected ? "0 0 12px rgba(139, 124, 255, 0.4)" : "none",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSelected) e.currentTarget.style.borderColor = "var(--ink-2)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSelected) e.currentTarget.style.borderColor = "var(--line)";
-                }}
-              >
-                {/* Thumbnail Preview */}
-                <div style={{ width: "100%", height: 85, background: "#000", position: "relative", overflow: "hidden" }}>
-                  {c.kind === "still" ? (
-                    <img src={blobUrl} alt={c.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  ) : (
-                    <video src={blobUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline />
-                  )}
-                  {isSelected && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 6,
-                        right: 6,
-                        background: "#8b7cff",
-                        color: "#fff",
-                        width: 20,
-                        height: 20,
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 12,
-                        fontWeight: 700,
-                        boxShadow: "0 2px 6px rgba(0,0,0,0.5)",
-                      }}
-                    >
-                      ✓
-                    </div>
-                  )}
-                  <span
-                    style={{
-                      position: "absolute",
-                      bottom: 4,
-                      right: 4,
-                      background: "rgba(0,0,0,0.75)",
-                      color: "var(--ink)",
-                      fontSize: 9,
-                      fontFamily: "var(--mono)",
-                      padding: "1px 5px",
-                      borderRadius: 3,
-                    }}
-                  >
-                    {fmtSecs(c.durationSec)}
-                  </span>
-                </div>
-
-                {/* Clip Info */}
-                <div style={{ padding: 8, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: isSelected ? "#8b7cff" : "var(--ink)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                    title={c.name}
-                  >
-                    {c.name}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredClips.map((c) => (
+            <ClipCardItem
+              key={c.id}
+              clip={c}
+              isSelected={c.id === activeClipId}
+              onSelect={() => {
+                onSelectClip(c.id);
+                onClose();
+              }}
+            />
+          ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ClipCardItem({
+  clip,
+  isSelected,
+  onSelect,
+}: {
+  clip: Clip;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const blobUrl = getClipBlobUrl(clip.file);
+
+  return (
+    <div
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: "relative",
+        background: "var(--panel)",
+        border: isSelected ? "2px solid var(--accent)" : `1px solid ${hovered ? "var(--ink-2)" : "var(--line)"}`,
+        borderRadius: 8,
+        overflow: "hidden",
+        cursor: "pointer",
+        transition: "transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
+        transform: hovered ? "translateY(-2px)" : "none",
+        boxShadow: isSelected
+          ? "0 0 12px color-mix(in srgb, var(--accent) 40%, transparent)"
+          : hovered
+          ? "0 6px 16px rgba(0,0,0,0.4)"
+          : "none",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Thumbnail / Video Preview */}
+      <div style={{ width: "100%", height: 85, background: "#000", position: "relative", overflow: "hidden" }}>
+        {clip.kind === "still" ? (
+          <img src={blobUrl} alt={clip.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : hovered ? (
+          <video
+            src={blobUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : clip.poster ? (
+          <img src={clip.poster} alt={clip.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <video src={blobUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted playsInline />
+        )}
+
+        {isSelected && (
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              right: 6,
+              background: "var(--accent)",
+              color: "var(--accent-ink)",
+              width: 20,
+              height: 20,
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              fontWeight: 700,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.5)",
+            }}
+          >
+            ✓
+          </div>
+        )}
+        <span
+          style={{
+            position: "absolute",
+            bottom: 4,
+            right: 4,
+            background: "rgba(0, 0, 0, 0.85)",
+            backdropFilter: "blur(2px)",
+            color: "#fff",
+            fontSize: 10,
+            fontWeight: 600,
+            fontVariantNumeric: "tabular-nums",
+            padding: "2px 6px",
+            borderRadius: 4,
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+          }}
+        >
+          {fmtSecs(clip.durationSec)}
+        </span>
+      </div>
+
+      {/* Clip Info */}
+      <div style={{ padding: "6px 8px 8px 8px", minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+        <div
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: isSelected ? "var(--accent)" : "var(--ink)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={clip.name}
+        >
+          {clip.name}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
+          ⏱ {fmtSecs(clip.durationSec)}
+        </div>
+        {clip.tags && clip.tags.length > 0 && (
+          <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+            {clip.tags.slice(0, 3).map((tag) => {
+              const style = getTagStyle(tag);
+              return (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: 8.5,
+                    fontWeight: 600,
+                    padding: "0px 4px",
+                    borderRadius: 3,
+                    background: style.bg,
+                    color: style.text,
+                    border: `1px solid ${style.border}`,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {tag}
+                </span>
+              );
+            })}
+            {clip.tags.length > 3 && (
+              <span style={{ fontSize: 8.5, color: "var(--ink-3)" }}>+{clip.tags.length - 3}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

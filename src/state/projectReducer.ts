@@ -17,10 +17,12 @@ export type Action =
   | { type: "SET_TITLE"; title: string }
   | { type: "ADD_CLIPS"; clips: Clip[] }
   | { type: "REMOVE_CLIP"; id: string }
+  | { type: "RENAME_CLIP"; id: string; name: string }
   | { type: "SET_NORMALIZED"; id: string; normalized: Blob }
   | { type: "SET_POSTER"; id: string; poster: string }
   | { type: "SET_DESCRIPTION"; id: string; description: ClipDescription }
   | { type: "SET_INCLUDED"; id: string; included: boolean }
+  | { type: "SET_CLIP_TAGS"; id: string; tags: string[] }
   | { type: "SET_DIRECTION"; direction: string }
   | { type: "SET_STORY"; story: Story }
   | { type: "SET_CUT"; cut: Cut }
@@ -63,6 +65,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, clips: [...state.clips, ...action.clips] };
     case "REMOVE_CLIP":
       return { ...state, clips: state.clips.filter((c) => c.id !== action.id) };
+    case "RENAME_CLIP":
+      return { ...state, clips: patchClip(state.clips, action.id, { name: action.name }) };
     case "SET_NORMALIZED":
       return { ...state, clips: patchClip(state.clips, action.id, { normalized: action.normalized }) };
     case "SET_POSTER":
@@ -71,6 +75,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, clips: patchClip(state.clips, action.id, { description: action.description }) };
     case "SET_INCLUDED":
       return { ...state, clips: patchClip(state.clips, action.id, { included: action.included }) };
+    case "SET_CLIP_TAGS":
+      return { ...state, clips: patchClip(state.clips, action.id, { tags: action.tags }) };
     case "SET_DIRECTION":
       return { ...state, direction: action.direction };
     case "SET_STORY":
