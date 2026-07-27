@@ -206,6 +206,23 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
   const currentGlobalAdj = cut?.globalFilterAdjustments ?? activeGlobalFilter?.colorAdjustments ?? {};
+  const baseGlobalAdj = activeGlobalFilter?.colorAdjustments ?? {};
+  const isGlobalFilterModified = !!cut?.globalFilterAdjustments && (
+    (cut.globalFilterAdjustments.exposure ?? 0) !== (baseGlobalAdj.exposure ?? 0) ||
+    (cut.globalFilterAdjustments.contrast ?? 0) !== (baseGlobalAdj.contrast ?? 0) ||
+    (cut.globalFilterAdjustments.shadows ?? 0) !== (baseGlobalAdj.shadows ?? 0) ||
+    (cut.globalFilterAdjustments.blackPoint ?? 0) !== (baseGlobalAdj.blackPoint ?? 0) ||
+    (cut.globalFilterAdjustments.highlights ?? 0) !== (baseGlobalAdj.highlights ?? 0) ||
+    (cut.globalFilterAdjustments.colorTone ?? 0) !== (baseGlobalAdj.colorTone ?? 0) ||
+    (cut.globalFilterAdjustments.warmth ?? 0) !== (baseGlobalAdj.warmth ?? 0) ||
+    (cut.globalFilterAdjustments.saturation ?? 0) !== (baseGlobalAdj.saturation ?? 0) ||
+    (cut.globalFilterAdjustments.skinTone ?? 0) !== (baseGlobalAdj.skinTone ?? 0) ||
+    (cut.globalFilterAdjustments.tint ?? 0) !== (baseGlobalAdj.tint ?? 0) ||
+    (cut.globalFilterAdjustments.shadowWarmth ?? 0) !== (baseGlobalAdj.shadowWarmth ?? 0) ||
+    (cut.globalFilterAdjustments.shadowTint ?? 0) !== (baseGlobalAdj.shadowTint ?? 0) ||
+    (cut.globalFilterAdjustments.highlightWarmth ?? 0) !== (baseGlobalAdj.highlightWarmth ?? 0) ||
+    (cut.globalFilterAdjustments.highlightTint ?? 0) !== (baseGlobalAdj.highlightTint ?? 0)
+  );
 
   function updateGlobalAdj(key: keyof ColorAdjustments, value: number) {
     if (!cut?.globalFilterId) return;
@@ -220,13 +237,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
   // A labeled ±100 color slider row (matches the existing adjustment rows). Used for
   // the tint + split-tone controls in both the per-beat and global adjustment groups.
-  const adjRow = (label: string, value: number, onChange: (v: number) => void) => (
+  const adjRow = (label: string, value: number, onChange: (v: number) => void, resetValue = 0) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>{label}</span>
       <input
         type="range" min={-100} max={100} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        onDoubleClick={() => onChange(0)}
+        onDoubleClick={() => onChange(resetValue)}
+        title={`Drag to adjust, double-click to reset to ${resetValue > 0 ? `+${resetValue}` : resetValue}`}
         style={sliderTrackStyle(value)}
       />
       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -235,21 +253,25 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     </div>
   );
   // The tint + split-tone rows for an adjustment group (per-beat or global).
-  const splitToneRows = (adj: ColorAdjustments, set: (k: keyof ColorAdjustments, v: number) => void) => (
+  const splitToneRows = (
+    adj: ColorAdjustments,
+    set: (k: keyof ColorAdjustments, v: number) => void,
+    baseAdj?: ColorAdjustments,
+  ) => (
     <>
-      {adjRow("Tint", adj.tint ?? 0, (v) => set("tint", v))}
+      {adjRow("Tint", adj.tint ?? 0, (v) => set("tint", v), baseAdj?.tint ?? 0)}
       {/* Tonal range: brightness of the dark/bright regions. Distinct from the
           split-tone rows below, which colour those same regions. */}
       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Tone</div>
-      {adjRow("Shadows", adj.shadows ?? 0, (v) => set("shadows", v))}
-      {adjRow("Black point", adj.blackPoint ?? 0, (v) => set("blackPoint", v))}
-      {adjRow("Highlights", adj.highlights ?? 0, (v) => set("highlights", v))}
+      {adjRow("Shadows", adj.shadows ?? 0, (v) => set("shadows", v), baseAdj?.shadows ?? 0)}
+      {adjRow("Black point", adj.blackPoint ?? 0, (v) => set("blackPoint", v), baseAdj?.blackPoint ?? 0)}
+      {adjRow("Highlights", adj.highlights ?? 0, (v) => set("highlights", v), baseAdj?.highlights ?? 0)}
       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Split tone</div>
-      {adjRow("Orange / Skin", adj.skinTone ?? 0, (v) => set("skinTone", v))}
-      {adjRow("Shadow warm", adj.shadowWarmth ?? 0, (v) => set("shadowWarmth", v))}
-      {adjRow("Shadow tint", adj.shadowTint ?? 0, (v) => set("shadowTint", v))}
-      {adjRow("Highlt warm", adj.highlightWarmth ?? 0, (v) => set("highlightWarmth", v))}
-      {adjRow("Highlt tint", adj.highlightTint ?? 0, (v) => set("highlightTint", v))}
+      {adjRow("Orange / Skin", adj.skinTone ?? 0, (v) => set("skinTone", v), baseAdj?.skinTone ?? 0)}
+      {adjRow("Shadow warm", adj.shadowWarmth ?? 0, (v) => set("shadowWarmth", v), baseAdj?.shadowWarmth ?? 0)}
+      {adjRow("Shadow tint", adj.shadowTint ?? 0, (v) => set("shadowTint", v), baseAdj?.shadowTint ?? 0)}
+      {adjRow("Highlt warm", adj.highlightWarmth ?? 0, (v) => set("highlightWarmth", v), baseAdj?.highlightWarmth ?? 0)}
+      {adjRow("Highlt tint", adj.highlightTint ?? 0, (v) => set("highlightTint", v), baseAdj?.highlightTint ?? 0)}
     </>
   );
   // Per-line caption alternatives: model + mood chosen here (seeded from settings),
@@ -774,7 +796,30 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   />
 
                   <div className="st-color-adjustments" style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>🎛️ Fine-Tune Filter</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
+                        🎛️ Fine-Tune Filter {isGlobalFilterModified ? <span style={{ fontSize: 10, fontStyle: "italic", fontWeight: 400, color: "var(--ink-3)" }}>(Modified)</span> : null}
+                      </div>
+                      {isGlobalFilterModified && (
+                        <button
+                          type="button"
+                          className="st-btn ghost"
+                          style={{ fontSize: 10, padding: "2px 6px", height: 20, color: "var(--accent)", display: "flex", alignItems: "center", gap: 3 }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => {
+                            dispatch({
+                              type: "SET_GLOBAL_FILTER",
+                              filterId: cut?.globalFilterId ?? null,
+                              intensity: cut?.globalFilterIntensity ?? 1,
+                              adjustments: undefined,
+                            });
+                          }}
+                          title="Reset fine-tuning adjustments back to original preset defaults"
+                        >
+                          ↺ Reset Preset
+                        </button>
+                      )}
+                    </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
@@ -784,6 +829,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.exposure ?? 0}
                         onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("exposure", activeGlobalFilter?.colorAdjustments?.exposure ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -799,6 +845,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.contrast ?? 0}
                         onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("contrast", activeGlobalFilter?.colorAdjustments?.contrast ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -814,6 +861,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.colorTone ?? 0}
                         onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("colorTone", activeGlobalFilter?.colorAdjustments?.colorTone ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -829,6 +877,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.warmth ?? 0}
                         onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("warmth", activeGlobalFilter?.colorAdjustments?.warmth ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -844,13 +893,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.saturation ?? 0}
                         onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("saturation", activeGlobalFilter?.colorAdjustments?.saturation ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                         {(currentGlobalAdj.saturation ?? 0) > 0 ? `+${currentGlobalAdj.saturation}` : (currentGlobalAdj.saturation ?? 0)}
                       </span>
                     </div>
-                    {splitToneRows(currentGlobalAdj, updateGlobalAdj)}
+                    {splitToneRows(currentGlobalAdj, updateGlobalAdj, activeGlobalFilter?.colorAdjustments)}
                   </div>
                 </div>
               )}
