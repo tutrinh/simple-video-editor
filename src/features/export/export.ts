@@ -44,6 +44,7 @@ export interface TitleLayer {
   animation?: TitleAnimation;
   animDurationSec?: number;
   boxWidthPct?: number;
+  lineHeight?: number;
 }
 
 
@@ -260,8 +261,8 @@ export async function exportCut(
           posX: l.posX,
           posY: l.posY,
           boxWidthPct: l.boxWidthPct,
+          lineHeight: l.lineHeight,
         },
-
         w,
         h,
       );
@@ -299,8 +300,8 @@ export async function exportCut(
             posX: l.posX,
             posY: l.posY,
             boxWidthPct: l.boxWidthPct,
+            lineHeight: l.lineHeight,
           },
-
           w,
           h,
         );

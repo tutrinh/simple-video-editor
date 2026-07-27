@@ -34,6 +34,7 @@ export interface TitleRenderLayer {
   posX: number; // -50..+50 (% horizontal offset from frame center)
   posY: number; // -50..+50 (% vertical offset from frame center)
   boxWidthPct?: number; // 10..100 (% of frame width for text wrapping)
+  lineHeight?: number; // -2..+2 (multiplier of font size)
 }
 
 
@@ -208,7 +209,7 @@ export async function drawTitleLayer(
   const boxWidthFrac = (layer.boxWidthPct ?? 90) / 100;
   const lines = wrapLines(ctx, layer.text, w * boxWidthFrac);
 
-  const lineH = size * 1.15;
+  const lineH = size * (layer.lineHeight ?? 1.15);
   const totalH = (lines.length - 1) * lineH;
   lines.forEach((ln, i) => {
     ctx.fillText(ln, centerX, centerY - totalH / 2 + i * lineH);

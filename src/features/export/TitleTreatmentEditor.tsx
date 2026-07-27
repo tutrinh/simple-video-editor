@@ -441,7 +441,6 @@ export default function TitleTreatmentEditor({
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-
                 <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Letter Spacing</span>
                 <input
                   type="range"
@@ -456,6 +455,24 @@ export default function TitleTreatmentEditor({
                 />
                 <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                   {curLayer.letterSpacing ?? 0}px
+                </span>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Line Height</span>
+                <input
+                  type="range"
+                  min={-2}
+                  max={2}
+                  step={0.05}
+                  value={curLayer.lineHeight ?? 1.0}
+                  onChange={(e) => updateLayer(activeIdx, { lineHeight: Number(e.target.value) })}
+                  onDoubleClick={() => updateLayer(activeIdx, { lineHeight: 1.0 })}
+                  style={sliderTrackStyle(curLayer.lineHeight ?? 1.0, -2, 2)}
+                  title="Double-click to reset line height to 1.0"
+                />
+                <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                  {(curLayer.lineHeight ?? 1.0).toFixed(2)}
                 </span>
               </div>
 

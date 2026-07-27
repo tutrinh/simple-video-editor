@@ -45,6 +45,7 @@ export interface PreviewTitleLayer {
   animation?: TitleAnimation;
   animDurationSec?: number;
   boxWidthPct?: number;
+  lineHeight?: number;
 }
 
 
@@ -862,6 +863,7 @@ function TitleLayerCanvas({
           posX: layer.posX,
           posY: layer.posY,
           boxWidthPct: layer.boxWidthPct,
+          lineHeight: layer.lineHeight,
         }, cw, ch),
         () => cancelled,
       );
@@ -872,7 +874,7 @@ function TitleLayerCanvas({
   }, [
     layer.text, layer.fontId, layer.fontFile, layer.fontFamily, layer.fontWeight,
     layer.sizePx, layer.letterSpacing, layer.arcDeg, layer.shadow, layer.color,
-    layer.posX, layer.posY, layer.boxWidthPct, cw, ch,
+    layer.posX, layer.posY, layer.boxWidthPct, layer.lineHeight, cw, ch,
   ]);
 
   return (
@@ -996,7 +998,7 @@ export function BeatTitleOverlay({
           posX: l.posX, posY: l.posY, scope: l.scope, introSec: l.introSec,
           fontFamily: findFontById(l.fontId)?.cssFamily, fontWeight: l.weight,
           fontId: l.fontId, fontFile: l.fontFile, animation: l.animation, animDurationSec: l.animDurationSec,
-          boxWidthPct: l.boxWidthPct,
+          boxWidthPct: l.boxWidthPct, lineHeight: l.lineHeight,
         };
 
 

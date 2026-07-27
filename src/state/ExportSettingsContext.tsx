@@ -27,6 +27,7 @@ export interface TitleLayerSettings {
   animation?: TitleAnimation;
   animDurationSec?: number;
   boxWidthPct?: number;
+  lineHeight?: number;
 }
 
 
