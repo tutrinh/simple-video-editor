@@ -783,7 +783,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                           type="button"
                           style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", padding: 0 }}
                           onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: undefined })}
+                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: activeGlobalFilter ? { ...activeGlobalFilter.colorAdjustments } : {} })}
                           title="Reset fine-tuning adjustments back to original preset defaults"
                         >
                           ↺ Reset Preset
@@ -824,7 +824,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                               type: "SET_GLOBAL_FILTER",
                               filterId: cut?.globalFilterId ?? null,
                               intensity: cut?.globalFilterIntensity ?? 1,
-                              adjustments: undefined,
+                              adjustments: activeGlobalFilter ? { ...activeGlobalFilter.colorAdjustments } : {},
                             });
                           }}
                           title="Reset fine-tuning adjustments back to original preset defaults"
@@ -2274,7 +2274,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                           type="button"
                           style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", padding: 0 }}
                           onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: undefined })}
+                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: activeGlobalFilter ? { ...activeGlobalFilter.colorAdjustments } : {} })}
                           title="Reset fine-tuning adjustments back to original preset defaults"
                         >
                           ↺ Reset Preset
@@ -2315,7 +2315,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                               type: "SET_GLOBAL_FILTER",
                               filterId: cut?.globalFilterId ?? null,
                               intensity: cut?.globalFilterIntensity ?? 1,
-                              adjustments: undefined,
+                              adjustments: activeGlobalFilter ? { ...activeGlobalFilter.colorAdjustments } : {},
                             });
                           }}
                           title="Reset fine-tuning adjustments back to original preset defaults"

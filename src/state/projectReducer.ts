@@ -238,7 +238,7 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
           ...state.cut,
           globalFilterId: action.filterId ?? undefined,
           globalFilterIntensity: action.intensity ?? state.cut.globalFilterIntensity ?? 1,
-          globalFilterAdjustments: action.filterId === null ? undefined : (action.adjustments ?? state.cut.globalFilterAdjustments),
+          globalFilterAdjustments: action.filterId === null ? undefined : (action.adjustments !== undefined ? action.adjustments : state.cut.globalFilterAdjustments),
         },
       };
     }
