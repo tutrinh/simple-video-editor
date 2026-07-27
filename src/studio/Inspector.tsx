@@ -805,7 +805,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Color Tone</span>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Hue</span>
                       <input
                         type="range"
                         min="-100"
@@ -1717,7 +1717,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Tone</span>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Hue</span>
                   <input
                     type="range"
                     min="-100"
@@ -2239,7 +2239,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Color Tone</span>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Hue</span>
                       <input
                         type="range"
                         min="-100"
