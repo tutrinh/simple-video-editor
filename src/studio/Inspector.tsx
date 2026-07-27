@@ -777,13 +777,26 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
-                    <button
-                      type="button"
-                      style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
-                      onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
-                    >
-                      Remove Filter
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {isGlobalFilterModified && (
+                        <button
+                          type="button"
+                          style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: undefined })}
+                          title="Reset fine-tuning adjustments back to original preset defaults"
+                        >
+                          ↺ Reset Preset
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                        onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
+                      >
+                        Remove Filter
+                      </button>
+                    </div>
                   </div>
                   <input
                     type="range"
@@ -2255,13 +2268,26 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
-                    <button
-                      type="button"
-                      style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
-                      onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
-                    >
-                      Remove Filter
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {isGlobalFilterModified && (
+                        <button
+                          type="button"
+                          style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: undefined })}
+                          title="Reset fine-tuning adjustments back to original preset defaults"
+                        >
+                          ↺ Reset Preset
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                        onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
+                      >
+                        Remove Filter
+                      </button>
+                    </div>
                   </div>
                   <input
                     type="range"
@@ -2274,7 +2300,30 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   />
 
                   <div className="st-color-adjustments" style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>🎛️ Fine-Tune Filter</div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
+                        🎛️ Fine-Tune Filter {isGlobalFilterModified ? <span style={{ fontSize: 10, fontStyle: "italic", fontWeight: 400, color: "var(--ink-3)" }}>(Modified)</span> : null}
+                      </div>
+                      {isGlobalFilterModified && (
+                        <button
+                          type="button"
+                          className="st-btn ghost"
+                          style={{ fontSize: 10, padding: "2px 6px", height: 20, color: "var(--accent)", display: "flex", alignItems: "center", gap: 3 }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => {
+                            dispatch({
+                              type: "SET_GLOBAL_FILTER",
+                              filterId: cut?.globalFilterId ?? null,
+                              intensity: cut?.globalFilterIntensity ?? 1,
+                              adjustments: undefined,
+                            });
+                          }}
+                          title="Reset fine-tuning adjustments back to original preset defaults"
+                        >
+                          ↺ Reset Preset
+                        </button>
+                      )}
+                    </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
@@ -2284,6 +2333,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.exposure ?? 0}
                         onChange={(e) => updateGlobalAdj("exposure", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("exposure", activeGlobalFilter?.colorAdjustments?.exposure ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.exposure ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -2299,6 +2349,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.contrast ?? 0}
                         onChange={(e) => updateGlobalAdj("contrast", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("contrast", activeGlobalFilter?.colorAdjustments?.contrast ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.contrast ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -2314,6 +2365,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.colorTone ?? 0}
                         onChange={(e) => updateGlobalAdj("colorTone", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("colorTone", activeGlobalFilter?.colorAdjustments?.colorTone ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.colorTone ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -2329,6 +2381,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.warmth ?? 0}
                         onChange={(e) => updateGlobalAdj("warmth", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("warmth", activeGlobalFilter?.colorAdjustments?.warmth ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.warmth ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
@@ -2344,13 +2397,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         max="100"
                         value={currentGlobalAdj.saturation ?? 0}
                         onChange={(e) => updateGlobalAdj("saturation", Number(e.target.value))}
+                        onDoubleClick={() => updateGlobalAdj("saturation", activeGlobalFilter?.colorAdjustments?.saturation ?? 0)}
                         style={sliderTrackStyle(currentGlobalAdj.saturation ?? 0, -100, 100)}
                       />
                       <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                         {(currentGlobalAdj.saturation ?? 0) > 0 ? `+${currentGlobalAdj.saturation}` : (currentGlobalAdj.saturation ?? 0)}
                       </span>
                     </div>
-                    {splitToneRows(currentGlobalAdj, updateGlobalAdj)}
+                    {splitToneRows(currentGlobalAdj, updateGlobalAdj, activeGlobalFilter?.colorAdjustments)}
                   </div>
                 </div>
               )}
