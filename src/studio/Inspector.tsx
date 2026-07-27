@@ -1037,8 +1037,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   }
 
   function hasColorAdjustments(adj?: ColorAdjustments) {
-    if (!adj) return false;
-    return !!(adj.exposure || adj.contrast || adj.colorTone || adj.warmth || adj.saturation);
+    return !isIdentityGrade(adj);
   }
 
   const aspect = state.cut?.aspect ?? "16:9";
@@ -1748,6 +1747,23 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   />
                   <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                     {(b.colorAdjustments?.warmth ?? 0) > 0 ? `+${b.colorAdjustments?.warmth}` : (b.colorAdjustments?.warmth ?? 0)}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Skin tone</span>
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    value={b.colorAdjustments?.skinTone ?? 0}
+                    onChange={(e) => updateColorAdjustment("skinTone", Number(e.target.value))}
+                    onDoubleClick={() => updateColorAdjustment("skinTone", 0)}
+                    title="Drag to adjust, double-click to reset to 0"
+                    style={sliderTrackStyle(b.colorAdjustments?.skinTone ?? 0)}
+                  />
+                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.colorAdjustments?.skinTone ?? 0) > 0 ? `+${b.colorAdjustments?.skinTone}` : (b.colorAdjustments?.skinTone ?? 0)}
                   </span>
                 </div>
 

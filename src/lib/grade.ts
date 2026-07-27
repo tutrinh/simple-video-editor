@@ -273,6 +273,16 @@ function whiteBalanceMatrix(warm: number, tint: number): ColorMatrix {
   ];
 }
 
+function skinToneMatrix(skinTone: number): ColorMatrix {
+  const s = skinTone / 100;
+  return [
+    1 + 0.05 * s, 0, 0, 0, 0,
+    0, 1 + 0.08 * s, 0, 0, 0,
+    0, 0, 1 - 0.15 * s, 0, 0,
+    0, 0, 0, 1, 0,
+  ];
+}
+
 /**
  * The channel-mixing half of the Grade: white balance, then saturation, then
  * hue, collapsed into one 4x5 matrix.
@@ -282,6 +292,7 @@ export function matrixStep(adj: ColorAdjustments): ColorMatrix {
   const warm = adj.warmth ?? 0;
   const tint = adj.tint ?? 0;
   if (warm !== 0 || tint !== 0) m = multiply(whiteBalanceMatrix(warm, tint), m);
+  if (adj.skinTone) m = multiply(skinToneMatrix(adj.skinTone), m);
   if (adj.saturation) m = multiply(saturationMatrix(adj.saturation), m);
   if (adj.colorTone) m = multiply(hueMatrix(adj.colorTone), m);
   return m;
