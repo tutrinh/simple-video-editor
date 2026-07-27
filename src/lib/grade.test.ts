@@ -111,6 +111,12 @@ describe("curveStep", () => {
     expect(Math.abs(curveStep(adj, 0, 0.9) - 0.9)).toBeLessThan(INVISIBLE);
   });
 
+  it("lifts true black for matte filmic look with blackPoint", () => {
+    const adj = { blackPoint: 50 };
+    expect(curveStep(adj, 0, 0)).toBeGreaterThan(0);        // true black is lifted (charcoal/fade)
+    expect(curveStep(adj, 0, 1)).toBe(1);                   // white is held
+  });
+
   it("crushes the dark region without pulling black below zero", () => {
     const adj = { shadows: -80 };
     expect(curveStep(adj, 0, 0)).toBe(0);

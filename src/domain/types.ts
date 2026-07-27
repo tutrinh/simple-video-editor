@@ -233,6 +233,11 @@ export interface ColorAdjustments {
    */
   shadows?: number;
   /**
+   * Black point / Lift offset (-100 to +100, default 0).
+   * Raises true black into charcoal/fade (+values) or pushes blacks deeper (-values).
+   */
+  blackPoint?: number;
+  /**
    * Highlights — brightness of the bright region only (-100 to +100, default 0).
    * Tapers to zero at pure white, mirroring Shadows.
    */

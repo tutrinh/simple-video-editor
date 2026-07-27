@@ -28,7 +28,7 @@ const clampAxis = (n: number): number => Math.max(-AXIS_LIMIT, Math.min(AXIS_LIM
 const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 const AXES: (keyof ColorAdjustments)[] = [
-  "exposure", "contrast", "shadows", "highlights", "colorTone", "warmth",
+  "exposure", "contrast", "shadows", "blackPoint", "highlights", "colorTone", "warmth",
   "saturation", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
 ];
 
@@ -130,7 +130,7 @@ export function highlightsWeight(x: number): number {
 
 /** True when any axis in the curve half of the Grade can drive a channel out of range. */
 function curveIsActive(adj: ColorAdjustments): boolean {
-  return !!(adj.exposure || adj.contrast || adj.shadows || adj.highlights
+  return !!(adj.exposure || adj.contrast || adj.shadows || adj.blackPoint || adj.highlights
     || adj.shadowWarmth || adj.shadowTint || adj.highlightWarmth || adj.highlightTint);
 }
 
@@ -143,17 +143,19 @@ function rawCurve(adj: ColorAdjustments, channel: 0 | 1 | 2, x: number): number 
   v = (v - 0.5) * (1 + contrast / 100) + 0.5;
 
   // Tonal shaping, after exposure/contrast and before the colour split-tone.
-  // The weights are read from this channel's own value, not from luminance —
-  // an feComponentTransfer table can only see one channel, and matching that
-  // is what keeps the preview and the baked LUT identical. Lifting shadows can
-  // therefore shift hue slightly in dark areas, exactly as the split-tone axes
-  // already do.
   const shadows = adj.shadows ?? 0;
   const highlights = adj.highlights ?? 0;
   if (shadows !== 0 || highlights !== 0) {
     const t = clamp01(v);
     v += shadowsWeight(t) * (shadows / 100) * TONE_RANGE
       + highlightsWeight(t) * (highlights / 100) * TONE_RANGE;
+  }
+
+  // Black point / Lift offset (shifts true black, tapering off toward highlights)
+  const blackPoint = adj.blackPoint ?? 0;
+  if (blackPoint !== 0) {
+    const t = clamp01(v);
+    v += (1 - t) * (1 - t) * (blackPoint / 100) * 0.2;
   }
 
   const shadow = wbOffsets(adj.shadowWarmth ?? 0, adj.shadowTint ?? 0)[channel];
@@ -176,7 +178,7 @@ function rawCurve(adj: ColorAdjustments, channel: 0 | 1 | 2, x: number): number 
 const overshootCache = new Map<string, boolean>();
 
 function curveOvershoots(adj: ColorAdjustments, channel: 0 | 1 | 2): boolean {
-  const key = `${channel}|${adj.exposure ?? 0},${adj.contrast ?? 0},${adj.shadows ?? 0},`
+  const key = `${channel}|${adj.exposure ?? 0},${adj.contrast ?? 0},${adj.shadows ?? 0},${adj.blackPoint ?? 0},`
     + `${adj.highlights ?? 0},${adj.shadowWarmth ?? 0},${adj.shadowTint ?? 0},`
     + `${adj.highlightWarmth ?? 0},${adj.highlightTint ?? 0}`;
   const hit = overshootCache.get(key);

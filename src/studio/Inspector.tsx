@@ -241,6 +241,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           split-tone rows below, which colour those same regions. */}
       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Tone</div>
       {adjRow("Shadows", adj.shadows ?? 0, (v) => set("shadows", v))}
+      {adjRow("Black point", adj.blackPoint ?? 0, (v) => set("blackPoint", v))}
       {adjRow("Highlights", adj.highlights ?? 0, (v) => set("highlights", v))}
       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Split tone</div>
       {adjRow("Shadow warm", adj.shadowWarmth ?? 0, (v) => set("shadowWarmth", v))}
