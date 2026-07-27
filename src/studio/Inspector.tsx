@@ -8,6 +8,7 @@ import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, sliderTrackStyle, cssFilterFor, getFilterPreset, rotationCoverScale, fillMove, KEN_BURNS_PRESETS, KEN_BURNS_DEFAULT } from "./util";
 import { normalizeSplitConfig } from "../features/export/splitScreenCanvas";
+import { isIdentityGrade } from "../lib/grade";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import SplitClipPickerModal from "./SplitClipPickerModal";
 
