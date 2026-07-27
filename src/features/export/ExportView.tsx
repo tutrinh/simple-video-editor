@@ -725,9 +725,18 @@ export default function ExportView() {
                     <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(captionOpacity * 100)}%</span>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Spacing between wrapped caption lines. ~1.6 keeps line backgrounds flush.">
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Spacing between wrapped caption lines. Allows negative values for tight text overlap.">
                     <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Line height</span>
-                    <input type="range" min={1.0} max={2.2} step={0.05} value={captionLineHeight} onChange={(e) => update({ captionLineHeight: Number(e.target.value) })} style={sliderTrackStyle(captionLineHeight, 1.0, 2.2)} />
+                    <input
+                      type="range"
+                      min={-1.0}
+                      max={2.5}
+                      step={0.05}
+                      value={captionLineHeight}
+                      onChange={(e) => update({ captionLineHeight: Number(e.target.value) })}
+                      onDoubleClick={() => update({ captionLineHeight: 1.0 })}
+                      style={sliderTrackStyle(captionLineHeight, -1.0, 2.5)}
+                    />
                     <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{captionLineHeight.toFixed(2)}</span>
                   </div>
                 </div>
