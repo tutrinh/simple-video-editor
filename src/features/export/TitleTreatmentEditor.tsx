@@ -164,11 +164,12 @@ export default function TitleTreatmentEditor({
           {/* The clear button sits inside the field, so the input reserves room
               for it only while there is something to clear. */}
           <div style={{ flex: 1, position: "relative", display: "flex" }}>
-            <input
+            <textarea
+              rows={Math.min(4, Math.max(1, curLayer.text.split("\n").length))}
               value={curLayer.text}
               onChange={(e) => updateLayer(activeIdx, { text: e.target.value })}
-              placeholder={activeIdx === 0 ? "e.g. SUMMER VIBES 2026" : activeIdx === 1 ? "e.g. Official Highlight Reel" : "e.g. Presented by VIDSTR"}
-              style={{ flex: 1, padding: "7px 10px", paddingRight: curLayer.text ? 26 : 10, fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none" }}
+              placeholder={activeIdx === 0 ? "e.g. SUMMER VIBES\n2026" : activeIdx === 1 ? "e.g. Official Highlight Reel" : "e.g. Presented by VIDSTR"}
+              style={{ flex: 1, padding: "7px 10px", paddingRight: curLayer.text ? 26 : 10, fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none", resize: "vertical", fontFamily: "inherit" }}
             />
             {curLayer.text && (
               <button

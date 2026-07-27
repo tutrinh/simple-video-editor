@@ -96,20 +96,23 @@ export function ensureTitleFontFace(
 }
 
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let line = "";
-  for (const word of words) {
-    const trial = line ? `${line} ${word}` : word;
-    if (!line || ctx.measureText(trial).width <= maxWidth) {
-      line = trial;
-    } else {
-      lines.push(line);
-      line = word;
+  const out: string[] = [];
+  for (const para of text.split("\n")) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (words.length === 0) continue;
+    let line = "";
+    for (const word of words) {
+      const trial = line ? `${line} ${word}` : word;
+      if (!line || ctx.measureText(trial).width <= maxWidth) {
+        line = trial;
+      } else {
+        out.push(line);
+        line = word;
+      }
     }
+    if (line) out.push(line);
   }
-  if (line) lines.push(line);
-  return lines.length ? lines : [""];
+  return out.length ? out : [""];
 }
 
 function escapeXml(s: string): string {
