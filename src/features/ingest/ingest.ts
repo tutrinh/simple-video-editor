@@ -73,7 +73,7 @@ export async function normalizeTo1080p(file: File, onProgress?: (f: number) => v
     [{ name, data: bytes }],
     ["-i", name,
      "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,setsar=1",
-     "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+     "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
      "-c:a", "aac", "-movflags", "+faststart", "out.mp4"],
     "out.mp4",
     onProgress,
