@@ -777,26 +777,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      {isGlobalFilterModified && (
-                        <button
-                          type="button"
-                          style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", padding: 0 }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: activeGlobalFilter ? { ...activeGlobalFilter.colorAdjustments } : {} })}
-                          title="Reset fine-tuning adjustments back to original preset defaults"
-                        >
-                          ↺ Reset Preset
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
-                        onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
-                      >
-                        Remove Filter
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                      onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
+                    >
+                      Remove Filter
+                    </button>
                   </div>
                   <input
                     type="range"
@@ -2268,26 +2255,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      {isGlobalFilterModified && (
-                        <button
-                          type="button"
-                          style={{ background: "none", border: "none", color: "var(--accent)", fontSize: 11, cursor: "pointer", padding: 0 }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: cut?.globalFilterId ?? null, intensity: cut?.globalFilterIntensity ?? 1, adjustments: activeGlobalFilter ? { ...activeGlobalFilter.colorAdjustments } : {} })}
-                          title="Reset fine-tuning adjustments back to original preset defaults"
-                        >
-                          ↺ Reset Preset
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
-                        onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
-                      >
-                        Remove Filter
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
+                      onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
+                    >
+                      Remove Filter
+                    </button>
                   </div>
                   <input
                     type="range"
