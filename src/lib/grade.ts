@@ -276,9 +276,9 @@ function whiteBalanceMatrix(warm: number, tint: number): ColorMatrix {
 function skinToneMatrix(skinTone: number): ColorMatrix {
   const s = skinTone / 100;
   return [
-    1 + 0.05 * s, 0, 0, 0, 0,
-    0, 1 + 0.08 * s, 0, 0, 0,
-    0, 0, 1 - 0.15 * s, 0, 0,
+    1 + 0.25 * s, 0, 0, 0, 0,
+    0, 1 + 0.15 * s, 0, 0, 0,
+    0, 0, 1 - 0.35 * s, 0, 0,
     0, 0, 0, 1, 0,
   ];
 }

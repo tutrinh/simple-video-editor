@@ -245,7 +245,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       {adjRow("Black point", adj.blackPoint ?? 0, (v) => set("blackPoint", v))}
       {adjRow("Highlights", adj.highlights ?? 0, (v) => set("highlights", v))}
       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", marginTop: 2 }}>Split tone</div>
-      {adjRow("Skin tone", adj.skinTone ?? 0, (v) => set("skinTone", v))}
+      {adjRow("Orange / Skin", adj.skinTone ?? 0, (v) => set("skinTone", v))}
       {adjRow("Shadow warm", adj.shadowWarmth ?? 0, (v) => set("shadowWarmth", v))}
       {adjRow("Shadow tint", adj.shadowTint ?? 0, (v) => set("shadowTint", v))}
       {adjRow("Highlt warm", adj.highlightWarmth ?? 0, (v) => set("highlightWarmth", v))}
@@ -1752,7 +1752,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Skin tone</span>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Orange / Skin</span>
                   <input
                     type="range"
                     min="-100"
