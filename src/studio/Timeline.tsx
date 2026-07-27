@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useReducer } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, Sticker } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
@@ -15,6 +15,14 @@ import { beatSpans, resolveSticker, resolveSfx } from "../features/export/sticke
 import { sfxDuration } from "../lib/sfxLibrary";
 import { assignSubLanes } from "./subLanes";
 import { beatPosterBg } from "../lib/beatPosterCache";
+import {
+  anchoredScrollLeft,
+  clampTimelineZoom,
+  timelineCanvasWidth,
+  TIMELINE_ZOOM_MAX,
+  TIMELINE_ZOOM_MIN,
+  TIMELINE_ZOOM_STEP,
+} from "./timelineScale";
 
 
 interface Props {
@@ -54,6 +62,12 @@ export default function Timeline({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sfxPickerOpen, setSfxPickerOpen] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
+  const [timelineZoom, setTimelineZoomState] = useState(() => {
+    if (typeof localStorage === "undefined") return TIMELINE_ZOOM_MIN;
+    return clampTimelineZoom(Number(localStorage.getItem("vidstr_timeline_zoom") ?? TIMELINE_ZOOM_MIN));
+  });
   const beats = cut.beats;
   const overlays = cut.overlays ?? [];
   const voSegments = cut.voSegments ?? [];
@@ -61,6 +75,47 @@ export default function Timeline({
   const stickers = cut.stickers ?? [];
   const totalDur = cutDuration(cut) || 1;
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
+  const timelineWidth = timelineViewportWidth > 0
+    ? timelineCanvasWidth(timelineViewportWidth, timelineZoom)
+    : 0;
+
+  useLayoutEffect(() => {
+    const viewport = timelineScrollRef.current;
+    if (!viewport) return;
+    const measure = () => setTimelineViewportWidth(viewport.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem("vidstr_timeline_zoom", String(timelineZoom)); } catch {}
+  }, [timelineZoom]);
+
+  function setTimelineZoom(nextValue: number) {
+    const next = clampTimelineZoom(nextValue);
+    if (next === timelineZoom) return;
+    const viewport = timelineScrollRef.current;
+    if (!viewport || timelineViewportWidth <= 0) {
+      setTimelineZoomState(next);
+      return;
+    }
+    const anchorX = viewport.clientWidth / 2;
+    const oldWidth = timelineCanvasWidth(timelineViewportWidth, timelineZoom);
+    const newWidth = timelineCanvasWidth(timelineViewportWidth, next);
+    const nextScrollLeft = anchoredScrollLeft(
+      viewport.scrollLeft,
+      anchorX,
+      oldWidth,
+      newWidth,
+      viewport.clientWidth,
+    );
+    setTimelineZoomState(next);
+    requestAnimationFrame(() => {
+      if (timelineScrollRef.current) timelineScrollRef.current.scrollLeft = nextScrollLeft;
+    });
+  }
 
   function move(index: number, dir: -1 | 1) {
     const j = index + dir;
@@ -556,11 +611,59 @@ export default function Timeline({
         </div>
       </div>
 
+      <div className="st-tl-zoombar" aria-label="Timeline magnification">
+        <span>Timeline zoom</span>
+        <button
+          type="button"
+          className="st-tl-zoom-btn"
+          onClick={() => setTimelineZoom(timelineZoom - TIMELINE_ZOOM_STEP)}
+          disabled={timelineZoom <= TIMELINE_ZOOM_MIN}
+          title="Zoom out"
+          aria-label="Zoom Timeline out"
+        >
+          −
+        </button>
+        <input
+          className="st-tl-zoom-range"
+          type="range"
+          min={TIMELINE_ZOOM_MIN}
+          max={TIMELINE_ZOOM_MAX}
+          step={TIMELINE_ZOOM_STEP}
+          value={timelineZoom}
+          onChange={(e) => setTimelineZoom(Number(e.target.value))}
+          aria-label="Timeline zoom level"
+          style={{
+            accentColor: "var(--accent)",
+            background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((timelineZoom - TIMELINE_ZOOM_MIN) / (TIMELINE_ZOOM_MAX - TIMELINE_ZOOM_MIN)) * 100}%, var(--panel-3) ${((timelineZoom - TIMELINE_ZOOM_MIN) / (TIMELINE_ZOOM_MAX - TIMELINE_ZOOM_MIN)) * 100}%, var(--panel-3) 100%)`,
+          }}
+        />
+        <button
+          type="button"
+          className="st-tl-zoom-btn"
+          onClick={() => setTimelineZoom(timelineZoom + TIMELINE_ZOOM_STEP)}
+          disabled={timelineZoom >= TIMELINE_ZOOM_MAX}
+          title="Zoom in"
+          aria-label="Zoom Timeline in"
+        >
+          +
+        </button>
+        <span className="st-tl-zoom-value st-num">{Math.round(timelineZoom * 100)}%</span>
+        <button
+          type="button"
+          className="st-tl-fit-btn"
+          onClick={() => setTimelineZoom(TIMELINE_ZOOM_MIN)}
+          disabled={timelineZoom === TIMELINE_ZOOM_MIN}
+          title="Fit the complete Cut in the Timeline"
+        >
+          Fit
+        </button>
+      </div>
+
       {/* Scrollable Timeline Tracks Container */}
-      <div className="st-tl-scroll">
+      <div ref={timelineScrollRef} className="st-tl-scroll">
         <div
           className="st-tl-content"
-          style={{ minWidth: `${Math.max(100, beats.length * 145)}px` }}
+          style={timelineWidth > 0 ? { width: `${timelineWidth}px`, minWidth: "100%" } : { minWidth: "100%" }}
         >
           {/* ── SHARED TIME RULER + BOTH TRACKS ── */}
           <div className="st-tl-ruler-area">

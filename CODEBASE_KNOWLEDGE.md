@@ -243,6 +243,9 @@ Clip ID.
 
 - `vidstr_settings`: AI provider/model/Tone/Script Type.
 - `simple_editor_export_settings`: serializable export options.
+- `vidstr_timeline_zoom`: Timeline magnification multiplier (`1` = Fit,
+  up to `8` = 800%); the rendered time canvas expands while every lane remains
+  percentage-aligned to it.
 - Export music and uploaded title font `File` objects are excluded from this
   localStorage record.
 - Additional feature-specific libraries/presets use their own keys; inspect the
@@ -296,8 +299,8 @@ Verified on 2026-07-27:
 
 ```text
 npm test
-44 test files passed
-587 tests passed
+45 test files passed
+591 tests passed
 
 npm run build
 TypeScript check passed
