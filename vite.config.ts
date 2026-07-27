@@ -95,12 +95,15 @@ function claudeProxy(): Plugin {
   };
 }
 
-// Dev-only proxy for local Antigravity CLI: runs `antigravity run -p` (or ANTIGRAVITY_PATH env)
-function antigravityProxy(configuredPath?: string): Plugin {
+// Dev-only Codex proxy. `codex exec` uses the user's existing `codex login`
+// session, so the browser never handles an API key. Run from the otherwise-empty
+// frame temp directory: Codex receives only the prompt and attached images, not
+// the editor repository or its agent instructions.
+function codexProxy(): Plugin {
   return {
-    name: "antigravity-cli-proxy",
+    name: "codex-cli-proxy",
     configureServer(server) {
-      server.middlewares.use("/api/antigravity", async (req, res) => {
+      server.middlewares.use("/api/codex", async (req, res) => {
         if (req.method !== "POST") {
           res.statusCode = 405;
           res.end();
@@ -113,10 +116,9 @@ function antigravityProxy(configuredPath?: string): Plugin {
         };
         let dir = "";
         try {
-          const { prompt, images, model } = JSON.parse(await readBody(req)) as {
+          const { prompt, images } = JSON.parse(await readBody(req)) as {
             prompt: string;
             images?: string[];
-            model?: string;
           };
           dir = mkdtempSync(join(tmpdir(), "sve-frames-"));
           const paths = (images ?? []).map((b64, i) => {
@@ -124,42 +126,37 @@ function antigravityProxy(configuredPath?: string): Plugin {
             writeFileSync(p, Buffer.from(b64, "base64"));
             return p;
           });
-          const full = paths.length
-            ? `Read these image files:\n${paths.map((p) => `- ${p}`).join("\n")}\n\n${prompt}`
-            : prompt;
+          const args = [
+            "exec",
+            "--ephemeral",
+            "--sandbox", "read-only",
+            "--skip-git-repo-check",
+            "--color", "never",
+            "-C", dir,
+          ];
+          for (const path of paths) args.push("--image", path);
+          // `--image` accepts one-or-more values, so without an explicit option
+          // boundary it greedily consumes the prompt as another image path.
+          // `--` ends option parsing and leaves the final value as [PROMPT].
+          args.push("--", prompt);
 
-          const defaultScript = join(process.cwd(), "scripts", "antigravity_runner.py");
-          const customBin = configuredPath || process.env.ANTIGRAVITY_PATH;
-
-          let execCmd = "python3";
-          let args: string[] = [];
-
-          if (customBin && !customBin.includes("antigravity-ide")) {
-            execCmd = customBin;
-            args = ["--prompt", prompt];
-            if (paths.length) args.push("--images", ...paths);
-            if (model) args.push("--model", model);
-          } else {
-            execCmd = "python3";
-            args = [defaultScript, "--prompt", prompt];
-            if (paths.length) args.push("--images", ...paths);
-            if (model) args.push("--model", model);
-          }
-
-          execFile(execCmd, args, { maxBuffer: 10 * 1024 * 1024, timeout: 180_000 }, (err, stdout, stderr) => {
+          const child = execFile("codex", args, { maxBuffer: 10 * 1024 * 1024, timeout: 180_000 }, (err, stdout, stderr) => {
             if (dir) rmSync(dir, { recursive: true, force: true });
             if (err) {
-              const msg = (stderr || err.message || "Antigravity execution failed").toString();
+              const msg = (stderr || err.message || "Codex execution failed").toString();
               return send(500, { error: msg.slice(0, 2000) });
             }
             const text = stdout.toString().trim();
             if (!text) {
               return send(500, {
-                error: `Antigravity runner returned empty text output. Switch the AI Engine dropdown to 'Claude Code CLI (claude -p)' or check python log.`
+                error: "Codex returned empty text. Run `codex login`, then retry, or switch the AI engine to Claude Code CLI.",
               });
             }
             send(200, { text });
           });
+          // execFile creates a writable stdin pipe. Codex detects that pipe and
+          // waits for "additional input" unless the parent explicitly closes it.
+          child.stdin?.end();
         } catch (e) {
           if (dir) rmSync(dir, { recursive: true, force: true });
           send(500, { error: e instanceof Error ? e.message : String(e) });
@@ -524,7 +521,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       claudeProxy(),
-      antigravityProxy(env.ANTIGRAVITY_PATH ?? ""),
+      codexProxy(),
       elevenProxy(env.ELEVENLABS_API_KEY ?? ""),
       defaultMusic(defaultMusicPath),
       musicLibrary(musicDir),

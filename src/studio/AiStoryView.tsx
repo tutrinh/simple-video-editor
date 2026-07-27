@@ -104,12 +104,19 @@ export default function AiStoryView() {
             </select>
           </label>
 
-          <label className="st-ai-field">
-            <span>Model</span>
-            <select value={settings.authorModel} onChange={(e) => update({ authorModel: e.target.value })} title="Claude model used to author & refine">
-              {MODEL_OPTIONS.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
-            </select>
-          </label>
+          {settings.aiProvider === "claude" ? (
+            <label className="st-ai-field">
+              <span>Model</span>
+              <select value={settings.authorModel} onChange={(e) => update({ authorModel: e.target.value })} title="Claude model used to author & refine">
+                {MODEL_OPTIONS.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
+              </select>
+            </label>
+          ) : (
+            <label className="st-ai-field">
+              <span>Model</span>
+              <span title="Codex uses the default model from your Codex CLI configuration">CLI default</span>
+            </label>
+          )}
 
           <label className="st-ai-field">
             <span>Engine</span>
@@ -135,7 +142,7 @@ export default function AiStoryView() {
               className="st-btn ghost"
               onClick={() => regen.analyzeClips()}
               disabled={regen.busy}
-              title="Describe every beat clip in the cut with Claude (without writing the script)"
+              title="Describe every beat clip in the cut with the selected AI engine (without writing the script)"
             >
               Analyze beats
             </button>
@@ -154,7 +161,25 @@ export default function AiStoryView() {
           {cut && <span className="st-ai-count st-num">{analyzedCount} of {inCut.length} beats analyzed</span>}
         </div>
 
-        {regen.busy && <div className="st-ai-status">{regen.label || "Working…"}</div>}
+        {regen.busy && (
+          <div className="st-ai-progress" role="status" aria-live="polite" aria-busy="true">
+            <div className="st-ai-progress-head">
+              <span className="st-ai-spinner" aria-hidden="true" />
+              <div>
+                <strong>{settings.aiProvider === "codex" ? "Codex" : "Claude"} is working</strong>
+                <span>{regen.label || "Preparing your story…"}</span>
+              </div>
+            </div>
+            <div
+              className="st-ai-progress-track"
+              role="progressbar"
+              aria-label="AI Story progress"
+              aria-valuetext={regen.label || "Working"}
+            >
+              <span />
+            </div>
+          </div>
+        )}
         {regen.error && (
           <div className="st-ai-status err" onClick={regen.clearError} title="Dismiss" style={{ cursor: "pointer" }}>
             ⚠ {regen.error} · (click to dismiss)

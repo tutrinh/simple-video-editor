@@ -1,12 +1,12 @@
 import type { ClipDescription } from "../domain/types";
 import type { SampledFrame } from "./frameSampler";
 
-// AI calls go through the local dev proxy (/api/claude), which runs `claude -p`
-// with the user's existing Claude Code auth — no API key (see ADR-0005). Only the
-// model alias travels; the proxy maps it to Claude Code's opus/sonnet/haiku.
+// AI calls go through a local CLI proxy: Claude Code (`claude -p`) or Codex
+// (`codex exec`). Both use the user's existing CLI login, with no browser key.
+// Claude receives its model alias; Codex uses the model configured by its CLI.
 
 export interface ClaudeConfig {
-  provider?: "claude" | "antigravity";
+  provider?: "claude" | "codex";
   model?: string;
   /** Tone/mood phrase to steer the output (see SettingsContext.toneHint). */
   tone?: string;
@@ -14,12 +14,18 @@ export interface ClaudeConfig {
   scriptType?: string;
 }
 
+export function aiEndpoint(provider?: ClaudeConfig["provider"]): string {
+  return provider === "codex" ? "/api/codex" : "/api/claude";
+}
+
 async function runClaude(prompt: string, images: string[] | undefined, cfg?: ClaudeConfig): Promise<string> {
-  const endpoint = cfg?.provider === "antigravity" ? "/api/antigravity" : "/api/claude";
+  const endpoint = aiEndpoint(cfg?.provider);
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ prompt, images, model: cfg?.model }),
+    // Claude's proxy maps these ids to its CLI aliases. Codex intentionally
+    // uses its own configured default model instead of receiving a Claude id.
+    body: JSON.stringify({ prompt, images, model: cfg?.provider === "codex" ? undefined : cfg?.model }),
   });
   const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
   if (!res.ok || data.error) throw new Error(data.error ?? `proxy HTTP ${res.status}`);

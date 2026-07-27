@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 
 const STORAGE_KEY = "vidstr_settings";
 
-export type AiProvider = "claude" | "antigravity";
+export type AiProvider = "claude" | "codex";
 
 export interface Settings {
   aiProvider: AiProvider;
@@ -24,8 +24,13 @@ const DEFAULTS: Settings = {
 
 export const AI_PROVIDER_OPTIONS: { id: AiProvider; label: string }[] = [
   { id: "claude", label: "Claude Code CLI (claude -p)" },
-  { id: "antigravity", label: "Antigravity CLI (antigravity)" },
+  { id: "codex", label: "Codex CLI (codex exec)" },
 ];
+
+/** Normalize persisted provider ids after engines are removed or renamed. */
+export function normalizeAiProvider(value: unknown): AiProvider {
+  return value === "codex" ? "codex" : "claude";
+}
 
 export const MODEL_OPTIONS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-4-8"] as const;
 
@@ -73,7 +78,11 @@ function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) };
+    const parsed = JSON.parse(raw) as Partial<Settings>;
+    // Antigravity was removed as an engine. Normalize old persisted values so
+    // the select never hydrates with an option that no longer exists.
+    const aiProvider = normalizeAiProvider(parsed.aiProvider);
+    return { ...DEFAULTS, ...parsed, aiProvider };
   } catch {
     return DEFAULTS;
   }
