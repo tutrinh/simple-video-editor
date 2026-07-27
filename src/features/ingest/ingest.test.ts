@@ -2,19 +2,18 @@ import { describe, it, expect } from "vitest";
 import { needsNormalize, isStillFile } from "./ingest";
 
 describe("needsNormalize", () => {
-  it("flags clips whose long edge exceeds 1080p", () => {
-    expect(needsNormalize({ width: 3840, height: 2160 })).toBe(true); // 4K landscape
-    expect(needsNormalize({ width: 2160, height: 3840 })).toBe(true); // 4K portrait
+  it("never normalizes 4K or high-resolution video clips on import", () => {
+    expect(needsNormalize({ width: 3840, height: 2160 })).toBe(false); // 4K landscape
+    expect(needsNormalize({ width: 2160, height: 3840 })).toBe(false); // 4K portrait
   });
   it("passes clips at or under 1080p", () => {
     expect(needsNormalize({ width: 1920, height: 1080 })).toBe(false);
     expect(needsNormalize({ width: 1080, height: 1920 })).toBe(false); // 1080p portrait
     expect(needsNormalize({ width: 1280, height: 720 })).toBe(false);
   });
-  it("never normalizes a Still, however large (ADR-0012)", () => {
-    // libx264 would make a one-frame video out of the photo.
+  it("never normalizes a Still or oversized video clip", () => {
     expect(needsNormalize({ width: 6000, height: 4000, kind: "still" })).toBe(false);
-    expect(needsNormalize({ width: 6000, height: 4000, kind: "video" })).toBe(true);
+    expect(needsNormalize({ width: 6000, height: 4000, kind: "video" })).toBe(false);
   });
 });
 

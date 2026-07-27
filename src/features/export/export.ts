@@ -359,9 +359,10 @@ export async function exportCut(
         if (!clip) return null;
         try {
           const srcData = await bytesOf(clip.normalized ?? clip.file);
+          const srcName = sourceName(clip);
           const out = await runIsolated(
-            [{ name: "src.mp4", data: srcData }],
-            ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", "src.mp4",
+            [{ name: srcName, data: srcData }],
+            ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", srcName,
              "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
              "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
             "ov.mp4",

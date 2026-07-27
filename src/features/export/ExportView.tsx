@@ -454,7 +454,7 @@ export default function ExportView() {
                 outline: "none",
                 cursor: "pointer",
               }}
-              title="Select video export visual & audio quality level"
+              title="Lower CRF = Higher Visual Quality (CRF 15 is Maximum Quality)"
             >
               {(Object.entries(EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES) as [keyof typeof EDITOR_DEFAULTS.EXPORT_QUALITY_PROFILES, any][]).map(([key, profile]) => (
                 <option key={key} value={key}>
@@ -462,6 +462,12 @@ export default function ExportView() {
                 </option>
               ))}
             </select>
+            <span
+              style={{ fontSize: 11, color: "var(--ink-3)", opacity: 0.9, letterSpacing: "-0.01em" }}
+              title="Lower CRF values yield higher visual quality. CRF 15 (Maximum) produces near-lossless detail."
+            >
+              (Lower CRF = Higher Quality)
+            </span>
           </label>
         </div>
 

@@ -53,13 +53,12 @@ export async function createClip(file: File): Promise<Clip> {
 }
 
 /**
- * True when the clip's long edge exceeds 1080p and it needs downscaling. Never
- * a Still: normalizeTo1080p runs libx264, which would turn a photo into a
- * one-frame video and cost us the image input the export stage wants.
+ * True when a clip requires normalization on import.
+ * Returns false so 4K and high-resolution clips preserve their original
+ * resolution and visual quality without lossy re-encoding on import.
  */
-export function needsNormalize(clip: Pick<Clip, "width" | "height"> & Partial<Pick<Clip, "kind">>): boolean {
-  if (clip.kind === "still") return false;
-  return Math.max(clip.width, clip.height) > 1920;
+export function needsNormalize(_clip: Pick<Clip, "width" | "height"> & Partial<Pick<Clip, "kind">>): boolean {
+  return false;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
 import { exportProjectFile, importProjectFile } from "../lib/projectPackager";
 import InspirationUploadModal from "./InspirationUploadModal";
 import type { ProjectTemplate } from "../domain/types";
+import { useExportSettings } from "../state/ExportSettingsContext";
 
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 
 export default function ProjectManagerModal({ isOpen, onClose }: Props) {
   const { state, dispatch } = useProject();
+  const { reset: resetExport } = useExportSettings();
   const [activeTab, setActiveTab] = useState<"projects" | "templates">("projects");
   const [projects, setProjects] = useState<SavedProjectMeta[]>([]);
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
@@ -65,6 +67,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
       const loaded = await loadProjectFromStorage(id);
       if (loaded) {
         dispatch({ type: "LOAD_PROJECT", state: loaded });
+        resetExport();
         onClose();
       }
     } catch (err) {
@@ -85,6 +88,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
 
       if (isDeletingActive) {
         dispatch({ type: "RESET" });
+        resetExport();
         onClose();
       } else {
         await refreshProjects();
@@ -110,6 +114,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
       localStorage.removeItem("simple_editor_active_project_id");
     }
     dispatch({ type: "RESET" });
+    resetExport();
     onClose();
   };
 
@@ -133,6 +138,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
     try {
       const importedState = await importProjectFile(file);
       dispatch({ type: "LOAD_PROJECT", state: importedState });
+      resetExport();
       onClose();
     } catch (err) {
       console.error("Failed to import project file:", err);
