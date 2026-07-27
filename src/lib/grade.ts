@@ -29,7 +29,7 @@ const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 const AXES: (keyof ColorAdjustments)[] = [
   "exposure", "contrast", "shadows", "blackPoint", "highlights", "colorTone", "warmth",
-  "saturation", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
+  "saturation", "skinTone", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
 ];
 
 /**
@@ -307,7 +307,25 @@ export function gradePixel(adj: ColorAdjustments, rgb: Rgb): Rgb {
     curveStep(adj, 1, clamp01(rgb[1])),
     curveStep(adj, 2, clamp01(rgb[2])),
   ];
-  return applyMatrix(matrixStep(adj), curved);
+  let res = applyMatrix(matrixStep(adj), curved);
+  const skinTone = adj.skinTone ?? 0;
+  if (skinTone !== 0) {
+    let [r, g, b] = res;
+    const maxC = Math.max(r, g, b);
+    const minC = Math.min(r, g, b);
+    const delta = maxC - minC;
+    if (delta > 0.05 && maxC === r && g >= b) {
+      const sat = delta / maxC;
+      const gRatio = (g - minC) / delta;
+      const orangeWeight = sat * Math.max(0, 1 - Math.abs(gRatio - 0.6) * 3);
+      if (orangeWeight > 0) {
+        const shift = (skinTone / 100) * 0.15 * orangeWeight;
+        g = clamp01(g + shift);
+        res = [r, g, b];
+      }
+    }
+  }
+  return res;
 }
 
 const fmt = (n: number): string => Number(n.toFixed(5)).toString();

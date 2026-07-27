@@ -14,7 +14,7 @@ export interface FilmLook {
 
 const ADJ_KEYS: (keyof ColorAdjustments)[] = [
   "exposure", "contrast", "shadows", "blackPoint", "highlights", "colorTone", "warmth",
-  "saturation", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
+  "saturation", "skinTone", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
 ];
 
 const COLOR_KEYS_DOC =

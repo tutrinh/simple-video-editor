@@ -248,6 +248,8 @@ export interface ColorAdjustments {
   warmth?: number;
   /** Saturation offset (-100 to +100, default 0). */
   saturation?: number;
+  /** Skin tone / Orange hue offset (-100 to +100, default 0; golden↔rose). */
+  skinTone?: number;
   /** Tint — green↔magenta, the second white-balance axis (-100 to +100, default 0). */
   tint?: number;
   /** Split-tone: shadows warmth — blue↔amber (-100 to +100, default 0). */

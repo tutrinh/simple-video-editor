@@ -117,6 +117,16 @@ describe("curveStep", () => {
     expect(curveStep(adj, 0, 1)).toBe(1);                   // white is held
   });
 
+  it("selectively shifts orange skin tones with skinTone", () => {
+    const adj = { skinTone: 50 };
+    // Orange pixel (R=0.8, G=0.5, B=0.2)
+    const out = gradePixel(adj, [0.8, 0.5, 0.2]);
+    expect(out[1]).toBeGreaterThan(0.5);                     // Green channel shifted for golden warmth
+    // Pure blue pixel (R=0.1, G=0.1, B=0.9) stays untouched
+    const blueOut = gradePixel(adj, [0.1, 0.1, 0.9]);
+    expect(blueOut).toEqual([0.1, 0.1, 0.9]);
+  });
+
   it("crushes the dark region without pulling black below zero", () => {
     const adj = { shadows: -80 };
     expect(curveStep(adj, 0, 0)).toBe(0);
