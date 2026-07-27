@@ -175,6 +175,35 @@ const DEFAULTS: ExportSettings = {
   titleIntroSec: 3,
 };
 
+const EXPORT_SETTINGS_KEY = "simple_editor_export_settings";
+
+function loadSavedExportSettings(): ExportSettings {
+  const base = { ...DEFAULTS, ...activeVoPresetSettings() };
+  if (typeof localStorage === "undefined") return base;
+  try {
+    const raw = localStorage.getItem(EXPORT_SETTINGS_KEY);
+    if (!raw) return base;
+    const parsed = JSON.parse(raw);
+    return { ...base, ...parsed };
+  } catch {
+    return base;
+  }
+}
+
+function saveExportSettingsToStorage(settings: ExportSettings) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const { music, titleFontFile, ...rest } = settings;
+    const cleanTitleLayers = rest.titleLayers?.map(({ fontFile, ...lRest }) => lRest);
+    localStorage.setItem(
+      EXPORT_SETTINGS_KEY,
+      JSON.stringify({ ...rest, titleLayers: cleanTitleLayers })
+    );
+  } catch (e) {
+    console.error("Failed to save export settings to localStorage:", e);
+  }
+}
+
 const Ctx = createContext<{
   settings: ExportSettings;
   update: (patch: Partial<ExportSettings>) => void;
@@ -182,9 +211,16 @@ const Ctx = createContext<{
 } | null>(null);
 
 export function ExportSettingsProvider({ children }: { children: ReactNode }) {
-  // Seed from the factory DEFAULTS, overlaid with the user's last-applied VO preset.
-  const [settings, setSettings] = useState<ExportSettings>(() => ({ ...DEFAULTS, ...activeVoPresetSettings() }));
-  const update = (patch: Partial<ExportSettings>) => setSettings((s) => ({ ...s, ...patch }));
+  // Seed from stored export settings (or factory DEFAULTS overlaid with active VO preset).
+  const [settings, setSettings] = useState<ExportSettings>(() => loadSavedExportSettings());
+
+  const update = (patch: Partial<ExportSettings>) => {
+    setSettings((s) => {
+      const next = { ...s, ...patch };
+      saveExportSettingsToStorage(next);
+      return next;
+    });
+  };
 
   // Dev convenience: auto-load the default music bed configured via DEFAULT_MUSIC
   // in .env.local (served by the dev server at /api/default-music). A browser
@@ -206,8 +242,15 @@ export function ExportSettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => { loadDefaultMusic(); }, [loadDefaultMusic]);
-  // "Start over" reverts to factory DEFAULTS but keeps the user's active VO preset.
-  const reset = () => { setSettings({ ...DEFAULTS, ...activeVoPresetSettings() }); loadDefaultMusic(); };
+
+  // "Start over" / new project reverts to factory DEFAULTS but keeps the user's active VO preset.
+  const reset = () => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(EXPORT_SETTINGS_KEY);
+    }
+    setSettings({ ...DEFAULTS, ...activeVoPresetSettings() });
+    loadDefaultMusic();
+  };
 
   return <Ctx.Provider value={{ settings, update, reset }}>{children}</Ctx.Provider>;
 }

@@ -67,7 +67,6 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
       const loaded = await loadProjectFromStorage(id);
       if (loaded) {
         dispatch({ type: "LOAD_PROJECT", state: loaded });
-        resetExport();
         onClose();
       }
     } catch (err) {
@@ -138,7 +137,6 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
     try {
       const importedState = await importProjectFile(file);
       dispatch({ type: "LOAD_PROJECT", state: importedState });
-      resetExport();
       onClose();
     } catch (err) {
       console.error("Failed to import project file:", err);
