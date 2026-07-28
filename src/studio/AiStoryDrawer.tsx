@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import AiStoryView from "./AiStoryView";
+import CloseButton from "../design-system/CloseButton";
 
 /**
  * AI Story side panel — a docked column on the right (inspector width) that PUSHES
@@ -20,7 +21,7 @@ export default function AiStoryDrawer({ open, onClose }: { open: boolean; onClos
     <aside className="st-col aistory" role="region" aria-label="AI Story" aria-hidden={!open}>
       <div className="st-aistory-head">
         <h2>✨ AI Story</h2>
-        <button className="x" onClick={onClose} title="Close (Esc)" aria-label="Close AI Story panel">×</button>
+        <CloseButton onClick={onClose} label="Close AI Story panel" />
       </div>
       <div className="st-aistory-body no-scrollbar">
         <AiStoryView />

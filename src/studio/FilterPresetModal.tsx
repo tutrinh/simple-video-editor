@@ -9,6 +9,10 @@ import { analyzeFilmLook, gradeBeatToLook, type FilmLook } from "../lib/filmLook
 import { sampleFrameAt, stillFrame } from "../lib/frameSampler";
 import { loadReferences, saveReference, deleteReference, downscaleDataUrl, type SavedReference } from "../lib/lookReferences";
 import { captureGradeSnapshot, clearedGlobal, restoredBeatGrade, restoredGlobal, wasSnapshotted, type GradeSnapshot } from "../lib/lookApply";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
+import CloseIcon from "../design-system/icons/CloseIcon";
+import DeleteIcon from "../design-system/icons/DeleteIcon";
 
 interface Props {
   activeFilterId?: string;
@@ -234,7 +238,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
   };
 
   return (
-    <div
+    <ModalScrim
       className="st-modal-scrim"
       onClick={onClose}
       style={{
@@ -249,7 +253,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
         padding: 20,
       }}
     >
-      <div
+      <ModalSurface
         className="st-modal-card"
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -281,13 +285,13 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
               Apply a non-destructive color grade or save your own custom preset.
             </p>
           </div>
-          <button
+          <ControlButton
             className="st-btn ghost"
             style={{ padding: "4px 8px", fontSize: 12 }}
             onClick={onClose}
           >
             ✕ Close
-          </button>
+          </ControlButton>
         </div>
 
         {/* AI Film Look — analyze a reference image, then grade every beat toward it */}
@@ -305,36 +309,36 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 }}>
             <label className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px", cursor: "pointer" }} title="Upload a reference still with the film look you want">
               {refImageUrl ? "🖼 Change reference…" : "🖼 Upload reference image"}
-              <input type="file" accept="image/*" style={{ display: "none" }}
+              <InputControl type="file" accept="image/*" style={{ display: "none" }}
                 onChange={(e) => { onRefUpload(e.target.files?.[0]); e.currentTarget.value = ""; }} />
             </label>
-            <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
+            <ControlButton type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
               onClick={analyzeLook} disabled={!refImageUrl || aiBusy} title="Claude analyzes the reference's grade">
               Analyze look
-            </button>
+            </ControlButton>
             {refImageUrl && (
-              <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
+              <ControlButton type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
                 onClick={saveCurrentReference} disabled={aiBusy} title="Save this reference (and its Look) for future use">
                 💾 Save reference
-              </button>
+              </ControlButton>
             )}
             {look && (
               <>
-                <button type="button" className="st-btn primary" style={{ fontSize: 11, padding: "5px 10px" }}
+                <ControlButton type="button" className="st-btn primary" style={{ fontSize: 11, padding: "5px 10px" }}
                   onClick={applyLookToBeats} disabled={aiBusy || !state.cut?.beats.length}
                   title="Grade every beat toward this look (one Claude call per beat)">
                   ✨ Apply to all beats
-                </button>
-                <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
+                </ControlButton>
+                <ControlButton type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
                   onClick={saveLookAsPreset} disabled={aiBusy}
                   title={`Save this look as a reusable preset${look?.name ? ` ("${look.name}")` : ""}`}>
                   {lookPresetSaved ? "✓ Saved preset" : "💾 Save as preset"}
-                </button>
+                </ControlButton>
                 {gradeUndo && (
-                  <button type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px", color: "var(--accent)" }}
+                  <ControlButton type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px", color: "var(--accent)" }}
                     onClick={undoGrade} title="Restore every beat's color to before the AI grade">
                     ↺ Undo AI grade
-                  </button>
+                  </ControlButton>
                 )}
               </>
             )}
@@ -370,14 +374,14 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       onClick={() => loadSavedReference(ref)}
                       style={{ width: 72, height: 48, objectFit: "cover", borderRadius: 5, border: refImageUrl === ref.dataUrl ? "2px solid var(--accent)" : "1px solid var(--line)", cursor: "pointer", display: "block" }}
                     />
-                    <button
+                    <ControlButton
                       type="button"
                       onClick={() => removeSavedReference(ref.id)}
                       title="Delete reference"
                       style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: "50%", background: "var(--danger)", color: "#fff", border: "none", fontSize: 11, lineHeight: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                     >
                       ×
-                    </button>
+                    </ControlButton>
                     {ref.look && <span style={{ position: "absolute", bottom: 2, left: 2, fontSize: 8, background: "rgba(0,0,0,.6)", color: "#fff", padding: "0 3px", borderRadius: 3 }}>Look</span>}
                   </div>
                 ))}
@@ -402,7 +406,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
               <span style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)", whiteSpace: "nowrap" }}>
                 Filter Intensity: {intensity}%
               </span>
-              <input
+              <InputControl
                 type="range"
                 min={10}
                 max={100}
@@ -411,20 +415,20 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                 onChange={(e) => handleIntensityChange(Number(e.target.value))}
                 style={sliderTrackStyle(intensity, 10, 100)}
               />
-              <button
+              <ControlButton
                 className="st-btn ghost"
                 style={{ padding: "2px 8px", fontSize: 11 }}
                 onClick={() => setFineTuneOpen(!fineTuneOpen)}
               >
                 {fineTuneOpen ? "▲ Hide Fine-Tune" : "🎛️ Fine-Tune & Copy"}
-              </button>
-              <button
+              </ControlButton>
+              <ControlButton
                 className="st-btn ghost"
                 style={{ padding: "2px 8px", fontSize: 11, borderColor: "var(--danger)", color: "var(--danger)" }}
                 onClick={() => handleSelect("none")}
               >
                 Reset Filter
-              </button>
+              </ControlButton>
             </div>
 
             {/* Fine-Tune & Save Custom Drawer */}
@@ -459,7 +463,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                     return (
                       <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>{label}</span>
-                        <input
+                        <InputControl
                           type="range"
                           min={-100}
                           max={100}
@@ -476,7 +480,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                 </div>
 
                 {!savingPreset ? (
-                  <button
+                  <ControlButton
                     className="st-btn primary"
                     style={{ fontSize: 11, padding: "4px 10px", alignSelf: "flex-start" }}
                     onClick={() => {
@@ -485,10 +489,10 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                     }}
                   >
                     💾 Save as Custom Preset
-                  </button>
+                  </ControlButton>
                 ) : (
                   <form onSubmit={handleSaveCustom} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
+                    <InputControl
                       type="text"
                       placeholder="Preset Name (e.g. My Warm Sunset)"
                       value={newPresetName}
@@ -505,17 +509,17 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       autoFocus
                       required
                     />
-                    <button type="submit" className="st-btn primary" style={{ fontSize: 11, padding: "4px 10px" }}>
+                    <ControlButton type="submit" className="st-btn primary" style={{ fontSize: 11, padding: "4px 10px" }}>
                       Save Preset
-                    </button>
-                    <button
+                    </ControlButton>
+                    <ControlButton
                       type="button"
                       className="st-btn ghost"
                       style={{ fontSize: 11, padding: "4px 10px" }}
                       onClick={() => setSavingPreset(false)}
                     >
                       Cancel
-                    </button>
+                    </ControlButton>
                   </form>
                 )}
               </div>
@@ -588,7 +592,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
 
                   {/* Delete Custom Preset Button */}
                   {preset.isCustom && (
-                    <button
+                    <ControlButton
                       type="button"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
@@ -612,11 +616,8 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       }}
                       title="Delete this custom preset"
                     >
-                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                        <line x1="2" y1="2" x2="10" y2="10" />
-                        <line x1="10" y1="2" x2="2" y2="10" />
-                      </svg>
-                    </button>
+                      <CloseIcon size={10} />
+                    </ControlButton>
                   )}
                 </div>
 
@@ -640,11 +641,11 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
             );
           })}
         </div>
-      </div>
+      </ModalSurface>
 
       {/* Delete Confirmation Warning Modal */}
       {deleteTarget && (
-        <div
+        <ModalScrim
           className="st-modal-scrim"
           onClick={() => setDeleteTarget(null)}
           style={{
@@ -659,7 +660,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
             padding: 20,
           }}
         >
-          <div
+          <ModalSurface
             className="st-modal-card"
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -685,9 +686,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                   flexShrink: 0,
                 }}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                </svg>
+                <DeleteIcon size={20} />
               </div>
               <div>
                 <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
@@ -700,26 +699,26 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button
+              <ControlButton
                 type="button"
                 className="st-btn ghost"
                 style={{ flex: 1, justifyContent: "center" }}
                 onClick={() => setDeleteTarget(null)}
               >
                 Cancel
-              </button>
-              <button
+              </ControlButton>
+              <ControlButton
                 type="button"
                 className="st-btn danger"
                 style={{ flex: 1, justifyContent: "center" }}
                 onClick={handleDeleteConfirm}
               >
                 Delete Preset
-              </button>
+              </ControlButton>
             </div>
-          </div>
-        </div>
+          </ModalSurface>
+        </ModalScrim>
       )}
-    </div>
+    </ModalScrim>
   );
 }

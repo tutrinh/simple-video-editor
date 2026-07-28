@@ -1,4 +1,4 @@
-import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
+import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Clip, Beat, OverlayBlendMode } from "../domain/types";
 import { sampleFrames, stillFrame } from "../lib/frameSampler";
@@ -7,6 +7,10 @@ import { multithreadReady } from "../lib/ffmpegEngine";
 import { createClip, needsNormalize, normalizeTo1080p, isStillFile, CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
 import { fmtClock, posterBg } from "./util";
 import { getTagStyle } from "../lib/tagPresets";
+import FileDropzone from "../design-system/FileDropzone";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import GripIcon from "../design-system/icons/GripIcon";
+import CopyIcon from "../design-system/icons/CopyIcon";
 
 type Phase = "pending" | "normalizing" | "ready" | "error";
 interface Status { phase: Phase; progress: number; error?: string }
@@ -30,13 +34,7 @@ function UsabilityDots({ score }: { score?: number }) {
   );
 }
 
-const Grip = () => (
-  <svg className="st-grip" width="8" height="15" viewBox="0 0 8 15" fill="currentColor" aria-hidden="true">
-    <circle cx="2" cy="2" r="1.2" /><circle cx="6" cy="2" r="1.2" />
-    <circle cx="2" cy="7.5" r="1.2" /><circle cx="6" cy="7.5" r="1.2" />
-    <circle cx="2" cy="13" r="1.2" /><circle cx="6" cy="13" r="1.2" />
-  </svg>
-);
+const Grip = () => <GripIcon className="st-grip" />;
 
 interface Props {
   /** Clip ids currently used by a Beat (for the used/unused affordance). */
@@ -54,12 +52,10 @@ interface Props {
 export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, onPickClip, onAddClip, onDuplicateBeat }: Props) {
   const { state, dispatch } = useProject();
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
-  const [dragging, setDragging] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
 
-  const inputRef = useRef<HTMLInputElement>(null);
   const setStatus = (id: string, s: Status) => setStatuses((p) => ({ ...p, [id]: s }));
   const clipById = new Map(state.clips.map((c) => [c.id, c]));
 
@@ -102,8 +98,6 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
     });
   }
 
-  const onDropFiles = (e: DragEvent) => { e.preventDefault(); setDragging(false); handleFiles(Array.from(e.dataTransfer.files)); };
-  const onPick = (e: ChangeEvent<HTMLInputElement>) => { if (e.target.files) handleFiles(Array.from(e.target.files)); e.target.value = ""; };
 
   // Drag-to-reorder the cut, keyed by beat id so it's robust to filtering.
   function reorder(draggedBeatId: string, targetBeatId: string) {
@@ -162,7 +156,7 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
             {st?.phase === "error" && <span className="st-status err" title={st.error}>failed</span>}
             {addable ? (
               <div style={{ display: "inline-flex", gap: 4, marginLeft: "auto" }}>
-                <button
+                <ControlButton
                   type="button"
                   className="st-btn ghost"
                   style={{ fontSize: 9, padding: "1px 5px" }}
@@ -170,8 +164,8 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                   title="Add clip as a sequential beat in the main cut"
                 >
                   + Beat
-                </button>
-                {clip.kind !== "still" && <button
+                </ControlButton>
+                {clip.kind !== "still" && <ControlButton
                   type="button"
                   className="st-btn ghost"
                   style={{ fontSize: 9, padding: "1px 5px", color: "var(--accent)", borderColor: "var(--accent)" }}
@@ -198,7 +192,7 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                   title="Layer clip as a video overlay on top of beats"
                 >
                   + Overlay
-                </button>}
+                </ControlButton>}
               </div>
             ) : described ? (
               <UsabilityDots score={clip.description!.usability} />
@@ -218,19 +212,19 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
 
       {allProjectTags.length > 0 && (
         <div style={{ padding: "6px 10px", display: "flex", gap: 4, flexWrap: "wrap", background: "var(--panel-2)", borderBottom: "1px solid var(--line)" }}>
-          <button
+          <ControlButton
             type="button"
             className={`st-btn ${tagFilter === null ? "primary" : "ghost"}`}
             style={{ fontSize: 9.5, padding: "1px 6px" }}
             onClick={() => setTagFilter(null)}
           >
             All ({state.clips.length})
-          </button>
+          </ControlButton>
           {allProjectTags.map((tag) => {
             const active = tagFilter === tag;
             const count = state.clips.filter((c) => c.tags?.includes(tag)).length;
             return (
-              <button
+              <ControlButton
                 key={tag}
                 type="button"
                 className={`st-btn ${active ? "primary" : "ghost"}`}
@@ -238,22 +232,20 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                 onClick={() => setTagFilter(active ? null : tag)}
               >
                 {tag} ({count})
-              </button>
+              </ControlButton>
             );
           })}
         </div>
       )}
 
-      <div
-        className={"st-drop" + (dragging ? " drag" : "")}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDropFiles}
-        onClick={() => inputRef.current?.click()}
-      >
-        <b>Drop clips here</b>
-        video or images · 4K → 1080p · stills run 10s
-        <input ref={inputRef} type="file" accept={CLIP_FILE_ACCEPT} multiple hidden onChange={onPick} />
+      <div style={{ margin: "0 12px 10px" }}>
+        <FileDropzone
+          title="Drop clips here"
+          description="Video or images, 4K to 1080p, stills run 10s"
+          accept={CLIP_FILE_ACCEPT}
+          multiple
+          onFiles={handleFiles}
+        />
       </div>
 
       <div className="st-cliplist">
@@ -308,16 +300,13 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                     <div className="st-crow">
                       <span className="st-cdur st-num">{fmtClock(b.durationSec ?? clip.durationSec)}</span>
                       <span className="st-beatno st-num">#{i + 1}</span>
-                      <button
+                      <ControlButton
                         className="st-dup-btn"
                         title="Duplicate this beat"
                         onClick={(e) => { e.stopPropagation(); onDuplicateBeat(b.id); }}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                        </svg>
-                      </button>
+                        <CopyIcon size={12} />
+                      </ControlButton>
                     </div>
                     {b.captionText && (
                       <div className="st-ccap" title={b.captionText}>
@@ -347,7 +336,7 @@ function ClipNameEditor({ clip }: { clip: Clip }) {
 
   if (editing) {
     return (
-      <input
+      <InputControl
         type="text"
         value={name}
         autoFocus
@@ -397,7 +386,7 @@ function ClipNameEditor({ clip }: { clip: Clip }) {
       style={{ cursor: "text", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}
     >
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{clip.name}</span>
-      <button
+      <ControlButton
         type="button"
         className="st-rename-btn"
         title="Rename clip"
@@ -419,7 +408,7 @@ function ClipNameEditor({ clip }: { clip: Clip }) {
         }}
       >
         ✏️
-      </button>
+      </ControlButton>
     </div>
   );
 }

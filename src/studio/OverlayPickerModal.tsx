@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Clip, Cut, OverlayBlendMode } from "../domain/types";
+import { ControlButton, InputControl, SelectControl } from "../design-system/ControlPrimitives";
+import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
 
 interface Props {
   isOpen: boolean;
@@ -113,8 +115,8 @@ export default function OverlayPickerModal({
 
   // ── Render ──────────────────────────────────────────────────────
   return (
-    <div className="st-modal-scrim" onClick={onClose} style={{ zIndex: 1000 }}>
-      <div
+    <ModalScrim className="st-modal-scrim" onClick={onClose} style={{ zIndex: 1000 }}>
+      <ModalSurface
         className="st-modal-card"
         style={{
           maxWidth: 820,
@@ -150,14 +152,14 @@ export default function OverlayPickerModal({
               Hover over any overlay card to play a live video preview. Select an effect to layer it over your cut.
             </p>
           </div>
-          <button
+          <ControlButton
             className="st-btn ghost"
             onClick={onClose}
             style={{ fontSize: 14, padding: "4px 10px", borderRadius: "50%" }}
             title="Close overlay library"
           >
             ✕
-          </button>
+          </ControlButton>
         </div>
 
         {/* Category Tabs */}
@@ -173,20 +175,20 @@ export default function OverlayPickerModal({
             alignItems: "center",
           }}
         >
-          <button
+          <ControlButton
             type="button"
             onClick={() => setActiveTab("all")}
             className={"st-btn " + (activeTab === "all" ? "primary" : "ghost")}
             style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, whiteSpace: "nowrap" }}
           >
             🌟 All ({stockItems.length + clips.length})
-          </button>
+          </ControlButton>
 
           {categories.map((cat) => {
             const count = stockItems.filter((i) => i.category === cat).length;
             const icon = cat.includes("light") || cat.includes("leak") ? "✨" : cat.includes("grain") ? "🎞️" : "⚡";
             return (
-              <button
+              <ControlButton
                 key={cat}
                 type="button"
                 onClick={() => setActiveTab(cat)}
@@ -194,28 +196,28 @@ export default function OverlayPickerModal({
                 style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, textTransform: "capitalize", whiteSpace: "nowrap" }}
               >
                 {icon} {cat.replace(/-/g, " ")} ({count})
-              </button>
+              </ControlButton>
             );
           })}
 
-          <button
+          <ControlButton
             type="button"
             onClick={() => setActiveTab("project")}
             className={"st-btn " + (activeTab === "project" ? "primary" : "ghost")}
             style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, whiteSpace: "nowrap" }}
           >
             📁 Project Footage ({clips.length})
-          </button>
+          </ControlButton>
 
           {/* Upload tab */}
-          <button
+          <ControlButton
             type="button"
             onClick={() => setActiveTab("upload")}
             className={"st-btn " + (activeTab === "upload" ? "primary" : "ghost")}
             style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, whiteSpace: "nowrap", marginLeft: "auto", flexShrink: 0 }}
           >
             ⬆ Import Files {uploadQueue.length > 0 ? `(${uploadQueue.length})` : ""}
-          </button>
+          </ControlButton>
         </div>
 
         {/* Modal Body */}
@@ -286,8 +288,8 @@ export default function OverlayPickerModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </ModalSurface>
+    </ModalScrim>
   );
 }
 
@@ -343,7 +345,7 @@ function UploadTab({ queue, draggingOver, uploading, category, categories, fileI
             &nbsp;· MP4, MOV, WebM, M4V
           </div>
         </div>
-        <input
+        <InputControl
           ref={fileInputRef}
           type="file"
           accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v,.avi"
@@ -382,7 +384,7 @@ function UploadTab({ queue, draggingOver, uploading, category, categories, fileI
                   {(f.size / (1024 * 1024)).toFixed(1)} MB
                 </div>
               </div>
-              <button
+              <ControlButton
                 type="button"
                 className="st-btn ghost"
                 onPointerDown={(e) => e.stopPropagation()}
@@ -391,14 +393,14 @@ function UploadTab({ queue, draggingOver, uploading, category, categories, fileI
                 title="Remove from queue"
               >
                 ✕
-              </button>
+              </ControlButton>
             </div>
           ))}
 
           {/* Category picker */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--panel-3)", borderRadius: 8, border: "1px solid var(--line)" }}>
             <span style={{ fontSize: 11, color: "var(--ink-2)", whiteSpace: "nowrap" }}>Save to folder:</span>
-            <select
+            <SelectControl
               value={category}
               onChange={(e) => onCategoryChange(e.target.value)}
               style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}
@@ -407,10 +409,10 @@ function UploadTab({ queue, draggingOver, uploading, category, categories, fileI
               {categories.filter((c) => c !== "uploads").map((c) => (
                 <option key={c} value={c}>{c.replace(/-/g, " ")}</option>
               ))}
-            </select>
+            </SelectControl>
           </div>
 
-          <button
+          <ControlButton
             type="button"
             className="st-btn primary"
             onClick={onAdd}
@@ -420,7 +422,7 @@ function UploadTab({ queue, draggingOver, uploading, category, categories, fileI
             {uploading
               ? "Importing…"
               : `⬆ Add ${queue.length} file${queue.length !== 1 ? "s" : ""} to Timeline`}
-          </button>
+          </ControlButton>
         </div>
       )}
 
@@ -552,7 +554,7 @@ function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isIm
           <div style={{ fontSize: 10, color: "var(--ink-2)", textTransform: "capitalize" }}>{category}</div>
         </div>
 
-        <button
+        <ControlButton
           type="button"
           disabled={isImporting}
           className="st-btn primary"
@@ -569,7 +571,7 @@ function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isIm
           }}
         >
           {isImporting ? "Importing..." : "+ Add to Timeline"}
-        </button>
+        </ControlButton>
       </div>
     </div>
   );

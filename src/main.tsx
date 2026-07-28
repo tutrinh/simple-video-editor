@@ -5,6 +5,7 @@ import { ProjectProvider } from "./state/ProjectContext";
 import { SettingsProvider } from "./state/SettingsContext";
 import { ExportSettingsProvider } from "./state/ExportSettingsContext";
 import { ThemeProvider } from "./state/ThemeContext";
+import "./design-system/components.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

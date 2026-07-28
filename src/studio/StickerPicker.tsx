@@ -3,6 +3,8 @@ import {
   fetchStickerList, stickerFileUrl, uploadSticker,
   loadFavorites, toggleFavorite, sortByFavorite,
 } from "../lib/stickerLibrary";
+import CloseButton from "../design-system/CloseButton";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 
 /**
  * Popover for the Sticker track's "＋ Sticker" button: the images in the stickers/
@@ -42,12 +44,12 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
     <div className="st-sticker-picker">
       <div className="st-sfx-picker-head">
         <span>🩹 Stickers</span>
-        <button type="button" className="x" onClick={onClose} title="Close">×</button>
+        <CloseButton onClick={onClose} />
       </div>
 
       <label className="st-sfx-upload" title="Copy an image into the project's stickers/ folder">
         {busy ? "Uploading…" : "⬆ Upload sticker"}
-        <input
+        <InputControl
           type="file"
           accept=".png,.svg,.webp,image/png,image/svg+xml,image/webp"
           disabled={busy}
@@ -69,22 +71,22 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
             const fav = favorites.includes(name);
             return (
               <div className="st-sticker-cell" key={name}>
-                <button
+                <ControlButton
                   type="button"
                   className="st-sticker-thumb"
                   onClick={() => onPick(name)}
                   title={`Add ${name} to the Sticker track`}
                 >
                   <img src={stickerFileUrl(name)} alt={name} loading="lazy" />
-                </button>
-                <button
+                </ControlButton>
+                <ControlButton
                   type="button"
                   className={"st-sticker-star" + (fav ? " on" : "")}
                   onClick={(e) => { e.stopPropagation(); setFavorites(toggleFavorite(name)); }}
                   title={fav ? "Remove from favourites" : "Favourite — sorts to the top"}
                 >
                   {fav ? "★" : "☆"}
-                </button>
+                </ControlButton>
                 <span className="st-sticker-name" title={name}>{name}</span>
               </div>
             );

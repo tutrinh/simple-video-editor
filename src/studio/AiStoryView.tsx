@@ -11,6 +11,7 @@ import {
 import { useRegenerate } from "./useRegenerate";
 import { beatClips, isIncluded, posterBg } from "./util";
 import { makeBeat } from "../features/assemble/assemble";
+import { ControlButton, InputControl, SelectControl, TextareaControl } from "../design-system/ControlPrimitives";
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
 const modelLabel = (m: string) => m.replace(/^claude-/, "");
@@ -82,7 +83,7 @@ export default function AiStoryView() {
     <div className="st-ai no-scrollbar">
       {/* ── Steering header ─────────────────────────────────────────── */}
       <div className="st-ai-steer">
-        <input
+        <InputControl
           className="st-dir-input"
           value={state.direction}
           onChange={(e) => dispatch({ type: "SET_DIRECTION", direction: e.target.value })}
@@ -92,24 +93,24 @@ export default function AiStoryView() {
         <div className="st-ai-steer-row">
           <label className="st-ai-field">
             <span>Script type</span>
-            <select value={settings.scriptType} onChange={(e) => update({ scriptType: e.target.value })} title="Genre/format — steers the story structure">
+            <SelectControl value={settings.scriptType} onChange={(e) => update({ scriptType: e.target.value })} title="Genre/format — steers the story structure">
               {SCRIPT_TYPE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
+            </SelectControl>
           </label>
 
           <label className="st-ai-field">
             <span>Tone</span>
-            <select value={settings.tone} onChange={(e) => update({ tone: e.target.value })} title="Voice — steers how the script reads">
+            <SelectControl value={settings.tone} onChange={(e) => update({ tone: e.target.value })} title="Voice — steers how the script reads">
               {TONE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
+            </SelectControl>
           </label>
 
           {settings.aiProvider === "claude" ? (
             <label className="st-ai-field">
               <span>Model</span>
-              <select value={settings.authorModel} onChange={(e) => update({ authorModel: e.target.value })} title="Claude model used to author & refine">
+              <SelectControl value={settings.authorModel} onChange={(e) => update({ authorModel: e.target.value })} title="Claude model used to author & refine">
                 {MODEL_OPTIONS.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
-              </select>
+              </SelectControl>
             </label>
           ) : (
             <label className="st-ai-field">
@@ -120,14 +121,14 @@ export default function AiStoryView() {
 
           <label className="st-ai-field">
             <span>Engine</span>
-            <select value={settings.aiProvider} onChange={(e) => update({ aiProvider: e.target.value as AiProvider })} title="AI CLI engine">
+            <SelectControl value={settings.aiProvider} onChange={(e) => update({ aiProvider: e.target.value as AiProvider })} title="AI CLI engine">
               {AI_PROVIDER_OPTIONS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-            </select>
+            </SelectControl>
           </label>
         </div>
 
         <div className="st-ai-actions">
-          <button
+          <ControlButton
             type="button"
             className="st-btn primary"
             onClick={regen.authorScript}
@@ -135,9 +136,9 @@ export default function AiStoryView() {
             title="Describe any un-analyzed beat clips, then write one script line per beat — your beats and their order are kept exactly as arranged"
           >
             {state.story ? "↻ Re-write script for the cut" : "✨ Write script for the cut"}
-          </button>
+          </ControlButton>
           {inCut.length > 0 && (
-            <button
+            <ControlButton
               type="button"
               className="st-btn ghost"
               onClick={() => regen.analyzeClips()}
@@ -145,10 +146,10 @@ export default function AiStoryView() {
               title="Describe every beat clip in the cut with the selected AI engine (without writing the script)"
             >
               Analyze beats
-            </button>
+            </ControlButton>
           )}
           {cut && cut.beats.some((b) => b.scriptText.trim()) && (
-            <button
+            <ControlButton
               type="button"
               className="st-btn ghost"
               onClick={addAllToVo}
@@ -156,7 +157,7 @@ export default function AiStoryView() {
               title="Add every beat's script line to the VO track as narration"
             >
               🎙️ Send all to VO
-            </button>
+            </ControlButton>
           )}
           {cut && <span className="st-ai-count st-num">{analyzedCount} of {inCut.length} beats analyzed</span>}
         </div>
@@ -198,9 +199,9 @@ export default function AiStoryView() {
                 Arrange your clips into a cut first — the order you choose is the story.
                 The AI then analyzes those beats and writes a script line for each, without changing your arrangement.
               </p>
-              <button type="button" className="st-btn ghost" onClick={buildStraightCut} disabled={regen.busy}>
+              <ControlButton type="button" className="st-btn ghost" onClick={buildStraightCut} disabled={regen.busy}>
                 Build a cut from your {includedClips.length} clip{includedClips.length === 1 ? "" : "s"} →
-              </button>
+              </ControlButton>
             </div>
           )}
         </div>
@@ -230,7 +231,7 @@ export default function AiStoryView() {
                     )}
                   </div>
 
-                  <textarea
+                  <TextareaControl
                     className="st-ai-script"
                     value={beat.scriptText}
                     rows={2}
@@ -239,7 +240,7 @@ export default function AiStoryView() {
                   />
 
                   <div className="st-ai-cardactions">
-                    <button
+                    <ControlButton
                       type="button"
                       className="st-btn ghost"
                       style={{ fontSize: 11, padding: "3px 9px" }}
@@ -248,8 +249,8 @@ export default function AiStoryView() {
                       title="Add this beat's script line to the VO track as narration (placed at the beat's start)"
                     >
                       {addedVo.has(beat.id) ? "✓ Added to VO" : "🎙️ Add to VO"}
-                    </button>
-                    <button
+                    </ControlButton>
+                    <ControlButton
                       type="button"
                       className="st-btn ghost"
                       style={{ fontSize: 11, padding: "3px 9px" }}
@@ -258,9 +259,9 @@ export default function AiStoryView() {
                       title="Rewrite this line with Claude in the chosen tone"
                     >
                       ✨ Refine
-                    </button>
+                    </ControlButton>
                     {clip && (
-                      <button
+                      <ControlButton
                         type="button"
                         className="st-btn ghost"
                         style={{ fontSize: 11, padding: "3px 9px" }}
@@ -269,7 +270,7 @@ export default function AiStoryView() {
                         title="Re-describe this clip with Claude"
                       >
                         Re-analyze
-                      </button>
+                      </ControlButton>
                     )}
                   </div>
                 </div>

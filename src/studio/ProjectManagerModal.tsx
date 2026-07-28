@@ -12,6 +12,9 @@ import { exportProjectFile, importProjectFile } from "../lib/projectPackager";
 import InspirationUploadModal from "./InspirationUploadModal";
 import type { ProjectTemplate } from "../domain/types";
 import { useExportSettings } from "../state/ExportSettingsContext";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
+import CloseIcon from "../design-system/icons/CloseIcon";
 
 
 interface Props {
@@ -150,7 +153,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div
+    <ModalScrim
       className="st-modal-scrim"
       onClick={onClose}
       style={{
@@ -165,7 +168,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
         padding: 20,
       }}
     >
-      <div
+      <ModalSurface
         className="st-modal-card"
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -198,22 +201,20 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
               Manage your saved projects and reusable video templates.
             </p>
           </div>
-          <button
+          <ControlButton
             onClick={onClose}
             aria-label="Close"
             title="Close (Esc)"
             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink-2)", padding: 6, borderRadius: 7, display: "flex" }}
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
-            </svg>
-          </button>
+            <CloseIcon size={15} />
+          </ControlButton>
         </div>
 
         {/* Tabs */}
         <div style={{ display: "flex", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
           {(["projects", "templates"] as const).map((tab) => (
-            <button
+            <ControlButton
               key={tab}
               onClick={() => setActiveTab(tab)}
               style={{
@@ -231,7 +232,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
               }}
             >
               {tab === "projects" ? `📁 My Projects (${projects.length})` : `🧩 Templates (${templates.length})`}
-            </button>
+            </ControlButton>
           ))}
         </div>
 
@@ -250,16 +251,16 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 flexShrink: 0,
               }}
             >
-              <button
+              <ControlButton
                 className="st-btn primary"
                 style={{ fontSize: 11, padding: "5px 12px" }}
                 onClick={handleNewProject}
                 title="Start a fresh, new video project"
               >
                 ✨ + New Project
-              </button>
+              </ControlButton>
 
-              <button
+              <ControlButton
                 className="st-btn ghost"
                 style={{ fontSize: 11, padding: "5px 12px" }}
                 onClick={handleExportCurrent}
@@ -267,7 +268,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 title="Download current editing session as a portable .vidstr project file"
               >
                 {exporting ? "Packaging..." : "📦 Export Package"}
-              </button>
+              </ControlButton>
 
               <label
                 className="st-btn ghost"
@@ -275,7 +276,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 title="Import a previously saved .vidstr project file"
               >
                 {importing ? "Importing..." : "📂 Import .vidstr File"}
-                <input type="file" accept=".vidstr,.json" onChange={handleImportFile} style={{ display: "none" }} />
+                <InputControl type="file" accept=".vidstr,.json" onChange={handleImportFile} style={{ display: "none" }} />
               </label>
             </div>
 
@@ -355,29 +356,29 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
 
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         {isActive ? (
-                          <button
+                          <ControlButton
                             className="st-btn ghost"
                             style={{ fontSize: 11, padding: "4px 10px", borderColor: "var(--accent)", color: "var(--accent)", fontWeight: 600, cursor: "default" }}
                             disabled
                           >
                             ✓ Active
-                          </button>
+                          </ControlButton>
                         ) : (
-                          <button
+                          <ControlButton
                             className="st-btn primary"
                             style={{ fontSize: 11, padding: "4px 10px" }}
                             onClick={() => handleLoad(p.id)}
                           >
                             Load Project
-                          </button>
+                          </ControlButton>
                         )}
-                        <button
+                        <ControlButton
                           className="st-btn ghost"
                           style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}
                           onClick={() => setDeleteTarget(p)}
                         >
                           Delete
-                        </button>
+                        </ControlButton>
                       </div>
                     </div>
                   );
@@ -401,14 +402,14 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 flexShrink: 0,
               }}
             >
-              <button
+              <ControlButton
                 className="st-btn primary"
                 style={{ fontSize: 11, padding: "5px 12px" }}
                 onClick={() => setShowInspirationModal(true)}
                 title="Upload a reference video and let Claude extract its edit structure as a template"
               >
                 ✦ Create from Inspiration Video
-              </button>
+              </ControlButton>
             </div>
 
             <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -457,13 +458,13 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-                      <button
+                      <ControlButton
                         className="st-btn ghost"
                         style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}
                         onClick={() => setDeleteTemplateTarget(t)}
                       >
                         Delete
-                      </button>
+                      </ControlButton>
                     </div>
                   </div>
                 ))
@@ -471,11 +472,11 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
             </div>
           </>
         )}
-      </div>
+      </ModalSurface>
 
       {/* Delete Project Confirmation */}
       {deleteTarget && (
-        <div
+        <ModalScrim
           className="st-modal-scrim"
           onClick={() => setDeleteTarget(null)}
           style={{
@@ -490,7 +491,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
             padding: 20,
           }}
         >
-          <div
+          <ModalSurface
             className="st-modal-card"
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -510,20 +511,20 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
               Are you sure you want to delete <strong>"{deleteTarget.title}"</strong>? This will remove the draft from browser storage.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button className="st-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setDeleteTarget(null)}>
+              <ControlButton className="st-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setDeleteTarget(null)}>
                 Cancel
-              </button>
-              <button className="st-btn danger" style={{ flex: 1, justifyContent: "center" }} onClick={handleDeleteConfirm}>
+              </ControlButton>
+              <ControlButton className="st-btn danger" style={{ flex: 1, justifyContent: "center" }} onClick={handleDeleteConfirm}>
                 Delete
-              </button>
+              </ControlButton>
             </div>
-          </div>
-        </div>
+          </ModalSurface>
+        </ModalScrim>
       )}
 
       {/* Delete Template Confirmation */}
       {deleteTemplateTarget && (
-        <div
+        <ModalScrim
           className="st-modal-scrim"
           onClick={() => setDeleteTemplateTarget(null)}
           style={{
@@ -538,7 +539,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
             padding: 20,
           }}
         >
-          <div
+          <ModalSurface
             className="st-modal-card"
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -558,15 +559,15 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
               Are you sure you want to delete <strong>"{deleteTemplateTarget.name}"</strong>? This cannot be undone.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-              <button className="st-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setDeleteTemplateTarget(null)}>
+              <ControlButton className="st-btn ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setDeleteTemplateTarget(null)}>
                 Cancel
-              </button>
-              <button className="st-btn danger" style={{ flex: 1, justifyContent: "center" }} onClick={handleDeleteTemplateConfirm}>
+              </ControlButton>
+              <ControlButton className="st-btn danger" style={{ flex: 1, justifyContent: "center" }} onClick={handleDeleteTemplateConfirm}>
                 Delete
-              </button>
+              </ControlButton>
             </div>
-          </div>
-        </div>
+          </ModalSurface>
+        </ModalScrim>
       )}
 
       {/* Inspiration Upload Modal */}
@@ -579,7 +580,6 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
           setActiveTab("templates");
         }}
       />
-    </div>
+    </ModalScrim>
   );
 }
-

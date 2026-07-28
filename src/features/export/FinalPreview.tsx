@@ -16,6 +16,8 @@ import { drawTitleLayer, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from ".
 import { getTitleFontBytes } from "./titleFonts";
 import { drawCaptionBlock } from "./captionCanvas";
 import { findFontById } from "../../lib/googleFonts";
+import { previewFileForClip } from "../../studio/previewSource";
+import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "../../studio/previewPlayback";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -54,6 +56,7 @@ export interface PreviewTitle {
 }
 
 interface Props {
+  active?: boolean;
   cut: Cut;
   clips: Clip[];
   captionScale: number;
@@ -75,10 +78,12 @@ interface Props {
 }
 
 export default function FinalPreview({
+  active = true,
   cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
   ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
 }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const slotVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const voCacheRef = useRef<Map<string, string>>(new Map());
@@ -106,7 +111,7 @@ export default function FinalPreview({
 
   const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec) ?? null;
   const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-  const overlayBlobUrl = getClipBlobUrl(activeOverlayClip?.normalized ?? activeOverlayClip?.file);
+  const overlayBlobUrl = getClipBlobUrl(activeOverlayClip ? previewFileForClip(activeOverlayClip) : undefined);
 
   useEffect(() => {
     const el = overlayVideoRef.current;
@@ -125,7 +130,22 @@ export default function FinalPreview({
   }, [elapsed, activeOverlay, playing]);
 
   const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
-  const mainBeatBlobUrl = getClipBlobUrl(currentBeatClip?.normalized ?? currentBeatClip?.file);
+  const mainBeatBlobUrl = getClipBlobUrl(currentBeatClip ? previewFileForClip(currentBeatClip) : undefined);
+  const splitActive = Boolean(beat?.splitScreen && beat.splitScreen.layout !== "none");
+
+  const activeVideos = () => activePreviewMedia(videoRef.current, splitActive, slotVideoRefs.current);
+
+  // The export drawer remains mounted to preserve its settings and generated
+  // output. Closing it must still stop the transport and every media voice.
+  useEffect(() => {
+    if (active) return;
+    playingRef.current = false;
+    setPlaying(false);
+    pausePreviewMedia(activeVideos());
+    overlayVideoRef.current?.pause();
+    audioRef.current?.pause();
+    sfxVoicesRef.current.forEach((voice) => voice.pause());
+  }, [active]);
 
   // Load the current beat's footage and seek to its in-point
   useEffect(() => {
@@ -151,11 +171,31 @@ export default function FinalPreview({
 
   // Play/pause the loaded video in step with the transport.
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (playing) v.play().catch(() => {});
-    else v.pause();
-  }, [playing]);
+    const media = activeVideos();
+    if (playing) playPreviewMedia(media);
+    else pausePreviewMedia(media);
+  }, [playing, splitActive]);
+
+  // Split slots have independent source in-points but share the Cut clock.
+  // Keep every moving slot aligned with the current beat and transport state.
+  useEffect(() => {
+    if (!beat || !splitActive) return;
+    const norm = normalizeSplitConfig(beat.splitScreen, currentBeatClip?.id ?? "", beat.inSec);
+    norm.slots.forEach((slot, idx) => {
+      const el = slotVideoRefs.current[idx];
+      const slotClip = clips.find((clip) => clip.id === slot.clipId) ?? currentBeatClip;
+      if (!el || slotClip?.kind === "still") return;
+      const targetTime = slot.inSec + beatElapsed;
+      if (Math.abs(el.currentTime - targetTime) > 0.15) {
+        try { el.currentTime = targetTime; } catch {}
+      }
+      const volume = slot.volume ?? (idx === 0 ? (beat.volume ?? 1) : 0);
+      el.volume = volume;
+      el.muted = volume === 0;
+      if (playing && el.paused) el.play().catch(() => {});
+      else if (!playing && !el.paused) el.pause();
+    });
+  }, [beat, beatElapsed, clips, currentBeatClip, playing, splitActive]);
 
   // Keep DOM video element synchronized with beatElapsed when paused or loaded
   useEffect(() => {
@@ -314,9 +354,14 @@ export default function FinalPreview({
         return;
       }
     }
-    setPlaying(true);
+    playPreviewMedia(activeVideos()).then((started) => {
+      if (started || activeVideos().length === 0) setPlaying(true);
+    });
   };
-  const pause = () => setPlaying(false);
+  const pause = () => {
+    pausePreviewMedia(activeVideos());
+    setPlaying(false);
+  };
   const restart = () => {
     beatElapsedRef.current = 0;
     setBeatElapsed(0);
@@ -324,7 +369,9 @@ export default function FinalPreview({
     if (v && cut.beats[0]) v.currentTime = cut.beats[0].inSec;
     if (audioRef.current) audioRef.current.currentTime = 0;
     setIndex(0);
-    setPlaying(true);
+    playPreviewMedia(activeVideos()).then((started) => {
+      if (started || activeVideos().length === 0) setPlaying(true);
+    });
   };
 
   // Captions come from the VO track by absolute cut time (only segments with the
@@ -519,7 +566,7 @@ export default function FinalPreview({
                 <div style={{ ...gridCss, filter: filterStyle, animation: videoAnimStyle ? `${videoAnimStyle}` : undefined }}>
                   {normConfig.slots.map((slot, idx) => {
                     const slotClip = clips.find((c) => c.id === slot.clipId) ?? currentBeatClip;
-                    const slotBlob = slotClip ? getClipBlobUrl(slotClip.normalized ?? slotClip.file) : null;
+                    const slotBlob = slotClip ? getClipBlobUrl(previewFileForClip(slotClip)) : null;
                     const tfStyle = getSlotTransformStyle(slot);
 
                     return (
@@ -528,7 +575,10 @@ export default function FinalPreview({
                           <img src={slotBlob ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }} />
                         ) : (
                           <video
-                            ref={idx === 0 ? videoRef : undefined}
+                            ref={(el) => {
+                              slotVideoRefs.current[idx] = el;
+                              if (idx === 0) videoRef.current = el;
+                            }}
                             src={slotBlob ?? undefined}
                             muted={(slot.volume ?? (idx === 0 ? (beat?.volume ?? 1) : 0)) === 0}
                             playsInline

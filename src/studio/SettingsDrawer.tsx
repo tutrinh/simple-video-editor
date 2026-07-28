@@ -1,26 +1,24 @@
-import { useEffect } from "react";
+import Drawer from "../design-system/Drawer";
 
 /**
  * Slide-over side panel for workspace settings. Mounted only while open.
  * AI options (engine, model, tone, script type) now live in the ✨ AI Story drawer.
  */
 export default function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   return (
-    <>
-      <div className={`st-drawer-scrim ${open ? "open" : ""}`} onClick={onClose} />
-      <aside className={`st-settings-drawer ${open ? "open" : ""}`} role="dialog" aria-label="Settings" aria-hidden={!open}>
-        <div className="st-drawer-head">
-          <h2>Settings</h2>
-          <button className="x" onClick={onClose} title="Close (Esc)">×</button>
-        </div>
-        <div className="st-settings-body">
+    <Drawer open={open} title="Settings" onClose={onClose} side="left" bodyClassName="st-settings-body">
+          <div className="st-setting-row">
+            <div className="st-setting-text">
+              <div className="st-setting-name">Design system</div>
+              <div className="st-setting-desc">
+                Browse foundations, controls, feedback states, and editor patterns.
+              </div>
+            </div>
+            <a className="st-settings-link" href="/design-system">
+              View system
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
           <div className="st-setting-row">
             <div className="st-setting-text">
               <div className="st-setting-name">AI options moved</div>
@@ -29,8 +27,6 @@ export default function SettingsDrawer({ open, onClose }: { open: boolean; onClo
               </div>
             </div>
           </div>
-        </div>
-      </aside>
-    </>
+    </Drawer>
   );
 }

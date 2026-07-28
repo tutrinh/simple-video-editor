@@ -13,6 +13,8 @@ import SettingsDrawer from "./SettingsDrawer";
 import AiStoryDrawer from "./AiStoryDrawer";
 import { seedProject } from "./devSeed";
 import "./studio.css";
+import { ControlButton } from "../design-system/ControlPrimitives";
+import { Workspace, WorkspaceMain, WorkspacePanel } from "../design-system/Workspace";
 // AI actions (analyze/author/refine) now live inside AiStoryDrawer's own hook.
 
 export default function StudioApp() {
@@ -141,7 +143,7 @@ export default function StudioApp() {
   }
 
   return (
-    <div className="studio">
+    <Workspace className="studio">
       <TopBar
         onExport={() => { setExportMounted(true); setExportOpen(true); }}
         onStartOver={startOver}
@@ -149,7 +151,7 @@ export default function StudioApp() {
         onOpenAiStory={() => { setAiStoryMounted(true); setAiStoryOpen(true); }}
       />
 
-      <div className={"st-main" + (aiStoryOpen ? " ai-open" : "")}>
+      <WorkspaceMain className={"st-main" + (aiStoryOpen ? " ai-open" : "")}>
         <ClipBin
           usedClipIds={usedClipIds}
           selectedClipId={selectedClip?.id ?? null}
@@ -160,7 +162,7 @@ export default function StudioApp() {
           onDuplicateBeat={duplicateBeat}
         />
 
-        <section className="st-col stage" style={{ position: "relative" }}>
+        <WorkspacePanel className="st-col stage" style={{ position: "relative" }}>
           <div className="st-stage-inner">
             {cut ? (
               <>
@@ -190,15 +192,15 @@ export default function StudioApp() {
                     : "Drop clips into the bin on the left. Then open ✨ AI Story — Claude reads them, finds a story, and builds a captioned cut you refine here."}
                 </p>
                 {clips.length > 0 && (
-                  <button className="st-btn ghost" style={{ marginTop: 14 }} onClick={startManualCut}>
+                  <ControlButton className="st-btn ghost" style={{ marginTop: 14 }} onClick={startManualCut}>
                     Arrange the clips yourself →
-                  </button>
+                  </ControlButton>
                 )}
               </div>
             )}
 
           </div>
-        </section>
+        </WorkspacePanel>
 
         <Inspector
           beat={selectedBeat}
@@ -220,10 +222,10 @@ export default function StudioApp() {
 
         {/* Docked side panel — pushes the layout (see .st-main.ai-open in studio.css). */}
         {aiStoryMounted && <AiStoryDrawer open={aiStoryOpen} onClose={() => setAiStoryOpen(false)} />}
-      </div>
+      </WorkspaceMain>
 
       {exportMounted && <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} />}
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-    </div>
+    </Workspace>
   );
 }

@@ -15,6 +15,9 @@ import { beatSpans, resolveSticker, resolveSfx } from "../features/export/sticke
 import { sfxDuration } from "../lib/sfxLibrary";
 import { assignSubLanes } from "./subLanes";
 import { beatPosterBg } from "../lib/beatPosterCache";
+import { ControlButton } from "../design-system/ControlPrimitives";
+import CopyIcon from "../design-system/icons/CopyIcon";
+import CloseIcon from "../design-system/icons/CloseIcon";
 import {
   anchoredScrollLeft,
   clampTimelineZoom,
@@ -23,6 +26,19 @@ import {
   TIMELINE_ZOOM_MIN,
   TIMELINE_ZOOM_STEP,
 } from "./timelineScale";
+import {
+  TimelineAddButton,
+  TimelineCanvas,
+  TimelineDivider,
+  TimelineHeader,
+  TimelineLane,
+  TimelineLaneCanvas,
+  TimelineResizeHandle,
+  TimelineSegment,
+  TimelineShell,
+  TimelineViewport,
+  TimelineZoom,
+} from "../design-system/EditorTimeline";
 
 
 interface Props {
@@ -539,130 +555,39 @@ export default function Timeline({
     : "-999px";
 
   return (
-    <div className="st-tl">
-      <div className="st-tlhead">
-        <span className="t">The Cut</span>
-        <span className="meta st-num">
-          {beats.length} beats · {overlays.length} overlays · {voSegments.length} VO · {sfxSegments.length} SFX · {stickers.length} stickers · {fmtSecs(totalDur)} · {cut.aspect}
-        </span>
-        {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
-          <button
-            className="st-btn ghost"
-            style={{ padding: "2px 8px", fontSize: 11, marginLeft: "auto" }}
-            onClick={seedVoFromBeats}
-            title="Create VO segments from your beats' captions, placed at each beat's start"
-          >
-            ↧ Seed VO from beats
-          </button>
-        )}
-        <button
-          className="st-btn ghost"
-          style={{ padding: "2px 8px", fontSize: 11, marginLeft: voSegments.length === 0 && beats.some((b) => b.captionText.trim()) ? undefined : "auto" }}
-          onClick={addVoSegment}
-          title="Add a voiceover segment to the VO track (type its narration in the Inspector)"
-        >
-          + Add VO
-        </button>
-        <div style={{ position: "relative" }}>
-          <button
-            className="st-btn ghost"
-            style={{ padding: "2px 8px", fontSize: 11, borderColor: sfxPickerOpen ? "var(--accent)" : undefined }}
-            onClick={() => setSfxPickerOpen((o) => !o)}
-            title="Add a sound effect to the SFX track (pick or upload a sound)"
-          >
-            + Add SFX
-          </button>
+    <TimelineShell>
+      <TimelineHeader
+        title="The Cut"
+        meta={`${beats.length} beats / ${overlays.length} overlays / ${voSegments.length} VO / ${sfxSegments.length} SFX / ${stickers.length} stickers / ${fmtSecs(totalDur)} / ${cut.aspect}`}
+        actions={<>
+          {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
+            <TimelineAddButton onClick={seedVoFromBeats} title="Create VO segments from beat captions">Seed VO</TimelineAddButton>
+          )}
+          <TimelineAddButton onClick={addVoSegment} title="Add a voiceover segment">VO</TimelineAddButton>
+          <div style={{ position: "relative" }}>
+            <TimelineAddButton onClick={() => setSfxPickerOpen((open) => !open)} aria-pressed={sfxPickerOpen}>SFX</TimelineAddButton>
           {sfxPickerOpen && (
             <SfxPicker onPick={(fileName) => addSfxFromLibrary(fileName)} onClose={() => setSfxPickerOpen(false)} />
           )}
-        </div>
-        <div style={{ position: "relative" }}>
-          <button
-            className="st-btn ghost"
-            style={{ padding: "2px 8px", fontSize: 11, borderColor: stickerPickerOpen ? "var(--accent)" : undefined }}
-            onClick={() => setStickerPickerOpen((o) => !o)}
-            title="Add a sticker to the Sticker track (pick or upload an image)"
-          >
-            + Add Sticker
-          </button>
+          </div>
+          <div style={{ position: "relative" }}>
+            <TimelineAddButton onClick={() => setStickerPickerOpen((open) => !open)} aria-pressed={stickerPickerOpen}>Sticker</TimelineAddButton>
           {stickerPickerOpen && (
             <StickerPicker onPick={(fileName) => addStickerFromLibrary(fileName)} onClose={() => setStickerPickerOpen(false)} />
           )}
-        </div>
-        <div style={{ position: "relative" }}>
-          <button
-            className="st-btn ghost"
-            style={{ padding: "2px 8px", fontSize: 11, borderColor: pickerOpen ? "var(--accent)" : undefined }}
-            onClick={() => setPickerOpen(!pickerOpen)}
-            title="Choose a clip or stock effect to add as a video overlay layer"
-          >
-            + Add Overlay Clip
-          </button>
+          </div>
+          <div style={{ position: "relative" }}>
+            <TimelineAddButton onClick={() => setPickerOpen((open) => !open)} aria-pressed={pickerOpen}>Overlay</TimelineAddButton>
+            <OverlayPickerModal isOpen={pickerOpen} onClose={() => setPickerOpen(false)} cut={cut} clips={clips} onSelectClip={(clip, blend) => addOverlayWithClip(clip, blend)} onImportStockOverlay={(category, file, blend) => importAndAddStockOverlay(category, file, blend)} onImportFiles={importUploadedFiles} />
+          </div>
+        </>}
+      />
 
-          <OverlayPickerModal
-            isOpen={pickerOpen}
-            onClose={() => setPickerOpen(false)}
-            cut={cut}
-            clips={clips}
-            onSelectClip={(clip, blend) => addOverlayWithClip(clip, blend)}
-            onImportStockOverlay={(category, file, blend) => importAndAddStockOverlay(category, file, blend)}
-            onImportFiles={importUploadedFiles}
-          />
-        </div>
-      </div>
-
-      <div className="st-tl-zoombar" aria-label="Timeline magnification">
-        <span>Timeline zoom</span>
-        <button
-          type="button"
-          className="st-tl-zoom-btn"
-          onClick={() => setTimelineZoom(timelineZoom - TIMELINE_ZOOM_STEP)}
-          disabled={timelineZoom <= TIMELINE_ZOOM_MIN}
-          title="Zoom out"
-          aria-label="Zoom Timeline out"
-        >
-          −
-        </button>
-        <input
-          className="st-tl-zoom-range"
-          type="range"
-          min={TIMELINE_ZOOM_MIN}
-          max={TIMELINE_ZOOM_MAX}
-          step={TIMELINE_ZOOM_STEP}
-          value={timelineZoom}
-          onChange={(e) => setTimelineZoom(Number(e.target.value))}
-          aria-label="Timeline zoom level"
-          style={{
-            accentColor: "var(--accent)",
-            background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((timelineZoom - TIMELINE_ZOOM_MIN) / (TIMELINE_ZOOM_MAX - TIMELINE_ZOOM_MIN)) * 100}%, var(--panel-3) ${((timelineZoom - TIMELINE_ZOOM_MIN) / (TIMELINE_ZOOM_MAX - TIMELINE_ZOOM_MIN)) * 100}%, var(--panel-3) 100%)`,
-          }}
-        />
-        <button
-          type="button"
-          className="st-tl-zoom-btn"
-          onClick={() => setTimelineZoom(timelineZoom + TIMELINE_ZOOM_STEP)}
-          disabled={timelineZoom >= TIMELINE_ZOOM_MAX}
-          title="Zoom in"
-          aria-label="Zoom Timeline in"
-        >
-          +
-        </button>
-        <span className="st-tl-zoom-value st-num">{Math.round(timelineZoom * 100)}%</span>
-        <button
-          type="button"
-          className="st-tl-fit-btn"
-          onClick={() => setTimelineZoom(TIMELINE_ZOOM_MIN)}
-          disabled={timelineZoom === TIMELINE_ZOOM_MIN}
-          title="Fit the complete Cut in the Timeline"
-        >
-          Fit
-        </button>
-      </div>
+      <TimelineZoom value={timelineZoom} min={TIMELINE_ZOOM_MIN} max={TIMELINE_ZOOM_MAX} step={TIMELINE_ZOOM_STEP} onChange={setTimelineZoom} onFit={() => setTimelineZoom(TIMELINE_ZOOM_MIN)} />
 
       {/* Scrollable Timeline Tracks Container */}
-      <div ref={timelineScrollRef} className="st-tl-scroll">
-        <div
-          className="st-tl-content"
+      <TimelineViewport viewportRef={timelineScrollRef}>
+        <TimelineCanvas
           style={timelineWidth > 0 ? { width: `${timelineWidth}px`, minWidth: "100%" } : { minWidth: "100%" }}
         >
           {/* ── SHARED TIME RULER + BOTH TRACKS ── */}
@@ -675,13 +600,9 @@ export default function Timeline({
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (
-                <div className="st-ov-lane">
-                  <div className="st-ov-label">
-                    🎞️ Overlay Track <span className="st-ov-label-hint">(Drag to reposition · Drag edges to resize)</span>
-                  </div>
-
-                  <div
-                    ref={overlayTrackRef}
+                <TimelineLane label="Overlay" hint="Drag to move or resize">
+                  <TimelineLaneCanvas
+                    canvasRef={overlayTrackRef}
                     className="st-ov-canvas"
                     style={{ height: canvasHeight }}
                   >
@@ -690,7 +611,7 @@ export default function Timeline({
                       if (i === 0) return null;
                       const leftPct = (beatStarts[i] / totalDur) * 100;
                       return (
-                        <div
+                        <TimelineDivider
                           key={b.id}
                           className="st-ov-divider"
                           style={{ left: `${leftPct}%` }}
@@ -722,8 +643,9 @@ export default function Timeline({
                       const isSel = ov.id === selectedOverlayId;
 
                       return (
-                        <div
+                        <TimelineSegment
                           key={ov.id}
+                          selected={isSel}
                           onPointerDown={(e) => startOverlayDrag(e, ov, "move")}
                           onPointerMove={(e) => handleOverlayPointerMove(e, ov)}
                           onPointerUp={endOverlayDrag}
@@ -739,8 +661,9 @@ export default function Timeline({
                           title={`${ovClip?.name ?? "Overlay"} · Start: ${ov.startTimeSec.toFixed(1)}s · Dur: ${ov.durationSec.toFixed(1)}s · Drag to reposition`}
                         >
                           {/* Left Resize Handle */}
-                          <div
+                          <TimelineResizeHandle
                             onPointerDown={(e) => startOverlayDrag(e, ov, "resize-left")}
+                            edge="left"
                             className="st-ov-resize-handle left"
                             title="Drag left edge to adjust start time"
                           />
@@ -754,7 +677,7 @@ export default function Timeline({
                             {ov.startTimeSec.toFixed(1)}s–{(ov.startTimeSec + ov.durationSec).toFixed(1)}s
                           </span>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
@@ -767,13 +690,10 @@ export default function Timeline({
                             className="st-ov-action-btn"
                             title="Duplicate overlay clip (Cmd+D / Ctrl+D)"
                           >
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                            </svg>
-                          </button>
+                            <CopyIcon size={9} />
+                          </ControlButton>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
@@ -784,23 +704,21 @@ export default function Timeline({
                             className="st-ov-action-btn"
                             title="Remove overlay clip"
                           >
-                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                              <line x1="2" y1="2" x2="10" y2="10" />
-                              <line x1="10" y1="2" x2="2" y2="10" />
-                            </svg>
-                          </button>
+                            <CloseIcon size={9} />
+                          </ControlButton>
 
                           {/* Right Resize Handle */}
-                          <div
+                          <TimelineResizeHandle
                             onPointerDown={(e) => startOverlayDrag(e, ov, "resize-right")}
+                            edge="right"
                             className="st-ov-resize-handle right"
                             title="Drag right edge to adjust duration"
                           />
-                        </div>
+                        </TimelineSegment>
                       );
                     })}
-                  </div>
-                </div>
+                  </TimelineLaneCanvas>
+                </TimelineLane>
               );
             })()}
 
@@ -811,16 +729,12 @@ export default function Timeline({
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (
-                <div className="st-vo-lane">
-                  <div className="st-vo-label">
-                    🎙️ VO Track <span className="st-vo-label-hint">(Drag to reposition · Drag edges to resize)</span>
-                  </div>
-
-                  <div ref={voTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
+                <TimelineLane label="Voiceover" hint="Drag to move or resize">
+                  <TimelineLaneCanvas canvasRef={voTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
                     {/* Beat dividers for alignment reference */}
                     {beats.map((b, i) => {
                       if (i === 0) return null;
-                      return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                      return <TimelineDivider key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
                     })}
 
                     {voWithLanes.map((seg) => {
@@ -829,8 +743,10 @@ export default function Timeline({
                       const isSel = seg.id === selectedVoId;
                       const snippet = seg.text.trim() || "Empty — type in Inspector";
                       return (
-                        <div
+                        <TimelineSegment
                           key={seg.id}
+                          tone="voice"
+                          selected={isSel}
                           onPointerDown={(e) => startVoDrag(e, seg, "move")}
                           onPointerMove={(e) => handleVoPointerMove(e, seg)}
                           onPointerUp={endVoDrag}
@@ -845,44 +761,38 @@ export default function Timeline({
                           }}
                           title={`${snippet} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · ${seg.captionVisible ? "caption visible" : "voiceover only"}`}
                         >
-                          <div onPointerDown={(e) => startVoDrag(e, seg, "resize-left")} className="st-vo-resize-handle left" title="Drag to adjust start time" />
+                          <TimelineResizeHandle edge="left" onPointerDown={(e) => startVoDrag(e, seg, "resize-left")} className="st-vo-resize-handle left" title="Drag to adjust start time" />
 
                           <span className="st-vo-chip-icon">{seg.captionVisible ? "👁" : "🔇"}</span>
                           <span className="st-vo-chip-text">{snippet}</span>
                           <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); const newId = `vo-${genId()}`; dispatch({ type: "DUPLICATE_VO", id: seg.id, newVoId: newId }); onSelectVo?.(newId); }}
                             className="st-vo-action-btn"
                             title="Duplicate VO segment"
                           >
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                            </svg>
-                          </button>
+                            <CopyIcon size={9} />
+                          </ControlButton>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_VO", id: seg.id }); if (selectedVoId === seg.id) onSelectVo?.(null); }}
                             className="st-vo-action-btn"
                             title="Remove VO segment"
                           >
-                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                              <line x1="2" y1="2" x2="10" y2="10" />
-                              <line x1="10" y1="2" x2="2" y2="10" />
-                            </svg>
-                          </button>
+                            <CloseIcon size={9} />
+                          </ControlButton>
 
-                          <div onPointerDown={(e) => startVoDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to adjust duration" />
-                        </div>
+                          <TimelineResizeHandle edge="right" onPointerDown={(e) => startVoDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to adjust duration" />
+                        </TimelineSegment>
                       );
                     })}
-                  </div>
-                </div>
+                  </TimelineLaneCanvas>
+                </TimelineLane>
               );
             })()}
 
@@ -895,15 +805,11 @@ export default function Timeline({
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (
-                <div className="st-vo-lane st-sfx-lane">
-                  <div className="st-vo-label">
-                    🔊 SFX Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim)</span>
-                  </div>
-
-                  <div ref={sfxTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
+                <TimelineLane label="Sound effects" hint="Drag to move or trim">
+                  <TimelineLaneCanvas canvasRef={sfxTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
                     {beats.map((b, i) => {
                       if (i === 0) return null;
-                      return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                      return <TimelineDivider key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
                     })}
 
                     {sfxWithLanes.map((seg) => {
@@ -911,8 +817,10 @@ export default function Timeline({
                       const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
                       const isSel = seg.id === selectedSfxId;
                       return (
-                        <div
+                        <TimelineSegment
                           key={seg.id}
+                          tone="sfx"
+                          selected={isSel}
                           onPointerDown={(e) => startSfxDrag(e, seg, "move")}
                           onPointerMove={(e) => handleSfxPointerMove(e, seg)}
                           onPointerUp={endSfxDrag}
@@ -931,38 +839,32 @@ export default function Timeline({
                           <span className="st-vo-chip-text">{seg.fileName}</span>
                           <span className="st-vo-chip-time">{seg.startTimeSec.toFixed(1)}s–{(seg.startTimeSec + seg.durationSec).toFixed(1)}s</span>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); const newId = `sfx-${genId()}`; dispatch({ type: "DUPLICATE_SFX", id: seg.id, newSfxId: newId }); onSelectSfx?.(newId); }}
                             className="st-vo-action-btn"
                             title="Duplicate SFX segment"
                           >
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                            </svg>
-                          </button>
+                            <CopyIcon size={9} />
+                          </ControlButton>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_SFX", id: seg.id }); if (selectedSfxId === seg.id) onSelectSfx?.(null); }}
                             className="st-vo-action-btn"
                             title="Remove SFX segment"
                           >
-                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                              <line x1="2" y1="2" x2="10" y2="10" />
-                              <line x1="10" y1="2" x2="2" y2="10" />
-                            </svg>
-                          </button>
+                            <CloseIcon size={9} />
+                          </ControlButton>
 
-                          <div onPointerDown={(e) => startSfxDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to trim the sound's tail" />
-                        </div>
+                          <TimelineResizeHandle edge="right" onPointerDown={(e) => startSfxDrag(e, seg, "resize-right")} className="st-vo-resize-handle right" title="Drag to trim the sound's tail" />
+                        </TimelineSegment>
                       );
                     })}
-                  </div>
-                </div>
+                  </TimelineLaneCanvas>
+                </TimelineLane>
               );
             })()}
 
@@ -973,15 +875,11 @@ export default function Timeline({
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (
-                <div className="st-vo-lane st-sticker-lane">
-                  <div className="st-vo-label">
-                    🩹 Sticker Track <span className="st-vo-label-hint">(Drag to reposition · Drag right edge to trim · Place it in the Inspector)</span>
-                  </div>
-
-                  <div ref={stickerTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
+                <TimelineLane label="Elements" hint="Drag to move or trim">
+                  <TimelineLaneCanvas canvasRef={stickerTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
                     {beats.map((b, i) => {
                       if (i === 0) return null;
-                      return <div key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
+                      return <TimelineDivider key={b.id} className="st-vo-divider" style={{ left: `${(beatStarts[i] / totalDur) * 100}%` }} />;
                     })}
 
                     {stickersWithLanes.map(({ raw, ...st }) => {
@@ -990,8 +888,10 @@ export default function Timeline({
                       const widthPct = Math.max(1, (st.durationSec / totalDur) * 100);
                       const isSel = st.id === selectedStickerId;
                       return (
-                        <div
+                        <TimelineSegment
                           key={st.id}
+                          tone="sticker"
+                          selected={isSel}
                           onPointerDown={(e) => startStickerDrag(e, raw, "move")}
                           onPointerMove={(e) => handleStickerPointerMove(e, raw)}
                           onPointerUp={endStickerDrag}
@@ -1010,40 +910,34 @@ export default function Timeline({
                           <span className="st-vo-chip-text">{st.fileName}</span>
                           <span className="st-vo-chip-time">{st.startTimeSec.toFixed(1)}s–{(st.startTimeSec + st.durationSec).toFixed(1)}s</span>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); const newId = `sticker-${genId()}`; dispatch({ type: "DUPLICATE_STICKER", id: raw.id, newStickerId: newId }); onSelectSticker?.(newId); }}
                             className="st-vo-action-btn"
                             title="Duplicate sticker"
                           >
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                            </svg>
-                          </button>
+                            <CopyIcon size={9} />
+                          </ControlButton>
 
-                          <button
+                          <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_STICKER", id: raw.id }); if (selectedStickerId === raw.id) onSelectSticker?.(null); }}
                             className="st-vo-action-btn"
                             title="Remove sticker"
                           >
-                            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                              <line x1="2" y1="2" x2="10" y2="10" />
-                              <line x1="10" y1="2" x2="2" y2="10" />
-                            </svg>
-                          </button>
+                            <CloseIcon size={9} />
+                          </ControlButton>
 
                           {!pinned && (
-                            <div onPointerDown={(e) => startStickerDrag(e, raw, "resize-right")} className="st-vo-resize-handle right" title="Drag to change how long the sticker shows" />
+                            <TimelineResizeHandle edge="right" onPointerDown={(e) => startStickerDrag(e, raw, "resize-right")} className="st-vo-resize-handle right" title="Drag to change how long the sticker shows" />
                           )}
-                        </div>
+                        </TimelineSegment>
                       );
                     })}
-                  </div>
-                </div>
+                  </TimelineLaneCanvas>
+                </TimelineLane>
               );
             })()}
 
@@ -1081,16 +975,16 @@ export default function Timeline({
                         <div className="st-bdur">
                           <span className="st-num">{fmtSecs(b.durationSec)}</span>
                           <span className="st-reorder">
-                            <button
+                            <ControlButton
                               title="Move earlier"
                               onClick={(e) => { e.stopPropagation(); move(i, -1); }}
                               disabled={i === 0}
-                            >◄</button>
-                            <button
+                            >◄</ControlButton>
+                            <ControlButton
                               title="Move later"
                               onClick={(e) => { e.stopPropagation(); move(i, 1); }}
                               disabled={i === beats.length - 1}
-                            >►</button>
+                            >►</ControlButton>
                           </span>
                         </div>
                       </div>
@@ -1101,8 +995,8 @@ export default function Timeline({
             </div>
 
           </div>
-        </div>
-      </div>
-    </div>
+        </TimelineCanvas>
+      </TimelineViewport>
+    </TimelineShell>
   );
 }

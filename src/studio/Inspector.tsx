@@ -25,9 +25,14 @@ import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from 
 import { canvasDims } from "../features/export/export";
 import { synthesizeVoiceover } from "../lib/tts";
 import { sfxFileUrl } from "../lib/sfxLibrary";
-import Switch from "./Switch";
+import Switch from "../design-system/Switch";
 import { beatPosterBg } from "../lib/beatPosterCache";
 import ClipTagEditor from "./ClipTagEditor";
+import Modal from "../design-system/Modal";
+import Button from "../design-system/Button";
+import { ControlButton, InputControl, SelectControl, TextareaControl } from "../design-system/ControlPrimitives";
+import ChevronDownIcon from "../design-system/icons/ChevronDownIcon";
+import DeleteIcon from "../design-system/icons/DeleteIcon";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -95,7 +100,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
   const row = (label: string, value: number, min: number, max: number, step: number, fmt: (v: number) => string, key: keyof KenBurns, reset: number) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>{label}</span>
-      <input
+      <InputControl
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<KenBurns>)}
         onDoubleClick={() => set({ [key]: reset } as Partial<KenBurns>)}
@@ -118,7 +123,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
           {presets.map((p) => {
             const on = same(move, p.move);
             return (
-              <button
+              <ControlButton
                 key={p.id}
                 type="button"
                 onClick={() => update({ ...beat, kenBurns: p.move })}
@@ -131,7 +136,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
                 }}
               >
                 {p.label}
-              </button>
+              </ControlButton>
             );
           })}
         </div>
@@ -240,7 +245,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const adjRow = (label: string, value: number, onChange: (v: number) => void, resetValue = 0) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>{label}</span>
-      <input
+      <InputControl
         type="range" min={-100} max={100} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         onDoubleClick={() => onChange(resetValue)}
@@ -379,7 +384,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎙️ VO Segment</span>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
+          <ControlButton
             type="button"
             className="st-btn ghost"
             style={{ padding: "2px 8px", fontSize: 11 }}
@@ -392,20 +397,20 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             title="Duplicate this VO segment"
           >
             📋 Duplicate
-          </button>
-          <button
+          </ControlButton>
+          <ControlButton
             type="button"
             className="st-btn danger"
             style={{ padding: "2px 8px", fontSize: 11 }}
             onClick={() => { dispatch({ type: "REMOVE_VO", id: selectedVo.id }); onSelectVo?.(null); }}
           >
             Remove
-          </button>
+          </ControlButton>
         </div>
       </div>
 
       <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Narration text (read by ElevenLabs / Kokoro)</label>
-      <textarea
+      <TextareaControl
         ref={voTextRef}
         value={selectedVo.text}
         onChange={(e) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, text: e.target.value } })}
@@ -416,7 +421,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
       {/* Expressive hints — inline audio tags the user can drop into the narration. */}
       <div style={{ marginTop: 8 }}>
-        <button
+        <ControlButton
           type="button"
           className="st-color-collapsible-btn"
           onClick={() => setVoHintsOpen((o) => !o)}
@@ -425,7 +430,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         >
           <span style={{ fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>✨ Expressive hints</span>
           <span style={{ fontSize: 10, color: "var(--ink-3)", transition: "transform .25s cubic-bezier(.4,0,.2,1)", transform: voHintsOpen ? "rotate(180deg)" : "none" }}>▼</span>
-        </button>
+        </ControlButton>
 
         <div className={"st-color-collapsible" + (voHintsOpen ? " open" : "")}>
           <div className="st-color-collapsible-inner">
@@ -442,7 +447,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   <div style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", letterSpacing: 0.4 }}>{group.title}</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {group.tags.map((tag) => (
-                      <button
+                      <ControlButton
                         key={tag}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
@@ -451,7 +456,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         style={{ fontFamily: "ui-monospace, monospace", fontSize: 10.5, padding: "2px 6px", background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 4, color: "var(--ink-2)", cursor: "pointer" }}
                       >
                         {tag}
-                      </button>
+                      </ControlButton>
                     ))}
                   </div>
                   {group.note && <div style={{ fontSize: 9.5, color: "var(--ink-3)", lineHeight: 1.4 }}>{group.note}</div>}
@@ -477,7 +482,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }} title="Playback volume for this voiceover segment.">
         <span style={{ fontSize: 11, width: 60, color: "var(--ink-2)" }}>Volume</span>
-        <input
+        <InputControl
           type="range"
           min={0}
           max={1}
@@ -498,7 +503,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         {selectedVo.text.trim() && <span>· ~{estimateSpokenSeconds(selectedVo.text).toFixed(1)}s to speak</span>}
       </div>
 
-      <button
+      <ControlButton
         type="button"
         className="st-btn ghost"
         style={{ marginTop: 8, fontSize: 11, padding: "5px 10px", width: "100%", justifyContent: "center" }}
@@ -507,7 +512,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         title="Synthesize this narration and snap the segment length to its exact spoken duration"
       >
         {fitting ? "Fitting…" : "⤢ Fit length to voice"}
-      </button>
+      </ControlButton>
       {fitErr && <div style={{ fontSize: 10, color: "var(--danger)", marginTop: 4 }}>⚠ {fitErr}</div>}
 
       <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>Drag the chip on the VO track to move; drag its edges to resize.</div>
@@ -523,7 +528,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "#8b7cff" }}>🔊 SFX Segment</span>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
+          <ControlButton
             type="button"
             className="st-btn ghost"
             style={{ padding: "2px 8px", fontSize: 11 }}
@@ -536,20 +541,20 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             title="Duplicate this SFX segment"
           >
             📋 Duplicate
-          </button>
-          <button
+          </ControlButton>
+          <ControlButton
             type="button"
             className="st-btn danger"
             style={{ padding: "2px 8px", fontSize: 11 }}
             onClick={() => { dispatch({ type: "REMOVE_SFX", id: selectedSfx.id }); onSelectSfx?.(null); }}
           >
             Remove
-          </button>
+          </ControlButton>
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <button
+        <ControlButton
           type="button"
           className="st-btn ghost"
           style={{ padding: "4px 9px", fontSize: 12, flexShrink: 0 }}
@@ -557,7 +562,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           title="Preview this sound at its trimmed length and volume"
         >
           {sfxPreviewing ? "⏸" : "▶"}
-        </button>
+        </ControlButton>
         <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--ink)", wordBreak: "break-all", minWidth: 0 }}>{selectedSfx.fileName}</div>
       </div>
       <audio
@@ -569,7 +574,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }} title="Playback volume for this sound.">
         <span style={{ fontSize: 11, width: 60, color: "var(--ink-2)" }}>Volume</span>
-        <input
+        <InputControl
           type="range"
           min={0}
           max={1}
@@ -583,7 +588,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }} title="Duration for this sound effect.">
         <span style={{ fontSize: 11, width: 60, color: "var(--ink-2)" }}>Duration</span>
-        <input
+        <InputControl
           type="range"
           min={0.1}
           max={maxSfxDur}
@@ -601,7 +606,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }} title="Lock this sound effect's duration to the length of the beat it lands on.">
         <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Fit to beat</span>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "var(--ink-2)" }}>
-          <input
+          <InputControl
             type="checkbox"
             checked={!!selectedSfx.fitToBeat}
             onChange={(e) => dispatch({ type: "UPDATE_SFX", segment: { ...selectedSfx, fitToBeat: e.target.checked } })}
@@ -624,7 +629,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const stickerRow = (label: string, value: number, min: number, max: number, step: number, fmt: (v: number) => string, onChange: (v: number) => void, reset: number) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
       <span style={{ fontSize: 11, width: 62, color: "var(--ink-2)" }}>{label}</span>
-      <input
+      <InputControl
         type="range" min={min} max={max} step={step} value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         onDoubleClick={() => onChange(reset)}
@@ -639,7 +644,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "rgb(167,139,250)" }}>🩹 Sticker</span>
         <div style={{ display: "flex", gap: 6 }}>
-          <button
+          <ControlButton
             type="button"
             className="st-btn ghost"
             style={{ padding: "2px 8px", fontSize: 11 }}
@@ -652,8 +657,8 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             title="Duplicate this sticker"
           >
             Duplicate
-          </button>
-          <button
+          </ControlButton>
+          <ControlButton
             type="button"
             className="st-btn ghost"
             style={{ padding: "2px 8px", fontSize: 11, color: "var(--danger)" }}
@@ -661,7 +666,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             title="Remove this sticker"
           >
             Remove
-          </button>
+          </ControlButton>
         </div>
       </div>
 
@@ -757,7 +762,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             <div className="st-sec" style={{ width: "100%", textAlign: "left" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>🎨 Global Look & Feel Filter</span>
-                <button
+                <ControlButton
                   type="button"
                   className="st-btn ghost"
                   style={{
@@ -770,22 +775,22 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   title="Choose a global color grading filter preset for the entire cut"
                 >
                   {activeGlobalFilter ? `✨ ${activeGlobalFilter.name}` : "Choose Preset..."}
-                </button>
+                </ControlButton>
               </div>
 
               {activeGlobalFilter && (
                 <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
-                    <button
+                    <ControlButton
                       type="button"
                       style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
                       onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
                     >
                       Remove Filter
-                    </button>
+                    </ControlButton>
                   </div>
-                  <input
+                  <InputControl
                     type="range"
                     min="0.1"
                     max="1"
@@ -801,7 +806,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         🎛️ Fine-Tune Filter {isGlobalFilterModified ? <span style={{ fontSize: 10, fontStyle: "italic", fontWeight: 400, color: "var(--ink-3)" }}>(Modified)</span> : null}
                       </div>
                       {isGlobalFilterModified && (
-                        <button
+                        <ControlButton
                           type="button"
                           className="st-btn ghost"
                           style={{ fontSize: 10, padding: "2px 6px", height: 20, color: "var(--accent)", display: "flex", alignItems: "center", gap: 3 }}
@@ -817,13 +822,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                           title="Reset fine-tuning adjustments back to original preset defaults"
                         >
                           ↺ Reset Preset
-                        </button>
+                        </ControlButton>
                       )}
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -839,7 +844,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Contrast</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -855,7 +860,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Hue</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -871,7 +876,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Warmth</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -887,7 +892,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Saturation</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -1186,7 +1191,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
               {clip ? (
-                <input
+                <InputControl
                   type="text"
                   value={clip.name}
                   onChange={(e) => dispatch({ type: "RENAME_CLIP", id: clip.id, name: e.target.value })}
@@ -1215,7 +1220,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               </div>
             </div>
 
-            <button
+            <ControlButton
               type="button"
               className="st-btn primary"
               onClick={() => setShowBeatClipPicker(true)}
@@ -1223,7 +1228,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               style={{ fontSize: 11, padding: "5px 10px", whiteSpace: "nowrap", flexShrink: 0 }}
             >
               ⇄ Swap Clip
-            </button>
+            </ControlButton>
           </div>
 
           {clip && (
@@ -1259,7 +1264,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <div className="st-caphead">
             <label>Caption · {timed ? "each line plays for its own seconds, in sequence" : "one line per row, stacked on screen"}</label>
             <label className="st-captoggle" title="Give each line a seconds timer; lines play one after another">
-              <input type="checkbox" checked={timed} onChange={(e) => toggleTimed(e.target.checked)} />
+              <InputControl type="checkbox" checked={timed} onChange={(e) => toggleTimed(e.target.checked)} />
               <span>Timed lines</span>
             </label>
           </div>
@@ -1268,42 +1273,42 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <div className="st-caprow" key={i}>
                 <div className={timed ? "st-capline timed" : "st-capline"}>
                   <div className="st-capclear-wrap">
-                    <input
+                    <InputControl
                       className="st-caption-line"
                       value={line}
                       placeholder="Caption line…"
                       onChange={(e) => editText(i, e.target.value)}
                     />
                     {line.length > 0 && (
-                      <button
+                      <ControlButton
                         className="st-capclear"
                         title="Clear"
                         tabIndex={-1}
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={() => editText(i, "")}
-                      >×</button>
+                      >×</ControlButton>
                     )}
                   </div>
                   {timed && (
                     <div className="st-capsec" title="Seconds this line stays on screen">
-                      <input type="number" min="0.1" step="0.1" value={durations[i] ?? ""} onChange={(e) => editDuration(i, e.target.value)} />
+                      <InputControl type="number" min="0.1" step="0.1" value={durations[i] ?? ""} onChange={(e) => editDuration(i, e.target.value)} />
                       <span>s</span>
                     </div>
                   )}
                   {captionLines.length > 1 && (
-                    <button className="st-capdel" title="Remove line" onClick={() => removeLine(i)}>×</button>
+                    <ControlButton className="st-capdel" title="Remove line" onClick={() => removeLine(i)}>×</ControlButton>
                   )}
                 </div>
                 {alts[i]?.length > 0 && (
                   <div className="st-capalts">
                     {alts[i].map((alt, j) => (
-                      <button key={j} className="st-capalt" title="Use this line" onClick={() => useAlt(i, alt)}>{alt}</button>
+                      <ControlButton key={j} className="st-capalt" title="Use this line" onClick={() => useAlt(i, alt)}>{alt}</ControlButton>
                     ))}
                   </div>
                 )}
               </div>
             ))}
-            <button className="st-capadd" onClick={addLine}>+ Add line</button>
+            <ControlButton className="st-capadd" onClick={addLine}>+ Add line</ControlButton>
             {timed && (() => {
               const schedule = captionSchedule(b.captionText, durations);
               const seqTotal = scheduleDuration(schedule);
@@ -1329,7 +1334,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           </div>
 
           <div className="st-capalt-controls">
-            <button className="st-btn ghost" onClick={genAlts} disabled={altBusy || !clip}>
+            <ControlButton className="st-btn ghost" onClick={genAlts} disabled={altBusy || !clip}>
               {altBusy ? (
                 <>
                   <span className="st-spinner-sm" />
@@ -1338,13 +1343,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               ) : (
                 "Generate alternatives"
               )}
-            </button>
-            <select value={altModel} onChange={(e) => setAltModel(e.target.value)} title="AI model">
+            </ControlButton>
+            <SelectControl value={altModel} onChange={(e) => setAltModel(e.target.value)} title="AI model">
               {MODEL_OPTIONS.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
-            </select>
-            <select value={altMood} onChange={(e) => setAltMood(e.target.value)} title="Mood / voice">
+            </SelectControl>
+            <SelectControl value={altMood} onChange={(e) => setAltMood(e.target.value)} title="Mood / voice">
               {TONE_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
+            </SelectControl>
           </div>
           {altBusy && (
             <div className="st-capalts-skeleton">
@@ -1373,7 +1378,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 : "Lock timeline duration (slip edit). Changing in or out recalculates the other bound to preserve timeline length."}
               style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 11, color: "var(--ink-2)" }}
             >
-              <input
+              <InputControl
                 type="checkbox"
                 checked={b.lockDuration === true}
                 onChange={(e) => update({ ...b, lockDuration: e.target.checked })}
@@ -1411,12 +1416,12 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             : <div style={{ color: "var(--ink-3)", fontSize: 12 }}>Clip missing.</div>}
           {clip && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <button className="st-btn ghost" style={{ fontSize: 12, padding: "5px 10px" }} onClick={() => setTrimOpen((v) => !v)}>
+              <ControlButton className="st-btn ghost" style={{ fontSize: 12, padding: "5px 10px" }} onClick={() => setTrimOpen((v) => !v)}>
                 {trimOpen ? "Hide video scrubber" : "Open video scrubber"}
-              </button>
+              </ControlButton>
 
               {trimHistory.length > 0 && (
-                <button
+                <ControlButton
                   type="button"
                   className="st-btn ghost"
                   onClick={undoTrim}
@@ -1432,7 +1437,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   }}
                 >
                   ↩ Undo Trim ({fmtSecs(trimHistory[trimHistory.length - 1].inSec)}–{fmtSecs(trimHistory[trimHistory.length - 1].outSec)})
-                </button>
+                </ControlButton>
               )}
             </div>
           )}
@@ -1444,7 +1449,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             <label style={{ margin: 0, fontWeight: 700, color: "var(--purple)", fontSize: 12 }}>
               🥞 Split Screen Layout
             </label>
-            <select
+            <SelectControl
               value={b.splitScreen?.layout ?? "none"}
               onChange={(e) => {
                 const layout = e.target.value as SplitLayoutType;
@@ -1463,7 +1468,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <option value="v2-side">📂 Left / Right Side (2)</option>
               <option value="3-col">📊 3-Column Split (3)</option>
               <option value="4-grid">🏁 2x2 Quad Grid (4)</option>
-            </select>
+            </SelectControl>
           </div>
 
           {b.splitScreen && b.splitScreen.layout !== "none" && (() => {
@@ -1481,7 +1486,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, fontWeight: 600 }}>
                         <span>Slot {idx + 1} {idx === 0 ? "(Primary)" : ""}</span>
                         <label style={{ display: "inline-flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 10, color: "var(--ink-2)" }}>
-                          <input
+                          <InputControl
                             type="checkbox"
                             checked={(slot.volume ?? (idx === 0 ? 1 : 0)) > 0}
                             onChange={(e) => {
@@ -1528,7 +1533,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                             {slotClip ? fmtSecs(slotClip.durationSec) : "No clip selected"}
                           </div>
                         </div>
-                        <button
+                        <ControlButton
                           type="button"
                           className="st-btn ghost"
                           style={{ fontSize: 10, padding: "2px 6px" }}
@@ -1538,7 +1543,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                           }}
                         >
                           Change ▾
-                        </button>
+                        </ControlButton>
                       </div>
 
                       {/* Per-Slot Reframing & Transform Sliders */}
@@ -1548,7 +1553,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         {/* Scale / Zoom */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Scale</span>
-                          <input
+                          <InputControl
                             type="range"
                             min={1}
                             max={3}
@@ -1575,7 +1580,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         {/* Pan X */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Pan X</span>
-                          <input
+                          <InputControl
                             type="range"
                             min={-50}
                             max={50}
@@ -1602,7 +1607,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         {/* Pan Y */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Pan Y</span>
-                          <input
+                          <InputControl
                             type="range"
                             min={-50}
                             max={50}
@@ -1629,7 +1634,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         {/* Rotation */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 10, width: 44, color: "var(--ink-2)" }}>Rotate</span>
-                          <input
+                          <InputControl
                             type="range"
                             min={-180}
                             max={180}
@@ -1693,23 +1698,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             onClick={() => setColorOpen((v) => !v)}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <ChevronDownIcon
+                size={14}
                 style={{
                   transform: colorOpen ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.2s ease",
                   color: "var(--ink-2)",
                 }}
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              />
               <label style={{ margin: 0, cursor: "pointer" }}>Color Adjustments</label>
               {hasColorAdjustments(b.colorAdjustments) && (
                 <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• Adjusted</span>
@@ -1717,7 +1713,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             </div>
 
             {hasColorAdjustments(b.colorAdjustments) && (
-              <button
+              <ControlButton
                 style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1726,7 +1722,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 title="Reset all color adjustments to default"
               >
                 Reset color
-              </button>
+              </ControlButton>
             )}
           </div>
 
@@ -1735,7 +1731,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
-                  <input
+                  <InputControl
                     type="range"
                     min="-100"
                     max="100"
@@ -1752,7 +1748,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Contrast</span>
-                  <input
+                  <InputControl
                     type="range"
                     min="-100"
                     max="100"
@@ -1769,7 +1765,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Hue</span>
-                  <input
+                  <InputControl
                     type="range"
                     min="-100"
                     max="100"
@@ -1786,7 +1782,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Warmth</span>
-                  <input
+                  <InputControl
                     type="range"
                     min="-100"
                     max="100"
@@ -1803,7 +1799,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Orange / Skin</span>
-                  <input
+                  <InputControl
                     type="range"
                     min="-100"
                     max="100"
@@ -1820,7 +1816,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Saturation</span>
-                  <input
+                  <InputControl
                     type="range"
                     min="-100"
                     max="100"
@@ -1838,7 +1834,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 {splitToneRows(b.colorAdjustments ?? {}, updateColorAdjustment)}
 
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                  <button
+                  <ControlButton
                     type="button"
                     className="st-btn ghost"
                     style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
@@ -1847,9 +1843,9 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     title="Copy these color adjustments to clipboard"
                   >
                     {colorCopiedToast ? "✓ Copied!" : "📋 Copy Color"}
-                  </button>
+                  </ControlButton>
 
-                  <button
+                  <ControlButton
                     type="button"
                     className="st-btn ghost"
                     style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
@@ -1858,10 +1854,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     title={copiedColor ? "Paste copied color adjustments to this beat" : "Copy a color adjustment first to paste"}
                   >
                     📥 Paste Color
-                  </button>
+                  </ControlButton>
                 </div>
 
-                <button
+                <ControlButton
                   type="button"
                   className="st-btn ghost"
                   style={{ fontSize: 10, padding: "4px 8px", marginTop: 2, alignSelf: "flex-end" }}
@@ -1870,7 +1866,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   title="Apply these color adjustments to all beats in the cut"
                 >
                   Apply color to all beats
-                </button>
+                </ControlButton>
               </div>
             </div>
           </div>
@@ -1883,19 +1879,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             onClick={() => setTitleOpen((v) => !v)}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <ChevronDownIcon
+                size={14}
                 style={{ transform: titleOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              />
               <label style={{ margin: 0, cursor: "pointer" }}>Title Treatment</label>
               {beatTitleCount > 0 && (
                 <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• {beatTitleCount} layer{beatTitleCount === 1 ? "" : "s"}</span>
@@ -1927,19 +1914,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             onClick={() => setZoomOpen((v) => !v)}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <ChevronDownIcon
+                size={14}
                 style={{ transform: zoomOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              />
               <label style={{ margin: 0, cursor: "pointer" }}>Zoom / Punch-In</label>
               {(b.zoom ?? 1) > 1.001 && (
                 <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• {(b.zoom ?? 1).toFixed(2)}×</span>
@@ -1947,13 +1925,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             </div>
 
             {(b.zoom ?? 1) > 1.001 && (
-              <button
+              <ControlButton
                 style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
                 onClick={(e) => { e.stopPropagation(); update({ ...b, zoom: 1, zoomX: 0, zoomY: 0, zoomScope: "entire", zoomSec: 3 }); }}
                 title="Reset zoom to 1× (no punch-in)"
               >
                 Reset zoom
-              </button>
+              </ControlButton>
             )}
           </div>
 
@@ -1971,7 +1949,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       {([["zoom", "Zoom"], ["kenBurns", "Ken Burns"]] as const).map(([mode, label]) => {
                         const on = (b.framing ?? "zoom") === mode;
                         return (
-                          <button
+                          <ControlButton
                             key={mode}
                             type="button"
                             onClick={() => update(mode === "kenBurns"
@@ -1986,7 +1964,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                             }}
                           >
                             {label}
-                          </button>
+                          </ControlButton>
                         );
                       })}
                     </div>
@@ -1999,7 +1977,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Zoom</span>
-                  <input
+                  <InputControl
                     type="range"
                     min={1}
                     max={3}
@@ -2017,7 +1995,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: (b.zoom ?? 1) > 1.001 ? 1 : 0.5 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Focus X</span>
-                  <input
+                  <InputControl
                     type="range"
                     min={-50}
                     max={50}
@@ -2036,7 +2014,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: (b.zoom ?? 1) > 1.001 ? 1 : 0.5 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Focus Y</span>
-                  <input
+                  <InputControl
                     type="range"
                     min={-50}
                     max={50}
@@ -2056,7 +2034,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <div style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 12, marginTop: 2, opacity: (b.zoom ?? 1) > 1.001 ? 1 : 0.5 }}>
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     Show
-                    <select
+                    <SelectControl
                       value={b.zoomScope ?? "entire"}
                       disabled={(b.zoom ?? 1) <= 1.001}
                       onChange={(e) => update({ ...b, zoomScope: e.target.value as "entire" | "intro" })}
@@ -2065,12 +2043,12 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     >
                       <option value="entire">Entire beat</option>
                       <option value="intro">First seconds</option>
-                    </select>
+                    </SelectControl>
                   </label>
                   {(b.zoomScope ?? "entire") === "intro" && (
                     <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       Duration
-                      <select
+                      <SelectControl
                         value={b.zoomSec ?? 3}
                         disabled={(b.zoom ?? 1) <= 1.001}
                         onChange={(e) => update({ ...b, zoomSec: Number(e.target.value) })}
@@ -2081,7 +2059,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         <option value={3}>3s</option>
                         <option value={4}>4s</option>
                         <option value={5}>5s</option>
-                      </select>
+                      </SelectControl>
                     </label>
                   )}
                 </div>
@@ -2099,18 +2077,18 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
             <label style={{ margin: 0, fontWeight: 600 }}>Rotation</label>
             {Math.abs(b.rotation ?? 0) >= 0.05 && (
-              <button
+              <ControlButton
                 style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
                 onClick={() => update({ ...b, rotation: 0 })}
                 title="Reset rotation to 0°"
               >
                 Reset rotation
-              </button>
+              </ControlButton>
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Angle</span>
-            <input
+            <InputControl
               type="range" min={-15} max={15} step={0.1}
               value={b.rotation ?? 0}
               onChange={(e) => update({ ...b, rotation: Number(e.target.value) })}
@@ -2132,7 +2110,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         {/* Video Transition Collapsible Section */}
         <div className="st-field" style={{ marginTop: 8 }}>
           <div className="st-color-collapsible">
-            <button
+            <ControlButton
               type="button"
               className="st-color-collapsible-btn"
               onClick={() => setTransitionOpen(!transitionOpen)}
@@ -2147,13 +2125,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 )}
               </span>
               <span style={{ fontSize: 10, color: "var(--ink-3)" }}>{transitionOpen ? "▲" : "▼"}</span>
-            </button>
+            </ControlButton>
 
             {transitionOpen && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6, padding: "8px 10px", background: "var(--panel-3)", borderRadius: 6, border: "1px solid var(--line)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Effect</span>
-                  <select
+                  <SelectControl
                     value={b.transition ?? "none"}
                     onChange={(e) => update({ ...b, transition: e.target.value as VideoTransitionType })}
                     style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
@@ -2166,26 +2144,26 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     <option value="wiperight">👉 Wipe Right</option>
                     <option value="slideleft">◀ Slide Left</option>
                     <option value="slideright">▶ Slide Right</option>
-                  </select>
+                  </SelectControl>
                 </div>
 
                 {b.transition && b.transition !== "none" && (
                   <>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Position</span>
-                      <select
+                      <SelectControl
                         value={b.transitionPosition ?? "start"}
                         onChange={(e) => update({ ...b, transitionPosition: e.target.value as "start" | "end" })}
                         style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
                       >
                         <option value="start">🚀 Beginning of Beat (In)</option>
                         <option value="end">🏁 End of Beat (Out)</option>
-                      </select>
+                      </SelectControl>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Duration</span>
-                      <select
+                      <SelectControl
                         value={b.transitionSec ?? 0.5}
                         onChange={(e) => update({ ...b, transitionSec: Number(e.target.value) })}
                         style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
@@ -2194,10 +2172,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         <option value={0.5}>0.5s (Standard)</option>
                         <option value={0.8}>0.8s (Smooth)</option>
                         <option value={1.0}>1.0s (Slow)</option>
-                      </select>
+                      </SelectControl>
                     </div>
 
-                    <button
+                    <ControlButton
                       type="button"
                       className="st-btn ghost"
                       style={{ fontSize: 10, padding: "4px 8px", marginTop: 2, alignSelf: "flex-end" }}
@@ -2205,7 +2183,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       title="Apply this transition effect to all beats in the cut"
                     >
                       Apply to all beats
-                    </button>
+                    </ControlButton>
                   </>
                 )}
               </div>
@@ -2218,7 +2196,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{Math.round((b.volume ?? 1) * 100)}%</span>
               </div>
               <div style={{ marginTop: 6 }}>
-                <input
+                <InputControl
                   type="range"
                   min="0"
                   max="1"
@@ -2235,7 +2213,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             <div className="st-sec" style={{ marginTop: 10 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 12, fontWeight: 600 }}>🎨 Global Look & Feel Filter</span>
-                <button
+                <ControlButton
                   type="button"
                   className="st-btn ghost"
                   style={{
@@ -2248,22 +2226,22 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   title="Choose a global color grading filter preset for the entire cut"
                 >
                   {activeGlobalFilter ? `✨ ${activeGlobalFilter.name}` : "Choose Preset..."}
-                </button>
+                </ControlButton>
               </div>
 
               {activeGlobalFilter && (
                 <div style={{ marginTop: 8, padding: 10, background: "var(--panel-2)", borderRadius: 6, border: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Filter Intensity: {Math.round((cut?.globalFilterIntensity ?? 1) * 100)}%</span>
-                    <button
+                    <ControlButton
                       type="button"
                       style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 11, cursor: "pointer", padding: 0 }}
                       onClick={() => dispatch({ type: "SET_GLOBAL_FILTER", filterId: null })}
                     >
                       Remove Filter
-                    </button>
+                    </ControlButton>
                   </div>
-                  <input
+                  <InputControl
                     type="range"
                     min="0.1"
                     max="1"
@@ -2279,7 +2257,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                         🎛️ Fine-Tune Filter {isGlobalFilterModified ? <span style={{ fontSize: 10, fontStyle: "italic", fontWeight: 400, color: "var(--ink-3)" }}>(Modified)</span> : null}
                       </div>
                       {isGlobalFilterModified && (
-                        <button
+                        <ControlButton
                           type="button"
                           className="st-btn ghost"
                           style={{ fontSize: 10, padding: "2px 6px", height: 20, color: "var(--accent)", display: "flex", alignItems: "center", gap: 3 }}
@@ -2295,13 +2273,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                           title="Reset fine-tuning adjustments back to original preset defaults"
                         >
                           ↺ Reset Preset
-                        </button>
+                        </ControlButton>
                       )}
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -2317,7 +2295,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Contrast</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -2333,7 +2311,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Hue</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -2349,7 +2327,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Warmth</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -2365,7 +2343,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Saturation</span>
-                      <input
+                      <InputControl
                         type="range"
                         min="-100"
                         max="100"
@@ -2402,7 +2380,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎞️ Overlay Clip Settings</span>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button
+                    <ControlButton
                       type="button"
                       className="st-btn ghost"
                       style={{ padding: "2px 8px", fontSize: 11 }}
@@ -2415,22 +2393,22 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       title="Duplicate this overlay clip (Cmd+D / Ctrl+D)"
                     >
                       📋 Duplicate
-                    </button>
-                    <button
+                    </ControlButton>
+                    <ControlButton
                       type="button"
                       className="st-btn danger"
                       style={{ padding: "2px 8px", fontSize: 11 }}
                       onClick={() => { dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlay.id }); onSelectOverlay?.(null); }}
                     >
                       Remove
-                    </button>
+                    </ControlButton>
                   </div>
                 </div>
 
                 {/* Clip Selector */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
                   <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Overlay Footage Clip</label>
-                  <select
+                  <SelectControl
                     value={selectedOverlay.clipId}
                     onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, clipId: e.target.value } })}
                     style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 12 }}
@@ -2438,13 +2416,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     {clips.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
-                  </select>
+                  </SelectControl>
                 </div>
 
                 {/* Blend Mode Selector */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
                   <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Visual Blend Mode</label>
-                  <select
+                  <SelectControl
                     value={selectedOverlay.blendMode}
                     onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, blendMode: e.target.value as any } })}
                     style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--accent)", fontWeight: 600, padding: "4px 8px", fontSize: 12 }}
@@ -2453,7 +2431,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     <option value="screen">Screen (Lighten Blend)</option>
                     <option value="multiply">Multiply (Darken Blend)</option>
                     <option value="overlay">Overlay (Contrast Blend)</option>
-                  </select>
+                  </SelectControl>
                 </div>
 
                 {/* Opacity Slider */}
@@ -2462,7 +2440,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     <span>Opacity</span>
                     <span>{Math.round(selectedOverlay.opacity * 100)}%</span>
                   </div>
-                  <input
+                  <InputControl
                     type="range"
                     min="0"
                     max="1"
@@ -2479,7 +2457,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     <span>Audio Volume</span>
                     <span>{Math.round(selectedOverlay.volume * 100)}%</span>
                   </div>
-                  <input
+                  <InputControl
                     type="range"
                     min="0"
                     max="1"
@@ -2494,7 +2472,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
                     <label style={{ fontSize: 10, color: "var(--ink-2)" }}>Timeline Start (s)</label>
-                    <input
+                    <InputControl
                       type="number"
                       step="0.1"
                       min="0"
@@ -2506,7 +2484,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
                     <label style={{ fontSize: 10, color: "var(--ink-2)" }}>Duration (s)</label>
-                    <input
+                    <InputControl
                       type="number"
                       step="0.1"
                       min="0.5"
@@ -2520,7 +2498,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 {/* Timing Quick Shortcuts */}
                 <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                   {cut && (
-                    <button
+                    <ControlButton
                       type="button"
                       className="st-btn ghost"
                       style={{ flex: 1, fontSize: 10, padding: "3px 6px" }}
@@ -2531,10 +2509,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       title="Set overlay duration to cover the full assembled video timeline"
                     >
                       ✨ Span Full Cut ({fmtSecs(cutDuration(cut))})
-                    </button>
+                    </ControlButton>
                   )}
                   {beat && cut && (
-                    <button
+                    <ControlButton
                       type="button"
                       className="st-btn ghost"
                       style={{ flex: 1, fontSize: 10, padding: "3px 6px" }}
@@ -2545,7 +2523,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       title={`Align overlay to match Beat ${index + 1}`}
                     >
                       🎯 Align to Beat {index + 1}
-                    </button>
+                    </ControlButton>
                   )}
                 </div>
               </div>
@@ -2554,60 +2532,54 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         </div>
 
         <div className="st-beat-actions" style={{ marginTop: "auto", display: "flex", gap: 8 }}>
-          <button
+          <ControlButton
             className="st-btn ghost"
             style={{ flex: 1, justifyContent: "center", padding: "9px 14px" }}
             onClick={() => onDuplicateBeat(b.id)}
             title="Duplicate this beat"
           >
             Duplicate beat
-          </button>
-          <button
+          </ControlButton>
+          <ControlButton
             className="st-btn danger"
             style={{ flex: 1, justifyContent: "center", padding: "9px 14px" }}
             onClick={() => setConfirmRemoveOpen(true)}
             title="Remove beat from cut"
           >
             Remove beat
-          </button>
+          </ControlButton>
         </div>
       </div>
 
-      {confirmRemoveOpen && (
-        <div className="st-modal-scrim" onClick={() => setConfirmRemoveOpen(false)}>
-          <div className="st-modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Confirm beat removal">
+      <Modal
+        open={confirmRemoveOpen}
+        title={`Remove Beat ${String(index + 1).padStart(2, "0")}?`}
+        description="This beat will be removed from your cut."
+        ariaLabel="Confirm beat removal"
+        maxWidth={380}
+        onClose={() => setConfirmRemoveOpen(false)}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setConfirmRemoveOpen(false)}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirmRemoveOpen(false);
+                dispatch({ type: "REMOVE_BEAT", id: b.id });
+              }}
+            >
+              Remove
+            </Button>
+          </>
+        )}
+      >
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(229, 105, 95, 0.15)", color: "var(--danger)", display: "grid", placeItems: "center", flexShrink: 0 }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                <DeleteIcon size={20} />
               </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "var(--ink)" }}>Remove Beat {String(index + 1).padStart(2, "0")}?</h3>
-                <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>This beat will be removed from your cut.</div>
-              </div>
+              <div style={{ fontSize: 12, color: "var(--ink-2)" }}>The source clip remains in your project and can be used again.</div>
             </div>
-
-            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-              <button
-                className="st-btn ghost"
-                style={{ flex: 1, justifyContent: "center", padding: "8px 12px" }}
-                onClick={() => setConfirmRemoveOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="st-btn danger"
-                style={{ flex: 1, justifyContent: "center", padding: "8px 12px" }}
-                onClick={() => {
-                  setConfirmRemoveOpen(false);
-                  dispatch({ type: "REMOVE_BEAT", id: b.id });
-                }}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
       </div>
     </aside>
   );

@@ -3,6 +3,9 @@ import type { ProjectTemplate, TemplateBeat, ColorAdjustments } from "../domain/
 import { analyzeInspirationVideo } from "../features/templates/inspireTemplate";
 import { saveTemplate } from "../lib/projectStorage";
 import { useSettings } from "../state/SettingsContext";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
+import CloseIcon from "../design-system/icons/CloseIcon";
 
 interface Props {
   isOpen: boolean;
@@ -13,13 +16,7 @@ interface Props {
 type Phase = "drop" | "analyzing" | "review" | "saving" | "done";
 
 function XIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.2" strokeLinecap="round">
-      <line x1="6" y1="6" x2="18" y2="18" />
-      <line x1="18" y1="6" x2="6" y2="18" />
-    </svg>
-  );
+  return <CloseIcon size={15} />;
 }
 
 function sliderTrackStyle(val: number, min = -100, max = 100): React.CSSProperties {
@@ -47,7 +44,7 @@ function ColorSliderRow({
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)", flexShrink: 0 }}>{label}</span>
-      <input
+      <InputControl
         type="range"
         min={-100}
         max={100}
@@ -151,7 +148,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
   if (!isOpen) return null;
 
   return (
-    <div
+    <ModalScrim
       className="st-modal-scrim"
       onClick={onClose}
       style={{
@@ -165,7 +162,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
         padding: 20,
       }}
     >
-      <div
+      <ModalSurface
         className="st-modal-card"
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -198,7 +195,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
               Upload a reference video — Claude will analyze the edit structure and extract a reusable template.
             </p>
           </div>
-          <button
+          <ControlButton
             onClick={onClose}
             aria-label="Close"
             title="Close (Esc)"
@@ -215,7 +212,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
             }}
           >
             <XIcon />
-          </button>
+          </ControlButton>
         </div>
 
         {/* Body */}
@@ -246,14 +243,14 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
               <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
                 MP4, MOV, WebM — any video you want to replicate the edit style of
               </div>
-              <button
+              <ControlButton
                 className="st-btn ghost"
                 style={{ marginTop: 16, fontSize: 12 }}
                 onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
               >
                 Or browse files…
-              </button>
-              <input
+              </ControlButton>
+              <InputControl
                 ref={fileInputRef}
                 type="file"
                 accept="video/*"
@@ -290,7 +287,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
                 <label style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)", display: "block", marginBottom: 6 }}>
                   TEMPLATE NAME
                 </label>
-                <input
+                <InputControl
                   value={draft.name}
                   onChange={(e) => setDraft((d) => d ? { ...d, name: e.target.value } : d)}
                   style={{
@@ -312,7 +309,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
                 <label style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)", display: "block", marginBottom: 6 }}>
                   TONE / ENERGY
                 </label>
-                <input
+                <InputControl
                   value={draft.toneHint ?? ""}
                   placeholder="e.g. fast-paced urban energy"
                   onChange={(e) => setDraft((d) => d ? { ...d, toneHint: e.target.value } : d)}
@@ -335,13 +332,13 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
                   <label style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)" }}>
                     BEAT STRUCTURE ({draft.beats.length} beats)
                   </label>
-                  <button
+                  <ControlButton
                     className="st-btn ghost"
                     style={{ fontSize: 10, padding: "3px 10px" }}
                     onClick={addBeat}
                   >
                     + Add Beat
-                  </button>
+                  </ControlButton>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {draft.beats.map((beat, i) => (
@@ -360,7 +357,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
                       <span style={{ fontSize: 11, color: "var(--ink-3)", width: 20, flexShrink: 0, textAlign: "right" }}>
                         {i + 1}.
                       </span>
-                      <input
+                      <InputControl
                         value={beat.description}
                         onChange={(e) => updateBeat(i, { description: e.target.value })}
                         placeholder="Describe this shot type…"
@@ -378,7 +375,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
                           ~{beat.approxDurationSec}s
                         </span>
                       )}
-                      <button
+                      <ControlButton
                         onPointerDown={(e) => e.stopPropagation()}
                         onClick={() => removeBeat(i)}
                         disabled={draft.beats.length <= 2}
@@ -394,7 +391,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
                         }}
                       >
                         <XIcon />
-                      </button>
+                      </ControlButton>
                     </div>
                   ))}
                 </div>
@@ -423,14 +420,14 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontSize: 11, color: "var(--ink-3)" }}>Aspect:</span>
                 {(["16:9", "9:16", "1:1"] as const).map((a) => (
-                  <button
+                  <ControlButton
                     key={a}
                     className={`st-btn ${draft.aspect === a ? "primary" : "ghost"}`}
                     style={{ fontSize: 10, padding: "3px 10px" }}
                     onClick={() => setDraft((d) => d ? { ...d, aspect: a } : d)}
                   >
                     {a}
-                  </button>
+                  </ControlButton>
                 ))}
               </div>
             </div>
@@ -476,17 +473,17 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
             flexShrink: 0,
             background: "var(--panel)",
           }}>
-            <button className="st-btn ghost" onClick={onClose} style={{ fontSize: 12 }}>
+            <ControlButton className="st-btn ghost" onClick={onClose} style={{ fontSize: 12 }}>
               Cancel
-            </button>
-            <button
+            </ControlButton>
+            <ControlButton
               className="st-btn primary"
               onClick={handleSave}
               disabled={phase === "saving" || !draft?.name.trim() || draft.beats.length < 2}
               style={{ fontSize: 12 }}
             >
               {phase === "saving" ? "Saving…" : "Save Template"}
-            </button>
+            </ControlButton>
           </div>
         )}
 
@@ -499,12 +496,12 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
             flexShrink: 0,
             background: "var(--panel)",
           }}>
-            <button className="st-btn primary" onClick={onClose} style={{ fontSize: 12 }}>
+            <ControlButton className="st-btn primary" onClick={onClose} style={{ fontSize: 12 }}>
               Done
-            </button>
+            </ControlButton>
           </div>
         )}
-      </div>
-    </div>
+      </ModalSurface>
+    </ModalScrim>
   );
 }

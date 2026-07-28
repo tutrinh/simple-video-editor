@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import { fmtSecs } from "./util";
 import { getTagStyle } from "../lib/tagPresets";
+import Modal from "../design-system/Modal";
+import { InputControl } from "../design-system/ControlPrimitives";
 
 interface Props {
   slotIndex?: number;
@@ -16,14 +18,6 @@ interface Props {
 export default function SplitClipPickerModal({ slotIndex, title, activeClipId, clips, onSelectClip, onClose }: Props) {
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   const searchLower = search.toLowerCase().trim();
   const filteredClips = clips.filter((c) =>
     c.name.toLowerCase().includes(searchLower) ||
@@ -33,70 +27,21 @@ export default function SplitClipPickerModal({ slotIndex, title, activeClipId, c
   const displayTitle = title ?? (slotIndex !== undefined ? `Pick Clip for Slot ${slotIndex + 1}` : "Select Source Clip");
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 10000,
-        background: "rgba(0, 0, 0, 0.75)",
-        backdropFilter: "blur(6px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-      onClick={onClose}
+    <Modal
+      open
+      title={displayTitle}
+      onClose={onClose}
+      maxWidth={580}
+      emphasis="signal"
+      headerMeta={(
+        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--ink-3)", background: "var(--panel-2)", padding: "2px 8px", borderRadius: 10 }}>
+          {clips.length} project {clips.length === 1 ? "clip" : "clips"}
+        </span>
+      )}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 580,
-          maxHeight: "80vh",
-          background: "var(--panel-2)",
-          border: "1px solid var(--accent)",
-          borderRadius: 12,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxShadow: "0 16px 48px rgba(0,0,0,0.6)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "14px 18px",
-            borderBottom: "1px solid var(--line)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            background: "var(--panel)",
-          }}
-        >
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
-            <span>🎬 {displayTitle}</span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: "var(--ink-3)", background: "var(--panel-2)", padding: "2px 8px", borderRadius: 10 }}>
-              {clips.length} project {clips.length === 1 ? "clip" : "clips"}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            title="Close (Esc)"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink-2)", padding: 6, borderRadius: 7, display: "flex" }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-              <line x1="6" y1="6" x2="18" y2="18" />
-              <line x1="18" y1="6" x2="6" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Search filter bar */}
-        {clips.length > 5 && (
-          <div style={{ padding: "10px 18px 0 18px" }}>
-            <input
+      {clips.length > 5 && (
+          <div style={{ paddingBottom: 10 }}>
+            <InputControl
               type="text"
               placeholder="Search clips by name..."
               value={search}
@@ -113,13 +58,10 @@ export default function SplitClipPickerModal({ slotIndex, title, activeClipId, c
               }}
             />
           </div>
-        )}
+      )}
 
-        {/* Visual Clip Grid */}
-        <div
+      <div
           style={{
-            padding: 18,
-            overflowY: "auto",
             display: "grid",
             gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
             gap: 12,
@@ -136,9 +78,8 @@ export default function SplitClipPickerModal({ slotIndex, title, activeClipId, c
               }}
             />
           ))}
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 

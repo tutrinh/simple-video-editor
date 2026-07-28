@@ -45,7 +45,7 @@ function formatElapsed(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export default function ExportView() {
+export default function ExportView({ active = true }: { active?: boolean }) {
   const { state, dispatch } = useProject();
   const cut = state.cut;
   const clips = state.clips;
@@ -557,6 +557,7 @@ export default function ExportView() {
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", background: "#08090b", padding: 24, borderRight: "1px solid var(--line)", position: "relative" }}>
           <div style={{ width: "100%", maxWidth: 840, height: "100%", maxHeight: "calc(100vh - 180px)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
             <FinalPreview
+              active={active}
               cut={cut}
               clips={clips}
               captionScale={captionScale}

@@ -7,6 +7,17 @@ import { fmtClock, getFilterPreset } from "./util";
 import FilterPresetModal from "./FilterPresetModal";
 import ProjectManagerModal from "./ProjectManagerModal";
 import { useAutoSaveProject } from "../hooks/useAutoSaveProject";
+import Toolbar from "../design-system/Toolbar";
+import Button from "../design-system/Button";
+import IconButton from "../design-system/IconButton";
+import InlineTextField from "../design-system/InlineTextField";
+import Badge from "../design-system/Badge";
+import SegmentedControl from "../design-system/SegmentedControl";
+import MenuIcon from "../design-system/icons/MenuIcon";
+import SaveIcon from "../design-system/icons/SaveIcon";
+import DownloadIcon from "../design-system/icons/DownloadIcon";
+import SunIcon from "../design-system/icons/SunIcon";
+import MoonIcon from "../design-system/icons/MoonIcon";
 
 const ASPECTS: Aspect[] = ["16:9", "9:16", "1:1"];
 
@@ -34,23 +45,17 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
   }
 
   return (
-    <header className="st-topbar">
-      <button
-        className="st-hamburger"
+    <Toolbar className="st-topbar">
+      <IconButton
+        label="Open settings"
+        icon={<MenuIcon size={18} />}
         onClick={onOpenSettings}
         title="Settings"
-        aria-label="Open settings"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-          <line x1="3" y1="6" x2="21" y2="6" />
-          <line x1="3" y1="12" x2="21" y2="12" />
-          <line x1="3" y1="18" x2="21" y2="18" />
-        </svg>
-      </button>
+      />
       <div className="st-brand"><span className="dot" />VIDSTR</div>
       <div className="st-proj">
         <span aria-hidden="true">/</span>
-        <input
+        <InlineTextField
           className="st-title"
           value={title}
           placeholder="Untitled project"
@@ -62,97 +67,65 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
 
         {/* Auto-Save Status Badge */}
         {clips.length > 0 && (
-          <span
-            style={{
-              fontSize: 10,
-              color: saveStatus === "saving" ? "var(--accent)" : saveStatus === "saved" ? "var(--ink-3)" : "transparent",
-              transition: "color 0.2s ease",
-              marginLeft: 4,
-            }}
-          >
+          <Badge tone={saveStatus === "saving" ? "signal" : "positive"}>
             {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "✓ Saved" : ""}
-          </span>
+          </Badge>
         )}
       </div>
 
-      <button
-        className="st-btn ghost"
-        style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999 }}
+      <Button
+        variant="secondary"
+        size="small"
+        icon={<SaveIcon size={14} />}
         onClick={() => setProjectsModalOpen(true)}
         title="View saved project drafts or export/import project files"
       >
-        💾 Projects
-      </button>
+        Projects
+      </Button>
       {cut && (
-        <span className="st-aspect" title="Aspect ratio of the cut">
-          {ASPECTS.map((a) => (
-            <button key={a} className={cut.aspect === a ? "on" : ""} onClick={() => setAspect(a)}>{a}</button>
-          ))}
-        </span>
+        <SegmentedControl ariaLabel="Aspect ratio" value={cut.aspect} onChange={setAspect} options={ASPECTS.map((aspect) => ({ value: aspect, label: aspect }))} />
       )}
       {cut && (
-        <button
-          className="st-btn ghost"
-          style={{
-            fontSize: 11,
-            padding: "3px 10px",
-            borderRadius: 999,
-            borderColor: activeGlobalFilter ? "var(--accent)" : undefined,
-            color: activeGlobalFilter ? "var(--accent)" : "var(--ink-2)",
-            background: activeGlobalFilter ? "var(--accent-subtle, rgba(255,179,57,0.15))" : undefined,
-          }}
+        <Button
+          variant={activeGlobalFilter ? "primary" : "secondary"}
+          size="small"
           onClick={() => setFilterModalOpen(true)}
           title="Choose a global color grading filter preset for the cut"
         >
-          🎨 {activeGlobalFilter ? activeGlobalFilter.name : "Color Filter"}
-        </button>
+          {activeGlobalFilter ? activeGlobalFilter.name : "Color filter"}
+        </Button>
       )}
-      {cut && <span className="st-chip">1080p</span>}
-      {cut && <span className="st-chip st-num">{fmtClock(cutDuration(cut))} · {cut.beats.length} beats</span>}
-      {clips.length > 0 && <span className="st-chip st-num">{clips.length} clip{clips.length === 1 ? "" : "s"}</span>}
+      {cut && <Badge>1080p</Badge>}
+      {cut && <Badge>{fmtClock(cutDuration(cut))} / {cut.beats.length} beats</Badge>}
+      {clips.length > 0 && <Badge>{clips.length} clip{clips.length === 1 ? "" : "s"}</Badge>}
 
       <div className="st-spacer" />
 
-      <button
-        className="st-btn ghost"
+      <Button
+        variant="quiet"
+        size="small"
         onClick={toggleTheme}
         title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
         aria-label="Toggle theme"
       >
-        {theme === "dark" ? (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="5" />
-            <line x1="12" y1="1" x2="12" y2="3" />
-            <line x1="12" y1="21" x2="12" y2="23" />
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-            <line x1="1" y1="12" x2="3" y2="12" />
-            <line x1="21" y1="12" x2="23" y2="12" />
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-          </svg>
-        ) : (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-          </svg>
-        )}
+        {theme === "dark" ? <SunIcon size={15} /> : <MoonIcon size={15} />}
         {theme === "dark" ? "Light" : "Dark"}
-      </button>
+      </Button>
 
       {clips.length > 0 && (
-        <button
-          className="st-btn ghost"
+        <Button
+          variant="quiet"
+          size="small"
           onClick={onOpenAiStory}
           title="Open the AI Story generator — analyze clips, author the story & script, refine each beat"
         >
-          ✨ AI Story
-        </button>
+          AI Story
+        </Button>
       )}
-      <button className="st-btn danger" onClick={onStartOver} title="Clear everything">Start over</button>
-      <button className="st-btn primary" onClick={onExport} disabled={!cut}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 3v11M8 10l4 4 4-4M5 20h14"/></svg>
+      <Button variant="danger" size="small" onClick={onStartOver} title="Clear everything">Start over</Button>
+      <Button variant="primary" size="small" icon={<DownloadIcon size={14} />} onClick={onExport} disabled={!cut}>
         Export video
-      </button>
+      </Button>
 
       {filterModalOpen && (
         <FilterPresetModal
@@ -170,6 +143,6 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
         isOpen={projectsModalOpen}
         onClose={() => setProjectsModalOpen(false)}
       />
-    </header>
+    </Toolbar>
   );
 }

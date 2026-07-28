@@ -6,6 +6,13 @@ import { activeVoCaption } from "../lib/pacing";
 import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, advanceStillPos, kenBurnsStyleAt, kenBurnsKeyframes } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import { getSplitLayoutCss, normalizeSplitConfig, getSlotTransformStyle } from "../features/export/splitScreenCanvas";
+import SegmentedControl from "../design-system/SegmentedControl";
+import { ControlButton } from "../design-system/ControlPrimitives";
+import PlayIcon from "../design-system/icons/PlayIcon";
+import PauseIcon from "../design-system/icons/PauseIcon";
+import ReplayIcon from "../design-system/icons/ReplayIcon";
+import { previewFileForClip } from "./previewSource";
+import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "./previewPlayback";
 
 
 
@@ -66,7 +73,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   // below drives `pos` on rAF instead of reading video.currentTime. posRef
   // mirrors pos so the rAF loop can advance without re-subscribing each frame.
   const isStill = clip?.kind === "still";
-  const stillUrl = isStill ? getClipBlobUrl(clip.normalized ?? clip.file) : null;
+  const stillUrl = isStill && clip ? getClipBlobUrl(previewFileForClip(clip)) : null;
   const posRef = useRef(0);
   const setPosBoth = (p: number) => { posRef.current = p; setPos(p); };
 
@@ -76,7 +83,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     const v = videoRef.current;
     if (!v || !clip || !beat) return;
 
-    const url = getClipBlobUrl(clip.normalized ?? clip.file);
+    const url = getClipBlobUrl(previewFileForClip(clip));
     if (url && v.src !== url) {
       v.src = url;
     }
@@ -196,12 +203,16 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
     }
     const v = videoRef.current;
     if (!v) return;
-    if (playing) { v.pause(); setPlaying(false); return; }
+    const splitActive = Boolean(beat.splitScreen && beat.splitScreen.layout !== "none");
+    const media = activePreviewMedia(v, splitActive, slotVideoRefs.current);
+    if (playing) { pausePreviewMedia(media); setPlaying(false); return; }
     if (v.currentTime < beat.inSec || v.currentTime >= beat.outSec - 0.05) {
-      v.currentTime = beat.inSec;
+      media.forEach((item) => { item.currentTime = beat.inSec; });
       setPosBoth(0);
     }
-    v.play().then(() => setPlaying(true)).catch(() => {});
+    playPreviewMedia(media).then((primaryStarted) => {
+      if (primaryStarted) setPlaying(true);
+    });
   }
 
   function handleScrubPointer(e: React.PointerEvent<HTMLDivElement>) {
@@ -279,13 +290,13 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
             <div style={{ borderRadius: 12, overflow: "hidden", padding: 24, textAlign: "center", background: "#000", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 280 }}>
               <h3 style={{ margin: "0 0 8px 0", fontSize: 15, color: "var(--accent)" }}>🎞️ Cut Preview</h3>
               <p style={{ fontSize: 12, opacity: 0.8, maxWidth: 360, margin: "0 0 16px 0" }}>Switched back to single Beat preview mode.</p>
-              <button
+              <ControlButton
                 className="st-btn ghost"
                 onClick={() => { reset(); setMode("beat"); }}
                 style={{ borderColor: "var(--accent)", color: "var(--accent)", fontSize: 11, padding: "4px 12px" }}
               >
                 Return to Beat View
-              </button>
+              </ControlButton>
             </div>
             <div className="st-transport">
               <span className="st-tc">Cut view</span>
@@ -369,7 +380,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
                   <div style={{ ...gridCss, filter: filterStyle }}>
                     {normConfig.slots.map((slot, idx) => {
                       const slotClip = clips.find((c) => c.id === slot.clipId) ?? clip;
-                      const slotBlob = slotClip ? getClipBlobUrl(slotClip.file) : null;
+                      const slotBlob = slotClip ? getClipBlobUrl(previewFileForClip(slotClip)) : null;
                       const tfStyle = getSlotTransformStyle(slot);
                       return (
                         <div key={`${slot.clipId}-${idx}`} style={{ position: "relative", overflow: "hidden", background: "#000" }}>
@@ -436,31 +447,25 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
         <div className="cap"><span>{caption}</span></div>
       </div>
       <div className="st-transport">
-        <button className="st-play" onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
-          {playing ? (
-            <svg width="12" height="13" viewBox="0 0 12 13" fill="currentColor"><rect x="1" width="3.4" height="13" rx="1"/><rect x="7.6" width="3.4" height="13" rx="1"/></svg>
-          ) : isAtEnd ? (
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fillRule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 4.9 4c1.552 0 2.94-.707 3.857-1.818a.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg>
-          ) : (
-            <svg width="12" height="13" viewBox="0 0 12 13" fill="currentColor"><path d="M0 0l12 6.5L0 13z"/></svg>
-          )}
-        </button>
-        <button
+        <ControlButton className="st-play" onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
+          {playing ? <PauseIcon size={13} /> : isAtEnd ? <ReplayIcon size={13} /> : <PlayIcon size={13} />}
+        </ControlButton>
+        <ControlButton
           type="button"
           onClick={() => stepFrame(-1)}
           style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
           title="Step 1 frame backward (30fps)"
         >
           ‹ 1f
-        </button>
-        <button
+        </ControlButton>
+        <ControlButton
           type="button"
           onClick={() => stepFrame(1)}
           style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
           title="Step 1 frame forward (30fps)"
         >
           1f ›
-        </button>
+        </ControlButton>
         <span className="st-tc st-num">{fmtClock(beat.inSec + pos * (beat.outSec - beat.inSec))}</span>
         <div
           ref={scrubRef}
@@ -484,9 +489,11 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
 
 function ModeSwitch({ mode, setMode }: { mode: "beat" | "cut"; setMode: (m: "beat" | "cut") => void }) {
   return (
-    <div className="st-modeswitch">
-      <button className={mode === "beat" ? "on" : ""} onClick={() => setMode("beat")}>Beat</button>
-      <button className={mode === "cut" ? "on" : ""} onClick={() => setMode("cut")}>Cut</button>
-    </div>
+    <SegmentedControl
+      value={mode}
+      options={[{ value: "beat", label: "Beat" }, { value: "cut", label: "Cut" }]}
+      onChange={setMode}
+      ariaLabel="Preview scope"
+    />
   );
 }

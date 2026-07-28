@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchSfxList, sfxFileUrl, uploadSfx } from "../lib/sfxLibrary";
+import CloseButton from "../design-system/CloseButton";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 
 /**
  * Popover for the SFX track's "＋ Sound FX" button: lists the sounds in the audio/
@@ -44,12 +46,12 @@ export default function SfxPicker({ onPick, onClose }: { onPick: (fileName: stri
     <div className="st-sfx-picker">
       <div className="st-sfx-picker-head">
         <span>🔊 Sound FX</span>
-        <button type="button" className="x" onClick={onClose} title="Close">×</button>
+        <CloseButton onClick={onClose} />
       </div>
 
       <label className="st-sfx-upload" title="Copy a sound into the project's audio/ folder">
         {busy ? "Uploading…" : "⬆ Upload sound"}
-        <input type="file" accept="audio/*" disabled={busy} style={{ display: "none" }}
+        <InputControl type="file" accept="audio/*" disabled={busy} style={{ display: "none" }}
           onChange={(e) => { onUpload(e.target.files?.[0]); e.currentTarget.value = ""; }} />
       </label>
 
@@ -61,13 +63,13 @@ export default function SfxPicker({ onPick, onClose }: { onPick: (fileName: stri
         ) : (
           files.map((name) => (
             <div className="st-sfx-row" key={name}>
-              <button type="button" className="st-sfx-play" onClick={() => preview(name)} title="Preview">
+              <ControlButton type="button" className="st-sfx-play" onClick={() => preview(name)} title="Preview">
                 {playing === name ? "⏸" : "▶"}
-              </button>
+              </ControlButton>
               <span className="st-sfx-name" title={name}>{name}</span>
-              <button type="button" className="st-sfx-add" onClick={() => onPick(name)} title="Add to the SFX track at the selected beat">
+              <ControlButton type="button" className="st-sfx-add" onClick={() => onPick(name)} title="Add to the SFX track at the selected beat">
                 ＋ Add
-              </button>
+              </ControlButton>
             </div>
           ))
         )}

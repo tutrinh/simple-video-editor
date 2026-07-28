@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import {
   GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded,
   googleFamilyId, parseGoogleFamilyId, syntheticGoogleFont, probeGoogleFamily,
 } from "../lib/googleFonts";
 
-// A font list that shows each face in its own typeface. A native <select> cannot
-// do this — browsers do not reliably honour font-family on <option> — so this is
+// A font list that shows each face in its own typeface. A native select cannot
+// do this because browsers do not reliably honour font-family on each option, so this is
 // a custom listbox rather than a styled select.
 
 const CUSTOM_ID = "custom";
@@ -108,7 +109,7 @@ export default function FontPicker({ value, onChange }: Props) {
   const row = (id: string, name: string, cssFamily?: string) => {
     const on = id === value;
     return (
-      <button
+      <ControlButton
         key={id}
         type="button"
         role="option"
@@ -134,13 +135,13 @@ export default function FontPicker({ value, onChange }: Props) {
       >
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
         {on && <span style={{ fontFamily: "inherit", fontSize: 11 }}>✓</span>}
-      </button>
+      </ControlButton>
     );
   };
 
   return (
     <div ref={rootRef} style={{ position: "relative", display: "inline-flex" }}>
-      <button
+      <ControlButton
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -168,7 +169,7 @@ export default function FontPicker({ value, onChange }: Props) {
       >
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
         <span style={{ fontFamily: "inherit", fontSize: 9, color: "var(--ink-3)" }}>▼</span>
-      </button>
+      </ControlButton>
 
       {open && rect && createPortal(
         (() => {
@@ -215,7 +216,7 @@ export default function FontPicker({ value, onChange }: Props) {
               {groupHeader("Any Google font by name")}
               <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "2px 10px 8px" }}>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <input
+                  <InputControl
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitFamily(); } }}
@@ -223,14 +224,14 @@ export default function FontPicker({ value, onChange }: Props) {
                     disabled={probing}
                     style={{ flex: 1, minWidth: 0, padding: "5px 8px", fontSize: 12, background: "var(--panel-3)", border: `1px solid ${notFound ? "var(--danger)" : "var(--line)"}`, borderRadius: 6, color: "var(--ink)", outline: "none" }}
                   />
-                  <button
+                  <ControlButton
                     type="button"
                     onClick={commitFamily}
                     disabled={probing || !query.trim()}
                     style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--line)", background: "var(--panel-3)", color: "var(--ink-2)", cursor: probing || !query.trim() ? "default" : "pointer" }}
                   >
                     {probing ? "…" : "Use"}
-                  </button>
+                  </ControlButton>
                 </div>
                 <div style={{ fontSize: 10, color: notFound ? "var(--danger)" : "var(--ink-3)", lineHeight: 1.4 }}>
                   {notFound
