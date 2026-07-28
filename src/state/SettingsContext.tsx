@@ -33,6 +33,7 @@ export function normalizeAiProvider(value: unknown): AiProvider {
 }
 
 export const MODEL_OPTIONS = ["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-4-8"] as const;
+export const CODEX_MODEL_OPTIONS = ["gpt-5.6", "gpt-5.4", "gpt-5.3-codex"] as const;
 
 // Tone/mood presets. `hint` is the phrase injected into the AI prompts.
 export const TONE_OPTIONS = [

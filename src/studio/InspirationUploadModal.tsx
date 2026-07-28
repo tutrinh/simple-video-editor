@@ -2,10 +2,17 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { ProjectTemplate, TemplateBeat, ColorAdjustments } from "../domain/types";
 import { analyzeInspirationVideo } from "../features/templates/inspireTemplate";
 import { saveTemplate } from "../lib/projectStorage";
-import { useSettings } from "../state/SettingsContext";
-import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import {
+  AI_PROVIDER_OPTIONS,
+  CODEX_MODEL_OPTIONS,
+  MODEL_OPTIONS,
+  useSettings,
+  type AiProvider,
+} from "../state/SettingsContext";
+import { ControlButton, InputControl, SelectControl } from "../design-system/ControlPrimitives";
 import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
 import CloseIcon from "../design-system/icons/CloseIcon";
+import CloseButton from "../design-system/CloseButton";
 
 interface Props {
   isOpen: boolean;
@@ -61,6 +68,9 @@ function ColorSliderRow({
 
 export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Props) {
   const { settings } = useSettings();
+  const [aiProvider, setAiProvider] = useState<AiProvider>(settings.aiProvider);
+  const [claudeModel, setClaudeModel] = useState(settings.analyzeModel);
+  const [codexModel, setCodexModel] = useState<string>(CODEX_MODEL_OPTIONS[0]);
   const [phase, setPhase] = useState<Phase>("drop");
   const [progressMsg, setProgressMsg] = useState("");
   const [error, setError] = useState("");
@@ -75,8 +85,11 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
       setProgressMsg("");
       setError("");
       setDraft(null);
+      setAiProvider(settings.aiProvider);
+      setClaudeModel(settings.analyzeModel);
+      setCodexModel(CODEX_MODEL_OPTIONS[0]);
     }
-  }, [isOpen]);
+  }, [isOpen, settings.aiProvider, settings.analyzeModel]);
 
   // Esc to close
   useEffect(() => {
@@ -94,7 +107,9 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
     setError("");
     setPhase("analyzing");
     try {
-      const cfg = { provider: settings.aiProvider, model: settings.analyzeModel };
+      const cfg = aiProvider === "codex"
+        ? { provider: aiProvider, codexModel }
+        : { provider: aiProvider, model: claudeModel };
       const template = await analyzeInspirationVideo(file, cfg, (step) => setProgressMsg(step));
       setDraft(template);
       setPhase("review");
@@ -103,7 +118,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
       setError(err instanceof Error ? err.message : "Analysis failed. Please try again.");
       setPhase("drop");
     }
-  }, [settings]);
+  }, [aiProvider, claudeModel, codexModel]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -149,114 +164,99 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
 
   return (
     <ModalScrim
-      className="st-modal-scrim"
       onClick={onClose}
-      style={{
-        position: "fixed", inset: 0,
-        background: "rgba(0,0,0,0.7)",
-        backdropFilter: "blur(6px)",
-        zIndex: 1100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
+      style={{ zIndex: 1100 }}
     >
       <ModalSurface
-        className="st-modal-card"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--panel-2)",
-          border: "1px solid var(--line)",
-          borderRadius: 14,
-          width: "100%",
-          maxWidth: 600,
+          width: "min(600px, 100%)",
           maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.75)",
         }}
       >
-        {/* Header */}
-        <div style={{
-          padding: "16px 20px",
-          borderBottom: "1px solid var(--line)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexShrink: 0,
-        }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
-              ✦ Create Template from Video
-            </h3>
-            <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--ink-2)" }}>
-              Upload a reference video — Claude will analyze the edit structure and extract a reusable template.
+        <header className="ui-modal-head">
+          <div className="ui-modal-heading">
+            <h2>Create Template from Video</h2>
+            <p>
+              Upload a reference video. The selected AI will extract its edit structure as a reusable template.
             </p>
           </div>
-          <ControlButton
-            onClick={onClose}
-            aria-label="Close"
-            title="Close (Esc)"
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--ink-2)",
-              padding: 6,
-              borderRadius: 7,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <XIcon />
-          </ControlButton>
-        </div>
+          <CloseButton onClick={onClose} label="Close template creator" />
+        </header>
 
         {/* Body */}
-        <div style={{ overflowY: "auto", flex: 1, padding: 20 }}>
+        <div className="ui-modal-body">
 
           {/* ── DROP PHASE ── */}
           {(phase === "drop") && (
-            <div
-              onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragOver={(e) => e.preventDefault()}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${isDragging ? "var(--accent)" : "var(--line)"}`,
-                borderRadius: 12,
-                padding: "48px 24px",
-                textAlign: "center",
-                cursor: "pointer",
-                transition: "border-color 0.15s, background 0.15s",
-                background: isDragging ? "color-mix(in srgb, var(--accent) 8%, transparent)" : "var(--panel)",
-              }}
-            >
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🎬</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>
-                Drop an inspiration video here
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)" }}>AI ENGINE</span>
+                  <SelectControl
+                    value={aiProvider}
+                    onChange={(event) => setAiProvider(event.target.value as AiProvider)}
+                    style={{ width: "100%" }}
+                  >
+                    {AI_PROVIDER_OPTIONS.map((provider) => (
+                      <option key={provider.id} value={provider.id}>{provider.label}</option>
+                    ))}
+                  </SelectControl>
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)" }}>MODEL</span>
+                  <SelectControl
+                    value={aiProvider === "claude" ? claudeModel : codexModel}
+                    onChange={(event) => {
+                      if (aiProvider === "claude") setClaudeModel(event.target.value);
+                      else setCodexModel(event.target.value);
+                    }}
+                    style={{ width: "100%" }}
+                  >
+                    {(aiProvider === "claude" ? MODEL_OPTIONS : CODEX_MODEL_OPTIONS).map((model) => (
+                      <option key={model} value={model}>{model.replace(/^claude-/, "")}</option>
+                    ))}
+                  </SelectControl>
+                </label>
               </div>
-              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
-                MP4, MOV, WebM — any video you want to replicate the edit style of
-              </div>
-              <ControlButton
-                className="st-btn ghost"
-                style={{ marginTop: 16, fontSize: 12 }}
-                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+              <div
+                onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragOver={(e) => e.preventDefault()}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={onDrop}
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: `2px dashed ${isDragging ? "var(--accent)" : "var(--line)"}`,
+                  borderRadius: 12,
+                  padding: "42px 24px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  transition: "border-color 0.15s, background 0.15s",
+                  background: isDragging ? "color-mix(in srgb, var(--accent) 8%, transparent)" : "var(--panel)",
+                }}
               >
-                Or browse files…
-              </ControlButton>
-              <InputControl
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                onChange={onFileChange}
-                style={{ display: "none" }}
-              />
+                <div style={{ fontSize: 36, marginBottom: 12 }}>🎬</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", marginBottom: 6 }}>
+                  Drop an inspiration video here
+                </div>
+                <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
+                  MP4, MOV, or WebM. Choose any video whose edit style you want to replicate.
+                </div>
+                <ControlButton
+                  className="st-btn ghost"
+                  style={{ marginTop: 16, fontSize: 12 }}
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                >
+                  Browse files
+                </ControlButton>
+                <InputControl
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={onFileChange}
+                  style={{ display: "none" }}
+                />
+              </div>
             </div>
           )}
 
@@ -464,15 +464,7 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
 
         {/* Footer */}
         {(phase === "review" || phase === "saving") && (
-          <div style={{
-            padding: "14px 20px",
-            borderTop: "1px solid var(--line)",
-            display: "flex",
-            gap: 10,
-            justifyContent: "flex-end",
-            flexShrink: 0,
-            background: "var(--panel)",
-          }}>
+          <footer className="ui-modal-footer">
             <ControlButton className="st-btn ghost" onClick={onClose} style={{ fontSize: 12 }}>
               Cancel
             </ControlButton>
@@ -484,22 +476,15 @@ export default function InspirationUploadModal({ isOpen, onClose, onSaved }: Pro
             >
               {phase === "saving" ? "Saving…" : "Save Template"}
             </ControlButton>
-          </div>
+          </footer>
         )}
 
         {phase === "done" && (
-          <div style={{
-            padding: "14px 20px",
-            borderTop: "1px solid var(--line)",
-            display: "flex",
-            justifyContent: "flex-end",
-            flexShrink: 0,
-            background: "var(--panel)",
-          }}>
+          <footer className="ui-modal-footer">
             <ControlButton className="st-btn primary" onClick={onClose} style={{ fontSize: 12 }}>
               Done
             </ControlButton>
-          </div>
+          </footer>
         )}
       </ModalSurface>
     </ModalScrim>

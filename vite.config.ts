@@ -116,9 +116,10 @@ function codexProxy(): Plugin {
         };
         let dir = "";
         try {
-          const { prompt, images } = JSON.parse(await readBody(req)) as {
+          const { prompt, images, model } = JSON.parse(await readBody(req)) as {
             prompt: string;
             images?: string[];
+            model?: string;
           };
           dir = mkdtempSync(join(tmpdir(), "sve-frames-"));
           const paths = (images ?? []).map((b64, i) => {
@@ -134,6 +135,7 @@ function codexProxy(): Plugin {
             "--color", "never",
             "-C", dir,
           ];
+          if (model) args.push("--model", model);
           for (const path of paths) args.push("--image", path);
           // `--image` accepts one-or-more values, so without an explicit option
           // boundary it greedily consumes the prompt as another image path.

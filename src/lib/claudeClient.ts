@@ -8,6 +8,8 @@ import type { SampledFrame } from "./frameSampler";
 export interface ClaudeConfig {
   provider?: "claude" | "codex";
   model?: string;
+  /** Optional Codex CLI model override. Omit it to use the user's CLI default. */
+  codexModel?: string;
   /** Tone/mood phrase to steer the output (see SettingsContext.toneHint). */
   tone?: string;
   /** Genre/format phrase to steer story structure (see SettingsContext.scriptTypeHint). */
@@ -23,9 +25,11 @@ async function runClaude(prompt: string, images: string[] | undefined, cfg?: Cla
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    // Claude's proxy maps these ids to its CLI aliases. Codex intentionally
-    // uses its own configured default model instead of receiving a Claude id.
-    body: JSON.stringify({ prompt, images, model: cfg?.provider === "codex" ? undefined : cfg?.model }),
+    body: JSON.stringify({
+      prompt,
+      images,
+      model: cfg?.provider === "codex" ? cfg.codexModel || undefined : cfg?.model,
+    }),
   });
   const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
   if (!res.ok || data.error) throw new Error(data.error ?? `proxy HTTP ${res.status}`);

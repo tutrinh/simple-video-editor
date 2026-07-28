@@ -17,7 +17,13 @@ function installStorage(seed: Record<string, string> = {}) {
 
 const KEY = "vidstr_sticker_favorites";
 
-beforeEach(() => { vi.unstubAllGlobals(); });
+beforeEach(() => {
+  vi.unstubAllGlobals();
+  // Node 25 exposes an experimental localStorage getter that warns unless
+  // --localstorage-file is configured. This suite models the browser global
+  // explicitly, including the "storage unavailable" case.
+  vi.stubGlobal("localStorage", undefined);
+});
 
 describe("stickerFileUrl", () => {
   it("routes through the dev library endpoint", () => {

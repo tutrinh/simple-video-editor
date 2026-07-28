@@ -1,14 +1,8 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, exportPresetsToJson, parsePresetsJson } from "./titlePresets";
 import type { TitleLayerSettings } from "../state/ExportSettingsContext";
 
 describe("titlePresets", () => {
-  beforeEach(() => {
-    if (typeof localStorage !== "undefined" && typeof localStorage.clear === "function") {
-      localStorage.clear();
-    }
-  });
-
   it("has built-in presets loaded", () => {
     expect(BUILT_IN_PRESETS.length).toBeGreaterThanOrEqual(4);
     expect(BUILT_IN_PRESETS[0].name).toContain("Cinematic Gold");

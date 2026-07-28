@@ -18,7 +18,7 @@ export const SelectControl = forwardRef<HTMLSelectElement, SelectHTMLAttributes<
   { className = "", ...props },
   ref,
 ) {
-  return <select ref={ref} className={`ui-select-control${className ? ` ${className}` : ""}`} {...props} />;
+  return <select ref={ref} className={`ui-select-control ui-control${className ? ` ${className}` : ""}`} {...props} />;
 });
 
 export const TextareaControl = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function TextareaControl(

@@ -16,7 +16,7 @@ import type { ProjectTemplate } from "../domain/types";
 import { useExportSettings } from "../state/ExportSettingsContext";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
-import CloseIcon from "../design-system/icons/CloseIcon";
+import CloseButton from "../design-system/CloseButton";
 
 
 interface Props {
@@ -158,62 +158,25 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
 
   return (
     <ModalScrim
-      className="st-modal-scrim"
       onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.65)",
-        backdropFilter: "blur(4px)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
+      style={{ zIndex: 1000 }}
     >
       <ModalSurface
-        className="st-modal-card"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--panel-2)",
-          border: "1px solid var(--line)",
-          borderRadius: 14,
-          width: "100%",
-          maxWidth: 680,
+          width: "min(680px, 100%)",
           maxHeight: "85vh",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.7)",
         }}
       >
-        {/* Modal Header */}
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--line)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexShrink: 0,
-          }}
-        >
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>💾 Projects &amp; Templates</h3>
-            <p style={{ margin: "2px 0 0 0", fontSize: 12, color: "var(--ink-2)" }}>
+        <header className="ui-modal-head">
+          <div className="ui-modal-heading">
+            <h2>Projects &amp; Templates</h2>
+            <p>
               Manage your saved projects and reusable video templates.
             </p>
           </div>
-          <ControlButton
-            onClick={onClose}
-            aria-label="Close"
-            title="Close (Esc)"
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ink-2)", padding: 6, borderRadius: 7, display: "flex" }}
-          >
-            <CloseIcon size={15} />
-          </ControlButton>
-        </div>
+          <CloseButton onClick={onClose} label="Close projects and templates" />
+        </header>
 
         {/* Tabs */}
         <div style={{ display: "flex", borderBottom: "1px solid var(--line)", flexShrink: 0 }}>
@@ -235,7 +198,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 textTransform: "capitalize",
               }}
             >
-              {tab === "projects" ? `📁 My Projects (${projects.length})` : `🧩 Templates (${templates.length})`}
+              {tab === "projects" ? `My Projects (${projects.length})` : `Templates (${templates.length})`}
             </ControlButton>
           ))}
         </div>
@@ -246,8 +209,8 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
             {/* Action Toolbar */}
             <div
               style={{
-                padding: "12px 20px",
-                background: "var(--panel-3)",
+                padding: "10px 18px",
+                background: "var(--panel)",
                 borderBottom: "1px solid var(--line)",
                 display: "flex",
                 gap: 10,
@@ -261,7 +224,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 onClick={handleNewProject}
                 title="Start a fresh, new video project"
               >
-                ✨ + New Project
+                New Project
               </ControlButton>
 
               <ControlButton
@@ -271,7 +234,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 disabled={exporting || state.clips.length === 0}
                 title="Download current editing session as a portable .vidstr project file"
               >
-                {exporting ? "Packaging..." : "📦 Export Package"}
+                {exporting ? "Packaging..." : "Export Package"}
               </ControlButton>
 
               <label
@@ -279,13 +242,13 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
                 title="Import a previously saved .vidstr project file"
               >
-                {importing ? "Importing..." : "📂 Import .vidstr File"}
+                {importing ? "Importing..." : "Import .vidstr File"}
                 <InputControl type="file" accept=".vidstr,.json" onChange={handleImportFile} style={{ display: "none" }} />
               </label>
             </div>
 
             {/* Saved Projects List */}
-            <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ padding: 18, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
               {loading && projects.length === 0 ? (
                 <div style={{ textAlign: "center", padding: 30, color: "var(--ink-3)", fontSize: 12 }}>
                   Loading saved projects...
@@ -314,33 +277,21 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                       key={p.id}
                       style={{
                         background: isActive ? "var(--panel-2)" : "var(--panel)",
-                        border: isActive ? "1.5px solid var(--accent)" : "1px solid var(--line)",
-                        borderRadius: 10,
+                        border: isActive ? "1px solid var(--accent)" : "1px solid var(--line)",
+                        borderRadius: 8,
                         padding: "12px 16px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
                         gap: 12,
-                        boxShadow: isActive ? "0 4px 14px rgba(0,0,0,0.25)" : "none",
                       }}
                     >
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{p.title}</span>
                           {isActive && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: "var(--accent)",
-                                background: "var(--panel-3)",
-                                padding: "2px 8px",
-                                borderRadius: 999,
-                                border: "1px solid var(--accent)",
-                                letterSpacing: "0.02em",
-                              }}
-                            >
-                              ✓ CURRENTLY EDITING
+                            <span className="ui-badge positive">
+                              Currently editing
                             </span>
                           )}
                         </div>
@@ -359,15 +310,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                       </div>
 
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                        {isActive ? (
-                          <ControlButton
-                            className="st-btn ghost"
-                            style={{ fontSize: 11, padding: "4px 10px", borderColor: "var(--accent)", color: "var(--accent)", fontWeight: 600, cursor: "default" }}
-                            disabled
-                          >
-                            ✓ Active
-                          </ControlButton>
-                        ) : (
+                        {!isActive && (
                           <ControlButton
                             className="st-btn primary"
                             style={{ fontSize: 11, padding: "4px 10px" }}
@@ -397,8 +340,8 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
           <>
             <div
               style={{
-                padding: "12px 20px",
-                background: "var(--panel-3)",
+                padding: "10px 18px",
+                background: "var(--panel)",
                 borderBottom: "1px solid var(--line)",
                 display: "flex",
                 gap: 10,
@@ -412,11 +355,11 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 onClick={() => setShowInspirationModal(true)}
                 title="Upload a reference video and let Claude extract its edit structure as a template"
               >
-                ✦ Create from Inspiration Video
+                Create from Inspiration Video
               </ControlButton>
             </div>
 
-            <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ padding: 18, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
               {templates.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "40px 24px", color: "var(--ink-3)", fontSize: 13 }}>
                   No templates saved yet.
@@ -432,7 +375,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                     style={{
                       background: "var(--panel)",
                       border: "1px solid var(--line)",
-                      borderRadius: 10,
+                      borderRadius: 8,
                       padding: "12px 16px",
                       display: "flex",
                       flexWrap: "wrap",
