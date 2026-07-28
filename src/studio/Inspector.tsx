@@ -75,6 +75,7 @@ interface Props {
   selectedStickerId?: string | null;
   onSelectSticker?: (id: string | null) => void;
   onSelectSfx?: (id: string | null) => void;
+  onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "sticker", id: string, label: string) => void;
 }
 
 
@@ -163,7 +164,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
   );
 }
 
-export default function Inspector({ beat, clip, clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker }: Props) {
+export default function Inspector({ beat, clip, clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker, onRequestDeleteSegment }: Props) {
   const { state, dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
@@ -416,7 +417,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             type="button"
             className="st-btn danger"
             style={{ padding: "3px 7px", fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}
-            onClick={() => { dispatch({ type: "REMOVE_VO", id: selectedVo.id }); onSelectVo?.(null); }}
+            onClick={() => onRequestDeleteSegment("voiceover", selectedVo.id, selectedVo.text || "Voiceover segment")}
           >
             <DeleteIcon size={11} /> Remove
           </ControlButton>
@@ -566,7 +567,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             type="button"
             className="st-btn danger"
             style={{ padding: "2px 8px", fontSize: 11 }}
-            onClick={() => { dispatch({ type: "REMOVE_SFX", id: selectedSfx.id }); onSelectSfx?.(null); }}
+            onClick={() => onRequestDeleteSegment("sound effect", selectedSfx.id, selectedSfx.fileName)}
           >
             Remove
           </ControlButton>
@@ -682,7 +683,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             type="button"
             className="st-btn ghost"
             style={{ padding: "2px 8px", fontSize: 11, color: "var(--danger)" }}
-            onClick={() => { dispatch({ type: "REMOVE_STICKER", id: selectedSticker.id }); onSelectSticker?.(null); }}
+            onClick={() => onRequestDeleteSegment("sticker", selectedSticker.id, selectedSticker.fileName)}
             title="Remove this sticker"
           >
             Remove
@@ -2666,7 +2667,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       type="button"
                       className="st-btn danger"
                       style={{ padding: "2px 8px", fontSize: 11 }}
-                      onClick={() => { dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlay.id }); onSelectOverlay?.(null); }}
+                      onClick={() => onRequestDeleteSegment("overlay", selectedOverlay.id, clips.find((item) => item.id === selectedOverlay.clipId)?.name ?? "Overlay clip")}
                     >
                       Remove
                     </ControlButton>

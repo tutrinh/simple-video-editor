@@ -56,6 +56,7 @@ interface Props {
   onSelectSfx?: (id: string | null) => void;
   selectedStickerId?: string | null;
   onSelectSticker?: (id: string | null) => void;
+  onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "sticker", id: string, label: string) => void;
 }
 
 export default function Timeline({
@@ -72,6 +73,7 @@ export default function Timeline({
   onSelectSfx,
   selectedStickerId,
   onSelectSticker,
+  onRequestDeleteSegment,
 }: Props) {
   const { dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
@@ -238,10 +240,7 @@ export default function Timeline({
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
 
-      if (e.key === "Backspace" || e.key === "Delete") {
-        dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlayId });
-        onSelectOverlay?.(null);
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
         e.preventDefault();
         const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
         const newId = `overlay-${genId()}`;
@@ -830,8 +829,7 @@ export default function Timeline({
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                               e.stopPropagation();
-                              dispatch({ type: "REMOVE_OVERLAY", id: ov.id });
-                              if (selectedOverlayId === ov.id) onSelectOverlay?.(null);
+                              onRequestDeleteSegment("overlay", ov.id, ovClip?.name ?? "Overlay clip");
                             }}
                             className="st-ov-action-btn"
                             title="Remove overlay clip"
@@ -912,7 +910,7 @@ export default function Timeline({
                           <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_VO", id: seg.id }); if (selectedVoId === seg.id) onSelectVo?.(null); }}
+                            onClick={(e) => { e.stopPropagation(); onRequestDeleteSegment("voiceover", seg.id, seg.text || "Voiceover segment"); }}
                             className="st-vo-action-btn"
                             title="Remove VO segment"
                           >
@@ -984,7 +982,7 @@ export default function Timeline({
                           <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_SFX", id: seg.id }); if (selectedSfxId === seg.id) onSelectSfx?.(null); }}
+                            onClick={(e) => { e.stopPropagation(); onRequestDeleteSegment("sound effect", seg.id, seg.fileName); }}
                             className="st-vo-action-btn"
                             title="Remove SFX segment"
                           >
@@ -1055,7 +1053,7 @@ export default function Timeline({
                           <ControlButton
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
-                            onClick={(e) => { e.stopPropagation(); dispatch({ type: "REMOVE_STICKER", id: raw.id }); if (selectedStickerId === raw.id) onSelectSticker?.(null); }}
+                            onClick={(e) => { e.stopPropagation(); onRequestDeleteSegment("sticker", raw.id, raw.fileName); }}
                             className="st-vo-action-btn"
                             title="Remove sticker"
                           >

@@ -16,7 +16,12 @@ import "./studio.css";
 import { ControlButton } from "../design-system/ControlPrimitives";
 import { Workspace, WorkspaceMain, WorkspacePanel } from "../design-system/Workspace";
 import { useClipIngest } from "./useClipIngest";
+import Modal from "../design-system/Modal";
+import Button from "../design-system/Button";
+import DeleteIcon from "../design-system/icons/DeleteIcon";
 // AI actions (analyze/author/refine) now live inside AiStoryDrawer's own hook.
+
+type TrackSegmentKind = "overlay" | "voiceover" | "sound effect" | "sticker";
 
 export default function StudioApp() {
   const { state, dispatch } = useProject();
@@ -38,6 +43,7 @@ export default function StudioApp() {
   const [aiStoryMounted, setAiStoryMounted] = useState(false);
   const [clipDragOver, setClipDragOver] = useState(false);
   const [editorHovered, setEditorHovered] = useState(false);
+  const [pendingTrackDeletion, setPendingTrackDeletion] = useState<{ kind: TrackSegmentKind; id: string; label: string } | null>(null);
   const { ingestFiles, statuses } = useClipIngest();
 
   // Dev-only fixture (?seed) to exercise the populated workspace without footage/AI.
@@ -87,30 +93,53 @@ export default function StudioApp() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [beats, editorHovered, selectedBeatId]);
 
-  // Delete key shortcut for removing the selected overlay or VO segment
+  function requestTrackSegmentDeletion(kind: TrackSegmentKind, id: string, label: string) {
+    setPendingTrackDeletion({ kind, id, label });
+  }
+
+  function confirmTrackSegmentDeletion() {
+    if (!pendingTrackDeletion) return;
+    const { kind, id } = pendingTrackDeletion;
+    if (kind === "sticker") {
+      dispatch({ type: "REMOVE_STICKER", id });
+      setSelectedStickerId(null);
+    } else if (kind === "sound effect") {
+      dispatch({ type: "REMOVE_SFX", id });
+      setSelectedSfxId(null);
+    } else if (kind === "voiceover") {
+      dispatch({ type: "REMOVE_VO", id });
+      setSelectedVoId(null);
+    } else {
+      dispatch({ type: "REMOVE_OVERLAY", id });
+      setSelectedOverlayId(null);
+    }
+    setPendingTrackDeletion(null);
+  }
+
+  // Delete key shortcut requests confirmation for the selected track segment.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Delete" || e.key === "Backspace") {
         const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         if (selectedStickerId) {
-          dispatch({ type: "REMOVE_STICKER", id: selectedStickerId });
-          setSelectedStickerId(null);
+          const segment = cut?.stickers?.find((item) => item.id === selectedStickerId);
+          requestTrackSegmentDeletion("sticker", selectedStickerId, segment?.fileName ?? "Selected sticker");
         } else if (selectedSfxId) {
-          dispatch({ type: "REMOVE_SFX", id: selectedSfxId });
-          setSelectedSfxId(null);
+          const segment = cut?.sfxSegments?.find((item) => item.id === selectedSfxId);
+          requestTrackSegmentDeletion("sound effect", selectedSfxId, segment?.fileName ?? "Selected sound effect");
         } else if (selectedVoId) {
-          dispatch({ type: "REMOVE_VO", id: selectedVoId });
-          setSelectedVoId(null);
+          const segment = cut?.voSegments?.find((item) => item.id === selectedVoId);
+          requestTrackSegmentDeletion("voiceover", selectedVoId, segment?.text ?? "Selected voiceover");
         } else if (selectedOverlayId) {
-          dispatch({ type: "REMOVE_OVERLAY", id: selectedOverlayId });
-          setSelectedOverlayId(null);
+          const segment = cut?.overlays?.find((item) => item.id === selectedOverlayId);
+          requestTrackSegmentDeletion("overlay", selectedOverlayId, clipById.get(segment?.clipId ?? "")?.name ?? "Selected overlay");
         }
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedOverlayId, selectedVoId, selectedSfxId, selectedStickerId, dispatch]);
+  }, [clipById, cut, selectedOverlayId, selectedVoId, selectedSfxId, selectedStickerId]);
 
   // Keep VO selection valid as segments change.
   useEffect(() => {
@@ -281,6 +310,7 @@ export default function StudioApp() {
                   onSelectSfx={(id) => { setSelectedSfxId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedStickerId(null); } }}
                   selectedStickerId={selectedStickerId}
                   onSelectSticker={(id) => { setSelectedStickerId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedSfxId(null); } }}
+                  onRequestDeleteSegment={requestTrackSegmentDeletion}
                 />
               </>
             ) : (
@@ -318,6 +348,7 @@ export default function StudioApp() {
           onSelectSfx={setSelectedSfxId}
           selectedStickerId={selectedStickerId}
           onSelectSticker={setSelectedStickerId}
+          onRequestDeleteSegment={requestTrackSegmentDeletion}
         />
 
         {/* Docked side panel — pushes the layout (see .st-main.ai-open in studio.css). */}
@@ -326,6 +357,32 @@ export default function StudioApp() {
 
       {exportMounted && <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} />}
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <Modal
+        open={Boolean(pendingTrackDeletion)}
+        title="Delete timeline segment?"
+        description={`Remove this ${pendingTrackDeletion?.kind ?? "track"} segment from the timeline?`}
+        ariaLabel="Confirm timeline segment deletion"
+        maxWidth={410}
+        onClose={() => setPendingTrackDeletion(null)}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setPendingTrackDeletion(null)}>Cancel</Button>
+            <Button variant="danger" autoFocus onClick={confirmTrackSegmentDeletion}>Delete segment</Button>
+          </>
+        )}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--ds-critical-soft)", color: "var(--danger)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <DeleteIcon size={19} />
+          </div>
+          <div>
+            <strong style={{ display: "block", fontSize: 13 }}>{pendingTrackDeletion?.label}</strong>
+            <p style={{ margin: "5px 0 0", color: "var(--ink-3)", fontSize: 11, lineHeight: 1.45 }}>
+              This action removes the segment from the Cut and cannot be undone.
+            </p>
+          </div>
+        </div>
+      </Modal>
     </Workspace>
   );
 }
