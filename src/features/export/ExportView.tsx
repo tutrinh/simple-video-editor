@@ -17,6 +17,10 @@ import {
 } from "../../lib/voPresets";
 
 import { EDITOR_DEFAULTS } from "../../config/editorDefaults";
+import ChevronDownIcon from "../../design-system/icons/ChevronDownIcon";
+import PauseIcon from "../../design-system/icons/PauseIcon";
+import PlayIcon from "../../design-system/icons/PlayIcon";
+import SaveIcon from "../../design-system/icons/SaveIcon";
 
 function download(name: string, blobOrText: Blob | string, type = "text/plain") {
   const blob = typeof blobOrText === "string" ? new Blob([blobOrText], { type }) : blobOrText;
@@ -76,10 +80,10 @@ export default function ExportView({ active = true }: { active?: boolean }) {
   const [modelMsg, setModelMsg] = useState("");
   const [musicLib, setMusicLib] = useState<string[]>([]);
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>(ELEVEN_VOICES);
-  const [captionsOpen, setCaptionsOpen] = useState(true);
-  const [voiceOpen, setVoiceOpen] = useState(true);
-  const [musicOpen, setMusicOpen] = useState(true);
-  const [titleOpen, setTitleOpen] = useState(true);
+  const [captionsOpen, setCaptionsOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [musicOpen, setMusicOpen] = useState(false);
+  const [titleOpen, setTitleOpen] = useState(false);
   const [playingName, setPlayingName] = useState("");
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -428,9 +432,9 @@ export default function ExportView({ active = true }: { active?: boolean }) {
     : null;
 
   return (
-    <section style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "var(--panel)", overflow: "hidden" }}>
+    <section className="st-export-view" style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "var(--panel)", overflow: "hidden" }}>
       {/* Top Action Bar */}
-      <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--line)", background: "var(--panel-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+      <div className="st-export-toolbar" style={{ padding: "12px 24px", borderBottom: "1px solid var(--line)", background: "var(--panel-2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <span className="st-chip">{cut.beats.length} beat{cut.beats.length === 1 ? "" : "s"}</span>
           <span className="st-chip st-num">{cutDuration(cut).toFixed(1)}s</span>
@@ -552,9 +556,9 @@ export default function ExportView({ active = true }: { active?: boolean }) {
       )}
 
       {/* Main 3-Column Split Area */}
-      <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr 420px 400px", gap: 0 }}>
+      <div className="st-export-grid" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr 420px 400px", gap: 0 }}>
         {/* LEFT COLUMN: Large Video Preview Theater */}
-        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", background: "#08090b", padding: 24, borderRight: "1px solid var(--line)", position: "relative" }}>
+        <div className="st-export-preview" style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", background: "#08090b", padding: 24, borderRight: "1px solid var(--line)", position: "relative" }}>
           <div style={{ width: "100%", maxWidth: 840, height: "100%", maxHeight: "calc(100vh - 180px)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" }}>
             <FinalPreview
               active={active}
@@ -614,9 +618,9 @@ export default function ExportView({ active = true }: { active?: boolean }) {
         </div>
 
         {/* MIDDLE COLUMN: Text & Captions Panel (Side-by-Side Panel 1) */}
-        <div style={{ overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 14, background: "var(--panel)", borderRight: "1px solid var(--line)" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--accent)", borderBottom: "1px solid var(--line)", paddingBottom: 8, flexShrink: 0 }}>
-            🔤 Text & Captions Panel
+        <div className="st-export-column" style={{ overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 14, background: "var(--panel)", borderRight: "1px solid var(--line)" }}>
+          <div className="st-export-column-title" style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--accent)", borderBottom: "1px solid var(--line)", paddingBottom: 8, flexShrink: 0 }}>
+            Text &amp; captions
           </div>
 
           {/* Title Overlay Card (3 Stacked Layers) */}
@@ -626,37 +630,30 @@ export default function ExportView({ active = true }: { active?: boolean }) {
               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", marginBottom: 6 }}
             >
               <label style={{ cursor: "pointer", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                Title Overlay (3 Stacked Layers)
+                Title overlay
               </label>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+              <ChevronDownIcon
+                size={14}
                 style={{
                   transform: titleOpen ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                   color: "var(--ink-3)",
                 }}
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              />
             </div>
 
             <div className={`st-color-collapsible ${titleOpen ? "open" : ""}`}>
               <div className="st-color-collapsible-inner">
-                <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--panel-2)", padding: "12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div className="st-title-card">
                   {/* Preset Selector Toolbar */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--panel-3)", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--line)" }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--ink-2)", whiteSpace: "nowrap" }}>Preset:</span>
+                  <div className="st-title-preset">
+                    <span className="st-title-preset-label">Preset</span>
                     <select
+                      className="st-title-preset-select"
                       value={selectedPresetId}
                       onChange={(e) => applyPreset(e.target.value)}
-                      style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "5px 8px", outline: "none", cursor: "pointer" }}
                     >
-                      <option value="">Select a Preset...</option>
+                      <option value="">Choose a preset</option>
                       <optgroup label="Built-in Presets">
                         {BUILT_IN_PRESETS.map((p) => (
                           <option key={p.id} value={p.id}>{p.name}</option>
@@ -665,7 +662,7 @@ export default function ExportView({ active = true }: { active?: boolean }) {
                       {customPresets.length > 0 && (
                         <optgroup label="Project Saved Presets">
                           {customPresets.map((p) => (
-                            <option key={p.id} value={p.id}>⭐ {p.name}</option>
+                            <option key={p.id} value={p.id}>{p.name}</option>
                           ))}
                         </optgroup>
                       )}
@@ -673,11 +670,11 @@ export default function ExportView({ active = true }: { active?: boolean }) {
 
                     <button
                       type="button"
+                      className="st-title-preset-save"
                       onClick={handleSavePreset}
-                      style={{ padding: "5px 10px", fontSize: 11, fontWeight: 600, borderRadius: 5, background: "var(--panel-2)", border: "1px solid var(--line)", color: "var(--ink)", cursor: "pointer", whiteSpace: "nowrap" }}
                       title="Save current title layout into this project's preset list"
                     >
-                      💾 Save Preset
+                      <SaveIcon size={13} /> <span>Save</span>
                     </button>
                   </div>
 
@@ -693,22 +690,15 @@ export default function ExportView({ active = true }: { active?: boolean }) {
               onClick={() => setCaptionsOpen(!captionsOpen)}
               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", marginBottom: 6 }}
             >
-              <label style={{ cursor: "pointer", margin: 0 }}>Captions Styling</label>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+              <label style={{ cursor: "pointer", margin: 0 }}>Caption styling</label>
+              <ChevronDownIcon
+                size={14}
                 style={{
                   transform: captionsOpen ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                   color: "var(--ink-3)",
                 }}
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              />
             </div>
 
             <div className={`st-color-collapsible ${captionsOpen ? "open" : ""}`}>
@@ -747,9 +737,9 @@ export default function ExportView({ active = true }: { active?: boolean }) {
         </div>
 
         {/* RIGHT COLUMN: Audio & Narration Panel (Side-by-Side Panel 2) */}
-        <div style={{ overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 14, background: "var(--panel)" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--accent)", borderBottom: "1px solid var(--line)", paddingBottom: 8, flexShrink: 0 }}>
-            🎵 Audio & Narration Panel
+        <div className="st-export-column" style={{ overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 14, background: "var(--panel)" }}>
+          <div className="st-export-column-title" style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--accent)", borderBottom: "1px solid var(--line)", paddingBottom: 8, flexShrink: 0 }}>
+            Audio &amp; narration
           </div>
 
           {/* Music Bed Card */}
@@ -759,23 +749,16 @@ export default function ExportView({ active = true }: { active?: boolean }) {
               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", marginBottom: 6 }}
             >
               <label style={{ cursor: "pointer", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                Music Bed {music ? <span className="st-chip" style={{ fontSize: 10, padding: "2px 6px" }}>Loaded</span> : <span style={{ opacity: 0.6, fontSize: 11, fontWeight: 400 }}>(Optional)</span>}
+                Music bed {music ? <span className="st-chip" style={{ fontSize: 10, padding: "2px 6px" }}>Loaded</span> : <span style={{ opacity: 0.6, fontSize: 11, fontWeight: 400 }}>(Optional)</span>}
               </label>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+              <ChevronDownIcon
+                size={14}
                 style={{
                   transform: musicOpen ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                   color: "var(--ink-3)",
                 }}
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              />
             </div>
 
             <div className={`st-color-collapsible ${musicOpen ? "open" : ""}`}>
@@ -801,9 +784,7 @@ export default function ExportView({ active = true }: { active?: boolean }) {
                               title={isPlaying ? "Pause" : "Preview"}
                               style={{ width: 24, height: 24, flexShrink: 0, display: "grid", placeItems: "center", borderRadius: 5, border: "1px solid var(--line)", background: "transparent", color: "var(--ink-2)", cursor: "pointer" }}
                             >
-                              {isPlaying
-                                ? <svg width="10" height="11" viewBox="0 0 12 13" fill="currentColor"><rect x="1" width="3.4" height="13" rx="1" /><rect x="7.6" width="3.4" height="13" rx="1" /></svg>
-                                : <svg width="10" height="11" viewBox="0 0 12 13" fill="currentColor"><path d="M0 0l12 6.5L0 13z" /></svg>}
+                              {isPlaying ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
                             </button>
                             <label style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, fontSize: 12, cursor: "pointer", color: "var(--ink-2)" }}>
                               <input type="checkbox" checked={selected} onChange={() => selectLibraryMusic(name)} style={{ cursor: "pointer", accentColor: "var(--accent)" }} />
@@ -842,23 +823,16 @@ export default function ExportView({ active = true }: { active?: boolean }) {
             >
               <label style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 11, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--ink-3)", fontWeight: 600 }}>
                 <input type="checkbox" checked={voiceover} onChange={(e) => toggleVoiceover(e.target.checked)} onClick={(e) => e.stopPropagation()} style={{ accentColor: "var(--accent)", cursor: "pointer" }} />
-                Voiceover (AI Narration)
+                Voiceover
               </label>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+              <ChevronDownIcon
+                size={14}
                 style={{
                   transform: voiceOpen ? "rotate(180deg)" : "rotate(0deg)",
                   transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
                   color: "var(--ink-3)",
                 }}
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
+              />
             </div>
 
             <div className={`st-color-collapsible ${voiceOpen ? "open" : ""}`}>
@@ -999,7 +973,7 @@ export default function ExportView({ active = true }: { active?: boolean }) {
                           onClick={() => setConfirmSaveMod(true)}
                           title={`Overwrite “${selectedVoPreset.name}” with the current settings`}
                         >
-                          💾 Save modified preset
+                          <SaveIcon size={12} /> Save modified preset
                         </button>
                       )}
                       {voModified && selectedVoPreset && confirmSaveMod && (
@@ -1041,7 +1015,7 @@ export default function ExportView({ active = true }: { active?: boolean }) {
                         onClick={handleSaveVoPreset}
                         title="Save these voiceover settings as a NEW named preset (available in every project)"
                       >
-                        💾 Save as new preset…
+                        <SaveIcon size={12} /> Save as new preset…
                       </button>
                     </div>
                   </div>

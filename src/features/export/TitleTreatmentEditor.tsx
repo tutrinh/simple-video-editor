@@ -4,6 +4,8 @@ import { ensureFontLoadedById, findFontById } from "../../lib/googleFonts";
 import { extractTitleStyle, setCopiedTitleStyle, useCopiedTitleStyle } from "../../lib/titleClipboard";
 import ColorField from "../../studio/ColorField";
 import FontPicker from "../../studio/FontPicker";
+import CopyIcon from "../../design-system/icons/CopyIcon";
+import SaveIcon from "../../design-system/icons/SaveIcon";
 
 /** The weight ladder, shown as a row of `A`s rather than a dropdown. */
 const TITLE_WEIGHTS = [
@@ -19,9 +21,9 @@ function sliderTrackStyle(val: number, min: number, max: number) {
   return {
     flex: 1,
     accentColor: "var(--accent)",
-    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${pct}%, var(--panel-3) ${pct}%, var(--panel-3) 100%)`,
-    height: 6,
-    borderRadius: 3,
+    background: `linear-gradient(to right, var(--accent) ${pct}%, var(--panel-3) ${pct}%)`,
+    height: 4,
+    borderRadius: 2,
   } as const;
 }
 
@@ -120,29 +122,17 @@ export default function TitleTreatmentEditor({
   const curFamily = findFontById(curLayer.fontId)?.cssFamily ?? "inherit";
 
   return (
-    <>
+    <div className="st-title-editor">
       {/* Layer Tabs */}
-      <div style={{ display: "flex", gap: 6, borderBottom: "1px solid var(--line)", paddingBottom: 8 }}>
+      <div className="st-title-layers" role="tablist" aria-label="Title layers">
         {layers.map((layer, idx) => (
           <button
             key={layer.id}
             type="button"
+            className={`st-title-layer ${activeIdx === idx ? "active" : ""}`}
+            role="tab"
+            aria-selected={activeIdx === idx}
             onClick={() => setActiveLayerIndex(idx)}
-            style={{
-              flex: 1,
-              padding: "6px 10px",
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              border: activeIdx === idx ? "1px solid var(--accent)" : "1px solid var(--line)",
-              background: activeIdx === idx ? "rgba(255, 179, 57, 0.15)" : "var(--panel-3)",
-              color: activeIdx === idx ? "var(--accent)" : "var(--ink-2)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
           >
             <input
               type="checkbox"
@@ -153,23 +143,27 @@ export default function TitleTreatmentEditor({
               style={{ accentColor: "var(--accent)", cursor: layer.text.trim() ? "pointer" : "not-allowed" }}
               title={layer.text.trim() ? "Enable/disable this title layer" : "Add text to enable this layer"}
             />
-            Layer {idx + 1} {layerLabels[idx] ?? ""}
+            <span>
+              <strong>Layer {idx + 1}</strong>
+              <small>{layerLabels[idx] ?? ""}</small>
+            </span>
           </button>
         ))}
       </div>
 
       {/* Active Layer Editor */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, opacity: dimmed ? 0.55 : 1 }}>
+      <div className="st-title-editor-body" style={{ opacity: dimmed ? 0.55 : 1 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {/* The clear button sits inside the field, so the input reserves room
               for it only while there is something to clear. */}
           <div style={{ flex: 1, position: "relative", display: "flex" }}>
-            <textarea
-              rows={Math.min(4, Math.max(1, curLayer.text.split("\n").length))}
+            <input
+              type="text"
               value={curLayer.text}
               onChange={(e) => updateLayer(activeIdx, { text: e.target.value })}
-              placeholder={activeIdx === 0 ? "e.g. SUMMER VIBES\n2026" : activeIdx === 1 ? "e.g. Official Highlight Reel" : "e.g. Presented by VIDSTR"}
-              style={{ flex: 1, padding: "7px 10px", paddingRight: curLayer.text ? 26 : 10, fontSize: 12, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7, color: "var(--ink)", outline: "none", resize: "vertical", fontFamily: "inherit" }}
+              placeholder={activeIdx === 0 ? "e.g. SUMMER VIBES 2026" : activeIdx === 1 ? "e.g. Official Highlight Reel" : "e.g. Presented by VIDSTR"}
+              className="st-title-copy-input"
+              style={{ paddingRight: curLayer.text ? 30 : 11 }}
             />
             {curLayer.text && (
               <button
@@ -204,25 +198,23 @@ export default function TitleTreatmentEditor({
           {dimmed && <span style={{ fontSize: 10, color: "var(--danger)", whiteSpace: "nowrap" }}>(Layer Disabled)</span>}
         </div>
 
-        <div style={{ display: "flex", gap: 6 }}>
+        <div className="st-title-clipboard">
           <button
             type="button"
             className="st-btn ghost"
-            style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
             onClick={copyActiveLayer}
             title="Copy this layer's style (font, weight, size, color, shadow, position, motion, scope) to reuse on any title layer or beat"
           >
-            {copiedToast ? "✓ Copied!" : "📋 Copy Settings"}
+            {copiedToast ? "Copied" : <><CopyIcon size={12} /> Copy style</>}
           </button>
           <button
             type="button"
             className="st-btn ghost"
-            style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
             onClick={pasteActiveLayer}
             disabled={!copiedStyle}
             title={copiedStyle ? "Paste the copied style onto this layer (keeps its own text)" : "Copy a title layer's settings first"}
           >
-            📥 Paste Settings
+            <SaveIcon size={12} /> Paste style
           </button>
         </div>
 
@@ -386,7 +378,7 @@ export default function TitleTreatmentEditor({
             </div>
 
             {/* Position & Spacing Sliders Card (Left/Right, Up/Down, Letter Spacing) */}
-            <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4, padding: "8px 10px", background: "var(--panel-3)", borderRadius: 6, border: "1px solid var(--line)" }}>
+            <div className="st-color-adjustments st-title-range-card">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Position X (Left / Right)</span>
                 <input
@@ -498,6 +490,6 @@ export default function TitleTreatmentEditor({
           </>
         )}
       </div>
-    </>
+    </div>
   );
 }
