@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Beat, Clip } from "../../domain/types";
 import { advanceStillPos } from "../../studio/util";
+import { ControlButton } from "../../design-system/ControlPrimitives";
 
 // Drag-to-trim: a timeline with in/out handles over a scrub video. Dragging a
 // handle seeks the video to that frame (live preview) and, on release, commits
@@ -179,7 +180,10 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false, loc
   });
 
   return (
-    <div style={{ marginTop: compact ? 2 : 8, width: "100%", maxWidth: 520 }}>
+    <div
+      className={compact ? "st-source-preview compact" : "st-source-preview"}
+      style={{ marginTop: compact ? 2 : 4, width: "100%", maxWidth: 520 }}
+    >
       {!compact && (isStill ? (
         <img
           src={stillUrl ?? undefined}
@@ -208,7 +212,11 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false, loc
         <div style={handle("out")} onPointerDown={(e) => startDrag("out", e)} title="Drag out-point" />
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 12, color: "var(--ink-2, #9aa0ab)" }}>
-        {!compact && <button onClick={playRange} disabled={playing}>▶ Play range</button>}
+        {!compact && (
+          <ControlButton className="st-btn ghost" style={{ padding: "4px 8px", fontSize: 10 }} onClick={playRange} disabled={playing}>
+            Play range
+          </ControlButton>
+        )}
         <span>{inSec.toFixed(1)} – {outSec.toFixed(1)}s · {(outSec - inSec).toFixed(1)}s of {dur.toFixed(1)}s</span>
       </div>
     </div>

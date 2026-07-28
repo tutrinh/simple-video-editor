@@ -563,21 +563,58 @@ export default function Timeline({
           {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
             <TimelineAddButton onClick={seedVoFromBeats} title="Create VO segments from beat captions">Seed VO</TimelineAddButton>
           )}
-          <TimelineAddButton onClick={addVoSegment} title="Add a voiceover segment">VO</TimelineAddButton>
+          <TimelineAddButton
+            onClick={() => {
+              setSfxPickerOpen(false);
+              setStickerPickerOpen(false);
+              setPickerOpen(false);
+              addVoSegment();
+            }}
+            title="Add a voiceover segment"
+          >
+            VO
+          </TimelineAddButton>
           <div style={{ position: "relative" }}>
-            <TimelineAddButton onClick={() => setSfxPickerOpen((open) => !open)} aria-pressed={sfxPickerOpen}>SFX</TimelineAddButton>
+            <TimelineAddButton
+              onClick={() => {
+                setStickerPickerOpen(false);
+                setPickerOpen(false);
+                setSfxPickerOpen((open) => !open);
+              }}
+              aria-pressed={sfxPickerOpen}
+            >
+              SFX
+            </TimelineAddButton>
           {sfxPickerOpen && (
             <SfxPicker onPick={(fileName) => addSfxFromLibrary(fileName)} onClose={() => setSfxPickerOpen(false)} />
           )}
           </div>
           <div style={{ position: "relative" }}>
-            <TimelineAddButton onClick={() => setStickerPickerOpen((open) => !open)} aria-pressed={stickerPickerOpen}>Sticker</TimelineAddButton>
+            <TimelineAddButton
+              onClick={() => {
+                setSfxPickerOpen(false);
+                setPickerOpen(false);
+                setStickerPickerOpen((open) => !open);
+              }}
+              aria-pressed={stickerPickerOpen}
+            >
+              Sticker
+            </TimelineAddButton>
           {stickerPickerOpen && (
             <StickerPicker onPick={(fileName) => addStickerFromLibrary(fileName)} onClose={() => setStickerPickerOpen(false)} />
           )}
           </div>
           <div style={{ position: "relative" }}>
-            <TimelineAddButton onClick={() => setPickerOpen((open) => !open)} aria-pressed={pickerOpen}>Overlay</TimelineAddButton>
+            <TimelineAddButton
+              onClick={() => {
+                setSfxPickerOpen(false);
+                setStickerPickerOpen(false);
+                setPickerOpen((open) => !open);
+              }}
+              aria-pressed={pickerOpen}
+            >
+              Overlay
+            </TimelineAddButton>
             <OverlayPickerModal isOpen={pickerOpen} onClose={() => setPickerOpen(false)} cut={cut} clips={clips} onSelectClip={(clip, blend) => addOverlayWithClip(clip, blend)} onImportStockOverlay={(category, file, blend) => importAndAddStockOverlay(category, file, blend)} onImportFiles={importUploadedFiles} />
           </div>
         </>}

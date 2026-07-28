@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { fetchSfxList, sfxFileUrl, uploadSfx } from "../lib/sfxLibrary";
 import CloseButton from "../design-system/CloseButton";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import AddIcon from "../design-system/icons/AddIcon";
+import PauseIcon from "../design-system/icons/PauseIcon";
+import PlayIcon from "../design-system/icons/PlayIcon";
 
 /**
  * Popover for the SFX track's "＋ Sound FX" button: lists the sounds in the audio/
@@ -45,12 +48,16 @@ export default function SfxPicker({ onPick, onClose }: { onPick: (fileName: stri
   return (
     <div className="st-sfx-picker">
       <div className="st-sfx-picker-head">
-        <span>🔊 Sound FX</span>
+        <div>
+          <strong>Sound effects</strong>
+          <span>Add audio to the selected beat</span>
+        </div>
         <CloseButton onClick={onClose} />
       </div>
 
       <label className="st-sfx-upload" title="Copy a sound into the project's audio/ folder">
-        {busy ? "Uploading…" : "⬆ Upload sound"}
+        <AddIcon size={13} />
+        {busy ? "Uploading…" : "Upload sound"}
         <InputControl type="file" accept="audio/*" disabled={busy} style={{ display: "none" }}
           onChange={(e) => { onUpload(e.target.files?.[0]); e.currentTarget.value = ""; }} />
       </label>
@@ -64,11 +71,17 @@ export default function SfxPicker({ onPick, onClose }: { onPick: (fileName: stri
           files.map((name) => (
             <div className="st-sfx-row" key={name}>
               <ControlButton type="button" className="st-sfx-play" onClick={() => preview(name)} title="Preview">
-                {playing === name ? "⏸" : "▶"}
+                {playing === name ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
               </ControlButton>
               <span className="st-sfx-name" title={name}>{name}</span>
-              <ControlButton type="button" className="st-sfx-add" onClick={() => onPick(name)} title="Add to the SFX track at the selected beat">
-                ＋ Add
+              <ControlButton
+                type="button"
+                className="st-sfx-add"
+                onClick={() => onPick(name)}
+                title="Add to the SFX track at the selected beat"
+                aria-label={`Add ${name} to the selected beat`}
+              >
+                <AddIcon size={12} />
               </ControlButton>
             </div>
           ))

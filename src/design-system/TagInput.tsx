@@ -21,7 +21,7 @@ export default function TagInput({ tags, onChange, label = "Tags", placeholder =
   };
   return (
     <label className="ui-field">
-      <span className="ui-field-label">{label}</span>
+      {label && <span className="ui-field-label">{label}</span>}
       <span className="ui-tag-input">
         {tags.map((tag) => <span key={tag}>{tag}<button type="button" aria-label={`Remove ${tag}`} onClick={() => onChange(tags.filter((item) => item !== tag))}><CloseIcon size={11} /></button></span>)}
         <input value={draft} placeholder={placeholder} onChange={(event) => setDraft(event.target.value)} onKeyDown={onKeyDown} onBlur={commit} />

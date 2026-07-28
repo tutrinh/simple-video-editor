@@ -4,7 +4,7 @@ import { makeBeat } from "../features/assemble/assemble";
 import { useSettings } from "../state/SettingsContext";
 import { useExportSettings } from "../state/ExportSettingsContext";
 import TopBar from "./TopBar";
-import ClipBin from "./ClipBin";
+import ClipBin, { CLIP_DRAG_TYPE } from "./ClipBin";
 import StagePreview from "./StagePreview";
 import Timeline from "./Timeline";
 import Inspector from "./Inspector";
@@ -15,6 +15,7 @@ import { seedProject } from "./devSeed";
 import "./studio.css";
 import { ControlButton } from "../design-system/ControlPrimitives";
 import { Workspace, WorkspaceMain, WorkspacePanel } from "../design-system/Workspace";
+import { useClipIngest } from "./useClipIngest";
 // AI actions (analyze/author/refine) now live inside AiStoryDrawer's own hook.
 
 export default function StudioApp() {
@@ -35,6 +36,8 @@ export default function StudioApp() {
   // Same lazy-mount pattern for the AI Story drawer.
   const [aiStoryOpen, setAiStoryOpen] = useState(false);
   const [aiStoryMounted, setAiStoryMounted] = useState(false);
+  const [clipDragOver, setClipDragOver] = useState(false);
+  const { ingestFiles, statuses } = useClipIngest();
 
   // Dev-only fixture (?seed) to exercise the populated workspace without footage/AI.
   useEffect(() => {
@@ -104,12 +107,41 @@ export default function StudioApp() {
   // Add any not-yet-used clip to the end of the Cut and select it — this is how
   // you pull dropped/unused clips (or ones added after generating) into the edit.
   function addClipToCut(clipId: string) {
-    if (!cut) return;
     const clip = clipById.get(clipId);
     if (!clip) return;
     const beat = makeBeat(clip, "");
+    if (!cut) {
+      dispatch({ type: "SET_CUT", cut: { beats: [beat], aspect: "16:9" } });
+      setSelectedBeatId(beat.id);
+      return;
+    }
     dispatch({ type: "ADD_BEAT", beat });
     setSelectedBeatId(beat.id);
+  }
+
+  function acceptsClipDrag(event: React.DragEvent): boolean {
+    const types = Array.from(event.dataTransfer.types);
+    return types.includes(CLIP_DRAG_TYPE) || types.includes("Files");
+  }
+
+  async function dropIntoEditor(event: React.DragEvent) {
+    event.preventDefault();
+    setClipDragOver(false);
+    const clipId = event.dataTransfer.getData(CLIP_DRAG_TYPE);
+    if (clipId) {
+      addClipToCut(clipId);
+      return;
+    }
+
+    const imported = await ingestFiles(Array.from(event.dataTransfer.files));
+    if (imported.length === 0) return;
+    const newBeats = imported.map((clip) => makeBeat(clip, ""));
+    if (!cut) {
+      dispatch({ type: "SET_CUT", cut: { beats: newBeats, aspect: "16:9" } });
+    } else {
+      for (const beat of newBeats) dispatch({ type: "ADD_BEAT", beat });
+    }
+    setSelectedBeatId(newBeats[0].id);
   }
 
   function duplicateBeat(beatId: string) {
@@ -160,13 +192,40 @@ export default function StudioApp() {
           onPickClip={pickClip}
           onAddClip={addClipToCut}
           onDuplicateBeat={duplicateBeat}
+          onFiles={ingestFiles}
+          statuses={statuses}
         />
 
-        <WorkspacePanel className="st-col stage" style={{ position: "relative" }}>
+        <WorkspacePanel
+          className={"st-col stage" + (clipDragOver ? " clip-drag-over" : "")}
+          style={{ position: "relative" }}
+          onDragEnter={(e) => {
+            if (!acceptsClipDrag(e)) return;
+            e.preventDefault();
+            setClipDragOver(true);
+          }}
+          onDragOver={(e) => {
+            if (!acceptsClipDrag(e)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            if (!clipDragOver) setClipDragOver(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setClipDragOver(false);
+          }}
+          onDrop={dropIntoEditor}
+        >
+          {clipDragOver && (
+            <div className="st-editor-drop-hint">
+              <strong>{cut ? "Add clip files to the end of the cut" : "Drop clip files to start a new cut"}</strong>
+            </div>
+          )}
           <div className="st-stage-inner">
             {cut ? (
               <>
-                <StagePreview cut={cut} clips={clips} beat={selectedBeat} clip={selectedClip} />
+                <div className="st-preview-shell">
+                  <StagePreview cut={cut} clips={clips} beat={selectedBeat} clip={selectedClip} />
+                </div>
                 <Timeline
                   cut={cut}
                   clipById={clipById}
@@ -184,12 +243,12 @@ export default function StudioApp() {
                 />
               </>
             ) : (
-              <div className="st-stage-empty">
+              <div className="st-stage-empty st-editor-empty-drop">
                 <h2>{clips.length ? "Ready when you are" : "Start with your footage"}</h2>
                 <p>
                   {clips.length
-                    ? "Open ✨ AI Story (top bar) to analyze your clips, author the story & script, and refine each beat with Claude."
-                    : "Drop clips into the bin on the left. Then open ✨ AI Story — Claude reads them, finds a story, and builds a captioned cut you refine here."}
+                    ? "Drag a clip here to start editing, or open ✨ AI Story to build a cut with Claude."
+                    : "Drop video or image files here to start a cut, or add them to the Clips panel on the left."}
                 </p>
                 {clips.length > 0 && (
                   <ControlButton className="st-btn ghost" style={{ marginTop: 14 }} onClick={startManualCut}>

@@ -182,6 +182,8 @@ export interface Beat {
   transition?: VideoTransitionType;
   /** When true, moving inSec or outSec recalculates the other bound to preserve exact timeline duration (slip edit). */
   lockDuration?: boolean;
+  /** Last explicit duration choice. Manual in/out trimming always changes this to "custom". */
+  durationPreset?: "0.5" | "1" | "3" | "5" | "10" | "custom";
   /** Optional multi-clip split screen configuration for this beat. */
   splitScreen?: SplitScreenConfig;
 

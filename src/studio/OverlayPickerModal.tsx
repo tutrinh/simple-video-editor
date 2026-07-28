@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Clip, Cut, OverlayBlendMode } from "../domain/types";
 import { ControlButton, InputControl, SelectControl } from "../design-system/ControlPrimitives";
 import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
+import CloseButton from "../design-system/CloseButton";
+import AddIcon from "../design-system/icons/AddIcon";
 
 interface Props {
   isOpen: boolean;
@@ -119,16 +121,17 @@ export default function OverlayPickerModal({
       <ModalSurface
         className="st-modal-card"
         style={{
-          maxWidth: 820,
-          width: "92%",
+          maxWidth: 1180,
+          width: "calc(100vw - 32px)",
           maxHeight: "85vh",
           display: "flex",
           flexDirection: "column",
+          gap: 0,
           padding: 0,
           borderRadius: 12,
           overflow: "hidden",
           background: "var(--panel)",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.7)",
+          boxShadow: "var(--ds-shadow)",
           border: "1px solid var(--line)",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -141,25 +144,18 @@ export default function OverlayPickerModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: "var(--panel-2)",
+            background: "var(--panel)",
           }}
         >
           <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--accent)", display: "flex", alignItems: "center", gap: 8 }}>
-              <span>✨ Stock Overlays &amp; B-Roll Library</span>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 650, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+              Overlay library
             </h3>
-            <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "var(--ink-2)" }}>
-              Hover over any overlay card to play a live video preview. Select an effect to layer it over your cut.
+            <p style={{ margin: "3px 0 0 0", fontSize: 10.5, color: "var(--ink-3)" }}>
+              Preview an effect, then add it above the current cut.
             </p>
           </div>
-          <ControlButton
-            className="st-btn ghost"
-            onClick={onClose}
-            style={{ fontSize: 14, padding: "4px 10px", borderRadius: "50%" }}
-            title="Close overlay library"
-          >
-            ✕
-          </ControlButton>
+          <CloseButton onClick={onClose} label="Close overlay library" />
         </div>
 
         {/* Category Tabs */}
@@ -181,12 +177,11 @@ export default function OverlayPickerModal({
             className={"st-btn " + (activeTab === "all" ? "primary" : "ghost")}
             style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, whiteSpace: "nowrap" }}
           >
-            🌟 All ({stockItems.length + clips.length})
+            All ({stockItems.length + clips.length})
           </ControlButton>
 
           {categories.map((cat) => {
             const count = stockItems.filter((i) => i.category === cat).length;
-            const icon = cat.includes("light") || cat.includes("leak") ? "✨" : cat.includes("grain") ? "🎞️" : "⚡";
             return (
               <ControlButton
                 key={cat}
@@ -195,7 +190,7 @@ export default function OverlayPickerModal({
                 className={"st-btn " + (activeTab === cat ? "primary" : "ghost")}
                 style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, textTransform: "capitalize", whiteSpace: "nowrap" }}
               >
-                {icon} {cat.replace(/-/g, " ")} ({count})
+                {cat.replace(/-/g, " ")} ({count})
               </ControlButton>
             );
           })}
@@ -206,7 +201,7 @@ export default function OverlayPickerModal({
             className={"st-btn " + (activeTab === "project" ? "primary" : "ghost")}
             style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, whiteSpace: "nowrap" }}
           >
-            📁 Project Footage ({clips.length})
+            Project footage ({clips.length})
           </ControlButton>
 
           {/* Upload tab */}
@@ -214,9 +209,20 @@ export default function OverlayPickerModal({
             type="button"
             onClick={() => setActiveTab("upload")}
             className={"st-btn " + (activeTab === "upload" ? "primary" : "ghost")}
-            style={{ fontSize: 11, padding: "4px 12px", borderRadius: 16, whiteSpace: "nowrap", marginLeft: "auto", flexShrink: 0 }}
+            style={{
+              fontSize: 11,
+              padding: "4px 12px",
+              borderRadius: 16,
+              whiteSpace: "nowrap",
+              marginLeft: "auto",
+              flexShrink: 0,
+              borderColor: "var(--accent)",
+              color: activeTab === "upload" ? "var(--accent-ink)" : "var(--accent)",
+              background: activeTab === "upload" ? "var(--accent)" : "var(--accent-subtle)",
+            }}
           >
-            ⬆ Import Files {uploadQueue.length > 0 ? `(${uploadQueue.length})` : ""}
+            <AddIcon size={13} />
+            Import files {uploadQueue.length > 0 ? `(${uploadQueue.length})` : ""}
           </ControlButton>
         </div>
 
@@ -244,7 +250,7 @@ export default function OverlayPickerModal({
               Loading overlays library...
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 14 }}>
               {/* Stock Items */}
               {filteredStock.map((item) => {
                 const videoUrl = `/api/overlays/file?category=${encodeURIComponent(item.category)}&name=${encodeURIComponent(item.fileName)}`;
@@ -449,10 +455,21 @@ interface OverlayCardProps {
 
 function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isImporting, onSelect }: OverlayCardProps) {
   const [hovered, setHovered] = useState(false);
+  const previewRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = previewRef.current;
+    if (!video) return;
+    if (hovered) {
+      void video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [hovered]);
 
   const blendBadgeColor =
     blendMode === "screen"
-      ? { bg: "rgba(255, 179, 57, 0.2)", border: "var(--accent)", text: "var(--accent)" }
+      ? { bg: "var(--accent-subtle)", border: "var(--accent)", text: "var(--accent)" }
       : blendMode === "multiply"
       ? { bg: "rgba(180, 100, 255, 0.2)", border: "#b464ff", text: "#b464ff" }
       : { bg: "rgba(57, 180, 255, 0.2)", border: "#39b4ff", text: "#39b4ff" };
@@ -463,16 +480,15 @@ function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isIm
       onMouseLeave={() => setHovered(false)}
       onClick={onSelect}
       style={{
-        background: "var(--panel-2)",
-        borderRadius: 10,
+        background: "var(--panel)",
+        borderRadius: 8,
         border: `1px solid ${hovered ? "var(--accent)" : "var(--line)"}`,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         cursor: "pointer",
-        transition: "transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
-        transform: hovered ? "translateY(-3px)" : "none",
-        boxShadow: hovered ? "0 8px 24px rgba(0,0,0,0.4)" : "none",
+        transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+        boxShadow: hovered ? "0 6px 18px color-mix(in srgb, var(--bg) 18%, transparent)" : "none",
       }}
     >
       {/* Thumbnail */}
@@ -487,16 +503,25 @@ function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isIm
           overflow: "hidden",
         }}
       >
-        {videoUrl && hovered ? (
-          <video src={videoUrl} autoPlay loop muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        {videoUrl ? (
+          <video
+            ref={previewRef}
+            src={videoUrl}
+            preload="metadata"
+            loop
+            muted
+            playsInline
+            onLoadedMetadata={(event) => {
+              if (event.currentTarget.duration > 0.1) event.currentTarget.currentTime = 0.1;
+            }}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
         ) : (
           <div
             style={{
               width: "100%",
               height: "100%",
-              background: isProjectClip
-                ? "linear-gradient(135deg, var(--panel-3) 0%, var(--panel-2) 100%)"
-                : "linear-gradient(135deg, #2a1b3d 0%, #110e24 100%)",
+              background: isProjectClip ? "var(--panel-2)" : "var(--panel-3)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
@@ -504,9 +529,6 @@ function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isIm
               gap: 6,
             }}
           >
-            <span style={{ fontSize: 24, opacity: 0.8 }}>
-              {isProjectClip ? "🎬" : category.includes("light") ? "✨" : category.includes("grain") ? "🎞️" : "⚡"}
-            </span>
             <span style={{ fontSize: 10, color: "var(--ink-2)", textTransform: "uppercase", letterSpacing: 0.5 }}>
               Hover to preview
             </span>
@@ -557,7 +579,7 @@ function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isIm
         <ControlButton
           type="button"
           disabled={isImporting}
-          className="st-btn primary"
+          className="st-btn ghost"
           style={{
             marginTop: 10,
             width: "100%",
@@ -565,12 +587,13 @@ function OverlayCard({ title, category, videoUrl, blendMode, isProjectClip, isIm
             padding: "5px 8px",
             justifyContent: "center",
             gap: 4,
-            background: hovered ? "var(--accent)" : "var(--panel-3)",
-            color: hovered ? "var(--accent-ink)" : "var(--ink)",
-            border: "none",
+            background: hovered ? "var(--accent)" : "transparent",
+            color: hovered ? "var(--accent-ink)" : "var(--ink-2)",
+            border: `1px solid ${hovered ? "var(--accent)" : "var(--line)"}`,
           }}
         >
-          {isImporting ? "Importing..." : "+ Add to Timeline"}
+          {!isImporting && <AddIcon size={12} />}
+          {isImporting ? "Importing…" : "Add to timeline"}
         </ControlButton>
       </div>
     </div>

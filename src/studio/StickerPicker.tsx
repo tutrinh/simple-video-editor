@@ -5,6 +5,7 @@ import {
 } from "../lib/stickerLibrary";
 import CloseButton from "../design-system/CloseButton";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import AddIcon from "../design-system/icons/AddIcon";
 
 /**
  * Popover for the Sticker track's "＋ Sticker" button: the images in the stickers/
@@ -43,12 +44,16 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
   return (
     <div className="st-sticker-picker">
       <div className="st-sfx-picker-head">
-        <span>🩹 Stickers</span>
+        <div>
+          <strong>Stickers</strong>
+          <span>Add an element to the selected beat</span>
+        </div>
         <CloseButton onClick={onClose} />
       </div>
 
       <label className="st-sfx-upload" title="Copy an image into the project's stickers/ folder">
-        {busy ? "Uploading…" : "⬆ Upload sticker"}
+        <AddIcon size={13} />
+        {busy ? "Uploading…" : "Upload sticker"}
         <InputControl
           type="file"
           accept=".png,.svg,.webp,image/png,image/svg+xml,image/webp"

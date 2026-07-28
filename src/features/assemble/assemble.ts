@@ -40,7 +40,11 @@ export function computeWindow(
 }
 
 export function makeBeat(clip: Clip, scriptText: string = ""): Beat {
-  return { id: newId(), clipId: clip.id, scriptText, captionText: "", ...computeWindow(clip.durationSec, scriptText, EDITOR_DEFAULTS.DEFAULT_BEAT_DURATION_SEC, clip.kind) };
+  const window = computeWindow(clip.durationSec, scriptText, EDITOR_DEFAULTS.DEFAULT_BEAT_DURATION_SEC, clip.kind);
+  const durationPreset = !scriptText.trim() && Math.abs(window.durationSec - EDITOR_DEFAULTS.DEFAULT_BEAT_DURATION_SEC) < 0.001
+    ? "5" as const
+    : "custom" as const;
+  return { id: newId(), clipId: clip.id, scriptText, captionText: "", ...window, durationPreset };
 }
 
 export function assembleCut(clips: Clip[], story: Story, aspect: Aspect = "16:9"): Cut {

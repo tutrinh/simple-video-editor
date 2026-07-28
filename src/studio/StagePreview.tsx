@@ -489,11 +489,13 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
 
 function ModeSwitch({ mode, setMode }: { mode: "beat" | "cut"; setMode: (m: "beat" | "cut") => void }) {
   return (
-    <SegmentedControl
-      value={mode}
-      options={[{ value: "beat", label: "Beat" }, { value: "cut", label: "Cut" }]}
-      onChange={setMode}
-      ariaLabel="Preview scope"
-    />
+    <div className="st-preview-mode-switch">
+      <SegmentedControl
+        value={mode}
+        options={[{ value: "beat", label: "Beat" }, { value: "cut", label: "Cut" }]}
+        onChange={setMode}
+        ariaLabel="Preview scope"
+      />
+    </div>
   );
 }

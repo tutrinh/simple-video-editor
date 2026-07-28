@@ -1,29 +1,14 @@
 import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Clip, Beat, OverlayBlendMode } from "../domain/types";
-import { sampleFrames, stillFrame } from "../lib/frameSampler";
-import { runPool } from "../lib/pool";
-import { multithreadReady } from "../lib/ffmpegEngine";
-import { createClip, needsNormalize, normalizeTo1080p, isStillFile, CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
+import { CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
+import type { IngestStatus } from "./useClipIngest";
 import { fmtClock, posterBg } from "./util";
 import { getTagStyle } from "../lib/tagPresets";
 import FileDropzone from "../design-system/FileDropzone";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import GripIcon from "../design-system/icons/GripIcon";
 import CopyIcon from "../design-system/icons/CopyIcon";
-
-type Phase = "pending" | "normalizing" | "ready" | "error";
-interface Status { phase: Phase; progress: number; error?: string }
-
-// Normalize at most N clips at once. Each 4K wasm transcode is memory-heavy
-// (ADR-0002), so cap at 2 concurrent — and stay sequential on low-RAM devices
-// (deviceMemory is undefined in some browsers; then we assume enough and use 2).
-function normalizeConcurrency(): number {
-  if (multithreadReady()) return 1; // MT uses all cores per clip — parallel would oversubscribe
-  const mem = (navigator as { deviceMemory?: number }).deviceMemory;
-  if (typeof mem === "number" && mem <= 4) return 1;
-  return 2;
-}
 
 function UsabilityDots({ score }: { score?: number }) {
   const n = score ?? 0;
@@ -47,57 +32,21 @@ interface Props {
   onPickClip: (clipId: string) => void;
   onAddClip: (clipId: string) => void;
   onDuplicateBeat: (beatId: string) => void;
+  onFiles: (files: File[]) => Promise<Clip[]>;
+  statuses: Record<string, IngestStatus>;
 }
 
-export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, onPickClip, onAddClip, onDuplicateBeat }: Props) {
+export const CLIP_DRAG_TYPE = "application/x-vidstr-clip-id";
+
+export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, onPickClip, onAddClip, onDuplicateBeat, onFiles, statuses }: Props) {
   const { state, dispatch } = useProject();
-  const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
 
-  const setStatus = (id: string, s: Status) => setStatuses((p) => ({ ...p, [id]: s }));
   const clipById = new Map(state.clips.map((c) => [c.id, c]));
 
   const allProjectTags = Array.from(new Set(state.clips.flatMap((c) => c.tags ?? [])));
-
-  async function handleFiles(files: File[]) {
-    // Footage or a Still (ADR-0012); anything else is ignored silently.
-    const usable = files.filter((f) => isStillFile(f) || f.type.startsWith("video/") || /\.(mp4|mov|m4v|webm)$/i.test(f.name));
-    if (usable.length === 0) return;
-
-    const created: Clip[] = [];
-    for (const f of usable) {
-      try { created.push(await createClip(f)); } catch { /* unreadable — skip */ }
-    }
-    if (created.length) dispatch({ type: "ADD_CLIPS", clips: created });
-
-    // Poster + normalize each clip, up to `normalizeConcurrency()` at once.
-    // A Still is its own poster and never normalizes (needsNormalize says so).
-    await runPool(created, normalizeConcurrency(), async (clip) => {
-      setStatus(clip.id, { phase: "pending", progress: 0 });
-      try {
-        const frame = clip.kind === "still"
-          ? await stillFrame(clip.file)
-          : (await sampleFrames(clip.file, 1))[0];
-        if (frame) dispatch({ type: "SET_POSTER", id: clip.id, poster: frame.dataUrl });
-      } catch { /* poster best-effort */ }
-
-      if (needsNormalize(clip)) {
-        setStatus(clip.id, { phase: "normalizing", progress: 0 });
-        try {
-          const blob = await normalizeTo1080p(clip.file, (p) => setStatus(clip.id, { phase: "normalizing", progress: p }));
-          dispatch({ type: "SET_NORMALIZED", id: clip.id, normalized: blob });
-          setStatus(clip.id, { phase: "ready", progress: 1 });
-        } catch (e) {
-          setStatus(clip.id, { phase: "error", progress: 0, error: e instanceof Error ? e.message : String(e) });
-        }
-      } else {
-        setStatus(clip.id, { phase: "ready", progress: 1 });
-      }
-    });
-  }
-
 
   // Drag-to-reorder the cut, keyed by beat id so it's robust to filtering.
   function reorder(draggedBeatId: string, targetBeatId: string) {
@@ -119,8 +68,13 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
     return (
       <div
         className={"st-clip" + (addable ? " drop" : "") + (clip.id === selectedClipId ? " sel" : "")}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(CLIP_DRAG_TYPE, clip.id);
+          e.dataTransfer.effectAllowed = "copy";
+        }}
         onClick={() => (addable ? onAddClip(clip.id) : onPickClip(clip.id))}
-        title={addable ? "Add this clip to the cut" : clip.name}
+        title={addable ? "Click or drag into the editor to add this clip to the cut" : "Drag into the editor to start a cut"}
       >
         <div className="st-thumb" style={{ background: posterBg(clip) }} />
         <div className="st-cmeta">
@@ -207,7 +161,11 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
     <aside className="st-col bin">
       <div className="st-colhead" style={{ display: "flex", alignItems: "center" }}>
         <span>Clips</span>
-        {state.clips.length > 0 && <span className="cnt st-num" style={{ marginLeft: 6 }}>{state.clips.length}</span>}
+        {state.clips.length > 0 && (
+          <span className="cnt st-num" aria-label={`${state.clips.length} clips`}>
+            {state.clips.length}
+          </span>
+        )}
       </div>
 
       {allProjectTags.length > 0 && (
@@ -244,7 +202,7 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
           description="Video or images, 4K to 1080p, stills run 10s"
           accept={CLIP_FILE_ACCEPT}
           multiple
-          onFiles={handleFiles}
+          onFiles={onFiles}
         />
       </div>
 

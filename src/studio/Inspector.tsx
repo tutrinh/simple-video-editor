@@ -33,6 +33,8 @@ import Button from "../design-system/Button";
 import { ControlButton, InputControl, SelectControl, TextareaControl } from "../design-system/ControlPrimitives";
 import ChevronDownIcon from "../design-system/icons/ChevronDownIcon";
 import DeleteIcon from "../design-system/icons/DeleteIcon";
+import LockIcon from "../design-system/icons/LockIcon";
+import UnlockIcon from "../design-system/icons/UnlockIcon";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -203,11 +205,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const [colorOpen, setColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
+  const [rotationOpen, setRotationOpen] = useState(false);
+  const [splitScreenOpen, setSplitScreenOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [pickerSlotIndex, setPickerSlotIndex] = useState<number | null>(null);
   const [showBeatClipPicker, setShowBeatClipPicker] = useState(false);
   const [sourceCardHovered, setSourceCardHovered] = useState(false);
-  const [trimHistory, setTrimHistory] = useState<{ inSec: number; outSec: number; durationSec: number }[]>([]);
+  const [trimHistory, setTrimHistory] = useState<{ inSec: number; outSec: number; durationSec: number; durationPreset?: Beat["durationPreset"] }[]>([]);
 
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
   const currentGlobalAdj = cut?.globalFilterAdjustments ?? activeGlobalFilter?.colorAdjustments ?? {};
@@ -287,6 +291,8 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const [altErr, setAltErr] = useState<string | null>(null);
   const [alts, setAlts] = useState<string[][]>([]);
   const [transitionOpen, setTransitionOpen] = useState(false);
+  const [beatAudioOpen, setBeatAudioOpen] = useState(false);
+  const [globalFilterOpen, setGlobalFilterOpen] = useState(false);
   const [voHintsOpen, setVoHintsOpen] = useState(false);
   const voTextRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1040,6 +1046,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       inSec: prevTrim.inSec,
       outSec: prevTrim.outSec,
       durationSec: prevTrim.durationSec,
+      durationPreset: prevTrim.durationPreset,
     });
   }
 
@@ -1051,7 +1058,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     if (Math.abs(inSec - b.inSec) > 0.01 || Math.abs(outSec - b.outSec) > 0.01) {
       setTrimHistory((prev) => [
         ...prev.slice(-20),
-        { inSec: b.inSec, outSec: b.outSec, durationSec: b.durationSec },
+        { inSec: b.inSec, outSec: b.outSec, durationSec: b.durationSec, durationPreset: b.durationPreset },
       ]);
     }
 
@@ -1070,14 +1077,33 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         nextIn = Math.max(0, Math.round((nextOut - fixedDur) * 10) / 10);
         nextOut = Math.round(nextOut * 10) / 10;
       }
-      update({ ...b, inSec: nextIn, outSec: nextOut, durationSec: fixedDur });
+      update({ ...b, inSec: nextIn, outSec: nextOut, durationSec: fixedDur, durationPreset: "custom" });
       return;
     }
 
     const nextIn = Math.max(0, Math.min(inSec, maxOut - 0.1));
     const nextOut = Math.max(nextIn + 0.1, Math.min(outSec, maxOut));
     const durationSec = durationFor(nextIn, nextOut, b.captionText, b.captionDurations);
-    update({ ...b, inSec: nextIn, outSec: nextOut, durationSec });
+    update({ ...b, inSec: nextIn, outSec: nextOut, durationSec, durationPreset: "custom" });
+  }
+
+  const durationOptions = [
+    { value: "0.5", seconds: 0.5, label: ".5" },
+    { value: "1", seconds: 1, label: "1" },
+    { value: "3", seconds: 3, label: "3" },
+    { value: "5", seconds: 5, label: "5" },
+    { value: "10", seconds: 10, label: "10" },
+  ] as const;
+
+  function setBeatDuration(seconds: number, preset: Beat["durationPreset"]) {
+    if (!b || !clip) return;
+    if (!Number.isFinite(seconds)) return;
+    const durationSec = Math.max(0.1, Math.min(seconds, clip.durationSec));
+    let nextIn = Math.max(0, Math.min(b.inSec, clip.durationSec - durationSec));
+    let nextOut = nextIn + durationSec;
+    nextIn = Math.round(nextIn * 10) / 10;
+    nextOut = Math.round(nextOut * 10) / 10;
+    update({ ...b, inSec: nextIn, outSec: nextOut, durationSec, durationPreset: preset });
   }
 
 
@@ -1107,7 +1133,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   return (
     <aside className="st-col insp">
       <div className="st-insp-inner">
-      <div className="st-colhead">Beat {String(index + 1).padStart(2, "0")} <span className="cnt">of {total}</span></div>
+      <div className="st-colhead">Beat {index + 1}/{total}</div>
       <div className="st-insp-body">
         {voCard}
         {sfxCard}
@@ -1129,9 +1155,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             <label style={{ margin: 0, fontWeight: 700, fontSize: 12, color: "var(--ink)", display: "flex", alignItems: "center", gap: 6 }}>
               <span>🎬 Source Clip</span>
             </label>
-            <span style={{ fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-              {clip ? fmtSecs(clip.durationSec) : ""}
-            </span>
+            {clip && (
+              <span className="st-source-duration" title="Source clip duration">
+                {fmtSecs(clip.durationSec)}
+              </span>
+            )}
           </div>
 
           <div
@@ -1189,7 +1217,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               </div>
             )}
 
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               {clip ? (
                 <InputControl
                   type="text"
@@ -1215,9 +1243,6 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   No clip assigned
                 </div>
               )}
-              <div style={{ fontSize: 10.5, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
-                ⏱ Duration: {clip ? fmtSecs(clip.durationSec) : "0s"}
-              </div>
             </div>
 
             <ControlButton
@@ -1368,8 +1393,9 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
         <div className="st-field">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <label style={{ margin: 0 }}>
-              Trim · in / out of source · {fmtSecs(b.durationSec)} {b.lockDuration ? "🔒" : ""}
+            <label style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span>Trim · in / out of source · {fmtSecs(b.durationSec)}</span>
+              {b.lockDuration && <LockIcon size={12} title="Duration locked" />}
             </label>
             <label
               className="st-captoggle"
@@ -1402,24 +1428,91 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             }}
           >
             {b.lockDuration ? (
-              <span>
-                🔒 <strong>Duration locked ({fmtSecs(b.durationSec)})</strong>: Changing IN or OUT performs a slip edit—shifting the footage window while the timeline duration will be unchanged.
+              <span style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                <LockIcon size={13} />
+                <span><strong>Duration locked ({fmtSecs(b.durationSec)})</strong>: Changing IN or OUT performs a slip edit—shifting the footage window while the timeline duration will be unchanged.</span>
               </span>
             ) : (
-              <span>
-                🔓 <strong>Unlocked duration</strong>: Changing IN or OUT trims footage and expands/shrinks beat length on the timeline. Check <strong>Lock duration</strong> for slip editing.
+              <span style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                <UnlockIcon size={13} />
+                <span><strong>Unlocked duration</strong>: Changing IN or OUT trims footage and expands/shrinks beat length on the timeline. Check <strong>Lock duration</strong> for slip editing.</span>
               </span>
             )}
           </div>
+          {clip && (
+            <fieldset className="st-duration-presets">
+              <legend>Beat duration</legend>
+              <div className="st-duration-hint">Length in seconds. Adjusting the trim handles switches to Custom.</div>
+              {durationOptions.map((option) => (
+                <label key={option.value} title={option.seconds > clip.durationSec ? "This clip is shorter than the selected duration" : undefined}>
+                  <InputControl
+                    type="radio"
+                    name={`beat-duration-${b.id}`}
+                    value={option.value}
+                    checked={(b.durationPreset ?? (Math.abs(b.durationSec - 5) < 0.001 ? "5" : "custom")) === option.value}
+                    disabled={option.seconds > clip.durationSec}
+                    onChange={() => setBeatDuration(option.seconds, option.value)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+              <label>
+                <InputControl
+                  type="radio"
+                  name={`beat-duration-${b.id}`}
+                  value="custom"
+                  checked={(b.durationPreset ?? (Math.abs(b.durationSec - 5) < 0.001 ? "5" : "custom")) === "custom"}
+                  onChange={() => update({ ...b, durationPreset: "custom" })}
+                />
+                <span>Custom</span>
+              </label>
+              {(b.durationPreset ?? (Math.abs(b.durationSec - 5) < 0.001 ? "5" : "custom")) === "custom" && (
+                <label className="st-duration-custom">
+                  <InputControl
+                    type="number"
+                    min={0.1}
+                    max={clip.durationSec}
+                    step={0.1}
+                    value={Number(b.durationSec.toFixed(1))}
+                    onChange={(e) => {
+                      if (e.target.value === "") return;
+                      setBeatDuration(Number(e.target.value), "custom");
+                    }}
+                    aria-label="Custom beat duration in seconds"
+                  />
+                </label>
+              )}
+            </fieldset>
+          )}
+          {clip && (
+            <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={trimOpen}
+              onClick={() => setTrimOpen((open) => !open)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setTrimOpen((open) => !open);
+                }
+              }}
+              style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none", padding: "2px 0 4px" }}
+            >
+              <ChevronDownIcon
+                size={14}
+                style={{ transform: trimOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+              />
+              <label style={{ margin: 0, cursor: "pointer" }}>Source Preview</label>
+              <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>
+                • {fmtSecs(b.inSec)}–{fmtSecs(b.outSec)}
+              </span>
+            </div>
+          )}
           {clip
             ? <BeatTrimmer beat={b} clip={clip} compact={!trimOpen} onChange={setTrim} lockDuration={b.lockDuration} />
             : <div style={{ color: "var(--ink-3)", fontSize: 12 }}>Clip missing.</div>}
           {clip && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <ControlButton className="st-btn ghost" style={{ fontSize: 12, padding: "5px 10px" }} onClick={() => setTrimOpen((v) => !v)}>
-                {trimOpen ? "Hide video scrubber" : "Open video scrubber"}
-              </ControlButton>
-
               {trimHistory.length > 0 && (
                 <ControlButton
                   type="button"
@@ -1444,11 +1537,44 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         </div>
 
         {/* Split Screen Treatment Card */}
-        <div className="st-field" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <label style={{ margin: 0, fontWeight: 700, color: "var(--purple)", fontSize: 12 }}>
-              🥞 Split Screen Layout
-            </label>
+        <div className="st-field">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={splitScreenOpen}
+            onClick={() => setSplitScreenOpen((open) => !open)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setSplitScreenOpen((open) => !open);
+              }
+            }}
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <ChevronDownIcon
+                size={14}
+                style={{ transform: splitScreenOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+              />
+              <label style={{ margin: 0, cursor: "pointer" }}>Split Screen Layout</label>
+              {b.splitScreen && b.splitScreen.layout !== "none" && (
+                <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>
+                  • {({
+                    "v2-stacked": "Top / Bottom",
+                    "v2-side": "Left / Right",
+                    "3-col": "3 Columns",
+                    "4-grid": "2×2 Grid",
+                  } as Record<string, string>)[b.splitScreen.layout]}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className={"st-color-collapsible" + (splitScreenOpen ? " open" : "")}>
+            <div className="st-color-collapsible-inner">
+              <div style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: b.splitScreen && b.splitScreen.layout !== "none" ? 8 : 0 }}>
+            <span style={{ fontSize: 11, color: "var(--ink-2)" }}>Layout</span>
             <SelectControl
               value={b.splitScreen?.layout ?? "none"}
               onChange={(e) => {
@@ -1463,11 +1589,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               }}
               style={{ fontSize: 11, padding: "3px 8px", background: "var(--panel)", color: "var(--ink)", border: "1px solid var(--line)", borderRadius: 4, width: "auto" }}
             >
-              <option value="none">Single Clip (None)</option>
-              <option value="v2-stacked">🥞 Top / Bottom Stack (2)</option>
-              <option value="v2-side">📂 Left / Right Side (2)</option>
-              <option value="3-col">📊 3-Column Split (3)</option>
-              <option value="4-grid">🏁 2x2 Quad Grid (4)</option>
+              <option value="none">Single clip (none)</option>
+              <option value="v2-stacked">Top / bottom stack (2)</option>
+              <option value="v2-side">Left / right side (2)</option>
+              <option value="3-col">3-column split (3)</option>
+              <option value="4-grid">2×2 grid (4)</option>
             </SelectControl>
           </div>
 
@@ -1681,6 +1807,9 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             );
           })()}
 
+              </div>
+            </div>
+          </div>
         </div>
 
 
@@ -2074,106 +2203,143 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             (the frame centre, matching ffmpeg's rotate) and its own cover scale,
             so it composes with zoom rather than sharing a transform with it. */}
         <div className="st-field" style={{ marginTop: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <label style={{ margin: 0, fontWeight: 600 }}>Rotation</label>
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={rotationOpen}
+            onClick={() => setRotationOpen((open) => !open)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setRotationOpen((open) => !open);
+              }
+            }}
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <ChevronDownIcon
+                size={14}
+                style={{ transform: rotationOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+              />
+              <label style={{ margin: 0, cursor: "pointer" }}>Rotation</label>
+              {Math.abs(b.rotation ?? 0) >= 0.05 && (
+                <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>
+                  • {(b.rotation ?? 0) > 0 ? "+" : ""}{(b.rotation ?? 0).toFixed(1)}°
+                </span>
+              )}
+            </div>
             {Math.abs(b.rotation ?? 0) >= 0.05 && (
               <ControlButton
                 style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
-                onClick={() => update({ ...b, rotation: 0 })}
+                onClick={(e) => { e.stopPropagation(); update({ ...b, rotation: 0 }); }}
                 title="Reset rotation to 0°"
               >
                 Reset rotation
               </ControlButton>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Angle</span>
-            <InputControl
-              type="range" min={-15} max={15} step={0.1}
-              value={b.rotation ?? 0}
-              onChange={(e) => update({ ...b, rotation: Number(e.target.value) })}
-              onDoubleClick={() => update({ ...b, rotation: 0 })}
-              title="Fine rotation — straighten a horizon or add a subtle tilt. Double-click to reset."
-              style={sliderTrackStyle(b.rotation ?? 0, -15, 15)}
-            />
-            <span style={{ fontSize: 10, width: 40, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-              {(b.rotation ?? 0) > 0 ? `+${(b.rotation ?? 0).toFixed(1)}` : (b.rotation ?? 0).toFixed(1)}°
-            </span>
-          </div>
-          {Math.abs(b.rotation ?? 0) >= 0.05 && (
-            <div style={{ fontSize: 10, color: "var(--ink-3)", marginLeft: 78, marginTop: 2 }}>
-              corners show — zoom to {rotationCoverScale(...canvasDims(cut?.aspect ?? "16:9"), b.rotation).toFixed(2)}× to hide them
+
+          <div className={"st-color-collapsible" + (rotationOpen ? " open" : "")}>
+            <div className="st-color-collapsible-inner">
+              <div className="st-color-adjustments" style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Angle</span>
+                  <InputControl
+                    type="range" min={-15} max={15} step={0.1}
+                    value={b.rotation ?? 0}
+                    onChange={(e) => update({ ...b, rotation: Number(e.target.value) })}
+                    onDoubleClick={() => update({ ...b, rotation: 0 })}
+                    title="Fine rotation — straighten a horizon or add a subtle tilt. Double-click to reset."
+                    style={sliderTrackStyle(b.rotation ?? 0, -15, 15)}
+                  />
+                  <span style={{ fontSize: 10, width: 40, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                    {(b.rotation ?? 0) > 0 ? `+${(b.rotation ?? 0).toFixed(1)}` : (b.rotation ?? 0).toFixed(1)}°
+                  </span>
+                </div>
+                {Math.abs(b.rotation ?? 0) >= 0.05 && (
+                  <div style={{ fontSize: 10, color: "var(--ink-3)", marginLeft: 78, marginTop: 4 }}>
+                    Corners show — zoom to {rotationCoverScale(...canvasDims(cut?.aspect ?? "16:9"), b.rotation).toFixed(2)}× to hide them
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Video Transition Collapsible Section */}
         <div className="st-field" style={{ marginTop: 8 }}>
-          <div className="st-color-collapsible">
-            <ControlButton
-              type="button"
-              className="st-color-collapsible-btn"
-              onClick={() => setTransitionOpen(!transitionOpen)}
-              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "8px 10px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", cursor: "pointer" }}
+          <div>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={transitionOpen}
+              onClick={() => setTransitionOpen((open) => !open)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setTransitionOpen((open) => !open);
+                }
+              }}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
             >
-              <span style={{ fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                🎬 Video Transition
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <ChevronDownIcon
+                  size={14}
+                  style={{ transform: transitionOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+                />
+                <label style={{ margin: 0, cursor: "pointer" }}>Video Transition</label>
                 {b.transition && b.transition !== "none" && (
-                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "var(--accent-glow)", color: "var(--accent)", fontWeight: 700 }}>
-                    {b.transition} ({b.transitionSec ?? 0.5}s)
+                  <span className="st-transition-summary">
+                    • {b.transition} ({b.transitionSec ?? 0.5}s)
                   </span>
                 )}
-              </span>
-              <span style={{ fontSize: 10, color: "var(--ink-3)" }}>{transitionOpen ? "▲" : "▼"}</span>
-            </ControlButton>
+              </div>
+            </div>
 
             {transitionOpen && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6, padding: "8px 10px", background: "var(--panel-3)", borderRadius: 6, border: "1px solid var(--line)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Effect</span>
+              <div className="st-transition-fields">
+                <label className="st-transition-row">
+                  <span>Effect</span>
                   <SelectControl
                     value={b.transition ?? "none"}
                     onChange={(e) => update({ ...b, transition: e.target.value as VideoTransitionType })}
-                    style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
                   >
-                    <option value="none">🚫 Cut (None)</option>
-                    <option value="fade">✨ Crossfade</option>
-                    <option value="fadeblack">🌑 Fade to Black</option>
-                    <option value="fadewhite">☀️ Fade to White</option>
-                    <option value="wipeleft">👈 Wipe Left</option>
-                    <option value="wiperight">👉 Wipe Right</option>
-                    <option value="slideleft">◀ Slide Left</option>
-                    <option value="slideright">▶ Slide Right</option>
+                    <option value="none">Cut (none)</option>
+                    <option value="fade">Crossfade</option>
+                    <option value="fadeblack">Fade to black</option>
+                    <option value="fadewhite">Fade to white</option>
+                    <option value="wipeleft">Wipe left</option>
+                    <option value="wiperight">Wipe right</option>
+                    <option value="slideleft">Slide left</option>
+                    <option value="slideright">Slide right</option>
                   </SelectControl>
-                </div>
+                </label>
 
                 {b.transition && b.transition !== "none" && (
                   <>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Position</span>
+                    <label className="st-transition-row">
+                      <span>Position</span>
                       <SelectControl
                         value={b.transitionPosition ?? "start"}
                         onChange={(e) => update({ ...b, transitionPosition: e.target.value as "start" | "end" })}
-                        style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
                       >
-                        <option value="start">🚀 Beginning of Beat (In)</option>
-                        <option value="end">🏁 End of Beat (Out)</option>
+                        <option value="start">Beginning of beat</option>
+                        <option value="end">End of beat</option>
                       </SelectControl>
-                    </div>
+                    </label>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, width: 80, color: "var(--ink-2)" }}>Duration</span>
+                    <label className="st-transition-row">
+                      <span>Duration</span>
                       <SelectControl
                         value={b.transitionSec ?? 0.5}
                         onChange={(e) => update({ ...b, transitionSec: Number(e.target.value) })}
-                        style={{ flex: 1, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 5, color: "var(--ink)", fontSize: 11, padding: "4px 6px", outline: "none", cursor: "pointer" }}
                       >
-                        <option value={0.3}>0.3s (Fast)</option>
-                        <option value={0.5}>0.5s (Standard)</option>
-                        <option value={0.8}>0.8s (Smooth)</option>
-                        <option value={1.0}>1.0s (Slow)</option>
+                        <option value={0.3}>0.3s · Fast</option>
+                        <option value={0.5}>0.5s · Standard</option>
+                        <option value={0.8}>0.8s · Smooth</option>
+                        <option value={1.0}>1.0s · Slow</option>
                       </SelectControl>
-                    </div>
+                    </label>
 
                     <ControlButton
                       type="button"
@@ -2190,29 +2356,88 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             )}
 
             {/* Beat Audio Volume Settings */}
-            <div className="st-sec" style={{ marginTop: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>🔊 Beat Audio Volume</span>
-                <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{Math.round((b.volume ?? 1) * 100)}%</span>
+            <div className="st-field" style={{ marginTop: 10 }}>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={beatAudioOpen}
+                onClick={() => setBeatAudioOpen((open) => !open)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setBeatAudioOpen((open) => !open);
+                  }
+                }}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <ChevronDownIcon
+                    size={14}
+                    style={{ transform: beatAudioOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+                  />
+                  <label style={{ margin: 0, cursor: "pointer" }}>Beat Audio Volume</label>
+                  <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>
+                    • {Math.round((b.volume ?? 1) * 100)}%
+                  </span>
+                </div>
               </div>
-              <div style={{ marginTop: 6 }}>
-                <InputControl
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={b.volume ?? 1}
-                  onChange={(e) => update({ ...b, volume: Number(e.target.value) })}
-                  style={sliderTrackStyle(b.volume ?? 1, 0, 1)}
-                  title="Adjust the original audio volume of this beat's video clip"
-                />
+
+              <div className={"st-color-collapsible" + (beatAudioOpen ? " open" : "")}>
+                <div className="st-color-collapsible-inner">
+                  <div className="st-color-adjustments" style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Volume</span>
+                      <InputControl
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={b.volume ?? 1}
+                        onChange={(e) => update({ ...b, volume: Number(e.target.value) })}
+                        style={sliderTrackStyle(b.volume ?? 1, 0, 1)}
+                        title="Adjust the original audio volume of this beat's video clip"
+                      />
+                      <span style={{ width: 36, textAlign: "right", fontSize: 10, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                        {Math.round((b.volume ?? 1) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Global Cut Color Filter Card */}
-            <div className="st-sec" style={{ marginTop: 10 }}>
+            <div className="st-field" style={{ marginTop: 10 }}>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={globalFilterOpen}
+                onClick={() => setGlobalFilterOpen((open) => !open)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setGlobalFilterOpen((open) => !open);
+                  }
+                }}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <ChevronDownIcon
+                    size={14}
+                    style={{ transform: globalFilterOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+                  />
+                  <label style={{ margin: 0, cursor: "pointer" }}>Global Filter</label>
+                  {activeGlobalFilter && (
+                    <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• {activeGlobalFilter.name}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className={"st-color-collapsible" + (globalFilterOpen ? " open" : "")}>
+                <div className="st-color-collapsible-inner">
+                  <div style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, fontWeight: 600 }}>🎨 Global Look & Feel Filter</span>
+                <span style={{ fontSize: 11, color: "var(--ink-2)" }}>{activeGlobalFilter ? "Preset" : "Choose a color preset"}</span>
                 <ControlButton
                   type="button"
                   className="st-btn ghost"
@@ -2225,7 +2450,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   onClick={() => setFilterModalOpen(true)}
                   title="Choose a global color grading filter preset for the entire cut"
                 >
-                  {activeGlobalFilter ? `✨ ${activeGlobalFilter.name}` : "Choose Preset..."}
+                  {activeGlobalFilter ? activeGlobalFilter.name : "Choose preset"}
                 </ControlButton>
               </div>
 
@@ -2360,6 +2585,9 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   </div>
                 </div>
               )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {filterModalOpen && (

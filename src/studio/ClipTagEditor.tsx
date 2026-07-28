@@ -92,7 +92,7 @@ export default function ClipTagEditor({ clip, compact = false }: Props) {
       <TagInput
         tags={currentTags}
         onChange={(tags) => dispatch({ type: "SET_CLIP_TAGS", id: clip.id, tags })}
-        label="Tags"
+        label=""
         placeholder="Add custom tag"
       />
 
