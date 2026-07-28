@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fetchStickerList, stickerFileUrl, uploadSticker,
   loadFavorites, toggleFavorite, sortByFavorite,
@@ -10,8 +10,8 @@ import AddIcon from "../design-system/icons/AddIcon";
 /**
  * Popover for the Sticker track's "＋ Sticker" button: the images in the stickers/
  * directory as a thumbnail grid, each with a ★ favourite toggle, plus an Upload
- * that copies a new image into the folder. Picking calls onPick(fileName); the
- * popover stays open so you can add several in a row.
+ * that copies a new image into the folder. Picking calls onPick(fileName) and
+ * closes the popover.
  *
  * Mirrors SfxPicker, which does the same for the audio/ folder — same structure,
  * same class naming, favourites replacing the ▶ audition.
@@ -21,9 +21,17 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
   const [favorites, setFavorites] = useState<string[]>(() => loadFavorites());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const refresh = () => fetchStickerList().then(setFiles).catch(() => setFiles([]));
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    const dismissOutside = (event: MouseEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) onClose();
+    };
+    document.addEventListener("click", dismissOutside);
+    return () => document.removeEventListener("click", dismissOutside);
+  }, [onClose]);
 
   async function onUpload(file?: File) {
     if (!file) return;
@@ -32,6 +40,7 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
       const name = await uploadSticker(file);
       await refresh();
       onPick(name); // place the just-uploaded sticker immediately
+      onClose();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -42,7 +51,7 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
   const ordered = sortByFavorite(files, favorites);
 
   return (
-    <div className="st-sticker-picker">
+    <div ref={pickerRef} className="st-sticker-picker">
       <div className="st-sfx-picker-head">
         <div>
           <strong>Stickers</strong>
@@ -79,7 +88,10 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
                 <ControlButton
                   type="button"
                   className="st-sticker-thumb"
-                  onClick={() => onPick(name)}
+                  onClick={() => {
+                    onPick(name);
+                    onClose();
+                  }}
                   title={`Add ${name} to the Sticker track`}
                 >
                   <img src={stickerFileUrl(name)} alt={name} loading="lazy" />

@@ -13,6 +13,7 @@ import { ControlButton, InputControl } from "../design-system/ControlPrimitives"
 import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
 import CloseIcon from "../design-system/icons/CloseIcon";
 import DeleteIcon from "../design-system/icons/DeleteIcon";
+import CloseButton from "../design-system/CloseButton";
 
 interface Props {
   activeFilterId?: string;
@@ -238,65 +239,27 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
   };
 
   return (
-    <ModalScrim
-      className="st-modal-scrim"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.65)",
-        backdropFilter: "blur(4px)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
+    <ModalScrim onClick={onClose} style={{ zIndex: 1000 }}>
       <ModalSurface
-        className="st-modal-card"
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--panel-2)",
-          border: "1px solid var(--line)",
-          borderRadius: 14,
-          width: "100%",
-          maxWidth: 720,
+          width: "min(760px, 100%)",
           maxHeight: "88vh",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          boxShadow: "0 24px 60px rgba(0,0,0,0.7)",
         }}
       >
-        {/* Modal Header */}
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid var(--line)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>🎨 Global Look & Feel Filter Presets</h3>
-            <p style={{ margin: "2px 0 0 0", fontSize: 12, color: "var(--ink-2)" }}>
+        <header className="ui-modal-head">
+          <div className="ui-modal-heading">
+            <h2>Global filter presets</h2>
+            <p>
               Apply a non-destructive color grade or save your own custom preset.
             </p>
           </div>
-          <ControlButton
-            className="st-btn ghost"
-            style={{ padding: "4px 8px", fontSize: 12 }}
-            onClick={onClose}
-          >
-            ✕ Close
-          </ControlButton>
-        </div>
+          <CloseButton onClick={onClose} label="Close filter presets" />
+        </header>
 
         {/* AI Film Look — analyze a reference image, then grade every beat toward it */}
-        <div style={{ padding: "12px 20px", borderBottom: "1px solid var(--line)", background: "var(--panel-2)" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", marginBottom: 6 }}>🎬 AI Film Look</div>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", background: "var(--panel)" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink)", marginBottom: 8 }}>AI film look</div>
 
           <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
             {refImageUrl && (
@@ -308,7 +271,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 }}>
             <label className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px", cursor: "pointer" }} title="Upload a reference still with the film look you want">
-              {refImageUrl ? "🖼 Change reference…" : "🖼 Upload reference image"}
+              {refImageUrl ? "Change reference" : "Upload reference image"}
               <InputControl type="file" accept="image/*" style={{ display: "none" }}
                 onChange={(e) => { onRefUpload(e.target.files?.[0]); e.currentTarget.value = ""; }} />
             </label>
@@ -319,7 +282,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
             {refImageUrl && (
               <ControlButton type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
                 onClick={saveCurrentReference} disabled={aiBusy} title="Save this reference (and its Look) for future use">
-                💾 Save reference
+                Save reference
               </ControlButton>
             )}
             {look && (
@@ -327,17 +290,17 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                 <ControlButton type="button" className="st-btn primary" style={{ fontSize: 11, padding: "5px 10px" }}
                   onClick={applyLookToBeats} disabled={aiBusy || !state.cut?.beats.length}
                   title="Grade every beat toward this look (one Claude call per beat)">
-                  ✨ Apply to all beats
+                  Apply to all beats
                 </ControlButton>
                 <ControlButton type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px" }}
                   onClick={saveLookAsPreset} disabled={aiBusy}
                   title={`Save this look as a reusable preset${look?.name ? ` ("${look.name}")` : ""}`}>
-                  {lookPresetSaved ? "✓ Saved preset" : "💾 Save as preset"}
+                  {lookPresetSaved ? "Saved preset" : "Save as preset"}
                 </ControlButton>
                 {gradeUndo && (
                   <ControlButton type="button" className="st-btn ghost" style={{ fontSize: 11, padding: "5px 10px", color: "var(--accent)" }}
                     onClick={undoGrade} title="Restore every beat's color to before the AI grade">
-                    ↺ Undo AI grade
+                    Undo AI grade
                   </ControlButton>
                 )}
               </>
@@ -345,12 +308,12 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
             </div>
           </div>
           {aiBusy && <div style={{ fontSize: 11, color: "var(--accent)", marginTop: 6 }}>{aiLabel || "Working…"}</div>}
-          {aiErr && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 6, cursor: "pointer" }} onClick={() => setAiErr(null)}>⚠ {aiErr} · (dismiss)</div>}
+          {aiErr && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 6, cursor: "pointer" }} onClick={() => setAiErr(null)}>{aiErr} (dismiss)</div>}
           {look && !aiBusy && (
             <div style={{ marginTop: 8, padding: "8px 11px", background: "var(--panel-3)", border: "1px solid var(--accent)", borderRadius: 7 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎬 {look.name || "Film Look"}</span>
-                <span style={{ fontSize: 10, color: "var(--good)" }}>✓ analyzed</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{look.name || "Film Look"}</span>
+                <span className="ui-badge positive">Analyzed</span>
               </div>
               {look.description && (
                 <div style={{ fontSize: 11.5, color: "var(--ink)", marginTop: 3, lineHeight: 1.45 }}>{look.description}</div>
@@ -370,7 +333,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                     <img
                       src={ref.dataUrl}
                       alt={ref.name}
-                      title={`${ref.name}${ref.look ? " — has saved Look" : ""}`}
+                      title={`${ref.name}${ref.look ? " - has saved Look" : ""}`}
                       onClick={() => loadSavedReference(ref)}
                       style={{ width: 72, height: 48, objectFit: "cover", borderRadius: 5, border: refImageUrl === ref.dataUrl ? "2px solid var(--accent)" : "1px solid var(--line)", cursor: "pointer", display: "block" }}
                     />
@@ -395,7 +358,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
           <div
             style={{
               padding: "12px 20px",
-              background: "var(--panel-3)",
+              background: "var(--panel)",
               borderBottom: "1px solid var(--line)",
               display: "flex",
               flexDirection: "column",
@@ -420,7 +383,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                 style={{ padding: "2px 8px", fontSize: 11 }}
                 onClick={() => setFineTuneOpen(!fineTuneOpen)}
               >
-                {fineTuneOpen ? "▲ Hide Fine-Tune" : "🎛️ Fine-Tune & Copy"}
+                {fineTuneOpen ? "Hide fine-tune" : "Show fine-tune"}
               </ControlButton>
               <ControlButton
                 className="st-btn ghost"
@@ -488,7 +451,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                       setSavingPreset(true);
                     }}
                   >
-                    💾 Save as Custom Preset
+                    Save as custom preset
                   </ControlButton>
                 ) : (
                   <form onSubmit={handleSaveCustom} style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -530,11 +493,11 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
         {/* Preset Cards Grid */}
         <div
           style={{
-            padding: 20,
+            padding: 18,
             overflowY: "auto",
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(195px, 1fr))",
-            gap: 14,
+            gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+            gap: 10,
           }}
         >
           {presets.map((preset) => {
@@ -546,47 +509,27 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                 onClick={() => handleSelect(preset.id)}
                 style={{
                   background: isSelected ? "var(--panel-3)" : "var(--panel)",
-                  border: isSelected ? "2px solid var(--accent)" : "1px solid var(--line)",
-                  borderRadius: 10,
+                  border: isSelected ? "1px solid var(--accent)" : "1px solid var(--line)",
+                  borderRadius: 8,
                   overflow: "hidden",
                   cursor: "pointer",
-                  transition: "transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease",
+                  transition: "background 0.15s ease, border-color 0.15s ease",
                   display: "flex",
                   flexDirection: "column",
                   position: "relative",
-                  boxShadow: isSelected ? "0 0 12px var(--accent-subtle, rgba(255,179,57,0.3))" : "none",
                 }}
               >
                 {/* Visual Thumbnail */}
                 <div
                   style={{
-                    height: 80,
+                    height: 38,
                     background: preset.previewGradient,
                     position: "relative",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
                   }}
                 >
-                  <span style={{ fontSize: 24, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
-                    {preset.isCustom ? "⭐" : preset.id === "none" ? "🎬" : preset.id === "teal-orange" ? "🎥" : preset.id === "kodak-portra" ? "📸" : preset.id === "wes-anderson" ? "🎨" : preset.id === "matrix-green" ? "🟢" : preset.id === "fuji-eterna" ? "📽️" : preset.id === "bleach-bypass" ? "⚔️" : preset.id === "vintage-film" ? "🎞️" : preset.id === "cyberpunk" ? "⚡" : preset.id === "bw-noir" ? "♟️" : preset.id === "moody-matte" ? "🌫️" : preset.id === "vibrant-pop" ? "💥" : preset.id === "nordic-cool" ? "❄️" : "🌅"}
-                  </span>
-
                   {isSelected && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 6,
-                        left: 6,
-                        background: "var(--accent)",
-                        color: "var(--accent-ink)",
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "2px 6px",
-                        borderRadius: 999,
-                      }}
-                    >
-                      ✓ ACTIVE
+                    <span className="ui-badge positive" style={{ position: "absolute", top: 7, left: 7 }}>
+                      Active
                     </span>
                   )}
 
@@ -603,12 +546,12 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                         position: "absolute",
                         top: 6,
                         right: 6,
-                        background: "rgba(229, 105, 95, 0.85)",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "50%",
-                        width: 22,
-                        height: 22,
+                        background: "var(--panel-2)",
+                        color: "var(--danger)",
+                        border: "1px solid var(--line)",
+                        borderRadius: 6,
+                        width: 24,
+                        height: 24,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -627,11 +570,7 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                     <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? "var(--accent)" : "var(--ink)" }}>
                       {preset.name}
                     </span>
-                    {preset.isCustom && (
-                      <span style={{ fontSize: 9, background: "var(--panel-3)", border: "1px solid var(--line)", padding: "1px 4px", borderRadius: 4, color: "var(--accent)" }}>
-                        CUSTOM
-                      </span>
-                    )}
+                    {preset.isCustom && <span className="ui-badge">Custom</span>}
                   </div>
                   <span style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.3 }}>
                     {preset.description}

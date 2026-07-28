@@ -306,11 +306,11 @@ textarea.ui-control { min-height: 78px; padding: 8px; resize: vertical; }
 .ui-timeline-zoom button:disabled { opacity: .38; cursor: default; }
 .ui-timeline-viewport { min-width: 0; overflow-x: auto; overflow-y: hidden; background: var(--bg); }
 .ui-timeline-canvas { position: relative; min-width: 100%; padding: 8px 10px 10px; }
-.ui-timeline-lane { display: grid; grid-template-columns: 116px minmax(0, 1fr); border-top: 1px solid var(--line); }
+.ui-timeline-lane { display: block; border-top: 1px solid var(--line); }
 .ui-timeline-lane:first-child { border-top: 0; }
-.ui-timeline-lane > header { min-height: 34px; display: flex; flex-direction: column; justify-content: center; padding: 5px 9px; border-right: 1px solid var(--line); background: var(--panel); }
+.ui-timeline-lane > header { min-height: 25px; display: flex; align-items: center; gap: 7px; padding: 4px 9px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .ui-timeline-lane > header strong { color: var(--ink-2); font-size: 9px; }
-.ui-timeline-lane > header span { margin-top: 2px; overflow: hidden; color: var(--ink-3); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.ui-timeline-lane > header span { overflow: hidden; color: var(--ink-3); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .ui-timeline-lane-canvas { position: relative; min-height: 34px; background: var(--panel-2); }
 .ui-timeline-divider { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); pointer-events: none; }
 .ui-timeline-segment { position: absolute; min-width: 16px; overflow: hidden; display: flex; align-items: center; gap: 5px; padding: 0 6px; border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line)); border-radius: 5px; background: var(--accent-subtle); color: var(--ink); cursor: grab; }

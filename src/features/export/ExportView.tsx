@@ -80,10 +80,10 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   const [modelMsg, setModelMsg] = useState("");
   const [musicLib, setMusicLib] = useState<string[]>([]);
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>(ELEVEN_VOICES);
-  const [captionsOpen, setCaptionsOpen] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
-  const [musicOpen, setMusicOpen] = useState(false);
-  const [titleOpen, setTitleOpen] = useState(false);
+  const [captionsOpen, setCaptionsOpen] = useState(true);
+  const [voiceOpen, setVoiceOpen] = useState(true);
+  const [musicOpen, setMusicOpen] = useState(true);
+  const [titleOpen, setTitleOpen] = useState(true);
   const [playingName, setPlayingName] = useState("");
   const audioRef = useRef<HTMLAudioElement>(null);
 
