@@ -6,7 +6,10 @@ import type { IngestStatus } from "./useClipIngest";
 import { fmtClock, posterBg } from "./util";
 import { getTagStyle } from "../lib/tagPresets";
 import FileDropzone from "../design-system/FileDropzone";
-import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
+import {
+  ControlButton,
+  InputControl,
+} from "../design-system/ControlPrimitives";
 import GripIcon from "../design-system/icons/GripIcon";
 import CopyIcon from "../design-system/icons/CopyIcon";
 import DeleteIcon from "../design-system/icons/DeleteIcon";
@@ -18,7 +21,9 @@ function UsabilityDots({ score }: { score?: number }) {
   const n = score ?? 0;
   return (
     <span className="st-use">
-      {[0, 1, 2, 3, 4].map((i) => <i key={i} className={i < n ? "on" : ""} />)}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <i key={i} className={i < n ? "on" : ""} />
+      ))}
     </span>
   );
 }
@@ -42,7 +47,17 @@ interface Props {
 
 export const CLIP_DRAG_TYPE = "application/x-vidstr-clip-id";
 
-export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, onPickClip, onAddClip, onDuplicateBeat, onFiles, statuses }: Props) {
+export default function ClipBin({
+  usedClipIds,
+  selectedClipId,
+  hasCut,
+  beats,
+  onPickClip,
+  onAddClip,
+  onDuplicateBeat,
+  onFiles,
+  statuses,
+}: Props) {
   const { state, dispatch } = useProject();
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -51,9 +66,12 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
 
   const clipById = new Map(state.clips.map((c) => [c.id, c]));
 
-  const allProjectTags = Array.from(new Set(state.clips.flatMap((c) => c.tags ?? [])));
+  const allProjectTags = Array.from(
+    new Set(state.clips.flatMap((c) => c.tags ?? [])),
+  );
   const deleteTargetBeatCount = deleteClipTarget
-    ? (state.cut?.beats.filter((beat) => beat.clipId === deleteClipTarget.id).length ?? 0)
+    ? (state.cut?.beats.filter((beat) => beat.clipId === deleteClipTarget.id)
+        .length ?? 0)
     : 0;
 
   // Drag-to-reorder the cut, keyed by beat id so it's robust to filtering.
@@ -66,29 +84,50 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
     ids.splice(to, 0, ids.splice(from, 1)[0]);
     dispatch({ type: "REORDER_BEATS", order: ids });
   }
-  const endDrag = () => { setDragId(null); setOverId(null); };
+  const endDrag = () => {
+    setDragId(null);
+    setOverId(null);
+  };
 
-  const unusedClips = state.clips.filter((c) => !usedClipIds.has(c.id) && (!tagFilter || c.tags?.includes(tagFilter)));
+  const unusedClips = state.clips.filter(
+    (c) =>
+      !usedClipIds.has(c.id) && (!tagFilter || c.tags?.includes(tagFilter)),
+  );
 
   function IngestRow({ clip, addable }: { clip: Clip; addable: boolean }) {
     const st = statuses[clip.id];
     const described = !!clip.description;
     return (
       <div
-        className={"st-clip" + (addable ? " drop" : "") + (clip.id === selectedClipId ? " sel" : "")}
+        className={
+          "st-clip" +
+          (addable ? " drop" : "") +
+          (clip.id === selectedClipId ? " sel" : "")
+        }
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData(CLIP_DRAG_TYPE, clip.id);
           e.dataTransfer.effectAllowed = "copy";
         }}
         onClick={() => (addable ? onAddClip(clip.id) : onPickClip(clip.id))}
-        title={addable ? "Click or drag into the editor to add this clip to the cut" : "Drag into the editor to start a cut"}
+        title={
+          addable
+            ? "Click or drag into the editor to add this clip to the cut"
+            : "Drag into the editor to start a cut"
+        }
       >
         <div className="st-thumb" style={{ background: posterBg(clip) }} />
         <div className="st-cmeta">
           <ClipNameEditor clip={clip} />
           {clip.tags && clip.tags.length > 0 && (
-            <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 3,
+                flexWrap: "wrap",
+                marginTop: 2,
+              }}
+            >
               {clip.tags.map((tag) => {
                 const style = getTagStyle(tag);
                 return (
@@ -113,48 +152,84 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
           )}
           <div className="st-crow">
             <span className="st-cdur st-num">{fmtClock(clip.durationSec)}</span>
-            {clip.kind === "still" && <span className="st-status" title="Imported image — runs 10s as a beat">still</span>}
-            {st?.phase === "normalizing" && <span className="st-status">normalizing {Math.round(st.progress * 100)}%</span>}
-            {st?.phase === "error" && <span className="st-status err" title={st.error}>failed</span>}
+            {clip.kind === "still" && (
+              <span
+                className="st-status"
+                title="Imported image — runs 10s as a beat"
+              >
+                still
+              </span>
+            )}
+            {st?.phase === "normalizing" && (
+              <span className="st-status">
+                normalizing {Math.round(st.progress * 100)}%
+              </span>
+            )}
+            {st?.phase === "error" && (
+              <span className="st-status err" title={st.error}>
+                failed
+              </span>
+            )}
             {addable ? (
-              <div style={{ display: "inline-flex", gap: 4, marginLeft: "auto" }}>
+              <div
+                style={{ display: "inline-flex", gap: 4, marginLeft: "auto" }}
+              >
                 <ControlButton
                   type="button"
                   className="st-btn ghost"
                   style={{ fontSize: 9, padding: "1px 5px" }}
-                  onClick={(e) => { e.stopPropagation(); onAddClip(clip.id); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddClip(clip.id);
+                  }}
                   title="Add clip as a sequential beat in the main cut"
                 >
                   + Beat
                 </ControlButton>
-                {clip.kind !== "still" && <ControlButton
-                  type="button"
-                  className="st-btn ghost"
-                  style={{ fontSize: 9, padding: "1px 5px", color: "var(--accent)", borderColor: "var(--accent)" }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-                    const nameLower = clip.name.toLowerCase();
-                    const isBlend = nameLower.includes("overlay") || nameLower.includes("leak") || nameLower.includes("grain") || nameLower.includes("glitch");
-                    dispatch({
-                      type: "ADD_OVERLAY",
-                      overlay: {
-                        id: `overlay-${genId()}`,
-                        clipId: clip.id,
-                        startTimeSec: 0.5,
-                        durationSec: Math.min(5.0, clip.durationSec || 3.0),
-                        inSec: 0,
-                        outSec: Math.min(5.0, clip.durationSec || 3.0),
-                        blendMode: (isBlend ? "screen" : "normal") as OverlayBlendMode,
-                        opacity: 0.85,
-                        volume: 0,
-                      },
-                    });
-                  }}
-                  title="Layer clip as a video overlay on top of beats"
-                >
-                  + Overlay
-                </ControlButton>}
+                {clip.kind !== "still" && (
+                  <ControlButton
+                    type="button"
+                    className="st-btn ghost"
+                    style={{
+                      fontSize: 9,
+                      padding: "1px 5px",
+                      color: "var(--accent)",
+                      borderColor: "var(--accent)",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const genId = () =>
+                        typeof crypto !== "undefined" && crypto.randomUUID
+                          ? crypto.randomUUID()
+                          : Math.random().toString(36).slice(2);
+                      const nameLower = clip.name.toLowerCase();
+                      const isBlend =
+                        nameLower.includes("overlay") ||
+                        nameLower.includes("leak") ||
+                        nameLower.includes("grain") ||
+                        nameLower.includes("glitch");
+                      dispatch({
+                        type: "ADD_OVERLAY",
+                        overlay: {
+                          id: `overlay-${genId()}`,
+                          clipId: clip.id,
+                          startTimeSec: 0.5,
+                          durationSec: Math.min(5.0, clip.durationSec || 3.0),
+                          inSec: 0,
+                          outSec: Math.min(5.0, clip.durationSec || 3.0),
+                          blendMode: (isBlend
+                            ? "screen"
+                            : "normal") as OverlayBlendMode,
+                          opacity: 0.85,
+                          volume: 0,
+                        },
+                      });
+                    }}
+                    title="Layer clip as a video overlay on top of beats"
+                  >
+                    + Overlay
+                  </ControlButton>
+                )}
               </div>
             ) : described ? (
               <UsabilityDots score={clip.description!.usability} />
@@ -180,17 +255,30 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
 
   return (
     <aside className="st-col bin">
-      <div className="st-colhead" style={{ display: "flex", alignItems: "center" }}>
+      <div
+        className="st-colhead"
+        style={{ display: "flex", alignItems: "center" }}
+      >
         <span>Clips</span>
         {state.clips.length > 0 && (
-          <span className="cnt st-num" aria-label={`${state.clips.length} clips`}>
+          <span
+            className="cnt st-num"
+            aria-label={`${state.clips.length} clips`}
+          >
             {state.clips.length}
           </span>
         )}
       </div>
 
       {allProjectTags.length > 0 && (
-        <div style={{ padding: "6px 10px", display: "flex", gap: 4, flexWrap: "wrap", background: "var(--panel-2)", borderBottom: "1px solid var(--line)" }}>
+        <div
+          style={{
+            padding: "6px 10px",
+            display: "flex",
+            gap: 4,
+            flexWrap: "wrap",
+          }}
+        >
           <ControlButton
             type="button"
             className={`st-btn ${tagFilter === null ? "primary" : "ghost"}`}
@@ -201,7 +289,9 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
           </ControlButton>
           {allProjectTags.map((tag) => {
             const active = tagFilter === tag;
-            const count = state.clips.filter((c) => c.tags?.includes(tag)).length;
+            const count = state.clips.filter((c) =>
+              c.tags?.includes(tag),
+            ).length;
             return (
               <ControlButton
                 key={tag}
@@ -235,25 +325,52 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
               const clip = clipById.get(b.clipId);
               if (!clip) return null;
               if (tagFilter && !clip.tags?.includes(tagFilter)) return null;
-              const isOver = overId === b.id && dragId !== null && dragId !== b.id;
+              const isOver =
+                overId === b.id && dragId !== null && dragId !== b.id;
               return (
                 <div
                   key={b.id}
-                  className={"st-clip st-drag" + (clip.id === selectedClipId ? " sel" : "") + (dragId === b.id ? " dragging" : "") + (isOver ? " dragover" : "")}
+                  className={
+                    "st-clip st-drag" +
+                    (clip.id === selectedClipId ? " sel" : "") +
+                    (dragId === b.id ? " dragging" : "") +
+                    (isOver ? " dragover" : "")
+                  }
                   draggable
-                  onDragStart={(e) => { setDragId(b.id); e.dataTransfer.effectAllowed = "move"; }}
-                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overId !== b.id) setOverId(b.id); }}
-                  onDrop={(e) => { e.preventDefault(); if (dragId) reorder(dragId, b.id); endDrag(); }}
+                  onDragStart={(e) => {
+                    setDragId(b.id);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    if (overId !== b.id) setOverId(b.id);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragId) reorder(dragId, b.id);
+                    endDrag();
+                  }}
                   onDragEnd={endDrag}
                   onClick={() => onPickClip(clip.id)}
                   title={clip.name}
                 >
                   <Grip />
-                  <div className="st-thumb" style={{ background: posterBg(clip) }} />
+                  <div
+                    className="st-thumb"
+                    style={{ background: posterBg(clip) }}
+                  />
                   <div className="st-cmeta">
                     <ClipNameEditor clip={clip} />
                     {clip.tags && clip.tags.length > 0 && (
-                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 3,
+                          flexWrap: "wrap",
+                          marginTop: 2,
+                        }}
+                      >
                         {clip.tags.map((tag) => {
                           const style = getTagStyle(tag);
                           return (
@@ -277,9 +394,15 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                       </div>
                     )}
                     <div className="st-crow">
-                      <span className="st-cdur st-num">{fmtClock(b.durationSec ?? clip.durationSec)}</span>
+                      <span className="st-cdur st-num">
+                        {fmtClock(b.durationSec ?? clip.durationSec)}
+                      </span>
                       {clip.isTemplatePlaceholder && (
-                        <span className="st-status" style={{ color: "var(--accent)" }} title={clip.templateSlotDescription}>
+                        <span
+                          className="st-status"
+                          style={{ color: "var(--accent)" }}
+                          title={clip.templateSlotDescription}
+                        >
                           empty slot
                         </span>
                       )}
@@ -287,7 +410,10 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                       <ControlButton
                         className="st-dup-btn"
                         title="Duplicate this beat"
-                        onClick={(e) => { e.stopPropagation(); onDuplicateBeat(b.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDuplicateBeat(b.id);
+                        }}
                       >
                         <CopyIcon size={12} />
                       </ControlButton>
@@ -315,11 +441,19 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
               );
             })}
 
-            {unusedClips.length > 0 && <div className="st-binsub">Not in the cut</div>}
-            {unusedClips.map((clip) => <IngestRow key={clip.id} clip={clip} addable />)}
+            {unusedClips.length > 0 && (
+              <div className="st-binsub">Not in the cut</div>
+            )}
+            {unusedClips.map((clip) => (
+              <IngestRow key={clip.id} clip={clip} addable />
+            ))}
           </>
         ) : (
-          state.clips.filter((c) => !tagFilter || c.tags?.includes(tagFilter)).map((clip) => <IngestRow key={clip.id} clip={clip} addable={false} />)
+          state.clips
+            .filter((c) => !tagFilter || c.tags?.includes(tagFilter))
+            .map((clip) => (
+              <IngestRow key={clip.id} clip={clip} addable={false} />
+            ))
         )}
       </div>
       <Modal
@@ -329,37 +463,65 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
         ariaLabel="Confirm clip deletion"
         maxWidth={430}
         onClose={() => setDeleteClipTarget(null)}
-        footer={(
+        footer={
           <>
-            <Button variant="secondary" onClick={() => setDeleteClipTarget(null)}>Cancel</Button>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteClipTarget(null)}
+            >
+              Cancel
+            </Button>
             <Button
               variant="danger"
               onClick={() => {
                 if (!deleteClipTarget) return;
-                dispatch({ type: "DELETE_CLIP_FROM_PROJECT", id: deleteClipTarget.id });
+                dispatch({
+                  type: "DELETE_CLIP_FROM_PROJECT",
+                  id: deleteClipTarget.id,
+                });
                 setDeleteClipTarget(null);
               }}
             >
               Delete clip
             </Button>
           </>
-        )}
+        }
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(229, 105, 95, 0.15)", color: "var(--danger)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: "rgba(229, 105, 95, 0.15)",
+              color: "var(--danger)",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+            }}
+          >
             <DeleteIcon size={19} />
           </div>
           <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--ink-2)" }}>
-            <strong style={{ color: "var(--ink)" }}>{deleteClipTarget?.name}</strong>
+            <strong style={{ color: "var(--ink)" }}>
+              {deleteClipTarget?.name}
+            </strong>
             {deleteTargetBeatCount > 0 ? (
               <span style={{ display: "block", marginTop: 4 }}>
-                {deleteTargetBeatCount} referenced beat{deleteTargetBeatCount === 1 ? "" : "s"} will remain in place as an empty slot, preserving timing and edit settings.
+                {deleteTargetBeatCount} referenced beat
+                {deleteTargetBeatCount === 1 ? "" : "s"} will remain in place as
+                an empty slot, preserving timing and edit settings.
               </span>
             ) : (
-              <span style={{ display: "block", marginTop: 4 }}>No main timeline beats reference this clip.</span>
+              <span style={{ display: "block", marginTop: 4 }}>
+                No main timeline beats reference this clip.
+              </span>
             )}
-            <span style={{ display: "block", marginTop: 4, color: "var(--ink-3)" }}>
-              Overlay and split-screen references to this media will also be removed.
+            <span
+              style={{ display: "block", marginTop: 4, color: "var(--ink-3)" }}
+            >
+              Overlay and split-screen references to this media will also be
+              removed.
             </span>
           </div>
         </div>
@@ -422,9 +584,24 @@ function ClipNameEditor({ clip }: { clip: Clip }) {
         e.stopPropagation();
         setEditing(true);
       }}
-      style={{ cursor: "text", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}
+      style={{
+        cursor: "text",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 4,
+      }}
     >
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{clip.name}</span>
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          flex: 1,
+        }}
+      >
+        {clip.name}
+      </span>
       <ControlButton
         type="button"
         className="st-rename-btn"

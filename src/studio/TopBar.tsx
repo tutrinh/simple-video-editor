@@ -28,11 +28,19 @@ interface Props {
   onOpenAiStory: () => void;
 }
 
-export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAiStory }: Props) {
+export default function TopBar({
+  onExport,
+  onStartOver,
+  onOpenSettings,
+  onOpenAiStory,
+}: Props) {
   const { state, dispatch } = useProject();
   const { theme, toggleTheme } = useTheme();
   const { clips, cut, title } = state;
-  const titleSize = Math.min(40, Math.max(15, (title.length || "Untitled project".length) + 1));
+  const titleSize = Math.min(
+    40,
+    Math.max(15, (title.length || "Untitled project".length) + 1),
+  );
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [projectsModalOpen, setProjectsModalOpen] = useState(false);
   const { saveStatus } = useAutoSaveProject();
@@ -41,7 +49,8 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
   // Aspect is a Cut property that doesn't affect beat trims — switch it without
   // rebuilding, preserving manual edits (export letterboxes/pads to the choice).
   function setAspect(a: Aspect) {
-    if (cut && cut.aspect !== a) dispatch({ type: "SET_CUT", cut: { ...cut, aspect: a } });
+    if (cut && cut.aspect !== a)
+      dispatch({ type: "SET_CUT", cut: { ...cut, aspect: a } });
   }
 
   return (
@@ -52,7 +61,10 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
         onClick={onOpenSettings}
         title="Settings"
       />
-      <div className="st-brand"><span className="dot" />VIDSTR</div>
+      <div className="st-brand">
+        <span className="dot" />
+        VIDSTR
+      </div>
       <div className="st-proj">
         <span aria-hidden="true">/</span>
         <InlineTextField
@@ -60,7 +72,9 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
           value={title}
           placeholder="Untitled project"
           size={titleSize}
-          onChange={(e) => dispatch({ type: "SET_TITLE", title: e.target.value })}
+          onChange={(e) =>
+            dispatch({ type: "SET_TITLE", title: e.target.value })
+          }
           aria-label="Project title"
           title="Click to rename this project"
         />
@@ -68,7 +82,11 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
         {/* Auto-Save Status Badge */}
         {clips.length > 0 && (
           <Badge tone={saveStatus === "saving" ? "signal" : "positive"}>
-            {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "✓ Saved" : ""}
+            {saveStatus === "saving"
+              ? "Saving..."
+              : saveStatus === "saved"
+                ? "✓ Saved"
+                : ""}
           </Badge>
         )}
       </div>
@@ -83,7 +101,12 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
         Projects
       </Button>
       {cut && (
-        <SegmentedControl ariaLabel="Aspect ratio" value={cut.aspect} onChange={setAspect} options={ASPECTS.map((aspect) => ({ value: aspect, label: aspect }))} />
+        <SegmentedControl
+          ariaLabel="Aspect ratio"
+          value={cut.aspect}
+          onChange={setAspect}
+          options={ASPECTS.map((aspect) => ({ value: aspect, label: aspect }))}
+        />
       )}
       {cut && (
         <Button
@@ -96,8 +119,16 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
         </Button>
       )}
       {cut && <Badge>1080p</Badge>}
-      {cut && <Badge>{fmtClock(cutDuration(cut))} / {cut.beats.length} beats</Badge>}
-      {clips.length > 0 && <Badge>{clips.length} clip{clips.length === 1 ? "" : "s"}</Badge>}
+      {cut && (
+        <Badge>
+          {fmtClock(cutDuration(cut))} / {cut.beats.length} beats
+        </Badge>
+      )}
+      {clips.length > 0 && (
+        <Badge>
+          {clips.length} clip{clips.length === 1 ? "" : "s"}
+        </Badge>
+      )}
 
       <div className="st-spacer" />
 
@@ -105,7 +136,9 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
         variant="quiet"
         size="small"
         onClick={toggleTheme}
-        title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        title={
+          theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"
+        }
         aria-label="Toggle theme"
       >
         {theme === "dark" ? <SunIcon size={15} /> : <MoonIcon size={15} />}
@@ -122,8 +155,14 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
           AI Story
         </Button>
       )}
-      <Button variant="danger" size="small" onClick={onStartOver} title="Clear everything">Start over</Button>
-      <Button variant="primary" size="small" icon={<DownloadIcon size={14} />} onClick={onExport} disabled={!cut}>
+      {/* <Button variant="danger" size="small" onClick={onStartOver} title="Clear everything">Start over</Button> */}
+      <Button
+        variant="primary"
+        size="small"
+        icon={<DownloadIcon size={14} />}
+        onClick={onExport}
+        disabled={!cut}
+      >
         Export video
       </Button>
 
@@ -133,7 +172,12 @@ export default function TopBar({ onExport, onStartOver, onOpenSettings, onOpenAi
           activeIntensity={cut?.globalFilterIntensity}
           activeAdjustments={cut?.globalFilterAdjustments}
           onSelectFilter={(filterId, intensity, adjustments) => {
-            dispatch({ type: "SET_GLOBAL_FILTER", filterId, intensity, adjustments });
+            dispatch({
+              type: "SET_GLOBAL_FILTER",
+              filterId,
+              intensity,
+              adjustments,
+            });
           }}
           onClose={() => setFilterModalOpen(false)}
         />
