@@ -27,6 +27,10 @@ export interface Clip {
   included?: boolean;
   /** User-assigned tags for clip organization (e.g. ["A-Roll", "B-Roll", "Interview"]). */
   tags?: string[];
+  /** Empty media slot created when a template has more beats than assigned clips. */
+  isTemplatePlaceholder?: boolean;
+  /** The template's description of the footage expected in this empty slot. */
+  templateSlotDescription?: string;
 }
 
 /**
@@ -105,9 +109,8 @@ export interface TemplateBeat {
 }
 
 /**
- * A reusable project blueprint. Captures the edit structure (beat count +
- * descriptions) and a full style bundle (color, title, VO, export settings).
- * Created by AI extraction from an inspiration video or from a finished project.
+ * A reusable project blueprint. Captures the extracted edit structure and style
+ * hints, plus the optional local reference video used to create it.
  */
 export interface ProjectTemplate {
   id: string;
@@ -126,6 +129,12 @@ export interface ProjectTemplate {
   colorHint?: ColorAdjustments;
   /** Raw text from the Claude extraction — retained for debugging. */
   extractionRaw?: string;
+  /**
+   * Original local inspiration video, retained so the editor can review the
+   * reference alongside its extracted structure. Older templates may not have
+   * one because early versions deliberately discarded the source file.
+   */
+  inspirationVideo?: File;
 }
 
 export type SplitLayoutType =
@@ -172,6 +181,8 @@ export interface Beat {
   durationSec: number;
   scriptText: string;
   captionText: string;
+  /** Expected footage for this position when the Beat came from a template. */
+  templateSlotDescription?: string;
   captionDurations?: number[];
   colorAdjustments?: ColorAdjustments;
   /** Per-beat stacked title layers, shown during this beat (parallel to the
@@ -366,6 +377,9 @@ export interface SfxSegment {
 /** The assembled, editable draft — the ordered sequence of Beats and Overlays. */
 export interface Cut {
   beats: Beat[];
+  /** Template provenance retained so AI Story can honor the source edit's intent. */
+  templateName?: string;
+  templateToneHint?: string;
   overlays?: OverlayClip[];
   /** Narration + caption segments on the independent VO track. */
   voSegments?: VoSegment[];

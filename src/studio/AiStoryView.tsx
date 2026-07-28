@@ -132,7 +132,7 @@ export default function AiStoryView() {
             type="button"
             className="st-btn primary"
             onClick={regen.authorScript}
-            disabled={regen.busy || inCut.length === 0}
+            disabled={regen.busy || !cut?.beats.length}
             title="Describe any un-analyzed beat clips, then write one script line per beat — your beats and their order are kept exactly as arranged"
           >
             {state.story ? "↻ Re-write script for the cut" : "✨ Write script for the cut"}
@@ -207,6 +207,13 @@ export default function AiStoryView() {
         </div>
       ) : (
         <div className="st-ai-post">
+          {cut.templateName && (
+            <div style={{ marginBottom: 10, padding: "8px 10px", border: "1px solid color-mix(in srgb, var(--accent) 35%, var(--line))", borderRadius: 8, background: "color-mix(in srgb, var(--accent) 7%, transparent)", color: "var(--ink-2)", fontSize: 11 }}>
+              <strong style={{ color: "var(--accent)" }}>Template:</strong> {cut.templateName}
+              {cut.templateToneHint ? ` · ${cut.templateToneHint}` : ""}
+              <span style={{ display: "block", marginTop: 3, color: "var(--ink-3)" }}>AI Story will preserve its beat order and use each slot description as editorial guidance.</span>
+            </div>
+          )}
           {state.story?.logline && <div className="st-ai-logline">"{state.story.logline}"</div>}
           <div className="st-ai-sec">Beats ({cut.beats.length})</div>
           <div className="st-ai-grid">
@@ -221,11 +228,18 @@ export default function AiStoryView() {
                   </div>
 
                   <div className="st-ai-desc">
+                    {beat.templateSlotDescription && (
+                      <span style={{ display: "block", marginBottom: 4, color: "var(--accent)", fontSize: 10, fontWeight: 700 }}>
+                        Template role: {beat.templateSlotDescription}
+                      </span>
+                    )}
                     {d ? (
                       <>
                         <span className="st-ai-subject">{d.subjectAction}</span>
                         {d.settingMood && <span className="st-ai-setting"> · {d.settingMood}</span>}
                       </>
+                    ) : clip?.isTemplatePlaceholder ? (
+                      <span className="muted">Empty slot — assign footage when ready</span>
                     ) : (
                       <span className="muted">{clip?.name ?? "clip"} — not analyzed</span>
                     )}
@@ -255,12 +269,12 @@ export default function AiStoryView() {
                       className="st-btn ghost"
                       style={{ fontSize: 11, padding: "3px 9px" }}
                       onClick={() => regen.refineBeat(beat.id)}
-                      disabled={regen.busy || !beat.scriptText.trim()}
-                      title="Rewrite this line with Claude in the chosen tone"
+                      disabled={regen.busy || !beat.scriptText.trim() || clip?.isTemplatePlaceholder}
+                      title={clip?.isTemplatePlaceholder ? "Assign footage before refining this individual beat." : "Rewrite this line with Claude in the chosen tone"}
                     >
                       ✨ Refine
                     </ControlButton>
-                    {clip && (
+                    {clip && !clip.isTemplatePlaceholder && (
                       <ControlButton
                         type="button"
                         className="st-btn ghost"

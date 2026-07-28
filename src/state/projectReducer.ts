@@ -17,6 +17,7 @@ export type Action =
   | { type: "SET_TITLE"; title: string }
   | { type: "ADD_CLIPS"; clips: Clip[] }
   | { type: "REMOVE_CLIP"; id: string }
+  | { type: "DELETE_CLIP_FROM_PROJECT"; id: string; placeholderIds?: string[] }
   | { type: "RENAME_CLIP"; id: string; name: string }
   | { type: "SET_NORMALIZED"; id: string; normalized: Blob }
   | { type: "SET_POSTER"; id: string; poster: string }
@@ -26,9 +27,12 @@ export type Action =
   | { type: "SET_DIRECTION"; direction: string }
   | { type: "SET_STORY"; story: Story }
   | { type: "SET_CUT"; cut: Cut }
+  | { type: "APPLY_TEMPLATE"; cut: Cut; placeholderClips?: Clip[] }
   | { type: "UPDATE_BEAT"; beat: Beat }
+  | { type: "FILL_TEMPLATE_SLOT"; beatId: string; clipId: string; newClipId?: string }
   | { type: "ADD_BEAT"; beat: Beat }
   | { type: "REMOVE_BEAT"; id: string }
+  | { type: "REMOVE_BEAT_AND_CLIP"; id: string }
   | { type: "DUPLICATE_BEAT"; id: string; newBeatId?: string; newClipId?: string }
   | { type: "REORDER_BEATS"; order: string[] }
   | { type: "ADD_OVERLAY"; overlay: OverlayClip }
@@ -65,6 +69,54 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, clips: [...state.clips, ...action.clips] };
     case "REMOVE_CLIP":
       return { ...state, clips: state.clips.filter((c) => c.id !== action.id) };
+    case "DELETE_CLIP_FROM_PROJECT": {
+      const removedClip = state.clips.find((clip) => clip.id === action.id);
+      if (!removedClip) return state;
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const placeholderClips: Clip[] = [];
+      let placeholderIndex = 0;
+      const beats = state.cut?.beats.map((beat) => {
+        if (beat.clipId !== removedClip.id) return beat;
+        const description = beat.templateSlotDescription ?? removedClip.templateSlotDescription ?? `Replacement for ${removedClip.name}`;
+        const placeholder: Clip = {
+          id: action.placeholderIds?.[placeholderIndex++] ?? `template-slot-${genId()}`,
+          file: new File([], `empty-slot-${beat.id}.mp4`, { type: "video/mp4" }),
+          name: `Empty · ${description}`,
+          durationSec: beat.durationSec,
+          width: removedClip.width,
+          height: removedClip.height,
+          isTemplatePlaceholder: true,
+          templateSlotDescription: description,
+        };
+        placeholderClips.push(placeholder);
+        return {
+          ...beat,
+          clipId: placeholder.id,
+          inSec: 0,
+          outSec: beat.durationSec,
+          templateSlotDescription: description,
+        };
+      });
+      const repairedBeats = beats?.map((beat) => {
+        if (!beat.splitScreen?.slots.some((slot) => slot.clipId === removedClip.id)) return beat;
+        const slots = beat.splitScreen.slots.filter((slot) => slot.clipId !== removedClip.id);
+        return { ...beat, splitScreen: slots.length >= 2 ? { ...beat.splitScreen, slots } : undefined };
+      });
+      return {
+        ...state,
+        clips: [...state.clips.filter((clip) => clip.id !== removedClip.id), ...placeholderClips],
+        story: state.story
+          ? { ...state.story, beats: state.story.beats.filter((beat) => beat.clipId !== removedClip.id) }
+          : undefined,
+        cut: state.cut
+          ? {
+              ...state.cut,
+              beats: repairedBeats ?? state.cut.beats,
+              overlays: (state.cut.overlays ?? []).filter((overlay) => overlay.clipId !== removedClip.id),
+            }
+          : undefined,
+      };
+    }
     case "RENAME_CLIP":
       return { ...state, clips: patchClip(state.clips, action.id, { name: action.name }) };
     case "SET_NORMALIZED":
@@ -83,10 +135,59 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, story: action.story };
     case "SET_CUT":
       return { ...state, cut: action.cut };
+    case "APPLY_TEMPLATE":
+      return {
+        ...state,
+        story: undefined,
+        cut: action.cut,
+        clips: [
+          ...state.clips.filter((clip) => !clip.isTemplatePlaceholder),
+          ...(action.placeholderClips ?? []),
+        ],
+      };
     case "UPDATE_BEAT": {
       if (!state.cut) return state;
       const beats = state.cut.beats.map((b) => (b.id === action.beat.id ? action.beat : b));
       return { ...state, cut: { ...state.cut, beats } };
+    }
+    case "FILL_TEMPLATE_SLOT": {
+      if (!state.cut) return state;
+      const targetBeat = state.cut.beats.find((beat) => beat.id === action.beatId);
+      const replacement = state.clips.find((clip) => clip.id === action.clipId && !clip.isTemplatePlaceholder);
+      if (!targetBeat || !replacement) return state;
+
+      const placeholder = state.clips.find((clip) => clip.id === targetBeat.clipId);
+      if (!placeholder?.isTemplatePlaceholder) return state;
+
+      const alreadyUsed = state.cut.beats.some((beat) => beat.id !== targetBeat.id && beat.clipId === replacement.id);
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const assignedClip: Clip = alreadyUsed
+        ? {
+            ...replacement,
+            id: action.newClipId ?? genId(),
+            description: replacement.description ? { ...replacement.description } : undefined,
+          }
+        : replacement;
+      const targetDuration = Math.min(targetBeat.durationSec, replacement.durationSec || targetBeat.durationSec);
+      const inSec = Math.max(0, Math.min(targetBeat.inSec, replacement.durationSec - targetDuration));
+      const filledBeat = {
+        ...targetBeat,
+        clipId: assignedClip.id,
+        inSec,
+        outSec: inSec + targetDuration,
+        durationSec: targetDuration,
+      };
+      return {
+        ...state,
+        clips: state.clips.flatMap((clip) => {
+          if (clip.id !== placeholder.id) return [clip];
+          return alreadyUsed ? [assignedClip] : [];
+        }),
+        cut: {
+          ...state.cut,
+          beats: state.cut.beats.map((beat) => beat.id === targetBeat.id ? filledBeat : beat),
+        },
+      };
     }
     case "ADD_BEAT": {
       if (!state.cut) return state;
@@ -95,6 +196,26 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case "REMOVE_BEAT": {
       if (!state.cut) return state;
       return { ...state, cut: { ...state.cut, beats: state.cut.beats.filter((b) => b.id !== action.id) } };
+    }
+    case "REMOVE_BEAT_AND_CLIP": {
+      if (!state.cut) return state;
+      const removedBeat = state.cut.beats.find((beat) => beat.id === action.id);
+      if (!removedBeat) return state;
+
+      const clipId = removedBeat.clipId;
+      const remainingBeats = state.cut.beats.filter((beat) => beat.id !== action.id);
+      const stillReferenced =
+        remainingBeats.some((beat) => beat.clipId === clipId || beat.splitScreen?.slots.some((slot) => slot.clipId === clipId)) ||
+        (state.cut.overlays ?? []).some((overlay) => overlay.clipId === clipId);
+
+      return {
+        ...state,
+        clips: stillReferenced ? state.clips : state.clips.filter((clip) => clip.id !== clipId),
+        story: state.story && !stillReferenced
+          ? { ...state.story, beats: state.story.beats.filter((beat) => beat.clipId !== clipId) }
+          : state.story,
+        cut: { ...state.cut, beats: remainingBeats },
+      };
     }
     case "ADD_OVERLAY": {
       if (!state.cut) return state;

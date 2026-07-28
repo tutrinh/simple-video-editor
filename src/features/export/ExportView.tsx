@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useProject } from "../../state/ProjectContext";
 import { useExportSettings, type TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { cutDuration } from "../assemble/assemble";
-import { exportCut, buildScriptText, buildSrt, type TitleOverlay, type TitleLayer } from "./export";
+import { exportCut, emptyTemplateSlotExportError, buildScriptText, buildSrt, type TitleOverlay, type TitleLayer } from "./export";
 import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
 import { ELEVEN_VOICES, ELEVEN_MODELS, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
 import type { TtsEngine } from "../../lib/tts";
@@ -49,7 +49,7 @@ function formatElapsed(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export default function ExportView({ active = true }: { active?: boolean }) {
+export default function ExportView({ active = true, onClose }: { active?: boolean; onClose?: () => void }) {
   const { state, dispatch } = useProject();
   const cut = state.cut;
   const clips = state.clips;
@@ -319,6 +319,13 @@ export default function ExportView({ active = true }: { active?: boolean }) {
 
   async function runExport() {
     setError("");
+
+    const preflightError = cut ? emptyTemplateSlotExportError(cut, clips) : "Add clips to the timeline before exporting.";
+    if (preflightError) {
+      setError(preflightError);
+      return;
+    }
+
     setVideoUrl("");
     setProgress(0);
     setStatusText("Initializing export…");
@@ -548,10 +555,21 @@ export default function ExportView({ active = true }: { active?: boolean }) {
       {error && (
         <div style={{ color: "var(--danger)", background: "rgba(229,105,95,0.1)", borderBottom: "1px solid rgba(229,105,95,0.25)", padding: "8px 24px", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span>{error}</span>
-          <button className="st-btn danger" style={{ padding: "4px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }} onClick={runExport} disabled={busy}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            Retry Export
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                style={{ padding: 0, border: 0, background: "transparent", color: "inherit", font: "inherit", textDecoration: "underline", cursor: "pointer" }}
+              >
+                Close export
+              </button>
+            )}
+            <button className="st-btn danger" style={{ padding: "4px 12px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }} onClick={runExport} disabled={busy || Boolean(error)}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Retry Export
+            </button>
+          </div>
         </div>
       )}
 

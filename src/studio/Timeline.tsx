@@ -18,6 +18,7 @@ import { beatPosterBg } from "../lib/beatPosterCache";
 import { ControlButton } from "../design-system/ControlPrimitives";
 import CopyIcon from "../design-system/icons/CopyIcon";
 import CloseIcon from "../design-system/icons/CloseIcon";
+import SplitClipPickerModal from "./SplitClipPickerModal";
 import {
   anchoredScrollLeft,
   clampTimelineZoom,
@@ -78,6 +79,7 @@ export default function Timeline({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sfxPickerOpen, setSfxPickerOpen] = useState(false);
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
+  const [assignPlaceholderBeatId, setAssignPlaceholderBeatId] = useState<string | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
   const [timelineZoom, setTimelineZoomState] = useState(() => {
@@ -1000,6 +1002,21 @@ export default function Timeline({
                         }}
                       >
                         <div className="st-bt" style={{ background: beatPosterBg(b, clip, forceUpdate), position: "relative" }}>
+                          {clip?.isTemplatePlaceholder && (
+                            <div style={{ position: "absolute", inset: 0, zIndex: 4, display: "grid", placeContent: "center", justifyItems: "center", gap: 5, padding: 6, background: "repeating-linear-gradient(135deg, var(--panel-3) 0 8px, var(--panel-2) 8px 16px)", color: "var(--accent)", fontSize: 9, fontWeight: 800, letterSpacing: ".08em", textAlign: "center" }}>
+                              <span>EMPTY SLOT</span>
+                              <ControlButton
+                                className="st-btn primary"
+                                style={{ padding: "2px 6px", fontSize: 9, letterSpacing: 0, whiteSpace: "nowrap" }}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setAssignPlaceholderBeatId(b.id);
+                                }}
+                              >
+                                Assign clip
+                              </ControlButton>
+                            </div>
+                          )}
                           {b.splitScreen && b.splitScreen.layout !== "none" && (
                             <span style={{ position: "absolute", top: 4, right: 4, background: "rgba(139,124,255,0.9)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, zIndex: 5, backdropFilter: "blur(4px)" }}>
                               🥞 Split
@@ -1008,7 +1025,14 @@ export default function Timeline({
                           <span className="bn st-num">{String(i + 1).padStart(2, "0")}</span>
                         </div>
 
-                        <div className="st-bcap">{b.captionText}</div>
+                        <div
+                          className={"st-bcap" + (b.templateSlotDescription ? " template-slot" : "")}
+                          title={b.templateSlotDescription ?? b.captionText}
+                        >
+                          {b.templateSlotDescription ? (
+                            <><strong>Slot:</strong> {b.templateSlotDescription}</>
+                          ) : b.captionText}
+                        </div>
                         <div className="st-bdur">
                           <span className="st-num">{fmtSecs(b.durationSec)}</span>
                           <span className="st-reorder">
@@ -1034,6 +1058,22 @@ export default function Timeline({
           </div>
         </TimelineCanvas>
       </TimelineViewport>
+      {assignPlaceholderBeatId && (() => {
+        const targetBeat = beats.find((beat) => beat.id === assignPlaceholderBeatId);
+        const availableClips = clips.filter((candidate) => !candidate.isTemplatePlaceholder);
+        return targetBeat ? (
+          <SplitClipPickerModal
+            title={`Assign Clip · ${targetBeat.templateSlotDescription ?? "Template slot"}`}
+            activeClipId=""
+            clips={availableClips}
+            onSelectClip={(clipId) => {
+              dispatch({ type: "FILL_TEMPLATE_SLOT", beatId: targetBeat.id, clipId });
+              setAssignPlaceholderBeatId(null);
+            }}
+            onClose={() => setAssignPlaceholderBeatId(null)}
+          />
+        ) : null;
+      })()}
     </TimelineShell>
   );
 }

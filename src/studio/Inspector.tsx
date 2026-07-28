@@ -35,6 +35,7 @@ import ChevronDownIcon from "../design-system/icons/ChevronDownIcon";
 import DeleteIcon from "../design-system/icons/DeleteIcon";
 import LockIcon from "../design-system/icons/LockIcon";
 import UnlockIcon from "../design-system/icons/UnlockIcon";
+import CopyIcon from "../design-system/icons/CopyIcon";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -176,6 +177,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const selectedVo = (cut?.voSegments ?? []).find((s) => s.id === selectedVoId);
   const selectedSfx = (cut?.sfxSegments ?? []).find((s) => s.id === selectedSfxId);
   const selectedSticker = (cut?.stickers ?? []).find((s) => s.id === selectedStickerId);
+  const clipHasOtherUses = Boolean(beat && cut && (
+    cut.beats.some((candidate) =>
+      candidate.id !== beat.id &&
+      (candidate.clipId === beat.clipId || candidate.splitScreen?.slots.some((slot) => slot.clipId === beat.clipId))
+    ) ||
+    (cut.overlays ?? []).some((overlay) => overlay.clipId === beat.clipId)
+  ));
 
   // Audition the selected SFX (like the music library preview): plays only the
   // trimmed window [0, durationSec] at the segment's volume.
@@ -386,14 +394,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   // beat. Rendered in both the empty state and the normal Inspector so a selected VO
   // chip is always editable. (Mirrors the overlay clip card.)
   const voCard = selectedVo ? (
-    <div className="st-sec" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--accent)" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)" }}>🎙️ VO Segment</span>
+    <div className="st-field" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+        <label style={{ margin: 0 }}>Voiceover segment</label>
         <div style={{ display: "flex", gap: 6 }}>
           <ControlButton
             type="button"
             className="st-btn ghost"
-            style={{ padding: "2px 8px", fontSize: 11 }}
+            style={{ padding: "3px 7px", fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}
             onClick={() => {
               const gid = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
               const newId = `vo-${gid()}`;
@@ -402,27 +410,27 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             }}
             title="Duplicate this VO segment"
           >
-            📋 Duplicate
+            <CopyIcon size={11} /> Duplicate
           </ControlButton>
           <ControlButton
             type="button"
             className="st-btn danger"
-            style={{ padding: "2px 8px", fontSize: 11 }}
+            style={{ padding: "3px 7px", fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}
             onClick={() => { dispatch({ type: "REMOVE_VO", id: selectedVo.id }); onSelectVo?.(null); }}
           >
-            Remove
+            <DeleteIcon size={11} /> Remove
           </ControlButton>
         </div>
       </div>
 
-      <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Narration text (read by ElevenLabs / Kokoro)</label>
+      <label>Narration</label>
       <TextareaControl
+        className="st-caption-edit"
         ref={voTextRef}
         value={selectedVo.text}
         onChange={(e) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, text: e.target.value } })}
         placeholder="Type what the voiceover should say…"
         rows={3}
-        style={{ width: "100%", marginTop: 4, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "6px 8px", fontSize: 12, resize: "vertical", outline: "none", boxSizing: "border-box" }}
       />
 
       {/* Expressive hints — inline audio tags the user can drop into the narration. */}
@@ -431,11 +439,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           type="button"
           className="st-color-collapsible-btn"
           onClick={() => setVoHintsOpen((o) => !o)}
-          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 10px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 8px", background: "transparent", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink-2)", cursor: "pointer" }}
           title="Reference of expressive audio tags you can type into the narration"
         >
-          <span style={{ fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>✨ Expressive hints</span>
-          <span style={{ fontSize: 10, color: "var(--ink-3)", transition: "transform .25s cubic-bezier(.4,0,.2,1)", transform: voHintsOpen ? "rotate(180deg)" : "none" }}>▼</span>
+          <span style={{ fontSize: 10.5, fontWeight: 600 }}>Expressive delivery hints</span>
+          <ChevronDownIcon
+            size={11}
+            style={{ transition: "transform .2s ease", transform: voHintsOpen ? "rotate(180deg)" : "none" }}
+          />
         </ControlButton>
 
         <div className={"st-color-collapsible" + (voHintsOpen ? " open" : "")}>
@@ -477,8 +488,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-        <div style={{ fontSize: 11, color: "var(--ink-2)" }}>Show caption on screen</div>
+      <div className="ds-switch-row" style={{ marginTop: 8 }}>
+        <span>
+          <b>Show caption on screen</b>
+          <small>Display narration text during this segment</small>
+        </span>
         <Switch
           checked={selectedVo.captionVisible}
           onChange={(next) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, captionVisible: next } })}
@@ -512,12 +526,12 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       <ControlButton
         type="button"
         className="st-btn ghost"
-        style={{ marginTop: 8, fontSize: 11, padding: "5px 10px", width: "100%", justifyContent: "center" }}
+        style={{ marginTop: 8, fontSize: 10.5, padding: "5px 10px", width: "100%", justifyContent: "center" }}
         onClick={fitVoLength}
         disabled={fitting || !selectedVo.text.trim()}
         title="Synthesize this narration and snap the segment length to its exact spoken duration"
       >
-        {fitting ? "Fitting…" : "⤢ Fit length to voice"}
+        {fitting ? "Fitting…" : "Fit length to voice"}
       </ControlButton>
       {fitErr && <div style={{ fontSize: 10, color: "var(--danger)", marginTop: 4 }}>⚠ {fitErr}</div>}
 
@@ -939,6 +953,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
   function handleSwapClip(newClipId: string) {
     if (!b || newClipId === b.clipId) return;
+    if (clip?.isTemplatePlaceholder) {
+      dispatch({ type: "FILL_TEMPLATE_SLOT", beatId: b.id, clipId: newClipId });
+      return;
+    }
     const newClip = clips.find((c) => c.id === newClipId);
     if (!newClip) return;
 
@@ -1149,6 +1167,28 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <div className="cap">{b.captionText}</div>
         </div>
 
+        {b.templateSlotDescription && (
+          <div
+            className="st-field"
+            style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: "1px solid color-mix(in srgb, var(--accent) 38%, var(--line))",
+              background: "color-mix(in srgb, var(--accent) 8%, var(--panel-2))",
+            }}
+          >
+            <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em", color: "var(--accent)", textTransform: "uppercase" }}>
+              Template slot · Beat {index + 1}
+            </div>
+            <div style={{ marginTop: 5, fontSize: 12, fontWeight: 650, lineHeight: 1.4, color: "var(--ink)" }}>
+              {b.templateSlotDescription}
+            </div>
+            <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.35, color: "var(--ink-3)" }}>
+              Choose footage that matches this role. The guidance remains when you swap clips.
+            </div>
+          </div>
+        )}
+
         {/* Source Clip Switcher */}
         <div className="st-field" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
@@ -1167,7 +1207,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             onMouseLeave={() => setSourceCardHovered(false)}
             style={{ display: "flex", alignItems: "center", gap: 10 }}
           >
-            {clip && sourceCardHovered && clip.kind !== "still" ? (
+            {clip && !clip.isTemplatePlaceholder && sourceCardHovered && clip.kind !== "still" ? (
               <video
                 src={getClipBlobUrl(clip.file)}
                 autoPlay
@@ -1275,7 +1315,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <SplitClipPickerModal
             title={`Swap Source Clip for Beat ${String(index + 1).padStart(2, "0")}`}
             activeClipId={b.clipId}
-            clips={clips}
+            clips={clips.filter((candidate) => !candidate.isTemplatePlaceholder)}
             onSelectClip={(newClipId) => {
               handleSwapClip(newClipId);
               setShowBeatClipPicker(false);
@@ -2782,7 +2822,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       <Modal
         open={confirmRemoveOpen}
         title={`Remove Beat ${String(index + 1).padStart(2, "0")}?`}
-        description="This beat will be removed from your cut."
+        description="Choose whether to keep or remove its source clip."
         ariaLabel="Confirm beat removal"
         maxWidth={380}
         onClose={() => setConfirmRemoveOpen(false)}
@@ -2790,13 +2830,24 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <>
             <Button variant="secondary" onClick={() => setConfirmRemoveOpen(false)}>Cancel</Button>
             <Button
-              variant="danger"
+              variant="secondary"
               onClick={() => {
                 setConfirmRemoveOpen(false);
                 dispatch({ type: "REMOVE_BEAT", id: b.id });
               }}
             >
-              Remove
+              Beat only
+            </Button>
+            <Button
+              variant="danger"
+              disabled={clipHasOtherUses}
+              title={clipHasOtherUses ? "This clip is still used by another beat, split screen, or overlay." : "Remove the beat and delete its clip from the project."}
+              onClick={() => {
+                setConfirmRemoveOpen(false);
+                dispatch({ type: "REMOVE_BEAT_AND_CLIP", id: b.id });
+              }}
+            >
+              Beat + clip
             </Button>
           </>
         )}
@@ -2805,7 +2856,16 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(229, 105, 95, 0.15)", color: "var(--danger)", display: "grid", placeItems: "center", flexShrink: 0 }}>
                 <DeleteIcon size={20} />
               </div>
-              <div style={{ fontSize: 12, color: "var(--ink-2)" }}>The source clip remains in your project and can be used again.</div>
+              <div style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.45 }}>
+                <strong style={{ color: "var(--ink)" }}>{clip?.name ?? "Referenced clip"}</strong>
+                <br />
+                “Beat only” keeps it in the Clips panel. “Beat + clip” removes it from the project too.
+                {clipHasOtherUses && (
+                  <span style={{ display: "block", marginTop: 5, color: "var(--danger)" }}>
+                    Clip removal is unavailable because this clip is also used elsewhere in the cut.
+                  </span>
+                )}
+              </div>
             </div>
       </Modal>
       </div>

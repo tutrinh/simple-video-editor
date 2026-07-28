@@ -1,6 +1,7 @@
 import { useState } from "react";
 import AddIcon from "./icons/AddIcon";
 import DeleteIcon from "./icons/DeleteIcon";
+import EditIcon from "./icons/EditIcon";
 import MenuIcon from "./icons/MenuIcon";
 import IconButton from "./IconButton";
 import Popover from "./Popover";
@@ -30,6 +31,7 @@ export default function ComponentInventoryShowcase() {
     <div className="ds-inventory-grid">
       <article className="ds-inventory-block"><h3>Icon buttons and menu</h3><div className="ds-inline-wrap">
         <IconButton label="Add clip" icon={<AddIcon size={16} />} />
+        <IconButton label="Edit clip" icon={<EditIcon size={16} />} />
         <IconButton label="Delete clip" icon={<DeleteIcon size={16} />} variant="critical" />
         <span className="ds-relative"><IconButton label="Open menu" icon={<MenuIcon size={16} />} variant={popoverOpen ? "selected" : "quiet"} onClick={() => setPopoverOpen((value) => !value)} /><Popover open={popoverOpen} onClose={() => setPopoverOpen(false)} label="Clip actions"><Menu label="Clip actions" items={[{ id: "duplicate", label: "Duplicate" }, { id: "delete", label: "Delete", critical: true }]} onSelect={() => setPopoverOpen(false)} /></Popover></span>
       </div></article>

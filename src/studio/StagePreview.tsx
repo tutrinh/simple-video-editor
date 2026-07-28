@@ -81,7 +81,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   useEffect(() => {
     if (mode !== "beat") return;
     const v = videoRef.current;
-    if (!v || !clip || !beat) return;
+    if (!v || !clip || !beat || clip.isTemplatePlaceholder) return;
 
     const url = getClipBlobUrl(previewFileForClip(clip));
     if (url && v.src !== url) {
@@ -363,12 +363,12 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
             (ADR-0015). While playing, one CSS animation between the move's two
             ends; while paused or scrubbing, the transform sampled from the same
             contract, because a running animation cannot be scrubbed. */}
-        <div style={{ position: "absolute", inset: 0, ...(kbMove
+        <div style={{ position: "absolute", inset: 0, ...(clip?.isTemplatePlaceholder ? {} : kbMove
           ? (playing
               ? { animation: `${kbAnimName} ${Math.max(0.05, beat.outSec - beat.inSec)}s linear forwards` }
               : kenBurnsStyleAt(kbMove, pos))
           : beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY, isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed))) }}>
-          <div style={{ position: "absolute", inset: 0, ...beatRotationStyle(...canvasDims(cut.aspect), beat.rotation) }}>
+          <div style={{ position: "absolute", inset: 0, ...(clip?.isTemplatePlaceholder ? {} : beatRotationStyle(...canvasDims(cut.aspect), beat.rotation)) }}>
             {(() => {
               const splitCfg = beat.splitScreen;
               const filterStyle = cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments);
@@ -404,6 +404,16 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
                       );
                     })}
 
+                  </div>
+                );
+              }
+
+              if (clip?.isTemplatePlaceholder) {
+                return (
+                  <div style={{ width: "100%", minWidth: 0, height: "100%", display: "grid", placeContent: "center stretch", justifyItems: "center", gap: 6, padding: "16px 10px", boxSizing: "border-box", background: "repeating-linear-gradient(135deg, var(--panel-3) 0 12px, var(--panel-2) 12px 24px)", color: "var(--ink-2)", textAlign: "center" }}>
+                    <strong style={{ width: "100%", minWidth: 0, maxWidth: cut.aspect === "9:16" ? 130 : cut.aspect === "1:1" ? 210 : 280, fontSize: 12, lineHeight: 1.25, color: "var(--ink)", overflowWrap: "anywhere" }}>Empty template slot</strong>
+                    <span style={{ width: "100%", minWidth: 0, maxWidth: cut.aspect === "9:16" ? 130 : cut.aspect === "1:1" ? 210 : 280, fontSize: 10.5, lineHeight: 1.35, overflowWrap: "anywhere" }}>{clip.templateSlotDescription}</span>
+                    <span style={{ width: "100%", minWidth: 0, maxWidth: cut.aspect === "9:16" ? 130 : cut.aspect === "1:1" ? 210 : 280, fontSize: 9, lineHeight: 1.35, color: "var(--ink-3)", overflowWrap: "anywhere" }}>Use Swap Clip in the inspector to add footage.</span>
                   </div>
                 );
               }

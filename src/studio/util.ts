@@ -50,13 +50,16 @@ export function beatClips(clips: Clip[], cut?: Cut | null): Clip[] {
   const out: Clip[] = [];
   for (const b of cut?.beats ?? []) {
     const clip = byId.get(b.clipId);
-    if (clip && !seen.has(clip.id)) { seen.add(clip.id); out.push(clip); }
+    if (clip && !clip.isTemplatePlaceholder && !seen.has(clip.id)) { seen.add(clip.id); out.push(clip); }
   }
   return out;
 }
 
 /** CSS background value for a clip's poster (data URL), or a neutral fallback. */
 export function posterBg(clip: Clip | undefined): string | undefined {
+  if (clip?.isTemplatePlaceholder) {
+    return "repeating-linear-gradient(135deg, var(--panel-3) 0 8px, var(--panel-2) 8px 16px)";
+  }
   return clip?.poster ? `#0a0b0d url(${JSON.stringify(clip.poster)}) center/cover no-repeat` : undefined;
 }
 

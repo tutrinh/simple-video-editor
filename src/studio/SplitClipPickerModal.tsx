@@ -67,6 +67,11 @@ export default function SplitClipPickerModal({ slotIndex, title, activeClipId, c
             gap: 12,
           }}
         >
+          {filteredClips.length === 0 && (
+            <div style={{ gridColumn: "1 / -1", padding: "28px 18px", textAlign: "center", color: "var(--ink-3)", fontSize: 12 }}>
+              No available clips. Add new footage in the Clips panel, then return to this slot.
+            </div>
+          )}
           {filteredClips.map((c) => (
             <ClipCardItem
               key={c.id}

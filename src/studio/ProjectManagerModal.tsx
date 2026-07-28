@@ -10,6 +10,8 @@ import {
 } from "../lib/projectStorage";
 import { exportProjectFile, importProjectFile } from "../lib/projectPackager";
 import InspirationUploadModal from "./InspirationUploadModal";
+import TemplateApplyModal from "./TemplateApplyModal";
+import TemplateDetails from "./TemplateDetails";
 import type { ProjectTemplate } from "../domain/types";
 import { useExportSettings } from "../state/ExportSettingsContext";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
@@ -33,6 +35,8 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
   const [importing, setImporting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SavedProjectMeta | null>(null);
   const [deleteTemplateTarget, setDeleteTemplateTarget] = useState<ProjectTemplate | null>(null);
+  const [applyTemplateTarget, setApplyTemplateTarget] = useState<ProjectTemplate | null>(null);
+  const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [showInspirationModal, setShowInspirationModal] = useState(false);
 
   useEffect(() => {
@@ -431,6 +435,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                       borderRadius: 10,
                       padding: "12px 16px",
                       display: "flex",
+                      flexWrap: "wrap",
                       alignItems: "center",
                       justifyContent: "space-between",
                       gap: 12,
@@ -460,12 +465,32 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                     <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
                       <ControlButton
                         className="st-btn ghost"
+                        style={{ fontSize: 11, padding: "4px 8px" }}
+                        aria-expanded={expandedTemplateId === t.id}
+                        onClick={() => setExpandedTemplateId((id) => id === t.id ? null : t.id)}
+                      >
+                        {expandedTemplateId === t.id ? "Hide Details" : "View Details"}
+                      </ControlButton>
+                      <ControlButton
+                        className="st-btn primary"
+                        style={{ fontSize: 11, padding: "4px 10px" }}
+                        onClick={() => setApplyTemplateTarget(t)}
+                      >
+                        Use Template
+                      </ControlButton>
+                      <ControlButton
+                        className="st-btn ghost"
                         style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}
                         onClick={() => setDeleteTemplateTarget(t)}
                       >
                         Delete
                       </ControlButton>
                     </div>
+                    {expandedTemplateId === t.id && (
+                      <div style={{ flexBasis: "100%", width: "100%", borderTop: "1px solid var(--line)", paddingTop: 12, marginTop: 2 }}>
+                        <TemplateDetails template={t} compact />
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -580,6 +605,17 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
           setActiveTab("templates");
         }}
       />
+      {applyTemplateTarget && (
+        <TemplateApplyModal
+          template={applyTemplateTarget}
+          clips={state.clips}
+          onClose={() => setApplyTemplateTarget(null)}
+          onApplied={() => {
+            setApplyTemplateTarget(null);
+            onClose();
+          }}
+        />
+      )}
     </ModalScrim>
   );
 }

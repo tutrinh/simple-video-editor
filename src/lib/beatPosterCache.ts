@@ -11,6 +11,7 @@ const pending = new Set<string>();
  */
 export function getBeatPosterUrl(beat: Beat | undefined, clip: Clip | undefined, onUpdate?: () => void): string | undefined {
   if (!clip || !beat) return undefined;
+  if (clip.isTemplatePlaceholder) return undefined;
   if (clip.kind === "still" || !clip.file) {
     return clip.poster;
   }

@@ -97,4 +97,26 @@ describe("parseInspiredTemplate", () => {
     const tmpl = parseInspiredTemplate(raw, META, FILE_NAME);
     expect(tmpl.beats.length).toBeLessThanOrEqual(12);
   });
+
+  it("normalizes malformed beat arrays and clamps supported style fields", () => {
+    const raw = JSON.stringify({
+      beats: [
+        null,
+        { description: "Detail", approxDurationSec: -2, zoom: 9, transition: "spin", transitionSec: 10 },
+        ...Array.from({ length: 20 }, (_, i) => ({ description: `Extra ${i}` })),
+      ],
+      aspect: "16:9",
+    });
+    const tmpl = parseInspiredTemplate(raw, META, FILE_NAME);
+    expect(tmpl.beats).toHaveLength(12);
+    expect(tmpl.beats[0].description).toBe("Shot");
+    expect(tmpl.beats[1]).toMatchObject({ description: "Detail", zoom: 3, transitionSec: 3 });
+    expect(tmpl.beats[1].approxDurationSec).toBe(0.1);
+    expect(tmpl.beats[1].transition).toBeUndefined();
+  });
+
+  it("turns a one-beat or non-object response into a valid template", () => {
+    expect(parseInspiredTemplate(JSON.stringify({ beats: [{ description: "Only" }] }), META, FILE_NAME).beats).toHaveLength(2);
+    expect(parseInspiredTemplate("null", META, FILE_NAME).beats).toHaveLength(4);
+  });
 });

@@ -10,6 +10,7 @@ import RangeField from "./RangeField";
 import SegmentedControl from "./SegmentedControl";
 import { EmptyState, ProgressNotice } from "./Feedback";
 import CopyIcon from "./icons/CopyIcon";
+import EditIcon from "./icons/EditIcon";
 import CloseIcon from "./icons/CloseIcon";
 import CheckIcon from "./icons/CheckIcon";
 import FavoriteIcon from "./icons/FavoriteIcon";
@@ -242,6 +243,18 @@ export default function DesignSystemPage() {
                     <strong>CopyIcon</strong>
                     <code>24 × 24 viewBox</code>
                     <span>Defaults to 46px and inherits the surrounding text color.</span>
+                  </div>
+                </div>
+              </Specimen>
+              <Specimen title="Edit" meta="rename / modify">
+                <div className="ds-icon-showcase">
+                  <div className="ds-icon-hero">
+                    <EditIcon />
+                  </div>
+                  <div>
+                    <strong>EditIcon</strong>
+                    <code>24 × 24 viewBox</code>
+                    <span>For renaming, modifying properties, and entering an editable state.</span>
                   </div>
                 </div>
               </Specimen>

@@ -59,7 +59,10 @@ export function useRegenerate() {
       setSt({ busy: false, label: "", error: "Arrange your clips into a cut first — the AI writes the script for the cut you build." });
       return;
     }
-    const tone = toneHint(settings.tone);
+    const tone = [
+      toneHint(settings.tone),
+      cut.templateToneHint ? `Template visual tone: ${cut.templateToneHint}` : "",
+    ].filter(Boolean).join(". ");
     setSt({ busy: true, label: "Checking clip descriptions…", error: "" });
     try {
       // 1. Describe any beat clip that hasn't been analyzed yet (cut beats only).
@@ -86,6 +89,8 @@ export function useRegenerate() {
           subjectAction: d?.subjectAction ?? "",
           settingMood: d?.settingMood ?? "",
           durationSec: Math.round(b.durationSec),
+          templateRole: b.templateSlotDescription,
+          hasFootage: Boolean(clip && !clip.isTemplatePlaceholder),
         };
       });
       const { logline, lines } = await authorBeatScripts(payload, state.direction, {

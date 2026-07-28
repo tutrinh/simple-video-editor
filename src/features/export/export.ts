@@ -214,12 +214,24 @@ function exportConcurrency(): number {
   return 2;
 }
 
+export function emptyTemplateSlotExportError(cut: Cut, clips: Clip[]): string | null {
+  const clipById = new Map(clips.map((clip) => [clip.id, clip]));
+  const count = cut.beats.filter(
+    (beat) => clipById.get(beat.clipId)?.isTemplatePlaceholder,
+  ).length;
+  if (count === 0) return null;
+  return `Fill all empty template slots before exporting (${count} ${count === 1 ? "slot" : "slots"} remaining).`;
+}
+
 export async function exportCut(
   cut: Cut,
   clips: Clip[],
   opts: ExportOptions,
   onProgress?: (fraction: number, statusText?: string) => void,
 ): Promise<ExportResult> {
+  const preflightError = emptyTemplateSlotExportError(cut, clips);
+  if (preflightError) throw new Error(preflightError);
+
   onProgress?.(0.01, "Initializing export pipeline…");
   const clipById = new Map(clips.map((c) => [c.id, c]));
   const [w, h] = canvasDims(cut.aspect);

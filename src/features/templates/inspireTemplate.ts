@@ -3,13 +3,13 @@
  *
  * Samples frames from an inspiration video, sends them to Claude, and parses
  * the response into a ProjectTemplate draft for the user to review and save.
- * The inspiration video is never stored — only the extracted template JSON
- * persists (to the IndexedDB templates store via projectStorage).
+ * The extracted structure and original local inspiration video are retained
+ * together in IndexedDB so the user can review the source when applying it.
  */
 
 import { probeVideo, sampleFrames } from "../../lib/frameSampler";
 import { callClaudeVision, type ClaudeConfig } from "../../lib/claudeClient";
-import type { ProjectTemplate, TemplateBeat, Aspect, ColorAdjustments } from "../../domain/types";
+import type { ProjectTemplate, TemplateBeat, Aspect, ColorAdjustments, VideoTransitionType } from "../../domain/types";
 
 /** One frame per ~3 seconds, capped at 30 — enough for 10+ scene changes in 90s. */
 function frameCount(durationSec: number): number {
@@ -32,6 +32,9 @@ Rules:
 - If consecutive frames look like the same scene/shot, they are ONE beat. Only split when you see a clear visual change.
 - Beat count must be between 2 and 12.
 - approxDurationSec is the estimated screen time of that beat in the reference video.
+- zoom is the apparent punch-in scale from 1 to 3 (use 1 when there is no punch-in).
+- transition is exactly one of: "none", "fade", "fadeblack", "fadewhite", "wipeleft", "wiperight", "slideleft", "slideright".
+- transitionSec is the estimated transition duration from 0.1 to 3 seconds.
 - colorHint values are integers in the range -100 to 100 (0 = neutral).
 - aspect must be exactly one of: "16:9", "9:16", "1:1".
 
@@ -39,7 +42,7 @@ Reply with EXACTLY this JSON and nothing else (no markdown fences, no preamble):
 {
   "beatCount": <number 2-12>,
   "beats": [
-    { "description": "<shot type, 5-10 words>", "approxDurationSec": <number> },
+    { "description": "<shot type, 5-10 words>", "approxDurationSec": <number>, "zoom": <number 1-3>, "transition": "<transition>", "transitionSec": <number 0.1-3> },
     ...
   ],
   "aspect": "<16:9 | 9:16 | 1:1>",
@@ -71,6 +74,15 @@ function inferAspect(raw: string, w: number, h: number): Aspect {
   return "16:9";
 }
 
+const TRANSITIONS = new Set<VideoTransitionType>([
+  "none", "fade", "fadeblack", "fadewhite", "wipeleft", "wiperight", "slideleft", "slideright",
+]);
+
+function finiteNumber(value: unknown, min: number, max: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.max(min, Math.min(max, value));
+}
+
 export function parseInspiredTemplate(
   raw: string,
   meta: { durationSec: number; width: number; height: number },
@@ -84,28 +96,37 @@ export function parseInspiredTemplate(
   try {
     // Strip any markdown fences Claude may add despite instructions
     const cleaned = raw.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
-    parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    const candidate = JSON.parse(cleaned) as unknown;
+    parsed = candidate && typeof candidate === "object" && !Array.isArray(candidate)
+      ? candidate as Record<string, unknown>
+      : {};
   } catch {
     // Partial / empty template — still usable with defaults
   }
 
-  const rawBeats = Array.isArray(parsed.beats) ? parsed.beats as unknown[] : [];
+  const rawBeats = Array.isArray(parsed.beats) ? (parsed.beats as unknown[]).slice(0, 12) : [];
   const beats: TemplateBeat[] = rawBeats.length > 0
     ? rawBeats.map((b) => {
-        const beat = b as Record<string, unknown>;
+        const beat = b && typeof b === "object" && !Array.isArray(b) ? b as Record<string, unknown> : {};
+        const transition = typeof beat.transition === "string" && TRANSITIONS.has(beat.transition as VideoTransitionType)
+          ? beat.transition as VideoTransitionType
+          : undefined;
         return {
           description: typeof beat.description === "string" && beat.description.trim()
             ? beat.description.trim()
             : "Shot",
-          approxDurationSec: typeof beat.approxDurationSec === "number"
-            ? beat.approxDurationSec
-            : undefined,
+          approxDurationSec: finiteNumber(beat.approxDurationSec, 0.1, Math.max(0.1, meta.durationSec)),
+          zoom: finiteNumber(beat.zoom, 1, 3),
+          transition,
+          transitionSec: finiteNumber(beat.transitionSec, 0.1, 3),
         };
       })
     : Array.from(
         { length: typeof parsed.beatCount === "number" ? Math.min(12, Math.max(2, parsed.beatCount)) : 4 },
         (_, i) => ({ description: `Beat ${i + 1}` }),
       );
+
+  while (beats.length < 2) beats.push({ description: `Beat ${beats.length + 1}` });
 
   const rawColor = parsed.colorHint && typeof parsed.colorHint === "object"
     ? (parsed.colorHint as Record<string, unknown>)
@@ -157,5 +178,8 @@ export async function analyzeInspirationVideo(
   );
 
   onProgress?.("Parsing template…");
-  return parseInspiredTemplate(raw, meta, file.name);
+  return {
+    ...parseInspiredTemplate(raw, meta, file.name),
+    inspirationVideo: file,
+  };
 }

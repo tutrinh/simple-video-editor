@@ -58,13 +58,20 @@ export interface BeatDesc {
   subjectAction: string;
   settingMood: string;
   durationSec: number;
+  /** Editorial role inherited from a template, if this cut came from one. */
+  templateRole?: string;
+  /** False for an intentionally empty template slot awaiting footage. */
+  hasFootage?: boolean;
 }
 
 export function buildBeatScriptPrompt(beats: BeatDesc[], direction: string, tone: string, scriptType = ""): string {
   return (
     `The editor has ALREADY arranged the beats of a short video below, in order (JSON array). ` +
     `This exact order is the story the editor wants to tell — DO NOT reorder, add, merge, or drop any beat. ` +
-    `Write ONE short on-screen script line for each beat, keeping the same order.\n\n` +
+    `Write ONE short on-screen script line for each beat, keeping the same order. ` +
+    `When templateRole is present, treat it as the editorial purpose of that position. ` +
+    `Use subjectAction and settingMood as the factual visual evidence when footage exists; do not contradict what is actually shown. ` +
+    `When hasFootage is false, write toward the planned template role without pretending a specific unobserved subject is present.\n\n` +
     `Beats:\n${JSON.stringify(beats, null, 2)}\n\n` +
     (scriptType ? `Format/genre: ${scriptType}\n` : "") +
     (tone ? `Tone/voice for the writing: ${tone}.\n` : "") +

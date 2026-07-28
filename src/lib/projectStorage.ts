@@ -25,7 +25,8 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("title_fonts")) {
         db.createObjectStore("title_fonts", { keyPath: "key" });
       }
-      // v3: reusable project templates (pure JSON, no blobs).
+      // v3: reusable project templates. Structured clone also preserves the
+      // optional inspiration-video File retained by newer templates.
       if (!db.objectStoreNames.contains("templates")) {
         db.createObjectStore("templates", { keyPath: "id" });
       }
@@ -241,7 +242,7 @@ export async function deleteProjectFromStorage(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Template CRUD — pure JSON records, no blobs
+// Template CRUD — structured records with an optional inspiration-video File
 // ---------------------------------------------------------------------------
 
 export async function saveTemplate(template: ProjectTemplate): Promise<void> {

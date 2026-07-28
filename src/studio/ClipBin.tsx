@@ -9,6 +9,10 @@ import FileDropzone from "../design-system/FileDropzone";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import GripIcon from "../design-system/icons/GripIcon";
 import CopyIcon from "../design-system/icons/CopyIcon";
+import DeleteIcon from "../design-system/icons/DeleteIcon";
+import EditIcon from "../design-system/icons/EditIcon";
+import Modal from "../design-system/Modal";
+import Button from "../design-system/Button";
 
 function UsabilityDots({ score }: { score?: number }) {
   const n = score ?? 0;
@@ -43,10 +47,14 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [deleteClipTarget, setDeleteClipTarget] = useState<Clip | null>(null);
 
   const clipById = new Map(state.clips.map((c) => [c.id, c]));
 
   const allProjectTags = Array.from(new Set(state.clips.flatMap((c) => c.tags ?? [])));
+  const deleteTargetBeatCount = deleteClipTarget
+    ? (state.cut?.beats.filter((beat) => beat.clipId === deleteClipTarget.id).length ?? 0)
+    : 0;
 
   // Drag-to-reorder the cut, keyed by beat id so it's robust to filtering.
   function reorder(draggedBeatId: string, targetBeatId: string) {
@@ -151,6 +159,19 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
             ) : described ? (
               <UsabilityDots score={clip.description!.usability} />
             ) : null}
+            {!clip.isTemplatePlaceholder && (
+              <ControlButton
+                className="st-dup-btn"
+                title="Delete clip from project"
+                aria-label={`Delete ${clip.name}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setDeleteClipTarget(clip);
+                }}
+              >
+                <DeleteIcon size={11} />
+              </ControlButton>
+            )}
           </div>
         </div>
       </div>
@@ -257,6 +278,11 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                     )}
                     <div className="st-crow">
                       <span className="st-cdur st-num">{fmtClock(b.durationSec ?? clip.durationSec)}</span>
+                      {clip.isTemplatePlaceholder && (
+                        <span className="st-status" style={{ color: "var(--accent)" }} title={clip.templateSlotDescription}>
+                          empty slot
+                        </span>
+                      )}
                       <span className="st-beatno st-num">#{i + 1}</span>
                       <ControlButton
                         className="st-dup-btn"
@@ -265,6 +291,19 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
                       >
                         <CopyIcon size={12} />
                       </ControlButton>
+                      {!clip.isTemplatePlaceholder && (
+                        <ControlButton
+                          className="st-dup-btn"
+                          title="Delete clip from project"
+                          aria-label={`Delete ${clip.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setDeleteClipTarget(clip);
+                          }}
+                        >
+                          <DeleteIcon size={11} />
+                        </ControlButton>
+                      )}
                     </div>
                     {b.captionText && (
                       <div className="st-ccap" title={b.captionText}>
@@ -283,6 +322,48 @@ export default function ClipBin({ usedClipIds, selectedClipId, hasCut, beats, on
           state.clips.filter((c) => !tagFilter || c.tags?.includes(tagFilter)).map((clip) => <IngestRow key={clip.id} clip={clip} addable={false} />)
         )}
       </div>
+      <Modal
+        open={Boolean(deleteClipTarget)}
+        title="Delete clip from project?"
+        description="The media will be removed from the Clips panel."
+        ariaLabel="Confirm clip deletion"
+        maxWidth={430}
+        onClose={() => setDeleteClipTarget(null)}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setDeleteClipTarget(null)}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (!deleteClipTarget) return;
+                dispatch({ type: "DELETE_CLIP_FROM_PROJECT", id: deleteClipTarget.id });
+                setDeleteClipTarget(null);
+              }}
+            >
+              Delete clip
+            </Button>
+          </>
+        )}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(229, 105, 95, 0.15)", color: "var(--danger)", display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <DeleteIcon size={19} />
+          </div>
+          <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--ink-2)" }}>
+            <strong style={{ color: "var(--ink)" }}>{deleteClipTarget?.name}</strong>
+            {deleteTargetBeatCount > 0 ? (
+              <span style={{ display: "block", marginTop: 4 }}>
+                {deleteTargetBeatCount} referenced beat{deleteTargetBeatCount === 1 ? "" : "s"} will remain in place as an empty slot, preserving timing and edit settings.
+              </span>
+            ) : (
+              <span style={{ display: "block", marginTop: 4 }}>No main timeline beats reference this clip.</span>
+            )}
+            <span style={{ display: "block", marginTop: 4, color: "var(--ink-3)" }}>
+              Overlay and split-screen references to this media will also be removed.
+            </span>
+          </div>
+        </div>
+      </Modal>
     </aside>
   );
 }
@@ -336,7 +417,7 @@ function ClipNameEditor({ clip }: { clip: Clip }) {
   return (
     <div
       className="st-cname"
-      title="Click ✏️ or double-click to rename clip"
+      title="Click the edit icon or double-click to rename clip"
       onDoubleClick={(e) => {
         e.stopPropagation();
         setEditing(true);
@@ -365,7 +446,7 @@ function ClipNameEditor({ clip }: { clip: Clip }) {
           opacity: 0.6,
         }}
       >
-        ✏️
+        <EditIcon size={11} />
       </ControlButton>
     </div>
   );

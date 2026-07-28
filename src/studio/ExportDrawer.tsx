@@ -19,7 +19,7 @@ export default function ExportDrawer({ open, onClose }: { open: boolean; onClose
   return (
     <Drawer open={open} title="Export" onClose={onClose} width="full" bodyClassName="st-drawer-body">
       <div ref={contentRef} style={{ width: "100%", height: "100%" }}>
-        <ExportView active={open} />
+        <ExportView active={open} onClose={onClose} />
       </div>
     </Drawer>
   );

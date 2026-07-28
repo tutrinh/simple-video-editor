@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseStory, isAuthorable, buildPrompt } from "./author";
+import { parseStory, isAuthorable, buildPrompt, buildBeatScriptPrompt } from "./author";
 import type { Clip } from "../../domain/types";
 
 const payload = [{ id: "a", label: "a", usability: 4, durationSec: 10, subjectAction: "s", settingMood: "m" }];
@@ -19,6 +19,25 @@ describe("buildPrompt", () => {
     expect(p).toContain("Format/genre: explainer hint");
     expect(p).toContain("high-energy");
     expect(p).toContain("save the best for last");
+  });
+});
+
+describe("buildBeatScriptPrompt", () => {
+  it("carries template roles and empty-slot state into beat-preserving authoring", () => {
+    const prompt = buildBeatScriptPrompt([
+      {
+        label: "installed result",
+        subjectAction: "",
+        settingMood: "",
+        durationSec: 3,
+        templateRole: "Wide environmental reveal",
+        hasFootage: false,
+      },
+    ], "", "warm");
+    expect(prompt).toContain("Wide environmental reveal");
+    expect(prompt).toContain('"hasFootage": false');
+    expect(prompt).toContain("editorial purpose");
+    expect(prompt).toContain("do not contradict");
   });
 });
 

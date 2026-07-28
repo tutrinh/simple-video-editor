@@ -233,7 +233,7 @@ Database: `vidstr_projects_db`, version 3.
 - `projects`: JSON Project records and metadata.
 - `media_blobs`: original/normalized Clip media and posters keyed by Clip ID.
 - `title_fonts`: uploaded per-Beat title font blobs, namespaced by Project ID.
-- `templates`: reusable JSON Project templates.
+- `templates`: reusable Project templates, including an optional local inspiration-video `File`.
 
 The active Project ID is stored in localStorage under
 `simple_editor_active_project_id`. By default, a new Project’s ID is its first

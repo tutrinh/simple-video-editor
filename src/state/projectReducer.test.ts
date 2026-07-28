@@ -17,6 +17,69 @@ describe("projectReducer", () => {
     expect(s.clips.map((c) => c.id)).toEqual(["b"]);
   });
 
+  it("deleting a referenced clip keeps its beat as an assignable placeholder", () => {
+    const source = clip("a");
+    const referencedBeat = {
+      ...beat("1", "a"),
+      durationSec: 4,
+      outSec: 4,
+      templateSlotDescription: "Close-up product detail",
+      zoom: 1.2,
+      transition: "fade" as const,
+    };
+    const state = {
+      ...initialState,
+      clips: [source, clip("b")],
+      cut: { beats: [referencedBeat, beat("2", "b")], aspect: "16:9" as const },
+    };
+    const next = projectReducer(state, {
+      type: "DELETE_CLIP_FROM_PROJECT",
+      id: "a",
+      placeholderIds: ["empty-a"],
+    });
+
+    expect(next.clips.map((item) => item.id)).toEqual(["b", "empty-a"]);
+    expect(next.clips[1]).toMatchObject({
+      isTemplatePlaceholder: true,
+      templateSlotDescription: "Close-up product detail",
+    });
+    expect(next.cut?.beats[0]).toMatchObject({
+      id: "1",
+      clipId: "empty-a",
+      durationSec: 4,
+      templateSlotDescription: "Close-up product detail",
+      zoom: 1.2,
+      transition: "fade",
+    });
+    expect(next.cut?.beats.map((item) => item.id)).toEqual(["1", "2"]);
+  });
+
+  it("deleting clip media removes its overlay and split-screen references", () => {
+    const splitBeat: Beat = {
+      ...beat("1", "b"),
+      splitScreen: {
+        layout: "3-col",
+        slots: [
+          { clipId: "a", inSec: 0, volume: 0 },
+          { clipId: "b", inSec: 0, volume: 0 },
+          { clipId: "c", inSec: 0, volume: 0 },
+        ],
+      },
+    };
+    const state = {
+      ...initialState,
+      clips: [clip("a"), clip("b"), clip("c")],
+      cut: {
+        beats: [splitBeat],
+        overlays: [{ id: "ov", clipId: "a", startTimeSec: 0, durationSec: 1, inSec: 0, outSec: 1, blendMode: "normal" as const, opacity: 1, volume: 0 }],
+        aspect: "16:9" as const,
+      },
+    };
+    const next = projectReducer(state, { type: "DELETE_CLIP_FROM_PROJECT", id: "a" });
+    expect(next.cut?.overlays).toEqual([]);
+    expect(next.cut?.beats[0].splitScreen?.slots.map((slot) => slot.clipId)).toEqual(["b", "c"]);
+  });
+
   it("patches a clip's description without touching others", () => {
     let s = projectReducer(initialState, { type: "ADD_CLIPS", clips: [clip("a"), clip("b")] });
     s = projectReducer(s, {
@@ -43,6 +106,22 @@ describe("projectReducer", () => {
     expect(s.cut?.beats.map((b) => b.id)).toEqual(["3", "1", "2"]);
   });
 
+  it("applies a template cut atomically and clears a stale authored story", () => {
+    const previous = {
+      ...initialState,
+      clips: [clip("a"), clip("b")],
+      story: { logline: "Old story", beats: [{ clipId: "a", scriptText: "Old line" }] },
+      cut: { beats: [beat("old", "a")], aspect: "16:9" as const },
+    };
+    const nextCut: Cut = { beats: [beat("new", "b")], aspect: "9:16" };
+    const placeholder = { ...clip("slot"), isTemplatePlaceholder: true };
+    const next = projectReducer(previous, { type: "APPLY_TEMPLATE", cut: nextCut, placeholderClips: [placeholder] });
+
+    expect(next.story).toBeUndefined();
+    expect(next.cut).toBe(nextCut);
+    expect(next.clips).toEqual([...previous.clips, placeholder]);
+  });
+
   it("adds, duplicates (as separate clip and beat instances), and removes beats on the cut", () => {
     const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
     let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
@@ -54,6 +133,77 @@ describe("projectReducer", () => {
     expect(s.clips.map((c) => c.id)).toContain("a-dup");
     s = projectReducer(s, { type: "REMOVE_BEAT", id: "1" });
     expect(s.cut?.beats.map((b) => b.id)).toEqual(["1-dup", "2"]);
+  });
+
+  it("can remove a beat and its unreferenced source clip together", () => {
+    const state = {
+      ...initialState,
+      clips: [clip("a"), clip("b")],
+      story: { logline: "Story", beats: [{ clipId: "a", scriptText: "A" }, { clipId: "b", scriptText: "B" }] },
+      cut: { beats: [beat("1", "a"), beat("2", "b")], aspect: "16:9" as const },
+    };
+    const next = projectReducer(state, { type: "REMOVE_BEAT_AND_CLIP", id: "1" });
+    expect(next.cut?.beats.map((item) => item.id)).toEqual(["2"]);
+    expect(next.clips.map((item) => item.id)).toEqual(["b"]);
+    expect(next.story?.beats.map((item) => item.clipId)).toEqual(["b"]);
+  });
+
+  it("keeps the source clip when another cut element still references it", () => {
+    const state = {
+      ...initialState,
+      clips: [clip("a")],
+      cut: {
+        beats: [beat("1", "a")],
+        overlays: [{ id: "ov", clipId: "a", startTimeSec: 0, durationSec: 1, inSec: 0, outSec: 1, blendMode: "normal" as const, opacity: 1, volume: 0 }],
+        aspect: "16:9" as const,
+      },
+    };
+    const next = projectReducer(state, { type: "REMOVE_BEAT_AND_CLIP", id: "1" });
+    expect(next.cut?.beats).toHaveLength(0);
+    expect(next.clips.map((item) => item.id)).toEqual(["a"]);
+  });
+
+  it("fills a template placeholder atomically while preserving beat guidance", () => {
+    const placeholder = { ...clip("slot"), isTemplatePlaceholder: true, templateSlotDescription: "Detail shot" };
+    const slotBeat = { ...beat("slot-beat", "slot"), durationSec: 3, outSec: 3, templateSlotDescription: "Detail shot" };
+    const state = {
+      ...initialState,
+      clips: [{ ...clip("real"), durationSec: 2 }, placeholder],
+      cut: { beats: [slotBeat], aspect: "16:9" as const },
+    };
+    const next = projectReducer(state, { type: "FILL_TEMPLATE_SLOT", beatId: "slot-beat", clipId: "real" });
+    expect(next.clips.map((item) => item.id)).toEqual(["real"]);
+    expect(next.cut?.beats[0]).toMatchObject({
+      clipId: "real",
+      durationSec: 2,
+      inSec: 0,
+      outSec: 2,
+      templateSlotDescription: "Detail shot",
+    });
+  });
+
+  it("duplicates an already-used reference clip when filling another template slot", () => {
+    const real = clip("real");
+    const placeholder = { ...clip("slot"), isTemplatePlaceholder: true };
+    const state = {
+      ...initialState,
+      clips: [real, placeholder],
+      cut: {
+        beats: [beat("existing", "real"), { ...beat("slot-beat", "slot"), templateSlotDescription: "Second angle" }],
+        aspect: "16:9" as const,
+      },
+    };
+    const next = projectReducer(state, {
+      type: "FILL_TEMPLATE_SLOT",
+      beatId: "slot-beat",
+      clipId: "real",
+      newClipId: "real-instance-2",
+    });
+
+    expect(next.clips.map((item) => item.id)).toEqual(["real", "real-instance-2"]);
+    expect(next.cut?.beats.map((item) => item.clipId)).toEqual(["real", "real-instance-2"]);
+    expect(next.clips[1].file).toBe(real.file);
+    expect(next.cut?.beats[1].templateSlotDescription).toBe("Second angle");
   });
 
   it("adds, updates, and removes overlays on the cut", () => {
@@ -255,4 +405,3 @@ describe("projectReducer", () => {
     expect(s).toEqual(initialState);
   });
 });
-
