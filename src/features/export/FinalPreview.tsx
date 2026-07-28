@@ -18,6 +18,12 @@ import { drawCaptionBlock } from "./captionCanvas";
 import { findFontById } from "../../lib/googleFonts";
 import { previewFileForClip } from "../../studio/previewSource";
 import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "../../studio/previewPlayback";
+import { ControlButton } from "../../design-system/ControlPrimitives";
+import ChevronLeftIcon from "../../design-system/icons/ChevronLeftIcon";
+import ChevronRightIcon from "../../design-system/icons/ChevronRightIcon";
+import PauseIcon from "../../design-system/icons/PauseIcon";
+import PlayIcon from "../../design-system/icons/PlayIcon";
+import ReplayIcon from "../../design-system/icons/ReplayIcon";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -75,12 +81,15 @@ interface Props {
   voiceoverSpeed?: number;
   /** Silent lead-in before the beat's narration starts (mirrors the export). */
   voiceoverLeadSec?: number;
+  /** Enables Space to toggle playback while the surrounding editor is active. */
+  enableSpacebarPlayback?: boolean;
 }
 
 export default function FinalPreview({
   active = true,
   cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
   ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
+  enableSpacebarPlayback = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const slotVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -506,6 +515,26 @@ export default function FinalPreview({
     seekTotalTime(elapsed + frames * frameSec);
   }
 
+  useEffect(() => {
+    if (!enableSpacebarPlayback) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable
+        || target?.closest("input, textarea, select, [contenteditable='true']")
+      ) return;
+
+      event.preventDefault();
+      if (playingRef.current) pause();
+      else play();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [enableSpacebarPlayback]);
+
   return (
     <div>
       <div
@@ -782,47 +811,41 @@ export default function FinalPreview({
         </span>
       </div>
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, justifyContent: "center" }}>
-        <button
+      <div className="st-transport st-cut-preview-transport">
+        <ControlButton
           type="button"
           onClick={() => stepFrame(-1)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
+          className="st-btn ghost"
           title="Step 1 frame backward (30fps)"
+          aria-label="Step 1 frame backward"
         >
-          ‹ 1f
-        </button>
+          <ChevronLeftIcon size={13} />
+          1f
+        </ControlButton>
         {playing ? (
-          <button type="button" onClick={pause} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 8px", borderRadius: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <rect x="6" y="4" width="4" height="16" rx="1" />
-              <rect x="14" y="4" width="4" height="16" rx="1" />
-            </svg>
-            Pause
-          </button>
+          <ControlButton className="ds-play" onClick={pause} title="Pause preview" aria-label="Pause preview" aria-pressed>
+            <PauseIcon size={13} />
+          </ControlButton>
         ) : (
-          <button type="button" onClick={play} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 8px", borderRadius: 6 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-            Play preview
-          </button>
+          <ControlButton className="ds-play" onClick={play} title="Play preview" aria-label="Play preview" aria-pressed={false}>
+            <PlayIcon size={13} />
+          </ControlButton>
         )}
-        <button
+        <ControlButton
           type="button"
           onClick={() => stepFrame(1)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 6px" }}
+          className="st-btn ghost"
           title="Step 1 frame forward (30fps)"
+          aria-label="Step 1 frame forward"
         >
-          1f ›
-        </button>
-        <button type="button" onClick={restart} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, background: "transparent", border: "none", color: "var(--ink-2)", cursor: "pointer", padding: "4px 8px", borderRadius: 6 }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path d="M3 3v5h5" />
-          </svg>
+          1f
+          <ChevronRightIcon size={13} />
+        </ControlButton>
+        <ControlButton className="st-btn ghost" onClick={restart}>
+          <ReplayIcon size={13} />
           Restart
-        </button>
-        <span style={{ fontSize: 12, color: "var(--ink-2)", fontVariantNumeric: "tabular-nums", marginLeft: 4 }}>beat {index + 1} / {cut.beats.length}</span>
+        </ControlButton>
+        <span className="st-tc st-num">Beat {index + 1} / {cut.beats.length}</span>
       </div>
       <audio ref={audioRef} />
     </div>

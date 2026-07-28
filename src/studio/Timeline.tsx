@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useReducer } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useReducer, type PointerEvent as ReactPointerEvent } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, Sticker } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
@@ -81,7 +81,9 @@ export default function Timeline({
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [assignPlaceholderBeatId, setAssignPlaceholderBeatId] = useState<string | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const timelineMinimapRef = useRef<HTMLDivElement>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
+  const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
   const [timelineZoom, setTimelineZoomState] = useState(() => {
     if (typeof localStorage === "undefined") return TIMELINE_ZOOM_MIN;
     return clampTimelineZoom(Number(localStorage.getItem("vidstr_timeline_zoom") ?? TIMELINE_ZOOM_MIN));
@@ -95,6 +97,12 @@ export default function Timeline({
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
   const timelineWidth = timelineViewportWidth > 0
     ? timelineCanvasWidth(timelineViewportWidth, timelineZoom)
+    : 0;
+  const minimapViewportWidth = timelineWidth > 0
+    ? Math.min(100, (timelineViewportWidth / timelineWidth) * 100)
+    : 100;
+  const minimapViewportStart = timelineWidth > 0
+    ? Math.min(100 - minimapViewportWidth, (timelineScrollLeft / timelineWidth) * 100)
     : 0;
 
   useLayoutEffect(() => {
@@ -131,8 +139,24 @@ export default function Timeline({
     );
     setTimelineZoomState(next);
     requestAnimationFrame(() => {
-      if (timelineScrollRef.current) timelineScrollRef.current.scrollLeft = nextScrollLeft;
+      if (timelineScrollRef.current) {
+        timelineScrollRef.current.scrollLeft = nextScrollLeft;
+        setTimelineScrollLeft(nextScrollLeft);
+      }
     });
+  }
+
+  function seekTimelineFromMinimap(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.type === "pointermove" && event.buttons !== 1) return;
+    const minimap = timelineMinimapRef.current;
+    const viewport = timelineScrollRef.current;
+    if (!minimap || !viewport) return;
+    const rect = minimap.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const nextScrollLeft = Math.max(0, Math.min(maxScroll, ratio * viewport.scrollWidth - viewport.clientWidth / 2));
+    viewport.scrollLeft = nextScrollLeft;
+    setTimelineScrollLeft(nextScrollLeft);
   }
 
   function move(index: number, dir: -1 | 1) {
@@ -556,6 +580,32 @@ export default function Timeline({
     ? `${((beatStarts[selIndex] + beats[selIndex].durationSec / 2) / totalDur) * 100}%`
     : "-999px";
 
+  useEffect(() => {
+    const viewport = timelineScrollRef.current;
+    if (!viewport || selIndex < 0) return;
+
+    const padding = 12;
+    const beatStart = (beatStarts[selIndex] / totalDur) * viewport.scrollWidth;
+    const beatEnd = ((beatStarts[selIndex] + beats[selIndex].durationSec) / totalDur) * viewport.scrollWidth;
+    const visibleStart = viewport.scrollLeft;
+    const visibleEnd = visibleStart + viewport.clientWidth;
+    const beatWidth = beatEnd - beatStart;
+    let nextScrollLeft = visibleStart;
+
+    if (beatWidth > viewport.clientWidth - padding * 2 || beatStart < visibleStart + padding) {
+      nextScrollLeft = beatStart - padding;
+    } else if (beatEnd > visibleEnd - padding) {
+      nextScrollLeft = beatEnd - viewport.clientWidth + padding;
+    }
+
+    const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    nextScrollLeft = Math.max(0, Math.min(maxScroll, nextScrollLeft));
+    if (Math.abs(nextScrollLeft - visibleStart) > 0.5) {
+      viewport.scrollLeft = nextScrollLeft;
+      setTimelineScrollLeft(nextScrollLeft);
+    }
+  }, [beats, selIndex, timelineWidth, totalDur]);
+
   return (
     <TimelineShell>
       <TimelineHeader
@@ -601,7 +651,7 @@ export default function Timeline({
               aria-pressed={stickerPickerOpen}
             >
               Sticker
-            </TimelineAddButton>
+          </TimelineAddButton>
           {stickerPickerOpen && (
             <StickerPicker onPick={(fileName) => addStickerFromLibrary(fileName)} onClose={() => setStickerPickerOpen(false)} />
           )}
@@ -624,8 +674,51 @@ export default function Timeline({
 
       <TimelineZoom value={timelineZoom} min={TIMELINE_ZOOM_MIN} max={TIMELINE_ZOOM_MAX} step={TIMELINE_ZOOM_STEP} onChange={setTimelineZoom} onFit={() => setTimelineZoom(TIMELINE_ZOOM_MIN)} />
 
+      <div className="ui-timeline-minimap">
+        <span>Overview</span>
+        <div
+          ref={timelineMinimapRef}
+          className="ui-timeline-minimap-track"
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            seekTimelineFromMinimap(event);
+          }}
+          onPointerMove={seekTimelineFromMinimap}
+          title="Click or drag to navigate the timeline"
+          aria-label="Timeline overview"
+        >
+          {beats.map((beat, index) => {
+            const start = beats.slice(0, index).reduce((sum, item) => sum + item.durationSec, 0);
+            return (
+              <span
+                key={beat.id}
+                className={"ui-timeline-minimap-beat" + (beat.id === selectedBeatId ? " selected" : "")}
+                style={{
+                  left: `${(start / totalDur) * 100}%`,
+                  width: `${(beat.durationSec / totalDur) * 100}%`,
+                }}
+              >
+                {String(index + 1).padStart(2, "0")}
+              </span>
+            );
+          })}
+          <span
+            className="ui-timeline-minimap-window"
+            style={{ left: `${minimapViewportStart}%`, width: `${minimapViewportWidth}%` }}
+          />
+          <span
+            className="ui-timeline-minimap-marker"
+            style={{ left: `${minimapViewportStart + minimapViewportWidth / 2}%` }}
+          />
+        </div>
+      </div>
+
       {/* Scrollable Timeline Tracks Container */}
-      <TimelineViewport viewportRef={timelineScrollRef}>
+      <TimelineViewport
+        viewportRef={timelineScrollRef}
+        className="no-scrollbar"
+        onScroll={(event) => setTimelineScrollLeft(event.currentTarget.scrollLeft)}
+      >
         <TimelineCanvas
           style={timelineWidth > 0 ? { width: `${timelineWidth}px`, minWidth: "100%" } : { minWidth: "100%" }}
         >

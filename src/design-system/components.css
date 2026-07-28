@@ -304,6 +304,14 @@ textarea.ui-control { min-height: 78px; padding: 8px; resize: vertical; }
 .ui-timeline-zoom output { min-width: 34px; color: var(--ink-3); font: 9px var(--mono); text-align: right; }
 .ui-timeline-zoom > button:last-child { min-height: 25px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--ink-2); font: 600 9px var(--ui); cursor: pointer; }
 .ui-timeline-zoom button:disabled { opacity: .38; cursor: default; }
+.ui-timeline-minimap { min-height: 29px; display: flex; align-items: center; gap: 9px; padding: 4px 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.ui-timeline-minimap > span { flex: none; color: var(--ink-3); font-size: 9px; }
+.ui-timeline-minimap-track { position: relative; flex: 1; height: 15px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ink-3) 45%, var(--line)); border-radius: 4px; background: var(--panel-2); cursor: ew-resize; touch-action: none; }
+.ui-timeline-minimap-beat { position: absolute; top: 0; bottom: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; border-right: 1px solid color-mix(in srgb, var(--ink-3) 72%, var(--line)); background: repeating-linear-gradient(135deg, var(--panel-3) 0 3px, var(--panel-2) 3px 6px); color: var(--ink-3); font: 7px var(--mono); line-height: 1; pointer-events: none; }
+.ui-timeline-minimap-beat:nth-of-type(even) { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink-3) 15%, var(--panel)) 0 3px, var(--panel-2) 3px 6px); }
+.ui-timeline-minimap-beat.selected { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 38%, var(--panel)) 0 3px, color-mix(in srgb, var(--accent) 18%, var(--panel)) 3px 6px); color: var(--ink); font-weight: 700; }
+.ui-timeline-minimap-window { position: absolute; top: 0; bottom: 0; min-width: 2px; border: 1px solid var(--positive); background: color-mix(in srgb, var(--positive) 50%, transparent); pointer-events: none; }
+.ui-timeline-minimap-marker { position: absolute; top: -1px; bottom: -1px; width: 1px; background: var(--accent); pointer-events: none; }
 .ui-timeline-viewport { min-width: 0; overflow-x: auto; overflow-y: hidden; background: var(--bg); }
 .ui-timeline-canvas { position: relative; min-width: 100%; padding: 8px 10px 10px; }
 .ui-timeline-lane { display: block; border-top: 1px solid var(--line); }

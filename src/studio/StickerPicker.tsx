@@ -26,11 +26,11 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
   const refresh = () => fetchStickerList().then(setFiles).catch(() => setFiles([]));
   useEffect(() => { refresh(); }, []);
   useEffect(() => {
-    const dismissOutside = (event: MouseEvent) => {
+    const dismissOutside = (event: PointerEvent) => {
       if (!pickerRef.current?.contains(event.target as Node)) onClose();
     };
-    document.addEventListener("click", dismissOutside);
-    return () => document.removeEventListener("click", dismissOutside);
+    document.addEventListener("pointerdown", dismissOutside);
+    return () => document.removeEventListener("pointerdown", dismissOutside);
   }, [onClose]);
 
   async function onUpload(file?: File) {

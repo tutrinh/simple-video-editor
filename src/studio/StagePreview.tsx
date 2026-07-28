@@ -50,6 +50,7 @@ interface Props {
   clips: Clip[];
   beat: Beat | null;
   clip: Clip | undefined;
+  keyboardShortcutsActive?: boolean;
 }
 
 /**
@@ -57,7 +58,7 @@ interface Props {
  *  - "Beat": the selected Beat's trimmed window, scrubbable, caption burned in.
  *  - "Cut": the whole edit played back sequentially (reuses the export FinalPreview).
  */
-export default function StagePreview({ cut, clips, beat, clip }: Props) {
+export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false }: Props) {
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
@@ -76,6 +77,50 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
   const stillUrl = isStill && clip ? getClipBlobUrl(previewFileForClip(clip)) : null;
   const posRef = useRef(0);
   const setPosBoth = (p: number) => { posRef.current = p; setPos(p); };
+
+  useEffect(() => {
+    if (!keyboardShortcutsActive) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable
+        || target?.closest("input, textarea, select, [contenteditable='true']")
+      ) return;
+
+      const key = event.key.toLowerCase();
+      if (key === "c") {
+        event.preventDefault();
+        setMode("cut");
+      } else if (key === "b") {
+        event.preventDefault();
+        setMode("beat");
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [keyboardShortcutsActive]);
+
+  useEffect(() => {
+    if (!keyboardShortcutsActive || mode !== "beat") return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.code !== "Space" || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable
+        || target?.closest("input, textarea, select, [contenteditable='true']")
+      ) return;
+
+      event.preventDefault();
+      togglePlay();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [keyboardShortcutsActive, mode, playing, pos, beat, clip]);
 
   // 1. Load the selected clip's source using permanent blob cache & sync time to inSec
   useEffect(() => {
@@ -317,6 +362,7 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
             music={null}
             musicVolume={0.5}
             voiceover={false}
+            enableSpacebarPlayback={keyboardShortcutsActive}
           />
         </div>
         <div className="st-transport">
@@ -354,7 +400,12 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
       {kbFrames && (
         <style>{`@keyframes ${kbAnimName}{from{transform:${kbFrames.from}}to{transform:${kbFrames.to}}}`}</style>
       )}
-      <div className="st-preview" style={{ aspectRatio, cursor: "pointer", position: "relative" }} onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
+      <div
+        className="st-preview"
+        style={{ aspectRatio, cursor: "pointer", position: "relative" }}
+        onClick={togglePlay}
+        title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}
+      >
         {/* Zoom and rotation are separate layers with separate pivots: zoom
             outside on the focus point, rotation inside on the centre. Nested
             transforms apply child-first, which matches the export's
@@ -457,7 +508,14 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
         <div className="cap"><span>{caption}</span></div>
       </div>
       <div className="st-transport">
-        <ControlButton className="st-play" onClick={togglePlay} title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}>
+        <ControlButton
+          type="button"
+          className="ds-play"
+          onClick={togglePlay}
+          title={playing ? "Pause" : isAtEnd ? "Replay beat" : "Play beat"}
+          aria-label={playing ? "Pause beat" : isAtEnd ? "Replay beat" : "Play beat"}
+          aria-pressed={playing}
+        >
           {playing ? <PauseIcon size={13} /> : isAtEnd ? <ReplayIcon size={13} /> : <PlayIcon size={13} />}
         </ControlButton>
         <ControlButton
@@ -500,6 +558,11 @@ export default function StagePreview({ cut, clips, beat, clip }: Props) {
 function ModeSwitch({ mode, setMode }: { mode: "beat" | "cut"; setMode: (m: "beat" | "cut") => void }) {
   return (
     <div className="st-preview-mode-switch">
+      <div className="st-preview-shortcuts" aria-label="Editor keyboard shortcuts">
+        <span><kbd>Space</kbd> Play/Pause</span>
+        <span><kbd>←</kbd><kbd>→</kbd> Beats</span>
+        <span><kbd>B</kbd><kbd>C</kbd> View</span>
+      </div>
       <SegmentedControl
         value={mode}
         options={[{ value: "beat", label: "Beat" }, { value: "cut", label: "Cut" }]}

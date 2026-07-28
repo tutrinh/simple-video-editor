@@ -37,6 +37,7 @@ export default function StudioApp() {
   const [aiStoryOpen, setAiStoryOpen] = useState(false);
   const [aiStoryMounted, setAiStoryMounted] = useState(false);
   const [clipDragOver, setClipDragOver] = useState(false);
+  const [editorHovered, setEditorHovered] = useState(false);
   const { ingestFiles, statuses } = useClipIngest();
 
   // Dev-only fixture (?seed) to exercise the populated workspace without footage/AI.
@@ -56,6 +57,35 @@ export default function StudioApp() {
     if (beats.length === 0) { if (selectedBeatId !== null) setSelectedBeatId(null); return; }
     if (!beats.some((b) => b.id === selectedBeatId)) setSelectedBeatId(beats[0].id);
   }, [beats, selectedBeatId]);
+
+  useEffect(() => {
+    if (!editorHovered || beats.length === 0) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (
+        event.repeat
+        || event.metaKey
+        || event.ctrlKey
+        || event.altKey
+        || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+      ) return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable
+        || target?.closest("input, textarea, select, [contenteditable='true']")
+      ) return;
+
+      event.preventDefault();
+      const currentIndex = Math.max(0, beats.findIndex((beat) => beat.id === selectedBeatId));
+      const direction = event.key === "ArrowRight" ? 1 : -1;
+      const nextIndex = (currentIndex + direction + beats.length) % beats.length;
+      setSelectedBeatId(beats[nextIndex].id);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [beats, editorHovered, selectedBeatId]);
 
   // Delete key shortcut for removing the selected overlay or VO segment
   useEffect(() => {
@@ -199,6 +229,11 @@ export default function StudioApp() {
         <WorkspacePanel
           className={"st-col stage" + (clipDragOver ? " clip-drag-over" : "")}
           style={{ position: "relative" }}
+          onPointerEnter={() => setEditorHovered(true)}
+          onPointerMove={() => {
+            if (!editorHovered) setEditorHovered(true);
+          }}
+          onPointerLeave={() => setEditorHovered(false)}
           onDragEnter={(e) => {
             if (!acceptsClipDrag(e)) return;
             e.preventDefault();
@@ -224,7 +259,13 @@ export default function StudioApp() {
             {cut ? (
               <>
                 <div className="st-preview-shell">
-                  <StagePreview cut={cut} clips={clips} beat={selectedBeat} clip={selectedClip} />
+                  <StagePreview
+                    cut={cut}
+                    clips={clips}
+                    beat={selectedBeat}
+                    clip={selectedClip}
+                    keyboardShortcutsActive={editorHovered}
+                  />
                 </div>
                 <Timeline
                   cut={cut}
