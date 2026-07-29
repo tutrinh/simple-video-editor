@@ -18,7 +18,7 @@ const MT_DIR = "/ffmpeg-mt";
 // We fall back to the proven single-thread core until mt is validated on real
 // clips. Flip MT_ENABLED to true to re-test. When false, coreUrls() uses the ST
 // core and the pools use their ST widths.
-const MT_ENABLED = true;
+const MT_ENABLED = false;
 
 /** MT needs SharedArrayBuffer (a cross-origin-isolated page) AND the kill-switch on. */
 export function multithreadReady(): boolean {
