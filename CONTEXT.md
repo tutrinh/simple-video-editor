@@ -98,6 +98,13 @@ master clock for a Beat's on-screen duration (ADR-0004). The app owns the voice
 and the mix now; it is no longer a text hand-off to an external tool.
 _Avoid_: narration, TTS, audio
 
+**User voice recording**:
+Human speech recorded from a microphone or imported as an audio file and placed
+on the independent User VO lane. It is distinct from Voiceover, which is the
+app-synthesized rendering of the Script. “User VO” is the compact UI label only;
+domain code uses `UserVoiceSegment` to keep the two sources unambiguous.
+_Avoid_: Voiceover, generated VO, narration
+
 **Music bed**:
 Optional background music under the finished video — looped and trimmed to length,
 and ducked beneath the Voiceover. The app arranges the track but does not source

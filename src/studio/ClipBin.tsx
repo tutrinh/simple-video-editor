@@ -14,6 +14,8 @@ import GripIcon from "../design-system/icons/GripIcon";
 import CopyIcon from "../design-system/icons/CopyIcon";
 import DeleteIcon from "../design-system/icons/DeleteIcon";
 import EditIcon from "../design-system/icons/EditIcon";
+import ChevronLeftIcon from "../design-system/icons/ChevronLeftIcon";
+import ChevronRightIcon from "../design-system/icons/ChevronRightIcon";
 import Modal from "../design-system/Modal";
 import Button from "../design-system/Button";
 
@@ -43,6 +45,8 @@ interface Props {
   onDuplicateBeat: (beatId: string) => void;
   onFiles: (files: File[]) => Promise<Clip[]>;
   statuses: Record<string, IngestStatus>;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 export const CLIP_DRAG_TYPE = "application/x-vidstr-clip-id";
@@ -57,6 +61,8 @@ export default function ClipBin({
   onDuplicateBeat,
   onFiles,
   statuses,
+  collapsed = false,
+  onCollapsedChange,
 }: Props) {
   const { state, dispatch } = useProject();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -254,7 +260,21 @@ export default function ClipBin({
   }
 
   return (
-    <aside className="st-col bin">
+    <aside className={`st-col bin${collapsed ? " collapsed" : ""}`}>
+      {collapsed ? (
+        <ControlButton
+          type="button"
+          className="st-clip-bin-rail"
+          onClick={() => onCollapsedChange?.(false)}
+          aria-label="Expand Clips panel"
+          title="Expand Clips panel"
+        >
+          <ChevronRightIcon size={15} />
+          <span>Clips</span>
+          {state.clips.length > 0 && <span className="cnt st-num">{state.clips.length}</span>}
+        </ControlButton>
+      ) : (
+        <>
       <div
         className="st-colhead"
         style={{ display: "flex", alignItems: "center" }}
@@ -268,6 +288,15 @@ export default function ClipBin({
             {state.clips.length}
           </span>
         )}
+        <ControlButton
+          type="button"
+          className="st-clip-bin-collapse"
+          onClick={() => onCollapsedChange?.(true)}
+          aria-label="Collapse Clips panel"
+          title="Collapse Clips panel"
+        >
+          <ChevronLeftIcon size={15} />
+        </ControlButton>
       </div>
 
       {allProjectTags.length > 0 && (
@@ -456,6 +485,8 @@ export default function ClipBin({
             ))
         )}
       </div>
+        </>
+      )}
       <Modal
         open={Boolean(deleteClipTarget)}
         title="Delete clip from project?"

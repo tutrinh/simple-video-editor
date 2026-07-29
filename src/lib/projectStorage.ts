@@ -2,9 +2,10 @@ import type { ProjectState } from "../state/projectReducer";
 import type { Clip, ProjectTemplate } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
 import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, titleFontKeys } from "./titleFontPersist";
+import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles, userVoiceKeys } from "./userVoicePersist";
 
 const DB_NAME = "vidstr_projects_db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const ACTIVE_PROJECT_KEY = "simple_editor_active_project_id";
 
 function openDB(): Promise<IDBDatabase> {
@@ -29,6 +30,10 @@ function openDB(): Promise<IDBDatabase> {
       // optional inspiration-video File retained by newer templates.
       if (!db.objectStoreNames.contains("templates")) {
         db.createObjectStore("templates", { keyPath: "id" });
+      }
+      // v4: microphone recordings used by User VO timeline segments.
+      if (!db.objectStoreNames.contains("user_voice")) {
+        db.createObjectStore("user_voice", { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -75,10 +80,18 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
       fontStore.put({ key: `${id}:${key}`, fontBlob: file });
     }
   }
+  const userVoiceFiles = collectUserVoiceFiles(state);
+  if (userVoiceFiles.length) {
+    const voiceTx = db.transaction("user_voice", "readwrite");
+    const voiceStore = voiceTx.objectStore("user_voice");
+    for (const { key, file } of userVoiceFiles) {
+      voiceStore.put({ key: `${id}:${key}`, audioBlob: file });
+    }
+  }
 
   // 2. Prepare serializable state without non-serializable File/Blob objects
   //    (clip media and title-font Files are stored out-of-band above).
-  const stripped = stripTitleFonts(state);
+  const stripped = stripUserVoiceFiles(stripTitleFonts(state));
   const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
   const serializableState = {
     ...stripped,
@@ -172,13 +185,28 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     for (const r of results) if (r.blob) fontMap.set(r.k, r.blob);
   }
 
-  return reinjectTitleFonts(
+  const voiceMap = new Map<string, Blob>();
+  const voiceKeys = userVoiceKeys(parsedState);
+  if (voiceKeys.length) {
+    const voiceTx = db.transaction("user_voice", "readonly");
+    const voiceStore = voiceTx.objectStore("user_voice");
+    const results = await Promise.all(
+      voiceKeys.map((key) => new Promise<{ key: string; blob: Blob | null }>((resolve) => {
+        const req = voiceStore.get(`${id}:${key}`);
+        req.onsuccess = () => resolve({ key, blob: (req.result as { audioBlob?: Blob } | undefined)?.audioBlob ?? null });
+        req.onerror = () => resolve({ key, blob: null });
+      })),
+    );
+    for (const result of results) if (result.blob) voiceMap.set(result.key, result.blob);
+  }
+
+  return reinjectUserVoiceFiles(reinjectTitleFonts(
     {
       ...parsedState,
       clips: rehydratedClips,
     },
     fontMap,
-  );
+  ), voiceMap);
 }
 
 export async function listSavedProjects(): Promise<SavedProjectMeta[]> {
@@ -228,6 +256,12 @@ export async function deleteProjectFromStorage(id: string): Promise<void> {
         const fontTx = db.transaction("title_fonts", "readwrite");
         const fontStore = fontTx.objectStore("title_fonts");
         for (const k of fontKeys) fontStore.delete(`${id}:${k}`);
+      }
+      const voiceKeys = userVoiceKeys(parsed);
+      if (voiceKeys.length) {
+        const voiceTx = db.transaction("user_voice", "readwrite");
+        const voiceStore = voiceTx.objectStore("user_voice");
+        for (const key of voiceKeys) voiceStore.delete(`${id}:${key}`);
       }
     } catch (e) {
       console.error("Error cleaning up media_blobs on project delete:", e);

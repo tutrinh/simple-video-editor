@@ -204,6 +204,8 @@ export interface Beat {
   transitionPosition?: "start" | "end";
   /** Audio volume multiplier for original clip audio (0 to 1, default 1.0 = 100%). */
   volume?: number;
+  /** Mutes this Beat's original clip audio without discarding its volume. */
+  muted?: boolean;
   /** Punch-in zoom scale for this beat's footage (1 = none, up to 3). */
   zoom?: number;
   /** Horizontal focus of the zoom, -50..50 (0 = centered). */
@@ -373,10 +375,51 @@ export interface SfxSegment {
   fitToBeat?: boolean;
 }
 
+/**
+ * Microphone audio recorded while previewing a Beat or the full Cut. The File is
+ * persisted out-of-band (like clip media) while this timing metadata stays in
+ * the Cut. Recordings are movable and tail-trimmable without modifying the
+ * source audio.
+ */
+export type UserVoiceEffect =
+  | "none"
+  | "vintage-phone"
+  | "walkie-talkie"
+  | "old-radio"
+  | "megaphone"
+  | "intercom"
+  | "muffled"
+  | "underwater";
+
+export interface UserVoiceSegment {
+  id: string;
+  name: string;
+  file: File;
+  startTimeSec: number;
+  durationSec: number;
+  sourceDurationSec: number;
+  /** Non-destructive in-point within the original recording. Defaults to 0. */
+  sourceStartSec?: number;
+  /** 0..1.5 playback volume (up to 150%). */
+  volume: number;
+  /** Post-EQ segment gain in decibels. Missing values load as 0 dB. */
+  levelDb?: number;
+  /** Low-shelf gain in decibels. Missing values load as the neutral 0 dB. */
+  bassDb?: number;
+  /** High-shelf gain in decibels. Missing values load as the neutral 0 dB. */
+  trebleDb?: number;
+  /** Non-destructive voice character filter. Missing values load as clean audio. */
+  voiceEffect?: UserVoiceEffect;
+}
+
 
 /** The assembled, editable draft — the ordered sequence of Beats and Overlays. */
 export interface Cut {
   beats: Beat[];
+  /** Master multiplier for every Beat's original clip audio (0..1, default 1). */
+  beatAudioMasterVolume?: number;
+  /** Master mute for Beat audio only; narration, User VO, SFX, and music are unaffected. */
+  beatAudioMuted?: boolean;
   /** Template provenance retained so AI Story can honor the source edit's intent. */
   templateName?: string;
   templateToneHint?: string;
@@ -385,6 +428,8 @@ export interface Cut {
   voSegments?: VoSegment[];
   /** Sound effects on the independent SFX track. */
   sfxSegments?: SfxSegment[];
+  /** Microphone recordings on the independent User VO track. */
+  userVoiceSegments?: UserVoiceSegment[];
   /** Images placed over the Cut on the independent Sticker track (ADR-0011). */
   stickers?: Sticker[];
   aspect: Aspect;

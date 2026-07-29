@@ -1,9 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef, useReducer, type PointerEvent as ReactPointerEvent } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, Sticker } from "../domain/types";
+import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, UserVoiceSegment, Sticker } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { createClip } from "../features/ingest/ingest";
-import { fmtSecs } from "./util";
+import { fmtSecs, sliderTrackStyle } from "./util";
 
 import OverlayPickerModal from "./OverlayPickerModal";
 import SfxPicker from "./SfxPicker";
@@ -15,7 +15,7 @@ import { beatSpans, resolveSticker, resolveSfx } from "../features/export/sticke
 import { sfxDuration } from "../lib/sfxLibrary";
 import { assignSubLanes } from "./subLanes";
 import { beatPosterBg } from "../lib/beatPosterCache";
-import { ControlButton } from "../design-system/ControlPrimitives";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import CopyIcon from "../design-system/icons/CopyIcon";
 import CloseIcon from "../design-system/icons/CloseIcon";
 import SplitClipPickerModal from "./SplitClipPickerModal";
@@ -41,6 +41,8 @@ import {
   TimelineZoom,
 } from "../design-system/EditorTimeline";
 import { activeBeatTitleCount } from "./beatTitleIndex";
+import { isSupportedUserVoiceFile, makeImportedUserVoiceSegment, readAudioFileDuration } from "./importUserVoice";
+import UserVoiceWaveform from "./UserVoiceWaveform";
 
 
 interface Props {
@@ -56,9 +58,11 @@ interface Props {
   onSelectVo?: (id: string | null) => void;
   selectedSfxId?: string | null;
   onSelectSfx?: (id: string | null) => void;
+  selectedUserVoiceId?: string | null;
+  onSelectUserVoice?: (id: string | null) => void;
   selectedStickerId?: string | null;
   onSelectSticker?: (id: string | null) => void;
-  onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "sticker", id: string, label: string) => void;
+  onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker", id: string, label: string) => void;
 }
 
 export default function Timeline({
@@ -74,6 +78,8 @@ export default function Timeline({
   onSelectVo,
   selectedSfxId,
   onSelectSfx,
+  selectedUserVoiceId,
+  onSelectUserVoice,
   selectedStickerId,
   onSelectSticker,
   onRequestDeleteSegment,
@@ -86,6 +92,7 @@ export default function Timeline({
   const [stickerPickerOpen, setStickerPickerOpen] = useState(false);
   const [assignPlaceholderBeatId, setAssignPlaceholderBeatId] = useState<string | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const userVoiceFileInputRef = useRef<HTMLInputElement>(null);
   const timelineMinimapRef = useRef<HTMLDivElement>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
   const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
@@ -97,6 +104,7 @@ export default function Timeline({
   const overlays = cut.overlays ?? [];
   const voSegments = cut.voSegments ?? [];
   const sfxSegments = cut.sfxSegments ?? [];
+  const userVoiceSegments = cut.userVoiceSegments ?? [];
   const stickers = cut.stickers ?? [];
   const totalDur = cutDuration(cut) || 1;
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
@@ -334,6 +342,32 @@ export default function Timeline({
     onSelectOverlay?.(null);
   }
 
+  async function importUserVoiceFile(file: File) {
+    if (!isSupportedUserVoiceFile(file)) {
+      alert("Choose an audio file such as MP3, WAV, M4A, OGG, or WebM.");
+      return;
+    }
+    try {
+      const sourceDurationSec = await readAudioFileDuration(file);
+      const startTimeSec = selIndex >= 0 ? beatStarts[selIndex] : 0;
+      const segment = makeImportedUserVoiceSegment(
+        file,
+        sourceDurationSec,
+        startTimeSec,
+        totalDur,
+        `user-vo-${genId()}`,
+      );
+      dispatch({ type: "ADD_USER_VOICE", segment });
+      onSelectUserVoice?.(segment.id);
+      onSelectSfx?.(null);
+      onSelectVo?.(null);
+      onSelectOverlay?.(null);
+      onSelectSticker?.(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Could not import that voice recording.");
+    }
+  }
+
   // Migration/convenience: turn existing beat captions into VO segments placed at
   // each beat's start, so authored captions aren't lost when captions move to the track.
   function seedVoFromBeats() {
@@ -478,6 +512,65 @@ export default function Timeline({
     }
   }
 
+  // ── User VO track drag/trim ──
+  const userVoiceTrackRef = useRef<HTMLDivElement>(null);
+  const [draggingUserVoiceId, setDraggingUserVoiceId] = useState<string | null>(null);
+  const userVoiceDragStartRef = useRef<{
+    startX: number;
+    initialStartSec: number;
+    initialDurationSec: number;
+    mode: "move" | "resize-right";
+  } | null>(null);
+
+  function startUserVoiceDrag(e: React.PointerEvent, segment: UserVoiceSegment, mode: "move" | "resize-right") {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSelectUserVoice?.(segment.id);
+    onSelectSfx?.(null);
+    onSelectVo?.(null);
+    onSelectOverlay?.(null);
+    onSelectSticker?.(null);
+    setDraggingUserVoiceId(segment.id);
+    userVoiceDragStartRef.current = {
+      startX: e.clientX,
+      initialStartSec: segment.startTimeSec,
+      initialDurationSec: segment.durationSec,
+      mode,
+    };
+  }
+
+  function handleUserVoicePointerMove(e: React.PointerEvent, segment: UserVoiceSegment) {
+    const start = userVoiceDragStartRef.current;
+    if (draggingUserVoiceId !== segment.id || !start || !userVoiceTrackRef.current) return;
+    const rect = userVoiceTrackRef.current.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const deltaSec = ((e.clientX - start.startX) / rect.width) * totalDur;
+    if (start.mode === "move") {
+      const maxStart = Math.max(0, totalDur - 0.1);
+      const nextStart = Math.round(Math.max(0, Math.min(maxStart, start.initialStartSec + deltaSec)) * 10) / 10;
+      const nextDuration = Math.round(Math.min(segment.durationSec, Math.max(0.1, totalDur - nextStart)) * 10) / 10;
+      if (nextStart !== segment.startTimeSec || nextDuration !== segment.durationSec) {
+        dispatch({ type: "UPDATE_USER_VOICE", segment: { ...segment, startTimeSec: nextStart, durationSec: nextDuration } });
+      }
+    } else {
+      const maxDuration = Math.min(
+        segment.sourceDurationSec - (segment.sourceStartSec ?? 0),
+        totalDur - segment.startTimeSec,
+      );
+      const nextDuration = Math.round(Math.max(0.1, Math.min(maxDuration, start.initialDurationSec + deltaSec)) * 10) / 10;
+      if (nextDuration !== segment.durationSec) {
+        dispatch({ type: "UPDATE_USER_VOICE", segment: { ...segment, durationSec: nextDuration } });
+      }
+    }
+  }
+
+  function endUserVoiceDrag(e: React.PointerEvent) {
+    if (!draggingUserVoiceId) return;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+    setDraggingUserVoiceId(null);
+    userVoiceDragStartRef.current = null;
+  }
+
   // ── Sticker track drag/resize (mirrors the SFX track: move + trim-tail) ──
   const stickerTrackRef = useRef<HTMLDivElement>(null);
   const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
@@ -612,8 +705,31 @@ export default function Timeline({
     <TimelineShell>
       <TimelineHeader
         title="The Cut"
-        meta={`${beats.length} beats / ${overlays.length} overlays / ${voSegments.length} VO / ${sfxSegments.length} SFX / ${stickers.length} stickers / ${fmtSecs(totalDur)} / ${cut.aspect}`}
+        meta={`${beats.length} beats / ${overlays.length} overlays / ${userVoiceSegments.length} User VO / ${voSegments.length} generated VO / ${sfxSegments.length} SFX / ${stickers.length} stickers / ${fmtSecs(totalDur)} / ${cut.aspect}`}
         actions={<>
+          <InputControl
+            ref={userVoiceFileInputRef}
+            type="file"
+            accept="audio/*,.aac,.flac,.m4a,.mp3,.mp4,.oga,.ogg,.opus,.wav,.webm"
+            style={{ display: "none" }}
+            aria-label="Import User VO audio"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              if (file) void importUserVoiceFile(file);
+            }}
+          />
+          <TimelineAddButton
+            onClick={() => {
+              setSfxPickerOpen(false);
+              setStickerPickerOpen(false);
+              setPickerOpen(false);
+              userVoiceFileInputRef.current?.click();
+            }}
+            title="Import an audio file onto the User VO track at the selected Beat"
+          >
+            Import VO
+          </TimelineAddButton>
           {voSegments.length === 0 && beats.some((b) => b.captionText.trim()) && (
             <TimelineAddButton onClick={seedVoFromBeats} title="Create VO segments from beat captions">Seed VO</TimelineAddButton>
           )}
@@ -673,6 +789,37 @@ export default function Timeline({
           </div>
         </>}
       />
+
+      <div className={"st-beat-audio-master" + (cut.beatAudioMuted ? " muted" : "")}>
+        <strong>Beat audio</strong>
+        <InputControl
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={cut.beatAudioMasterVolume ?? 1}
+          onChange={(event) => dispatch({
+            type: "SET_CUT",
+            cut: { ...cut, beatAudioMasterVolume: Number(event.target.value) },
+          })}
+          aria-label="Master volume for all Beat audio"
+          title="Master volume for the original audio in every Beat"
+          style={sliderTrackStyle(cut.beatAudioMasterVolume ?? 1, 0, 1)}
+        />
+        <output>{Math.round((cut.beatAudioMasterVolume ?? 1) * 100)}%</output>
+        <ControlButton
+          type="button"
+          className="st-beat-audio-master-mute"
+          aria-pressed={Boolean(cut.beatAudioMuted)}
+          onClick={() => dispatch({
+            type: "SET_CUT",
+            cut: { ...cut, beatAudioMuted: !cut.beatAudioMuted },
+          })}
+          title={cut.beatAudioMuted ? "Unmute all Beat audio" : "Mute all Beat audio"}
+        >
+          {cut.beatAudioMuted ? "Unmute all Beats" : "Mute all Beats"}
+        </ControlButton>
+      </div>
 
       <TimelineZoom value={timelineZoom} min={TIMELINE_ZOOM_MIN} max={TIMELINE_ZOOM_MAX} step={TIMELINE_ZOOM_STEP} onChange={setTimelineZoom} onFit={() => setTimelineZoom(TIMELINE_ZOOM_MIN)} />
 
@@ -846,6 +993,94 @@ export default function Timeline({
                             edge="right"
                             className="st-ov-resize-handle right"
                             title="Drag right edge to adjust duration"
+                          />
+                        </TimelineSegment>
+                      );
+                    })}
+                  </TimelineLaneCanvas>
+                </TimelineLane>
+              );
+            })()}
+
+            {/* User VO is always visible so the recording destination is clear before the first take. */}
+            {(() => {
+              const withLanes = assignSubLanes(userVoiceSegments);
+              const maxLane = Math.max(0, ...withLanes.map((segment) => segment.lane));
+              const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
+              return (
+                <TimelineLane
+                  className="st-user-vo-lane"
+                  label="User VO"
+                  hint={userVoiceSegments.length ? "Drag to move or trim" : "Record from the Beat or Cut preview"}
+                >
+                  <TimelineLaneCanvas canvasRef={userVoiceTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
+                    {beats.map((beat, index) => index === 0 ? null : (
+                      <TimelineDivider key={beat.id} className="st-vo-divider" style={{ left: `${(beatStarts[index] / totalDur) * 100}%` }} />
+                    ))}
+                    {withLanes.map((segment) => {
+                      const selected = segment.id === selectedUserVoiceId;
+                      return (
+                        <TimelineSegment
+                          key={segment.id}
+                          tone="voice"
+                          selected={selected}
+                          onPointerDown={(event) => startUserVoiceDrag(event, segment, "move")}
+                          onPointerMove={(event) => handleUserVoicePointerMove(event, segment)}
+                          onPointerUp={endUserVoiceDrag}
+                          className={"st-vo-chip st-user-vo-chip" + (selected ? " sel" : "")}
+                          style={{
+                            left: `${(segment.startTimeSec / totalDur) * 100}%`,
+                            width: `${Math.max(1, (segment.durationSec / totalDur) * 100)}%`,
+                            top: 3 + segment.lane * 28,
+                            height: 24,
+                            bottom: "auto",
+                            zIndex: selected ? 30 : 2 + segment.lane,
+                          }}
+                          title={`${segment.name} · ${segment.startTimeSec.toFixed(1)}s–${(segment.startTimeSec + segment.durationSec).toFixed(1)}s · vol ${Math.round(segment.volume * 100)}%`}
+                        >
+                          <UserVoiceWaveform
+                            file={segment.file}
+                            durationSec={segment.durationSec}
+                            sourceDurationSec={segment.sourceDurationSec}
+                            sourceStartSec={segment.sourceStartSec}
+                            volume={segment.volume}
+                            levelDb={segment.levelDb}
+                            variant="timeline"
+                          />
+                          <span className="st-vo-chip-icon">🎙</span>
+                          <span className="st-vo-chip-text">{segment.name}</span>
+                          <span className="st-vo-chip-time">{segment.startTimeSec.toFixed(1)}s–{(segment.startTimeSec + segment.durationSec).toFixed(1)}s</span>
+                          <ControlButton
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              const newId = `user-vo-${genId()}`;
+                              dispatch({ type: "DUPLICATE_USER_VOICE", id: segment.id, newUserVoiceId: newId });
+                              onSelectUserVoice?.(newId);
+                            }}
+                            className="st-vo-action-btn"
+                            title="Duplicate recording"
+                          >
+                            <CopyIcon size={9} />
+                          </ControlButton>
+                          <ControlButton
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onRequestDeleteSegment("user voice", segment.id, segment.name);
+                            }}
+                            className="st-vo-action-btn"
+                            title="Remove recording"
+                          >
+                            <CloseIcon size={9} />
+                          </ControlButton>
+                          <TimelineResizeHandle
+                            edge="right"
+                            onPointerDown={(event) => startUserVoiceDrag(event, segment, "resize-right")}
+                            className="st-vo-resize-handle right"
+                            title="Drag to trim the recording's tail"
                           />
                         </TimelineSegment>
                       );

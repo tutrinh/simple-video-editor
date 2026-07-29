@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canvasDims, buildScriptText, buildSrt, wrapCaption, sourceName, beatInputArgs, beatAudioStrategy } from "./export";
+import { canvasDims, buildScriptText, buildSrt, wrapCaption, sourceName, beatInputArgs, beatAudioStrategy, splitScreenAudioFallbackPlans, splitScreenAudioPlan } from "./export";
 import type { Cut } from "../../domain/types";
 
 const cut: Cut = {
@@ -131,6 +131,59 @@ describe("beatAudioStrategy", () => {
     expect(beatAudioStrategy({ kind: "video" }, 1)).toBe("source");
     expect(beatAudioStrategy({ kind: undefined }, 1)).toBe("source");
     expect(beatAudioStrategy({ kind: undefined }, 0)).toBe("silent");
+  });
+});
+
+describe("splitScreenAudioPlan", () => {
+  it("exports every audible footage slot with Beat and master gain", () => {
+    const plan = splitScreenAudioPlan(
+      {
+        layout: "v2-side",
+        slots: [
+          { clipId: "a", inSec: 0, volume: 1 },
+          { clipId: "b", inSec: 0, volume: 0.5 },
+        ],
+      },
+      { volume: 0.8 },
+      { beatAudioMasterVolume: 0.5 },
+      [{ id: "a", kind: "video" }, { id: "b", kind: "video" }],
+    );
+    expect(plan).toEqual([
+      { inputIdx: 0, volume: 0.4 },
+      { inputIdx: 1, volume: 0.2 },
+    ]);
+  });
+
+  it("tries all audible subsets from fullest mix to single-slot fallbacks", () => {
+    const inputs = [
+      { inputIdx: 0, volume: 1 },
+      { inputIdx: 1, volume: 0.5 },
+      { inputIdx: 2, volume: 0.25 },
+    ];
+    expect(splitScreenAudioFallbackPlans(inputs)).toEqual([
+      [inputs[0], inputs[1], inputs[2]],
+      [inputs[0], inputs[1]],
+      [inputs[0], inputs[2]],
+      [inputs[1], inputs[2]],
+      [inputs[0]],
+      [inputs[1]],
+      [inputs[2]],
+    ]);
+  });
+
+  it("omits muted and still-image slots", () => {
+    expect(splitScreenAudioPlan(
+      {
+        layout: "v2-side",
+        slots: [
+          { clipId: "still", inSec: 0, volume: 1 },
+          { clipId: "video", inSec: 0, volume: 0 },
+        ],
+      },
+      {},
+      {},
+      [{ id: "still", kind: "still" }, { id: "video", kind: "video" }],
+    )).toEqual([]);
   });
 });
 

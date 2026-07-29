@@ -21,7 +21,7 @@ import Button from "../design-system/Button";
 import DeleteIcon from "../design-system/icons/DeleteIcon";
 // AI actions (analyze/author/refine) now live inside AiStoryDrawer's own hook.
 
-type TrackSegmentKind = "overlay" | "voiceover" | "sound effect" | "sticker";
+type TrackSegmentKind = "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker";
 
 export default function StudioApp() {
   const { state, dispatch } = useProject();
@@ -32,9 +32,11 @@ export default function StudioApp() {
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [selectedVoId, setSelectedVoId] = useState<string | null>(null);
   const [selectedSfxId, setSelectedSfxId] = useState<string | null>(null);
+  const [selectedUserVoiceId, setSelectedUserVoiceId] = useState<string | null>(null);
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [clipBinCollapsed, setClipBinCollapsed] = useState(false);
   // Mount the export drawer lazily on first open, then keep it mounted so its
   // state survives close/reopen (only slid out of view). Reset on "Start over".
   const [exportMounted, setExportMounted] = useState(false);
@@ -107,6 +109,9 @@ export default function StudioApp() {
     } else if (kind === "sound effect") {
       dispatch({ type: "REMOVE_SFX", id });
       setSelectedSfxId(null);
+    } else if (kind === "user voice") {
+      dispatch({ type: "REMOVE_USER_VOICE", id });
+      setSelectedUserVoiceId(null);
     } else if (kind === "voiceover") {
       dispatch({ type: "REMOVE_VO", id });
       setSelectedVoId(null);
@@ -126,6 +131,9 @@ export default function StudioApp() {
         if (selectedStickerId) {
           const segment = cut?.stickers?.find((item) => item.id === selectedStickerId);
           requestTrackSegmentDeletion("sticker", selectedStickerId, segment?.fileName ?? "Selected sticker");
+        } else if (selectedUserVoiceId) {
+          const segment = cut?.userVoiceSegments?.find((item) => item.id === selectedUserVoiceId);
+          requestTrackSegmentDeletion("user voice", selectedUserVoiceId, segment?.name ?? "Selected recording");
         } else if (selectedSfxId) {
           const segment = cut?.sfxSegments?.find((item) => item.id === selectedSfxId);
           requestTrackSegmentDeletion("sound effect", selectedSfxId, segment?.fileName ?? "Selected sound effect");
@@ -140,7 +148,7 @@ export default function StudioApp() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [clipById, cut, selectedOverlayId, selectedVoId, selectedSfxId, selectedStickerId]);
+  }, [clipById, cut, selectedOverlayId, selectedVoId, selectedSfxId, selectedUserVoiceId, selectedStickerId]);
 
   // Keep VO selection valid as segments change.
   useEffect(() => {
@@ -153,6 +161,13 @@ export default function StudioApp() {
     const segs = cut?.sfxSegments ?? [];
     if (selectedSfxId && !segs.some((s) => s.id === selectedSfxId)) setSelectedSfxId(null);
   }, [cut?.sfxSegments, selectedSfxId]);
+
+  useEffect(() => {
+    const segments = cut?.userVoiceSegments ?? [];
+    if (selectedUserVoiceId && !segments.some((segment) => segment.id === selectedUserVoiceId)) {
+      setSelectedUserVoiceId(null);
+    }
+  }, [cut?.userVoiceSegments, selectedUserVoiceId]);
 
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
   const selectedBeat = selIndex >= 0 ? beats[selIndex] : null;
@@ -243,7 +258,7 @@ export default function StudioApp() {
         onOpenAiStory={() => { setAiStoryMounted(true); setAiStoryOpen(true); }}
       />
 
-      <WorkspaceMain className={"st-main" + (aiStoryOpen ? " ai-open" : "")}>
+      <WorkspaceMain className={"st-main" + (clipBinCollapsed ? " clips-collapsed" : "") + (aiStoryOpen ? " ai-open" : "")}>
         <ClipBin
           usedClipIds={usedClipIds}
           selectedClipId={selectedClip?.id ?? null}
@@ -254,6 +269,8 @@ export default function StudioApp() {
           onDuplicateBeat={duplicateBeat}
           onFiles={ingestFiles}
           statuses={statuses}
+          collapsed={clipBinCollapsed}
+          onCollapsedChange={setClipBinCollapsed}
         />
 
         <WorkspacePanel
@@ -297,6 +314,13 @@ export default function StudioApp() {
                     keyboardShortcutsActive={editorHovered}
                     onSelectBeat={setSelectedBeatId}
                     onPlayingChange={setIsPlaying}
+                    onRecordCreated={(id) => {
+                      setSelectedUserVoiceId(id);
+                      setSelectedOverlayId(null);
+                      setSelectedVoId(null);
+                      setSelectedSfxId(null);
+                      setSelectedStickerId(null);
+                    }}
                   />
                 </div>
                 <Timeline
@@ -307,13 +331,23 @@ export default function StudioApp() {
                   onSelectBeat={setSelectedBeatId}
                   isPlaying={isPlaying}
                   selectedOverlayId={selectedOverlayId}
-                  onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) { setSelectedVoId(null); setSelectedSfxId(null); } }}
+                  onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) { setSelectedVoId(null); setSelectedSfxId(null); setSelectedUserVoiceId(null); } }}
                   selectedVoId={selectedVoId}
-                  onSelectVo={(id) => { setSelectedVoId(id); if (id) { setSelectedOverlayId(null); setSelectedSfxId(null); } }}
+                  onSelectVo={(id) => { setSelectedVoId(id); if (id) { setSelectedOverlayId(null); setSelectedSfxId(null); setSelectedUserVoiceId(null); } }}
                   selectedSfxId={selectedSfxId}
-                  onSelectSfx={(id) => { setSelectedSfxId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedStickerId(null); } }}
+                  onSelectSfx={(id) => { setSelectedSfxId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedUserVoiceId(null); setSelectedStickerId(null); } }}
+                  selectedUserVoiceId={selectedUserVoiceId}
+                  onSelectUserVoice={(id) => {
+                    setSelectedUserVoiceId(id);
+                    if (id) {
+                      setSelectedOverlayId(null);
+                      setSelectedVoId(null);
+                      setSelectedSfxId(null);
+                      setSelectedStickerId(null);
+                    }
+                  }}
                   selectedStickerId={selectedStickerId}
-                  onSelectSticker={(id) => { setSelectedStickerId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedSfxId(null); } }}
+                  onSelectSticker={(id) => { setSelectedStickerId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedSfxId(null); setSelectedUserVoiceId(null); } }}
                   onRequestDeleteSegment={requestTrackSegmentDeletion}
                 />
               </>
@@ -351,8 +385,11 @@ export default function StudioApp() {
           onSelectVo={setSelectedVoId}
           selectedSfxId={selectedSfxId}
           onSelectSfx={setSelectedSfxId}
+          selectedUserVoiceId={selectedUserVoiceId}
+          onSelectUserVoice={setSelectedUserVoiceId}
           selectedStickerId={selectedStickerId}
           onSelectSticker={setSelectedStickerId}
+          audioPreviewSuspended={exportOpen}
           onRequestDeleteSegment={requestTrackSegmentDeletion}
         />
 

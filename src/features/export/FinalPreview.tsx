@@ -25,6 +25,9 @@ import PauseIcon from "../../design-system/icons/PauseIcon";
 import PlayIcon from "../../design-system/icons/PlayIcon";
 import ReplayIcon from "../../design-system/icons/ReplayIcon";
 import { titleVisibilityAt, type TitleScope } from "./titleTiming";
+import { useUserVoicePlayback } from "../../studio/useUserVoicePlayback";
+import { captionVoiceGainAtTime } from "../../studio/userVoicePriority";
+import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -96,22 +99,30 @@ interface Props {
   onActiveBeatChange?: (beatId: string, index: number) => void;
   /** Callback fired when playback starts or stops. */
   onPlayingChange?: (playing: boolean) => void;
+  /** External transport command used by synchronized microphone recording. */
+  transportCommand?: { id: number; action: "restart" | "pause" } | null;
+  /** Keeps the visual transport running while silencing every preview source. */
+  muteAllAudio?: boolean;
 }
 
 export default function FinalPreview({
   active = true,
   cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
+  voiceover,
   ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
   enableSpacebarPlayback = false,
   selectedBeatId,
   onActiveBeatChange,
   onPlayingChange,
+  transportCommand,
+  muteAllAudio = false,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const slotVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const voCacheRef = useRef<Map<string, string>>(new Map());
+  const generatedVoAudioRef = useRef<HTMLAudioElement | null>(null);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [beatElapsed, setBeatElapsed] = useState(0); // seconds into the current beat
@@ -159,6 +170,7 @@ export default function FinalPreview({
     return t;
   }, [cut.beats, index]);
   const elapsed = beatStart + beatElapsed;
+  useUserVoicePlayback(cut.userVoiceSegments, elapsed, playing && !muteAllAudio);
 
 
   const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec) ?? null;
@@ -172,14 +184,15 @@ export default function FinalPreview({
     if (Math.abs(el.currentTime - targetTime) > 0.15) {
       try { el.currentTime = targetTime; } catch {}
     }
-    el.volume = activeOverlay.volume ?? 0;
-    el.muted = (activeOverlay.volume ?? 0) === 0;
+    const volume = activeOverlay.volume ?? 0;
+    el.volume = muteAllAudio ? 0 : volume;
+    el.muted = muteAllAudio || volume === 0;
     if (playing && el.paused) {
       el.play().catch(() => {});
     } else if (!playing && !el.paused) {
       el.pause();
     }
-  }, [elapsed, activeOverlay, playing]);
+  }, [elapsed, activeOverlay, playing, muteAllAudio]);
 
   const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
   const mainBeatBlobUrl = getClipBlobUrl(currentBeatClip ? previewFileForClip(currentBeatClip) : undefined);
@@ -203,9 +216,9 @@ export default function FinalPreview({
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !beat || !mainBeatBlobUrl) return;
-    const vol = beat.volume ?? 1;
-    v.volume = vol;
-    v.muted = vol === 0;
+    const vol = effectiveBeatVolume(beat, cut);
+    v.volume = muteAllAudio ? 0 : vol;
+    v.muted = muteAllAudio || vol === 0;
     const onMeta = () => {
       v.currentTime = beat.inSec;
       if (playingRef.current) v.play().catch(() => {});
@@ -219,7 +232,7 @@ export default function FinalPreview({
     return () => {
       v.removeEventListener("loadedmetadata", onMeta);
     };
-  }, [index, beat, mainBeatBlobUrl]);
+  }, [index, beat, cut.beatAudioMasterVolume, cut.beatAudioMuted, mainBeatBlobUrl, muteAllAudio]);
 
   // Play/pause the loaded video in step with the transport.
   useEffect(() => {
@@ -241,13 +254,13 @@ export default function FinalPreview({
       if (Math.abs(el.currentTime - targetTime) > 0.15) {
         try { el.currentTime = targetTime; } catch {}
       }
-      const volume = slot.volume ?? (idx === 0 ? (beat.volume ?? 1) : 0);
-      el.volume = volume;
-      el.muted = volume === 0;
+      const volume = effectiveSplitScreenSlotVolume(slot, idx, beat, cut);
+      el.volume = muteAllAudio ? 0 : volume;
+      el.muted = muteAllAudio || volume === 0;
       if (playing && el.paused) el.play().catch(() => {});
       else if (!playing && !el.paused) el.pause();
     });
-  }, [beat, beatElapsed, clips, currentBeatClip, playing, splitActive]);
+  }, [beat, beatElapsed, clips, currentBeatClip, cut.beatAudioMasterVolume, cut.beatAudioMuted, playing, splitActive, muteAllAudio]);
 
   // Keep DOM video element synchronized with beatElapsed when paused or loaded
   useEffect(() => {
@@ -309,14 +322,14 @@ export default function FinalPreview({
     return () => URL.revokeObjectURL(url);
   }, [music]);
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = Math.min(1, Math.max(0, musicVolume));
-  }, [musicVolume]);
+    if (audioRef.current) audioRef.current.volume = muteAllAudio ? 0 : Math.min(1, Math.max(0, musicVolume));
+  }, [musicVolume, muteAllAudio]);
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !music) return;
-    if (playing) a.play().catch(() => {});
+    if (playing && !muteAllAudio) a.play().catch(() => {});
     else a.pause();
-  }, [playing, music]);
+  }, [playing, music, muteAllAudio]);
 
   // The VO segment whose window contains the current absolute time (audio plays
   // regardless of whether its caption is visible), decoupled from beats.
@@ -325,7 +338,7 @@ export default function FinalPreview({
   // Play the active VO segment's narration (Kokoro/ElevenLabs, synth cached),
   // seeking to how far into the segment we already are. Matches the export.
   useEffect(() => {
-    if (!playing || !activeVo || !activeVo.text.trim()) return;
+    if (!voiceover || !playing || muteAllAudio || !activeVo || !activeVo.text.trim()) return;
     const text = activeVo.text.trim();
     const startAt = activeVo.startTimeSec;
     const key = `${text}_${ttsEngine ?? "kokoro"}_${voice ?? "af_heart"}_${elevenVoiceId ?? ""}_${voiceoverSpeed ?? 1}`;
@@ -344,6 +357,13 @@ export default function FinalPreview({
         }
         if (cancelled) return;
         audio = new Audio(url);
+        generatedVoAudioRef.current = audio;
+        audio.volume = Math.min(1, Math.max(0,
+          (activeVo.volume ?? 1) * captionVoiceGainAtTime(
+            cut.userVoiceSegments ?? [],
+            beatElapsedRef.current + beatStart,
+          ),
+        ));
         const offset = Math.max(0, beatElapsedRef.current + beatStart - startAt);
         const seek = () => { try { audio!.currentTime = offset; } catch { /* pre-metadata */ } };
         audio.addEventListener("loadedmetadata", seek, { once: true });
@@ -354,10 +374,25 @@ export default function FinalPreview({
       }
     })();
 
-    return () => { cancelled = true; if (audio) { audio.pause(); audio.src = ""; } };
+    return () => {
+      cancelled = true;
+      if (audio) {
+        audio.pause();
+        audio.src = "";
+        if (generatedVoAudioRef.current === audio) generatedVoAudioRef.current = null;
+      }
+    };
     // Re-run when the active segment (or its text) changes, or play toggles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeVo?.id, activeVo?.text, playing, ttsEngine, voice, elevenVoiceId, voiceoverSpeed]);
+  }, [activeVo?.id, activeVo?.text, playing, muteAllAudio, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed]);
+
+  useEffect(() => {
+    const audio = generatedVoAudioRef.current;
+    if (!audio || !activeVo) return;
+    audio.volume = Math.min(1, Math.max(0,
+      (activeVo.volume ?? 1) * captionVoiceGainAtTime(cut.userVoiceSegments ?? [], elapsed),
+    ));
+  }, [activeVo, cut.userVoiceSegments, elapsed]);
 
   // SFX track — one HTMLAudio "voice" per active segment (overlaps allowed), synced
   // to the global `elapsed` clock like the overlay/VO effects. Trim is enforced by
@@ -365,7 +400,7 @@ export default function FinalPreview({
   const sfxVoicesRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   useEffect(() => {
     const voices = sfxVoicesRef.current;
-    if (!playing) { voices.forEach((a) => a.pause()); return; }
+    if (!playing || muteAllAudio) { voices.forEach((a) => a.pause()); return; }
     for (const seg of resolveSfxSegments(cut.sfxSegments, beatSpans(cut.beats))) {
 
       const inWindow = elapsed >= seg.startTimeSec && elapsed < seg.startTimeSec + seg.durationSec;
@@ -389,7 +424,7 @@ export default function FinalPreview({
         voices.delete(seg.id);
       }
     }
-  }, [elapsed, playing, cut.sfxSegments]);
+  }, [elapsed, playing, muteAllAudio, cut.sfxSegments]);
 
   // Stop and release all SFX voices on unmount.
   useEffect(() => {
@@ -425,6 +460,14 @@ export default function FinalPreview({
       if (started || activeVideos().length === 0) setPlaying(true);
     });
   };
+
+  useEffect(() => {
+    if (!transportCommand) return;
+    if (transportCommand.action === "restart") restart();
+    else pause();
+    // The monotonically increasing id makes identical consecutive commands run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transportCommand?.id]);
 
   // Captions come from the VO track by absolute cut time (only segments with the
   // caption toggle on), decoupled from beats.
@@ -652,7 +695,7 @@ export default function FinalPreview({
                               if (idx === 0) videoRef.current = el;
                             }}
                             src={slotBlob ?? undefined}
-                            muted={(slot.volume ?? (idx === 0 ? (beat?.volume ?? 1) : 0)) === 0}
+                            muted={muteAllAudio || !beat || effectiveSplitScreenSlotVolume(slot, idx, beat, cut) === 0}
                             playsInline
                             style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }}
                           />
@@ -680,7 +723,7 @@ export default function FinalPreview({
               <video
                 ref={videoRef}
                 src={mainBeatBlobUrl}
-                muted={(beat?.volume ?? 1) === 0}
+                muted={muteAllAudio || !beat || effectiveBeatVolume(beat, cut) === 0}
                 playsInline
                 style={{
                   width: "100%",
@@ -715,7 +758,7 @@ export default function FinalPreview({
             key={activeOverlay.id}
             ref={overlayVideoRef}
             src={overlayBlobUrl}
-            muted={(activeOverlay.volume ?? 0) === 0}
+            muted={muteAllAudio || (activeOverlay.volume ?? 0) === 0}
             playsInline
             style={{
               position: "absolute",

@@ -232,6 +232,12 @@ body {
 .st-main.ai-open {
   grid-template-columns: 300px minmax(0, 1fr) 0px 500px;
 }
+.st-main.clips-collapsed {
+  grid-template-columns: 44px minmax(0, 1fr) 500px 0px;
+}
+.st-main.clips-collapsed.ai-open {
+  grid-template-columns: 44px minmax(0, 1fr) 0px 500px;
+}
 .st-main.ai-open .st-col.insp {
   min-width: 0;
   width: auto;
@@ -248,6 +254,69 @@ body {
   border-right: 1px solid var(--line);
   background: var(--panel);
   width: 300px;
+  overflow: hidden;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.st-col.bin.collapsed {
+  width: 44px;
+}
+.st-clip-bin-collapse {
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.st-clip-bin-collapse:hover {
+  border-color: var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.st-clip-bin-rail {
+  width: 43px;
+  height: 100%;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.st-clip-bin-rail:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.st-clip-bin-rail > span:not(.cnt) {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-transform: uppercase;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.st-clip-bin-rail .cnt {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--ink-2);
+  font-size: 9px;
 }
 .st-col.stage {
   background: var(--bg);
@@ -550,13 +619,130 @@ body {
 }
 .st-preview-mode-switch {
   position: absolute;
-  right: 2px;
+  /* Reserve the transport's right edge for the microphone control. The switch
+     is absolute so it never crushes the scrubber, but must not occupy Record. */
+  right: 160px;
   bottom: 14px;
   z-index: 25;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
+}
+.st-preview-record-button {
+  width: 100%;
+  justify-content: center;
+  white-space: nowrap;
+}
+.st-preview-record-control {
+  position: relative;
+  width: 146px;
+  flex: 0 0 146px;
+}
+.st-preview-record-error {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  z-index: 35;
+  width: 280px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--line));
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgba(32, 20, 18, 0.16);
+  color: var(--danger);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.st-preview-record-warning {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  z-index: 35;
+  width: 280px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgba(32, 20, 18, 0.16);
+  color: var(--ink-2);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.st-preview-record-hint {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  z-index: 35;
+  width: 280px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgba(32, 20, 18, 0.16);
+  color: var(--ink-2);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.st-preview-record-preflight {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  z-index: 35;
+  width: 280px;
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 12px 28px rgba(32, 20, 18, 0.16);
+  color: var(--ink-2);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: normal;
+}
+.st-preview-record-preflight strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+.st-preview-noise-cleanup {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--good) 30%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--good) 8%, transparent);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.st-preview-noise-cleanup input {
+  margin: 2px 0 0;
+  accent-color: var(--good);
+}
+.st-preview-noise-cleanup span {
+  display: grid;
+  gap: 2px;
+}
+.st-preview-noise-cleanup strong {
+  color: var(--ink);
+  font-size: 10px;
+}
+.st-preview-noise-cleanup small {
+  color: var(--ink-3);
+  font-size: 9px;
+}
+.st-preview-record-confirm {
+  width: 100%;
+  justify-content: center;
+  margin-top: 2px;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 .st-preview-shortcuts {
   display: flex;
@@ -1054,6 +1240,54 @@ body {
   gap: 0;
   width: 100%;
 }
+.st-beat-audio-master {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr) 34px auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--panel-2) 74%, var(--accent-subtle));
+}
+.st-beat-audio-master strong {
+  color: var(--ink-2);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.st-beat-audio-master input {
+  min-width: 0;
+}
+.st-beat-audio-master output {
+  color: var(--ink-3);
+  font: 9px var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.st-beat-audio-master-mute {
+  min-height: 25px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.st-beat-audio-master-mute[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--line));
+  background: color-mix(in srgb, var(--danger) 9%, var(--panel));
+  color: var(--danger);
+}
+.st-beat-audio-master.muted input {
+  opacity: 0.52;
+}
+.st-user-vo-lane {
+  order: -1;
+}
 
 /* Overlay lane */
 .st-ov-lane {
@@ -1404,6 +1638,31 @@ body {
   box-shadow:
     0 0 0 2px #8b7cff,
     0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* Microphone takes — warm red separates authored recordings from generated VO. */
+.st-vo-chip.st-user-vo-chip {
+  isolation: isolate;
+  background: color-mix(in srgb, #d43a36 22%, transparent);
+  border-color: #d43a36;
+  color: #ec7774;
+}
+.st-vo-chip.st-user-vo-chip:hover {
+  background: color-mix(in srgb, #d43a36 38%, transparent);
+  box-shadow: 0 0 0 1px #d43a36;
+}
+.st-vo-chip.st-user-vo-chip.sel {
+  background: #d43a36;
+  border-color: #fff;
+  color: #fff;
+  box-shadow:
+    0 0 0 2px #d43a36,
+    0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.st-user-vo-chip > span,
+.st-user-vo-chip > button,
+.st-user-vo-chip > .st-vo-resize-handle {
+  z-index: 1;
 }
 
 /* SFX picker popover (opened from the "＋ Add SFX" button) */
@@ -1890,6 +2149,392 @@ body {
 .st-insp-body::-webkit-scrollbar {
   display: none;
 }
+
+/* User VO Inspector — an editable audio surface, not a warning card. */
+.st-user-vo-card {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  padding: 13px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 46%),
+    var(--panel-2);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.st-user-vo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.st-user-vo-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.st-user-vo-mark {
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font: 700 9px var(--mono);
+  letter-spacing: 0.04em;
+}
+.st-user-vo-heading strong,
+.st-user-vo-heading span {
+  display: block;
+}
+.st-user-vo-heading strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.st-user-vo-heading div > span {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--ink-3);
+  font: 9px var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-user-vo-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.st-user-vo-action {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+.st-user-vo-action:hover {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+.st-user-vo-action.danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, var(--panel));
+  color: var(--danger);
+}
+.st-user-vo-action:active {
+  transform: translateY(1px);
+}
+.st-user-vo-take {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: end;
+  gap: 9px;
+  padding: 12px 0 3px;
+}
+.st-user-vo-play {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--accent);
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+.st-user-vo-play:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+.st-user-vo-play:active {
+  transform: scale(0.96);
+}
+.st-user-vo-name {
+  min-width: 0;
+}
+.st-user-vo-name > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-3);
+  font-size: 9px;
+}
+.st-user-vo-name input {
+  width: 100%;
+  height: 34px;
+  padding: 0 9px;
+  border-color: var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 11px;
+}
+.st-user-vo-waveform {
+  position: relative;
+  overflow: hidden;
+}
+.st-user-vo-waveform svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.st-user-vo-waveform-center {
+  stroke: color-mix(in srgb, var(--ink-3) 24%, transparent);
+  stroke-width: 0.35;
+}
+.st-user-vo-waveform-bar {
+  fill: var(--accent);
+  transition: height 100ms ease, y 100ms ease, fill 100ms ease;
+}
+.st-user-vo-waveform-bar.warning {
+  fill: #b46d16;
+}
+.st-user-vo-waveform-bar.danger {
+  fill: var(--danger);
+}
+.st-user-vo-waveform.timeline {
+  position: absolute;
+  inset: 1px 3px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+}
+.st-user-vo-waveform.timeline .st-user-vo-waveform-center {
+  stroke: currentColor;
+  opacity: 0.16;
+}
+.st-user-vo-waveform.timeline .st-user-vo-waveform-bar.safe {
+  fill: currentColor;
+}
+.st-user-vo-chip.sel .st-user-vo-waveform.timeline {
+  opacity: 0.34;
+}
+.st-user-vo-waveform.inspector {
+  height: 62px;
+  margin: 9px 0 4px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent),
+    var(--panel);
+  cursor: crosshair;
+}
+.st-user-vo-waveform-playhead {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  width: 1px;
+  border-radius: 1px;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 60%, transparent);
+  pointer-events: none;
+  transform: translateX(-0.5px);
+  z-index: 4;
+}
+.st-user-vo-waveform-dim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
+  pointer-events: none;
+}
+.st-user-vo-waveform-dim.left {
+  left: 0;
+}
+.st-user-vo-waveform-dim.right {
+  right: 0;
+}
+.st-user-vo-waveform-selection {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  z-index: 3;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  pointer-events: none;
+}
+.st-user-vo-waveform-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: ew-resize;
+  transform: translateX(-50%);
+  touch-action: none;
+}
+.st-user-vo-waveform-handle::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 4px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 70%, transparent);
+}
+.st-user-vo-waveform-handle::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.st-user-vo-waveform-handle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.st-user-vo-trim-readout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 1px 1px;
+  color: var(--ink-3);
+  font: 8px var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.st-user-vo-trim-readout span:nth-child(2) {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.st-user-vo-control {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.st-user-vo-control > span {
+  color: var(--ink-2);
+  font-size: 10px;
+}
+.st-user-vo-control input {
+  min-width: 0;
+}
+.st-user-vo-control output {
+  color: var(--ink-3);
+  font: 9px var(--mono);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.st-user-vo-level-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 1px 64px;
+}
+.st-user-vo-auto-level {
+  min-height: 25px;
+  padding: 4px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 6px;
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.st-user-vo-auto-level:disabled {
+  opacity: 0.48;
+  cursor: wait;
+}
+.st-user-vo-peak {
+  font: 700 8px var(--mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.st-user-vo-peak.safe {
+  color: var(--accent);
+}
+.st-user-vo-peak.warning {
+  color: #b46d16;
+}
+.st-user-vo-peak.danger {
+  color: var(--danger);
+}
+.st-user-vo-peak.muted {
+  color: var(--ink-3);
+}
+.st-user-vo-settings-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 12px;
+}
+.st-user-vo-settings-button {
+  min-width: 0;
+  min-height: 29px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 9px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.st-user-vo-settings-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.st-user-vo-settings-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.st-user-vo-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-3);
+  font-size: 9px;
+}
+.st-user-vo-footer span:first-child {
+  flex: none;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.st-user-vo-footer span:last-child {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Utility: keep scrolling but hide the scrollbar (Firefox / old Edge / WebKit). */
 .no-scrollbar {
   scrollbar-width: none;

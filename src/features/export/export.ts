@@ -1,4 +1,4 @@
-import type { Beat, Clip, Cut, Aspect, OverlayClip, Sticker, VideoTransitionType } from "../../domain/types";
+import type { Beat, Clip, Cut, Aspect, OverlayClip, SplitScreenConfig, Sticker, UserVoiceEffect, VideoTransitionType } from "../../domain/types";
 import { multithreadReady, runIsolated, type EngineInput, type EnginePhase } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -14,6 +14,9 @@ import { normalizeSplitConfig, buildSplitScreenFilterGraph } from "./splitScreen
 import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LayerSpec } from "./segmentGraph";
 import { cacheSegment, getCachedSegment, segmentCacheKey } from "./segmentCache";
 import { titleWindow, type TitleScope } from "./titleTiming";
+import { clampUserVoiceLevelDb, clampUserVoiceVolume, dbToLinear, userVoiceEqFilterChain } from "../../studio/userVoiceEq";
+import { captionVoiceDuckingFilterChain } from "../../studio/userVoicePriority";
+import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
 
 
 
@@ -180,6 +183,43 @@ export function beatInputArgs(
 export function beatAudioStrategy(clip: Pick<Clip, "kind">, beatVolume: number): "source" | "silent" {
   if (clip.kind === "still") return "silent";
   return beatVolume > 0 ? "source" : "silent";
+}
+
+export interface SplitScreenAudioInput {
+  inputIdx: number;
+  volume: number;
+}
+
+export function splitScreenAudioPlan(
+  config: SplitScreenConfig,
+  beat: Pick<Beat, "volume" | "muted">,
+  cut: Pick<Cut, "beatAudioMasterVolume" | "beatAudioMuted">,
+  clips: readonly Pick<Clip, "id" | "kind">[],
+): SplitScreenAudioInput[] {
+  return config.slots.flatMap((slot, inputIdx) => {
+    const slotClip = clips.find((candidate) => candidate.id === slot.clipId);
+    const volume = effectiveSplitScreenSlotVolume(slot, inputIdx, beat, cut);
+    return slotClip?.kind === "still" || volume <= 0
+      ? []
+      : [{ inputIdx, volume }];
+  });
+}
+
+export function splitScreenAudioFallbackPlans(
+  inputs: readonly SplitScreenAudioInput[],
+): SplitScreenAudioInput[][] {
+  const plans: SplitScreenAudioInput[][] = [];
+  const collect = (start: number, remaining: number, current: SplitScreenAudioInput[]) => {
+    if (remaining === 0) {
+      plans.push(current);
+      return;
+    }
+    for (let index = start; index <= inputs.length - remaining; index++) {
+      collect(index + 1, remaining - 1, [...current, inputs[index]]);
+    }
+  };
+  for (let size = inputs.length; size >= 1; size--) collect(0, size, []);
+  return plans;
 }
 
 async function bytesOf(src: Blob): Promise<Uint8Array> {
@@ -550,6 +590,9 @@ export async function exportCut(
 
     const isSplitScreen = !!(b.splitScreen && b.splitScreen.layout !== "none" && b.splitScreen.slots.length > 1);
     const normSplitCfg = isSplitScreen ? normalizeSplitConfig(b.splitScreen, clip.id, inSec) : null;
+    const splitAudioInputs = normSplitCfg
+      ? splitScreenAudioPlan(normSplitCfg, b, cut, clips)
+      : [];
 
     const inputs: EngineInput[] = [];
 
@@ -657,10 +700,12 @@ export async function exportCut(
 
     timingSlots[i] = { id: b.id, inSec, outSec: inSec + footageLen, durationSec: segDur };
 
-    const beatVol = b.volume ?? 1;
+    const beatVol = effectiveBeatVolume(b, cut);
     // Beat audio is just the (optionally muted) source clip now; narration is the
     // master VO bed mixed in at the final stage.
-    const strategy: "source" | "silent" = beatAudioStrategy(clip, beatVol);
+    const strategy: "source" | "silent" = isSplitScreen
+      ? (splitAudioInputs.length > 0 ? "source" : "silent")
+      : beatAudioStrategy(clip, beatVol);
 
     const segDurStr = segDur.toFixed(3);
 
@@ -961,7 +1006,11 @@ export async function exportCut(
       }))
       .filter(({ o }) => (o.volume ?? 0) > 0);
 
-    const buildSegArgs = (strat: "source" | "silent", rgbFormat: string | null = null): string[] => {
+    const buildSegArgs = (
+      strat: "source" | "silent",
+      rgbFormat: string | null = null,
+      activeSplitAudioInputs: readonly SplitScreenAudioInput[] = splitAudioInputs,
+    ): string[] => {
       let audioInputArgs: string[];
       const aChains: string[] = [];
 
@@ -976,7 +1025,21 @@ export async function exportCut(
 
       if (strat === "source") {
         audioInputArgs = [];
-        aChains.push(`[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
+        if (isSplitScreen) {
+          const labels: string[] = [];
+          activeSplitAudioInputs.forEach(({ inputIdx, volume }, index) => {
+            const label = `[aslot_${index}]`;
+            aChains.push(`[${inputIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${volume.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS${label}`);
+            labels.push(label);
+          });
+          if (labels.length === 1) {
+            aChains[0] = aChains[0].replace(labels[0], "[abase]");
+          } else {
+            aChains.push(`${labels.join("")}amix=inputs=${labels.length}:duration=first:normalize=0[abase]`);
+          }
+        } else {
+          aChains.push(`[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
+        }
       } else {
         audioInputArgs = ["-f", "lavfi", "-t", segDurStr, "-i", "anullsrc=r=48000:cl=stereo"];
         aChains.push(`[${audioIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[abase]`);
@@ -993,7 +1056,8 @@ export async function exportCut(
         });
         aChains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[a]`);
       } else {
-        aChains[0] = aChains[0].replace("[abase]", "[a]");
+        const baseChainIndex = aChains.findIndex((chain) => chain.includes("[abase]"));
+        aChains[baseChainIndex] = aChains[baseChainIndex].replace("[abase]", "[a]");
       }
 
       const segChains = [...chains, ...sgResult.chains];
@@ -1045,8 +1109,11 @@ export async function exportCut(
         else if (phase === "loading-st") reportBeatStage(i, "Initializing compatible encoder for beat");
         else reportBeatProg();
       };
-      const runCached = async (rgbFormat: "gbrp" | null) => {
-        const args = buildSegArgs(strat, rgbFormat);
+      const runCached = async (
+        rgbFormat: "gbrp" | null,
+        activeSplitAudioInputs: readonly SplitScreenAudioInput[] = splitAudioInputs,
+      ) => {
+        const args = buildSegArgs(strat, rgbFormat, activeSplitAudioInputs);
         const key = await segmentCacheKey(inputs, args);
         const cached = key ? getCachedSegment(key) : null;
         if (cached) {
@@ -1059,16 +1126,25 @@ export async function exportCut(
         if (key) cacheSegment(key, rendered);
         return rendered;
       };
-      if (hasRgbBlend) {
-        for (const rgbFormat of ["gbrp", null] as const) {
+      const rgbFormats = hasRgbBlend ? (["gbrp", null] as const) : ([null] as const);
+      const audioPlans = strat === "source" && isSplitScreen
+        ? splitScreenAudioFallbackPlans(splitAudioInputs)
+        : [splitAudioInputs];
+      let lastError: unknown;
+      for (const activeSplitAudioInputs of audioPlans) {
+        for (const rgbFormat of rgbFormats) {
           try {
-            return await runCached(rgbFormat);
+            return await runCached(rgbFormat, activeSplitAudioInputs);
           } catch (err) {
-            console.warn(`Segment ${i} RGB blend pass failed (rgbFormat=${rgbFormat}), trying fallback...`, err);
+            lastError = err;
+            console.warn(
+              `Segment ${i} pass failed (rgbFormat=${rgbFormat}, audioInputs=${activeSplitAudioInputs.map(({ inputIdx }) => inputIdx).join(",") || "none"}), trying fallback...`,
+              err,
+            );
           }
         }
       }
-      return runCached(null);
+      throw lastError;
     };
 
     if (strategy === "source") {
@@ -1177,14 +1253,16 @@ export async function exportCut(
   // boundaries), replacing per-beat voiceover.
   onProgress?.(0.88, "Synthesizing VO track narration…");
   const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed, elevenModel: opts.elevenModel, elevenStability: opts.elevenStability, elevenStyle: opts.elevenStyle };
-  const voSegs = (cut.voSegments ?? []).filter((s) => s.text.trim());
-  const renderedVo: { startTimeSec: number; volume: number; name: string; data: Uint8Array }[] = [];
+  const voSegs = opts.voiceover
+    ? (cut.voSegments ?? []).filter((s) => s.text.trim())
+    : [];
+  const renderedVo: { startTimeSec: number; durationSec: number; volume: number; name: string; data: Uint8Array }[] = [];
   for (let k = 0; k < voSegs.length; k++) {
     try {
       const frac = 0.88 + ((k + 0.5) / Math.max(1, voSegs.length)) * 0.06;
       onProgress?.(frac, `Synthesizing VO narration ${k + 1} of ${voSegs.length}…`);
       const vo = await synthesizeVoiceover(voSegs[k].text.trim(), ttsOpts);
-      renderedVo.push({ startTimeSec: voSegs[k].startTimeSec, volume: voSegs[k].volume ?? 1.0, name: `voseg_${k}.${vo.ext}`, data: vo.data });
+      renderedVo.push({ startTimeSec: voSegs[k].startTimeSec, durationSec: voSegs[k].durationSec, volume: voSegs[k].volume ?? 1.0, name: `voseg_${k}.${vo.ext}`, data: vo.data });
     } catch (err) {
       console.warn(`VO segment ${k} synthesis failed; skipping its audio.`, err);
     }
@@ -1204,11 +1282,34 @@ export async function exportCut(
       console.warn(`SFX segment ${k} (${s.fileName}) could not be loaded; skipping.`, err);
     }
   }
+  const renderedUserVoice: { startTimeSec: number; durationSec: number; sourceStartSec?: number; volume: number; levelDb?: number; bassDb?: number; trebleDb?: number; voiceEffect?: UserVoiceEffect; name: string; data: Uint8Array }[] = [];
+  for (let k = 0; k < (cut.userVoiceSegments ?? []).length; k++) {
+    const segment = cut.userVoiceSegments![k];
+    if (!segment.file || segment.durationSec <= 0) continue;
+    try {
+      const ext = segment.file.name.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase()
+        ?? (segment.file.type.includes("mp4") ? "m4a" : segment.file.type.includes("ogg") ? "ogg" : "webm");
+      renderedUserVoice.push({
+        startTimeSec: segment.startTimeSec,
+        durationSec: segment.durationSec,
+        sourceStartSec: segment.sourceStartSec,
+        volume: segment.volume,
+        levelDb: segment.levelDb,
+        bassDb: segment.bassDb,
+        trebleDb: segment.trebleDb,
+        voiceEffect: segment.voiceEffect,
+        name: `user_vo_${k}.${ext}`,
+        data: await bytesOf(segment.file),
+      });
+    } catch (err) {
+      console.warn(`User VO segment ${k} could not be loaded; skipping.`, err);
+    }
+  }
 
   onProgress?.(0.95, "Preparing final audio mux…");
 
   const hasMusic = !!opts.music;
-  if (!hasMusic && renderedVo.length === 0 && renderedSfx.length === 0) {
+  if (!hasMusic && renderedVo.length === 0 && renderedSfx.length === 0 && renderedUserVoice.length === 0) {
     onProgress?.(1.0, "Export complete ✓");
     return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
   }
@@ -1237,7 +1338,13 @@ export async function exportCut(
     inputArgs.push("-i", r.name);
     const delayMs = Math.round(r.startTimeSec * 1000);
     const segVol = Math.min(1, Math.max(0, (r.volume ?? 1.0) * globalVoVol));
-    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${segVol.toFixed(2)},adelay=${delayMs}|${delayMs}[vo${inIdx}]`);
+    const priorityGain = captionVoiceDuckingFilterChain(
+      segVol,
+      r.startTimeSec,
+      r.durationSec,
+      cut.userVoiceSegments ?? [],
+    );
+    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${priorityGain},adelay=${delayMs}|${delayMs}[vo${inIdx}]`);
     mixLabels.push(`[vo${inIdx}]`);
     inIdx++;
   }
@@ -1255,11 +1362,25 @@ export async function exportCut(
     inIdx++;
   }
 
+  // User VO: trim, tone-shape, scale, and position the encoded microphone file.
+  for (const recording of renderedUserVoice) {
+    finalInputs.push({ name: recording.name, data: recording.data });
+    inputArgs.push("-i", recording.name);
+    const delayMs = Math.round(recording.startTimeSec * 1000);
+    const volume = clampUserVoiceVolume(recording.volume) * dbToLinear(clampUserVoiceLevelDb(recording.levelDb));
+    const eq = userVoiceEqFilterChain(recording.bassDb, recording.trebleDb, recording.voiceEffect);
+    const sourceStart = Math.max(0, recording.sourceStartSec ?? 0);
+    const sourceEnd = sourceStart + recording.durationSec;
+    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=start=${sourceStart.toFixed(3)}:end=${sourceEnd.toFixed(3)},asetpts=PTS-STARTPTS,${eq},volume=${volume},adelay=${delayMs}|${delayMs}[uvo${inIdx}]`);
+    mixLabels.push(`[uvo${inIdx}]`);
+    inIdx++;
+  }
+
   const filter = `${mixChains.join(";")}${mixChains.length ? ";" : ""}${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[a]`;
   const muxArgs = [...inputArgs, "-filter_complex", filter, "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
 
   try {
-    const finalOut = await runIsolated(finalInputs, muxArgs, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing VO, SFX & music…"));
+    const finalOut = await runIsolated(finalInputs, muxArgs, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing User VO, narration, SFX & music…"));
     onProgress?.(1.0, "Export complete ✓");
     return { blob: new Blob([new Uint8Array(finalOut)], { type: "video/mp4" }), timings };
   } catch (err) {

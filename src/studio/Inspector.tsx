@@ -36,7 +36,29 @@ import DeleteIcon from "../design-system/icons/DeleteIcon";
 import LockIcon from "../design-system/icons/LockIcon";
 import UnlockIcon from "../design-system/icons/UnlockIcon";
 import CopyIcon from "../design-system/icons/CopyIcon";
+import PlayIcon from "../design-system/icons/PlayIcon";
+import PauseIcon from "../design-system/icons/PauseIcon";
 import { collectBeatTitleEntries, updateBeatTitleText } from "./beatTitleIndex";
+import {
+  createUserVoiceEqGraph,
+  userVoiceAudioSettings,
+  userVoiceLinearGain,
+  USER_VOICE_EQ_MAX_DB,
+  USER_VOICE_EQ_MIN_DB,
+  USER_VOICE_EFFECT_OPTIONS,
+  USER_VOICE_LEVEL_MAX_DB,
+  USER_VOICE_LEVEL_MIN_DB,
+  USER_VOICE_VOLUME_MAX,
+  type UserVoiceAudioSettings,
+  type UserVoiceEqGraph,
+} from "./userVoiceEq";
+import {
+  analyzeUserVoiceFile,
+  estimatedUserVoicePeakDbfs,
+  recommendedUserVoiceLevelDb,
+  type UserVoiceLevelAnalysis,
+} from "./userVoiceLevel";
+import UserVoiceWaveform from "./UserVoiceWaveform";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -74,10 +96,13 @@ interface Props {
   selectedVoId?: string | null;
   onSelectVo?: (id: string | null) => void;
   selectedSfxId?: string | null;
+  selectedUserVoiceId?: string | null;
+  onSelectUserVoice?: (id: string | null) => void;
   selectedStickerId?: string | null;
   onSelectSticker?: (id: string | null) => void;
   onSelectSfx?: (id: string | null) => void;
-  onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "sticker", id: string, label: string) => void;
+  audioPreviewSuspended?: boolean;
+  onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker", id: string, label: string) => void;
 }
 
 
@@ -166,7 +191,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
   );
 }
 
-export default function Inspector({ beat, clip, clips, logline, index, total, onSelectBeat, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker, onRequestDeleteSegment }: Props) {
+export default function Inspector({ beat, clip, clips, logline, index, total, onSelectBeat, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedUserVoiceId, onSelectUserVoice, selectedStickerId, onSelectSticker, audioPreviewSuspended = false, onRequestDeleteSegment }: Props) {
   const { state, dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
@@ -179,6 +204,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
   const selectedVo = (cut?.voSegments ?? []).find((s) => s.id === selectedVoId);
   const selectedSfx = (cut?.sfxSegments ?? []).find((s) => s.id === selectedSfxId);
+  const selectedUserVoice = (cut?.userVoiceSegments ?? []).find((segment) => segment.id === selectedUserVoiceId);
   const selectedSticker = (cut?.stickers ?? []).find((s) => s.id === selectedStickerId);
   const clipHasOtherUses = Boolean(beat && cut && (
     cut.beats.some((candidate) =>
@@ -192,10 +218,18 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   // trimmed window [0, durationSec] at the segment's volume.
   const sfxPreviewRef = useRef<HTMLAudioElement>(null);
   const [sfxPreviewing, setSfxPreviewing] = useState(false);
+  const userVoicePreviewRef = useRef<HTMLAudioElement>(null);
+  const userVoiceEqContextRef = useRef<AudioContext | null>(null);
+  const userVoiceEqGraphRef = useRef<UserVoiceEqGraph | null>(null);
+  const [userVoicePreviewing, setUserVoicePreviewing] = useState(false);
+  const [userVoicePreviewTimeSec, setUserVoicePreviewTimeSec] = useState(0);
+  const [userVoiceLevelAnalysis, setUserVoiceLevelAnalysis] = useState<{ id: string; result: UserVoiceLevelAnalysis } | null>(null);
+  const [userVoiceLevelAnalyzing, setUserVoiceLevelAnalyzing] = useState(false);
+  const [userVoiceLevelError, setUserVoiceLevelError] = useState<string | null>(null);
 
   function toggleSfxPreview() {
     const a = sfxPreviewRef.current;
-    if (!a || !selectedSfx) return;
+    if (!a || !selectedSfx || audioPreviewSuspended) return;
     if (sfxPreviewing) { a.pause(); setSfxPreviewing(false); return; }
     if (a.src !== location.origin + sfxFileUrl(selectedSfx.fileName)) a.src = sfxFileUrl(selectedSfx.fileName);
     a.volume = Math.min(1, Math.max(0, selectedSfx.volume));
@@ -212,6 +246,121 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     const a = sfxPreviewRef.current;
     return () => { if (a) { a.pause(); } };
   }, [selectedSfx?.id]);
+  useEffect(() => {
+    if (!audioPreviewSuspended) return;
+    sfxPreviewRef.current?.pause();
+    userVoicePreviewRef.current?.pause();
+    setSfxPreviewing(false);
+    setUserVoicePreviewing(false);
+  }, [audioPreviewSuspended]);
+  useEffect(() => {
+    const audio = userVoicePreviewRef.current;
+    if (!audio || !selectedUserVoice) return;
+    const settings = userVoiceAudioSettings(selectedUserVoice);
+    if (userVoiceEqGraphRef.current) userVoiceEqGraphRef.current.set(settings);
+    else audio.volume = Math.min(1, userVoiceLinearGain(settings));
+  }, [selectedUserVoice?.bassDb, selectedUserVoice?.levelDb, selectedUserVoice?.trebleDb, selectedUserVoice?.volume, selectedUserVoice]);
+  useEffect(() => {
+    const audio = userVoicePreviewRef.current;
+    if (audio) audio.pause();
+    setUserVoicePreviewing(false);
+    setUserVoicePreviewTimeSec(selectedUserVoice?.sourceStartSec ?? 0);
+  }, [selectedUserVoice?.id, selectedUserVoice?.sourceStartSec]);
+  useEffect(() => {
+    let current = true;
+    setUserVoiceLevelAnalysis(null);
+    setUserVoiceLevelError(null);
+    if (!selectedUserVoice) {
+      setUserVoiceLevelAnalyzing(false);
+      return () => { current = false; };
+    }
+    setUserVoiceLevelAnalyzing(true);
+    analyzeUserVoiceFile(
+      selectedUserVoice.file,
+      selectedUserVoice.sourceStartSec ?? 0,
+      selectedUserVoice.durationSec,
+    )
+      .then((result) => {
+        if (current) setUserVoiceLevelAnalysis({ id: selectedUserVoice.id, result });
+      })
+      .catch((error) => {
+        if (current) setUserVoiceLevelError(error instanceof Error ? error.message : "Could not analyze this recording.");
+      })
+      .finally(() => {
+        if (current) setUserVoiceLevelAnalyzing(false);
+      });
+    return () => { current = false; };
+  }, [
+    selectedUserVoice?.durationSec,
+    selectedUserVoice?.file,
+    selectedUserVoice?.id,
+    selectedUserVoice?.sourceStartSec,
+  ]);
+  useEffect(() => () => {
+    userVoiceEqGraphRef.current?.destroy();
+    userVoiceEqGraphRef.current = null;
+    void userVoiceEqContextRef.current?.close();
+    userVoiceEqContextRef.current = null;
+  }, []);
+
+  async function toggleUserVoicePreview() {
+    const audio = userVoicePreviewRef.current;
+    if (!audio || !selectedUserVoice || audioPreviewSuspended) return;
+    if (userVoicePreviewing) {
+      audio.pause();
+      return;
+    }
+    const settings = userVoiceAudioSettings(selectedUserVoice);
+    if (!userVoiceEqGraphRef.current && typeof AudioContext !== "undefined") {
+      try {
+        const context = new AudioContext();
+        userVoiceEqContextRef.current = context;
+        userVoiceEqGraphRef.current = createUserVoiceEqGraph(audio, context);
+      } catch {
+        userVoiceEqGraphRef.current = null;
+      }
+    }
+    if (userVoiceEqGraphRef.current) userVoiceEqGraphRef.current.set(settings);
+    else audio.volume = Math.min(1, userVoiceLinearGain(settings));
+    await userVoiceEqContextRef.current?.resume();
+    const sourceStart = selectedUserVoice.sourceStartSec ?? 0;
+    audio.currentTime = sourceStart;
+    setUserVoicePreviewTimeSec(sourceStart);
+    audio.play().then(() => setUserVoicePreviewing(true)).catch(() => {});
+  }
+
+  function updateUserVoiceSourceRange(sourceStartSec: number, sourceEndSec: number) {
+    if (!selectedUserVoice || !cut) return;
+    const sourceDuration = Math.max(0.1, selectedUserVoice.sourceDurationSec);
+    const maxTimelineDuration = Math.max(0.1, cutDuration(cut) - selectedUserVoice.startTimeSec);
+    const start = Math.min(sourceDuration - 0.1, Math.max(0, sourceStartSec));
+    const end = Math.min(sourceDuration, start + maxTimelineDuration, Math.max(start + 0.1, sourceEndSec));
+    const roundedStart = Math.round(start * 100) / 100;
+    const roundedDuration = Math.round((end - start) * 100) / 100;
+    dispatch({
+      type: "UPDATE_USER_VOICE",
+      segment: {
+        ...selectedUserVoice,
+        sourceStartSec: roundedStart,
+        durationSec: roundedDuration,
+      },
+    });
+    const audio = userVoicePreviewRef.current;
+    if (audio && (audio.currentTime < roundedStart || audio.currentTime > roundedStart + roundedDuration)) {
+      audio.currentTime = roundedStart;
+      setUserVoicePreviewTimeSec(roundedStart);
+    }
+  }
+
+  function seekUserVoiceSource(sourceTimeSec: number) {
+    if (!selectedUserVoice) return;
+    const start = selectedUserVoice.sourceStartSec ?? 0;
+    const end = start + selectedUserVoice.durationSec;
+    const next = Math.min(end, Math.max(start, sourceTimeSec));
+    const audio = userVoicePreviewRef.current;
+    if (audio) audio.currentTime = next;
+    setUserVoicePreviewTimeSec(next);
+  }
   const [trimOpen, setTrimOpen] = useState(true);
   const [colorOpen, setColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
@@ -343,6 +492,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
   }
   const [copiedColor, setCopiedColor] = useState<ColorAdjustments | null>(null);
+  const [copiedUserVoiceAudio, setCopiedUserVoiceAudio] = useState<UserVoiceAudioSettings | null>(null);
   const [colorCopiedToast, setColorCopiedToast] = useState(false);
 
   function copyBeatColor() {
@@ -545,6 +695,308 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   // SFX Segment editor — sound file + volume + duration + fit-to-beat, decoupled from the beat (mirrors VO/sticker cards).
   const effSfx = selectedSfx ? resolveSfx(selectedSfx, beatSpans(cut?.beats ?? [])) : null;
   const maxSfxDur = selectedSfx ? Math.max(0.1, Math.round(selectedSfx.sourceDurationSec * 10) / 10) : 1;
+  const selectedUserVoiceAnalysis = selectedUserVoice && userVoiceLevelAnalysis?.id === selectedUserVoice.id
+    ? userVoiceLevelAnalysis.result
+    : null;
+  const selectedUserVoicePeakDbfs = selectedUserVoice && selectedUserVoiceAnalysis
+    ? estimatedUserVoicePeakDbfs(
+      selectedUserVoiceAnalysis,
+      selectedUserVoice.levelDb ?? 0,
+      selectedUserVoice.volume,
+    )
+    : null;
+  const maxUserVoiceDuration = selectedUserVoice
+    ? Math.max(
+        0.1,
+        Math.min(
+          selectedUserVoice.sourceDurationSec - (selectedUserVoice.sourceStartSec ?? 0),
+          Math.max(0.1, cutDuration(cut!) - selectedUserVoice.startTimeSec),
+        ),
+      )
+    : 0.1;
+
+  const userVoiceCard = selectedUserVoice ? (
+    <section className="st-user-vo-card" aria-label="Selected User VO">
+      <header className="st-user-vo-header">
+        <div className="st-user-vo-heading">
+          <span className="st-user-vo-mark" aria-hidden="true">VO</span>
+          <div>
+            <strong>User voice</strong>
+            <span>Recorded audio · {selectedUserVoice.durationSec.toFixed(1)}s</span>
+          </div>
+        </div>
+        <div className="st-user-vo-actions">
+          <ControlButton
+            type="button"
+            className="st-user-vo-action"
+            onClick={() => {
+              const gid = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+              const newId = `user-vo-${gid()}`;
+              dispatch({ type: "DUPLICATE_USER_VOICE", id: selectedUserVoice.id, newUserVoiceId: newId });
+              onSelectUserVoice?.(newId);
+            }}
+            aria-label="Duplicate User VO"
+            title="Duplicate User VO"
+          >
+            <CopyIcon size={14} />
+          </ControlButton>
+          <ControlButton
+            type="button"
+            className="st-user-vo-action danger"
+            onClick={() => onRequestDeleteSegment("user voice", selectedUserVoice.id, selectedUserVoice.name)}
+            aria-label="Remove User VO"
+            title="Remove User VO"
+          >
+            <DeleteIcon size={14} />
+          </ControlButton>
+        </div>
+      </header>
+
+      <div className="st-user-vo-take">
+        <ControlButton
+          type="button"
+          className="st-user-vo-play"
+          onClick={toggleUserVoicePreview}
+          aria-label={userVoicePreviewing ? "Pause User VO preview" : "Play User VO preview"}
+          title={userVoicePreviewing ? "Pause preview" : "Preview this take"}
+        >
+          {userVoicePreviewing ? <PauseIcon size={13} /> : <PlayIcon size={13} />}
+        </ControlButton>
+        <label className="st-user-vo-name">
+          <span>Take name</span>
+          <InputControl
+            value={selectedUserVoice.name}
+            onChange={(event) => dispatch({
+              type: "UPDATE_USER_VOICE",
+              segment: { ...selectedUserVoice, name: event.target.value },
+            })}
+            aria-label="Recording name"
+          />
+        </label>
+      </div>
+      <audio
+        ref={userVoicePreviewRef}
+        src={getClipBlobUrl(selectedUserVoice.file) ?? undefined}
+        onEnded={() => {
+          setUserVoicePreviewing(false);
+          setUserVoicePreviewTimeSec(selectedUserVoice.sourceStartSec ?? 0);
+        }}
+        onPause={() => setUserVoicePreviewing(false)}
+        onTimeUpdate={(event) => {
+          setUserVoicePreviewTimeSec(event.currentTarget.currentTime);
+          if (event.currentTarget.currentTime >= (selectedUserVoice.sourceStartSec ?? 0) + selectedUserVoice.durationSec) {
+            event.currentTarget.pause();
+          }
+        }}
+      />
+      <UserVoiceWaveform
+        file={selectedUserVoice.file}
+        durationSec={selectedUserVoice.durationSec}
+        sourceDurationSec={selectedUserVoice.sourceDurationSec}
+        sourceStartSec={selectedUserVoice.sourceStartSec}
+        volume={selectedUserVoice.volume}
+        levelDb={selectedUserVoice.levelDb}
+        playheadSec={userVoicePreviewTimeSec}
+        variant="inspector"
+        onTrimChange={updateUserVoiceSourceRange}
+        onSeek={seekUserVoiceSource}
+      />
+      <div className="st-user-vo-trim-readout">
+        <span>In {(selectedUserVoice.sourceStartSec ?? 0).toFixed(2)}s</span>
+        <span>Drag handles · click waveform to scrub</span>
+        <span>Out {((selectedUserVoice.sourceStartSec ?? 0) + selectedUserVoice.durationSec).toFixed(2)}s</span>
+      </div>
+      <div className="st-user-vo-control">
+        <span>Character</span>
+        <SelectControl
+          value={selectedUserVoice.voiceEffect ?? "none"}
+          onChange={(event) => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: {
+              ...selectedUserVoice,
+              voiceEffect: event.target.value as NonNullable<typeof selectedUserVoice.voiceEffect>,
+            },
+          })}
+          aria-label="User VO character"
+          title="Apply a non-destructive voice character filter"
+          style={{ gridColumn: "2 / 4", minWidth: 0 }}
+        >
+          {USER_VOICE_EFFECT_OPTIONS.map((effect) => (
+            <option key={effect.value} value={effect.value}>{effect.label}</option>
+          ))}
+        </SelectControl>
+      </div>
+      <div className="st-user-vo-control">
+        <span>Volume</span>
+        <InputControl
+          type="range"
+          min={0}
+          max={USER_VOICE_VOLUME_MAX}
+          step={0.05}
+          value={selectedUserVoice.volume}
+          onChange={(event) => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, volume: Number(event.target.value) },
+          })}
+          style={sliderTrackStyle(selectedUserVoice.volume, 0, USER_VOICE_VOLUME_MAX)}
+          aria-label="User VO volume"
+          title="Adjust this User VO segment from 0% to 150%"
+        />
+        <output>
+          {Math.round(selectedUserVoice.volume * 100)}%
+        </output>
+      </div>
+      <div className="st-user-vo-control">
+        <span>Level</span>
+        <InputControl
+          type="range"
+          min={USER_VOICE_LEVEL_MIN_DB}
+          max={USER_VOICE_LEVEL_MAX_DB}
+          step={0.5}
+          value={selectedUserVoice.levelDb ?? 0}
+          onChange={(event) => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, levelDb: Number(event.target.value) },
+          })}
+          onDoubleClick={() => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, levelDb: 0 },
+          })}
+          title="Boost or cut this recording; double-click to reset"
+          style={sliderTrackStyle(selectedUserVoice.levelDb ?? 0, USER_VOICE_LEVEL_MIN_DB, USER_VOICE_LEVEL_MAX_DB)}
+        />
+        <output>
+          {(selectedUserVoice.levelDb ?? 0) > 0 ? "+" : ""}{(selectedUserVoice.levelDb ?? 0).toFixed(1)} dB
+        </output>
+      </div>
+      <div className="st-user-vo-level-tools">
+        <ControlButton
+          type="button"
+          className="st-user-vo-auto-level"
+          disabled={userVoiceLevelAnalyzing || !selectedUserVoiceAnalysis}
+          onClick={() => {
+            if (!selectedUserVoiceAnalysis) return;
+            dispatch({
+              type: "UPDATE_USER_VOICE",
+              segment: {
+                ...selectedUserVoice,
+                levelDb: recommendedUserVoiceLevelDb(selectedUserVoiceAnalysis),
+              },
+            });
+          }}
+          title="Set a consistent speech level while keeping peaks below −1 dB"
+        >
+          {userVoiceLevelAnalyzing ? "Analyzing…" : "Auto level"}
+        </ControlButton>
+        {selectedUserVoicePeakDbfs !== null ? (
+          <span
+            className={`st-user-vo-peak ${selectedUserVoicePeakDbfs >= 0 ? "danger" : selectedUserVoicePeakDbfs > -3 ? "warning" : "safe"}`}
+            title="Estimated source peak after Volume and Level; EQ may affect the final peak"
+          >
+            Peak {selectedUserVoicePeakDbfs > 0 ? "+" : ""}{selectedUserVoicePeakDbfs.toFixed(1)} dB
+          </span>
+        ) : (
+          <span className="st-user-vo-peak muted">
+            {userVoiceLevelError ? "Peak unavailable" : "Reading peak…"}
+          </span>
+        )}
+      </div>
+      <div className="st-user-vo-control">
+        <span>Bass</span>
+        <InputControl
+          type="range"
+          min={USER_VOICE_EQ_MIN_DB}
+          max={USER_VOICE_EQ_MAX_DB}
+          step={1}
+          value={selectedUserVoice.bassDb ?? 0}
+          onChange={(event) => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, bassDb: Number(event.target.value) },
+          })}
+          onDoubleClick={() => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, bassDb: 0 },
+          })}
+          title="Low-frequency tone; double-click to reset"
+          style={sliderTrackStyle(selectedUserVoice.bassDb ?? 0, USER_VOICE_EQ_MIN_DB, USER_VOICE_EQ_MAX_DB)}
+        />
+        <output>
+          {(selectedUserVoice.bassDb ?? 0) > 0 ? "+" : ""}{selectedUserVoice.bassDb ?? 0} dB
+        </output>
+      </div>
+      <div className="st-user-vo-control">
+        <span>Treble</span>
+        <InputControl
+          type="range"
+          min={USER_VOICE_EQ_MIN_DB}
+          max={USER_VOICE_EQ_MAX_DB}
+          step={1}
+          value={selectedUserVoice.trebleDb ?? 0}
+          onChange={(event) => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, trebleDb: Number(event.target.value) },
+          })}
+          onDoubleClick={() => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, trebleDb: 0 },
+          })}
+          title="High-frequency tone; double-click to reset"
+          style={sliderTrackStyle(selectedUserVoice.trebleDb ?? 0, USER_VOICE_EQ_MIN_DB, USER_VOICE_EQ_MAX_DB)}
+        />
+        <output>
+          {(selectedUserVoice.trebleDb ?? 0) > 0 ? "+" : ""}{selectedUserVoice.trebleDb ?? 0} dB
+        </output>
+      </div>
+      <div className="st-user-vo-settings-actions">
+        <ControlButton
+          type="button"
+          className="st-user-vo-settings-button"
+          onClick={() => setCopiedUserVoiceAudio(userVoiceAudioSettings(selectedUserVoice))}
+          title="Copy character, volume, level, bass, and treble"
+        >
+          <CopyIcon size={12} />
+          Copy settings
+        </ControlButton>
+        <ControlButton
+          type="button"
+          className="st-user-vo-settings-button"
+          disabled={!copiedUserVoiceAudio}
+          onClick={() => {
+            if (!copiedUserVoiceAudio) return;
+            dispatch({
+              type: "UPDATE_USER_VOICE",
+              segment: { ...selectedUserVoice, ...copiedUserVoiceAudio },
+            });
+          }}
+          title="Paste character, volume, level, bass, and treble"
+        >
+          Paste settings
+        </ControlButton>
+      </div>
+      <div className="st-user-vo-control">
+        <span>Duration</span>
+        <InputControl
+          type="range"
+          min={0.1}
+          max={maxUserVoiceDuration}
+          step={0.1}
+          value={selectedUserVoice.durationSec}
+          onChange={(event) => dispatch({
+            type: "UPDATE_USER_VOICE",
+            segment: { ...selectedUserVoice, durationSec: Number(event.target.value) },
+          })}
+          style={sliderTrackStyle(selectedUserVoice.durationSec, 0.1, maxUserVoiceDuration)}
+        />
+        <output>
+          {selectedUserVoice.durationSec.toFixed(1)}s
+        </output>
+      </div>
+      <footer className="st-user-vo-footer">
+        <span>Starts at {selectedUserVoice.startTimeSec.toFixed(1)}s</span>
+        <span>Drag the timeline clip to move or trim</span>
+      </footer>
+    </section>
+  ) : null;
 
   const sfxCard = selectedSfx && effSfx ? (
     <div className="st-sec" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid #8b7cff" }}>
@@ -777,6 +1229,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         <div className="st-colhead">Inspector</div>
         <div className="st-insp-empty" style={{ display: "flex", flexDirection: "column", gap: 16, padding: 16 }}>
           {voCard}
+          {userVoiceCard}
           {sfxCard}
           {stickerCard}
           <span style={{ color: "var(--ink-3)", fontSize: 12 }}>Select a beat in the timeline to edit its caption, trim, and clip.</span>
@@ -1165,6 +1618,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       <div className="st-colhead">Beat {index + 1}/{total}</div>
       <div className="st-insp-body">
         {voCard}
+        {userVoiceCard}
         {sfxCard}
         {stickerCard}
         <div
@@ -2587,7 +3041,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   />
                   <label style={{ margin: 0, cursor: "pointer" }}>Beat Audio Volume</label>
                   <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>
-                    • {Math.round((b.volume ?? 1) * 100)}%
+                    • {b.muted ? "Muted" : `${Math.round((b.volume ?? 1) * 100)}%`}
                   </span>
                 </div>
               </div>
@@ -2610,6 +3064,49 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       <span style={{ width: 36, textAlign: "right", fontSize: 10, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                         {Math.round((b.volume ?? 1) * 100)}%
                       </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 9 }}>
+                      <span style={{ color: "var(--ink-3)", fontSize: 9 }}>
+                        Master {cut?.beatAudioMuted ? "muted" : `${Math.round((cut?.beatAudioMasterVolume ?? 1) * 100)}%`}
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <ControlButton
+                          type="button"
+                          className="st-btn ghost"
+                          aria-pressed={Boolean(cut?.beatAudioMuted)}
+                          onClick={() => {
+                            if (!cut) return;
+                            dispatch({
+                              type: "SET_CUT",
+                              cut: { ...cut, beatAudioMuted: !cut.beatAudioMuted },
+                            });
+                          }}
+                          title={cut?.beatAudioMuted ? "Restore original audio for all Beats" : "Mute original audio for all Beats"}
+                          style={{
+                            padding: "4px 9px",
+                            fontSize: 9,
+                            color: cut?.beatAudioMuted ? "var(--danger)" : "var(--ink-2)",
+                            borderColor: cut?.beatAudioMuted ? "color-mix(in srgb, var(--danger) 45%, var(--line))" : "var(--line)",
+                          }}
+                        >
+                          {cut?.beatAudioMuted ? "Unmute all Beats" : "Mute all Beats"}
+                        </ControlButton>
+                        <ControlButton
+                          type="button"
+                          className="st-btn ghost"
+                          aria-pressed={Boolean(b.muted)}
+                          onClick={() => update({ ...b, muted: !b.muted })}
+                          title={b.muted ? "Restore this Beat's original audio" : "Mute this Beat's original audio"}
+                          style={{
+                            padding: "4px 9px",
+                            fontSize: 9,
+                            color: b.muted ? "var(--danger)" : "var(--ink-2)",
+                            borderColor: b.muted ? "color-mix(in srgb, var(--danger) 45%, var(--line))" : "var(--line)",
+                          }}
+                        >
+                          {b.muted ? "Unmute Beat" : "Mute Beat"}
+                        </ControlButton>
+                      </div>
                     </div>
                   </div>
                 </div>

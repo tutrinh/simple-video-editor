@@ -287,7 +287,7 @@ textarea.ui-control { min-height: 78px; padding: 8px; resize: vertical; }
 .ui-timeline-playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--danger); pointer-events: none; }
 .ui-timeline-playhead::before { content: ""; position: absolute; top: 0; left: 50%; width: 7px; height: 7px; transform: translate(-50%, -50%) rotate(45deg); background: var(--danger); }
 
-.ui-editor-timeline { min-width: 0; overflow: hidden; border-top: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.ui-editor-timeline { min-width: 0; overflow: hidden; container-type: inline-size; border-top: 1px solid var(--line); background: var(--bg); color: var(--ink); }
 .ui-timeline-header { min-height: 45px; display: flex; align-items: center; gap: 16px; padding: 7px 12px 7px 14px; border-bottom: 1px solid var(--line); background: var(--panel); }
 .ui-timeline-header > div:first-child { min-width: 0; }
 .ui-timeline-header > div:first-child strong, .ui-timeline-header > div:first-child span { display: block; }
@@ -297,6 +297,11 @@ textarea.ui-control { min-height: 78px; padding: 8px; resize: vertical; }
 .ui-timeline-add { min-height: 27px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--ink-2); font: 600 10px var(--ui); white-space: nowrap; cursor: pointer; }
 .ui-timeline-add:hover { border-color: var(--accent); background: var(--accent-subtle); color: var(--accent); }
 .ui-timeline-add[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-subtle); color: var(--accent); }
+@container (max-width: 600px) {
+  .ui-timeline-header { flex-wrap: wrap; gap: 5px; }
+  .ui-timeline-header > div:first-child { width: 100%; }
+  .ui-timeline-header-actions { width: 100%; margin-left: 0; flex-wrap: wrap; justify-content: flex-start; }
+}
 .ui-timeline-zoom { min-height: 34px; display: flex; align-items: center; gap: 7px; padding: 4px 12px 4px 14px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
 .ui-timeline-zoom > span { color: var(--ink-3); font-size: 9px; }
 .ui-timeline-zoom input { width: min(180px, 28vw); height: 4px; margin: 0; border-radius: 99px; appearance: none; background: linear-gradient(to right, var(--accent) 0 var(--timeline-zoom), var(--panel-3) var(--timeline-zoom) 100%); }

@@ -385,6 +385,39 @@ describe("projectReducer", () => {
     expect(s.cut?.sfxSegments?.map((x) => x.id)).toEqual(["sfx1-dup"]);
   });
 
+  it("adds, updates, duplicates, and removes User VO recordings", () => {
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
+    let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });
+    const file = new File([new Uint8Array([1])], "take.webm", { type: "audio/webm" });
+    const segment = {
+      id: "uvo1",
+      name: "Beat 1 voice",
+      file,
+      startTimeSec: 0,
+      durationSec: 0.8,
+      sourceDurationSec: 0.8,
+      sourceStartSec: 0,
+      volume: 1,
+      levelDb: 0,
+      bassDb: 0,
+      trebleDb: 0,
+    };
+
+    s = projectReducer(s, { type: "ADD_USER_VOICE", segment });
+    expect(s.cut?.userVoiceSegments?.[0].file).toBe(file);
+
+    s = projectReducer(s, { type: "UPDATE_USER_VOICE", segment: { ...segment, volume: 0.5, levelDb: 3, bassDb: 4, trebleDb: -2 } });
+    expect(s.cut?.userVoiceSegments?.[0].volume).toBe(0.5);
+
+    s = projectReducer(s, { type: "DUPLICATE_USER_VOICE", id: "uvo1", newUserVoiceId: "uvo2" });
+    expect(s.cut?.userVoiceSegments?.map((item) => item.id)).toEqual(["uvo1", "uvo2"]);
+    expect(s.cut?.userVoiceSegments?.[1].file).toBe(file);
+    expect(s.cut?.userVoiceSegments?.[1]).toMatchObject({ volume: 0.5, levelDb: 3, bassDb: 4, trebleDb: -2 });
+
+    s = projectReducer(s, { type: "REMOVE_USER_VOICE", id: "uvo1" });
+    expect(s.cut?.userVoiceSegments?.map((item) => item.id)).toEqual(["uvo2"]);
+  });
+
   it("sets and resets global look and feel filter on cut", () => {
     const cut: Cut = { beats: [beat("1", "a")], aspect: "16:9" };
     let s = projectReducer({ ...initialState, clips: [clip("a")] }, { type: "SET_CUT", cut });

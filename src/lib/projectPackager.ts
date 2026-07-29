@@ -2,6 +2,7 @@ import type { ProjectState } from "../state/projectReducer";
 import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
 import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts } from "./titleFontPersist";
+import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles } from "./userVoicePersist";
 
 interface VidstrPackage {
   version: 1;
@@ -20,6 +21,12 @@ interface VidstrPackage {
     key: string;
     fontType: string;
     fontDataUrl: string;
+  }>;
+  userVoice?: Array<{
+    key: string;
+    fileName: string;
+    fileType: string;
+    fileDataUrl: string;
   }>;
 }
 
@@ -67,8 +74,17 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
   for (const { key, file } of collectTitleFonts(state)) {
     titleFonts.push({ key, fontType: file.type || "font/ttf", fontDataUrl: await blobToDataUrl(file) });
   }
+  const userVoice: NonNullable<VidstrPackage["userVoice"]> = [];
+  for (const { key, file } of collectUserVoiceFiles(state)) {
+    userVoice.push({
+      key,
+      fileName: file.name,
+      fileType: file.type || "audio/webm",
+      fileDataUrl: await blobToDataUrl(file),
+    });
+  }
 
-  const stripped = stripTitleFonts(state);
+  const stripped = stripUserVoiceFiles(stripTitleFonts(state));
   const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
   const serializableState = { ...stripped, clips: serializableClips };
 
@@ -79,6 +95,7 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
     stateJson: JSON.stringify(serializableState),
     media: mediaList,
     ...(titleFonts.length ? { titleFonts } : {}),
+    ...(userVoice.length ? { userVoice } : {}),
   };
 
   const jsonString = JSON.stringify(pkg, null, 2);
@@ -129,12 +146,17 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
   for (const f of pkg.titleFonts ?? []) {
     fontMap.set(f.key, dataUrlToBlob(f.fontDataUrl, f.fontType || "font/ttf"));
   }
+  const voiceMap = new Map<string, Blob>();
+  for (const voice of pkg.userVoice ?? []) {
+    const blob = dataUrlToBlob(voice.fileDataUrl, voice.fileType || "audio/webm");
+    voiceMap.set(voice.key, new File([blob], voice.fileName, { type: voice.fileType || blob.type }));
+  }
 
-  return reinjectTitleFonts(
+  return reinjectUserVoiceFiles(reinjectTitleFonts(
     {
       ...parsedState,
       clips: rehydratedClips,
     },
     fontMap,
-  );
+  ), voiceMap);
 }

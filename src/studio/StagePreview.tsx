@@ -7,13 +7,16 @@ import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomAct
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import { getSplitLayoutCss, normalizeSplitConfig, getSlotTransformStyle } from "../features/export/splitScreenCanvas";
 import SegmentedControl from "../design-system/SegmentedControl";
-import { ControlButton } from "../design-system/ControlPrimitives";
+import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import PlayIcon from "../design-system/icons/PlayIcon";
 import PauseIcon from "../design-system/icons/PauseIcon";
 import ReplayIcon from "../design-system/icons/ReplayIcon";
 import { previewFileForClip } from "./previewSource";
 import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "./previewPlayback";
 import { useProject } from "../state/ProjectContext";
+import { useUserVoiceRecorder } from "./useUserVoiceRecorder";
+import { useUserVoicePlayback } from "./useUserVoicePlayback";
+import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "./beatAudio";
 
 
 
@@ -54,6 +57,7 @@ interface Props {
   keyboardShortcutsActive?: boolean;
   onSelectBeat?: (beatId: string) => void;
   onPlayingChange?: (playing: boolean) => void;
+  onRecordCreated?: (segmentId: string) => void;
 }
 
 /**
@@ -61,7 +65,7 @@ interface Props {
  *  - "Beat": the selected Beat's trimmed window, scrubbable, caption burned in.
  *  - "Cut": the whole edit played back sequentially (reuses the export FinalPreview).
  */
-export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange }: Props) {
+export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated }: Props) {
   const { dispatch } = useProject();
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -73,6 +77,12 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0); // 0..1 within the beat window
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const [previewAudioMuted, setPreviewAudioMuted] = useState(false);
+  const [noiseCleanupEnabled, setNoiseCleanupEnabled] = useState(true);
+  const [recordingPreflightOpen, setRecordingPreflightOpen] = useState(false);
+  const [cutTransportCommand, setCutTransportCommand] = useState<{ id: number; action: "restart" | "pause" } | null>(null);
+  const recordScopeRef = useRef<{ startTimeSec: number; maxDurationSec: number; label: string } | null>(null);
+  const recordingLockedRef = useRef(false);
 
   // A Still is an <img> with no clock of its own (ADR-0012), so the transport
   // below drives `pos` on rAF instead of reading video.currentTime. posRef
@@ -100,6 +110,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
       ) return;
 
       const key = event.key.toLowerCase();
+      if (recordingLockedRef.current) return;
       if (key === "c") {
         event.preventDefault();
         setMode("cut");
@@ -169,9 +180,10 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !beat) return;
-    v.volume = beat.volume ?? 1;
-    v.muted = (beat.volume ?? 1) === 0;
-  }, [beat?.volume]);
+    const volume = effectiveBeatVolume(beat, cut);
+    v.volume = previewAudioMuted ? 0 : volume;
+    v.muted = previewAudioMuted || volume === 0;
+  }, [beat?.muted, beat?.volume, cut.beatAudioMasterVolume, cut.beatAudioMuted, previewAudioMuted]);
 
   // 2b. The Still transport: advance `pos` in real time over the Beat's window
   // and stop at the out-point, the way the video path stops at `outSec`.
@@ -198,6 +210,45 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const beatStartSec = (beat && beatIndex >= 0) ? cut.beats.slice(0, beatIndex).reduce((sum, b) => sum + b.durationSec, 0) : 0;
   const beatElapsed = beat ? pos * (beat.outSec - beat.inSec) : 0;
   const elapsedCutSec = beatStartSec + beatElapsed;
+  const totalCutDuration = cut.beats.reduce((sum, item) => sum + (item.durationSec || Math.max(0.05, item.outSec - item.inSec)), 0);
+  useUserVoicePlayback(cut.userVoiceSegments, elapsedCutSec, mode === "beat" && playing && !previewAudioMuted);
+
+  const recorder = useUserVoiceRecorder(({ file, durationSec }) => {
+    const scope = recordScopeRef.current;
+    if (!scope) return;
+    const playedDuration = Math.max(0.1, Math.min(durationSec, scope.maxDurationSec));
+    const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+    const id = `user-vo-${genId()}`;
+    dispatch({
+      type: "ADD_USER_VOICE",
+      segment: {
+        id,
+        name: `${scope.label} voice`,
+        file,
+        startTimeSec: scope.startTimeSec,
+        durationSec: playedDuration,
+        sourceDurationSec: durationSec,
+        sourceStartSec: 0,
+        volume: 1,
+        levelDb: 0,
+        bassDb: 0,
+        trebleDb: 0,
+      },
+    });
+    onRecordCreated?.(id);
+    recordScopeRef.current = null;
+    recordingLockedRef.current = false;
+    setPreviewAudioMuted(false);
+  }, noiseCleanupEnabled);
+
+  useEffect(() => {
+    if (recorder.status === "idle" && recordScopeRef.current && (recorder.error || recorder.elapsedSec > 0)) {
+      recordingLockedRef.current = false;
+      recordScopeRef.current = null;
+      setPreviewAudioMuted(false);
+    }
+  }, [recorder.elapsedSec, recorder.error, recorder.status]);
+
   const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec) ?? null;
   const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
   const overlayBlobUrl = getClipBlobUrl(activeOverlayClip?.normalized ?? activeOverlayClip?.file);
@@ -210,14 +261,15 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     if (Math.abs(el.currentTime - targetTime) > 0.15) {
       try { el.currentTime = targetTime; } catch {}
     }
-    el.volume = activeOverlay.volume ?? 0;
-    el.muted = (activeOverlay.volume ?? 0) === 0;
+    const volume = activeOverlay.volume ?? 0;
+    el.volume = previewAudioMuted ? 0 : volume;
+    el.muted = previewAudioMuted || volume === 0;
     if (playing && el.paused) {
       el.play().catch(() => {});
     } else if (!playing && !el.paused) {
       el.pause();
     }
-  }, [elapsedCutSec, activeOverlay, playing]);
+  }, [elapsedCutSec, activeOverlay, playing, previewAudioMuted]);
 
   // 6. Split screen slot sync effect
   useEffect(() => {
@@ -235,9 +287,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
       if (Math.abs(el.currentTime - targetTime) > 0.15) {
         try { el.currentTime = targetTime; } catch {}
       }
-      const vol = slot.volume ?? (idx === 0 ? (beat.volume ?? 1) : 0);
-      el.volume = vol;
-      el.muted = vol === 0;
+      const vol = effectiveSplitScreenSlotVolume(slot, idx, beat, cut);
+      el.volume = previewAudioMuted ? 0 : vol;
+      el.muted = previewAudioMuted || vol === 0;
 
       if (playing && el.paused) {
         el.play().catch(() => {});
@@ -245,7 +297,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         el.pause();
       }
     });
-  }, [beatElapsed, beat?.splitScreen, playing, clip, clips, beat?.inSec, beat?.volume]);
+  }, [beatElapsed, beat?.muted, beat?.splitScreen, playing, clip, clips, beat?.inSec, beat?.volume, cut.beatAudioMasterVolume, cut.beatAudioMuted, previewAudioMuted]);
 
 
   function togglePlay() {
@@ -268,6 +320,151 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     playPreviewMedia(media).then((primaryStarted) => {
       if (primaryStarted) setPlaying(true);
     });
+  }
+
+  function restartBeatForRecording() {
+    if (!beat) return;
+    setPosBoth(0);
+    if (isStill) {
+      setPlaying(true);
+      return;
+    }
+    const v = videoRef.current;
+    if (!v) return;
+    const splitActive = Boolean(beat.splitScreen && beat.splitScreen.layout !== "none");
+    const media = activePreviewMedia(v, splitActive, slotVideoRefs.current);
+    media.forEach((item) => {
+      item.currentTime = beat.inSec;
+      item.volume = 0;
+      item.muted = true;
+    });
+    playPreviewMedia(media).then((primaryStarted) => {
+      if (primaryStarted) setPlaying(true);
+    });
+  }
+
+  function pausePreviewForRecording() {
+    if (mode === "cut") {
+      setCutTransportCommand({ id: Date.now(), action: "pause" });
+      return;
+    }
+    const v = videoRef.current;
+    if (v) {
+      const splitActive = Boolean(beat?.splitScreen && beat.splitScreen.layout !== "none");
+      pausePreviewMedia(activePreviewMedia(v, splitActive, slotVideoRefs.current));
+    }
+    setPlaying(false);
+  }
+
+  function startRecording() {
+    setRecordingPreflightOpen(false);
+    const targetMode = mode;
+    recordingLockedRef.current = true;
+    recordScopeRef.current = {
+      startTimeSec: targetMode === "beat" ? beatStartSec : 0,
+      maxDurationSec: targetMode === "beat"
+        ? Math.max(0.1, beat?.durationSec ?? 0.1)
+        : Math.max(0.1, totalCutDuration),
+      label: targetMode === "beat" ? `Beat ${Math.max(1, beatIndex + 1)}` : "Cut",
+    };
+    recorder.start(() => {
+      setPreviewAudioMuted(true);
+      if (targetMode === "beat") restartBeatForRecording();
+      else setCutTransportCommand({ id: Date.now(), action: "restart" });
+    });
+  }
+
+  function stopRecording() {
+    pausePreviewForRecording();
+    recorder.stop();
+  }
+
+  function recordingControl() {
+    const label = mode === "beat" ? "Record Beat" : "Record Cut";
+    if (recordingPreflightOpen) {
+      return (
+        <div className="st-preview-record-control">
+          <ControlButton
+            className="st-btn ghost st-preview-record-button"
+            onClick={() => setRecordingPreflightOpen(false)}
+          >
+            Cancel
+          </ControlButton>
+          <div className="st-preview-record-preflight" role="dialog" aria-label="Microphone access">
+            <strong>Allow microphone?</strong>
+            <span>Your browser will ask next. Choose Allow to start the silent preview and recording.</span>
+            <label className="st-preview-noise-cleanup">
+              <InputControl
+                type="checkbox"
+                checked={noiseCleanupEnabled}
+                onChange={(event) => setNoiseCleanupEnabled(event.target.checked)}
+              />
+              <span>
+                <strong>Clean background noise</strong>
+                <small>RNNoise runs privately on this device.</small>
+              </span>
+            </label>
+            <ControlButton className="st-btn st-preview-record-confirm" onClick={startRecording}>
+              Continue
+            </ControlButton>
+          </div>
+        </div>
+      );
+    }
+    if (recorder.status === "requesting") {
+      return (
+        <div className="st-preview-record-control">
+          <ControlButton
+            className="st-btn ghost st-preview-record-button"
+            onClick={recorder.cancel}
+            title="Cancel the microphone request"
+          >
+            Cancel
+          </ControlButton>
+          <span className="st-preview-record-hint" role="status">
+            {noiseCleanupEnabled ? "Starting noise cleanup and microphone…" : "Connecting to microphone…"} If your browser asks, choose Allow.
+          </span>
+        </div>
+      );
+    }
+    if (recorder.status === "recording" || recorder.status === "stopping") {
+      return (
+        <ControlButton
+          className="st-btn st-preview-record-button"
+          onClick={stopRecording}
+          disabled={recorder.status === "stopping"}
+          title="Stop recording and add it to the User VO track. Preview audio is muted while recording."
+          style={{ color: "#fff", background: "#d43a36", borderColor: "#d43a36" }}
+        >
+          ■ {recorder.status === "stopping"
+            ? "Saving…"
+            : `Stop ${fmtClock(recorder.elapsedSec)} 🔇${recorder.noiseCleanupActive ? " · Clean" : ""}`}
+        </ControlButton>
+      );
+    }
+    return (
+      <div className="st-preview-record-control">
+        <ControlButton
+          className="st-btn ghost st-preview-record-button"
+          onClick={() => setRecordingPreflightOpen(true)}
+          disabled={mode === "beat" && !beat}
+          title={`Preview the ${mode} silently from its start while recording your microphone${noiseCleanupEnabled ? " with RNNoise cleanup" : ""}`}
+        >
+          <span style={{ color: "#d43a36" }}>●</span>{" "}
+          {label}
+        </ControlButton>
+        {recorder.error && (
+          <span className="st-preview-record-error" role="alert" title={recorder.error}>
+            {recorder.error}
+          </span>
+        )}
+        {!recorder.error && recorder.noiseCleanupWarning && (
+          <span className="st-preview-record-warning" role="status" title={recorder.noiseCleanupWarning}>
+            {recorder.noiseCleanupWarning}
+          </span>
+        )}
+      </div>
+    );
   }
 
   function handleScrubPointer(e: React.PointerEvent<HTMLDivElement>) {
@@ -356,7 +553,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             <div className="st-transport">
               <span className="st-tc">Cut view</span>
               <span className="st-spacer" />
-              <ModeSwitch mode={mode} setMode={setMode} />
+              <ModeSwitch mode={mode} setMode={setMode} disabled={recorder.status !== "idle"} />
             </div>
           </>
         )}
@@ -376,12 +573,15 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             enableSpacebarPlayback={keyboardShortcutsActive}
             onActiveBeatChange={(beatId) => onSelectBeat?.(beatId)}
             onPlayingChange={onPlayingChange}
+            transportCommand={cutTransportCommand}
+            muteAllAudio={previewAudioMuted}
           />
         </div>
         <div className="st-transport">
           <span className="st-tc">Playing the whole cut</span>
           <span className="st-spacer" />
-          <ModeSwitch mode={mode} setMode={setMode} />
+          {recordingControl()}
+          <ModeSwitch mode={mode} setMode={setMode} disabled={recorder.status !== "idle"} />
         </div>
       </PreviewErrorBoundary>
     );
@@ -458,7 +658,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
                               }}
                               src={slotBlob ?? undefined}
                               onTimeUpdate={idx === 0 ? onTimeUpdate : undefined}
-                              muted={(slot.volume ?? (idx === 0 ? (beat.volume ?? 1) : 0)) === 0}
+                              muted={previewAudioMuted || effectiveSplitScreenSlotVolume(slot, idx, beat, cut) === 0}
                               playsInline
                               style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }}
                             />
@@ -486,7 +686,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
                 // Same wrappers, same grade — only the element differs (ADR-0012).
                 <img src={stillUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
               ) : (
-                <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={(beat.volume ?? 1) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
+                <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={previewAudioMuted || effectiveBeatVolume(beat, cut) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
               );
             })()}
           </div>
@@ -497,7 +697,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             key={activeOverlay.id}
             ref={overlayVideoRef}
             src={overlayBlobUrl}
-            muted={(activeOverlay.volume ?? 0) === 0}
+            muted={previewAudioMuted || (activeOverlay.volume ?? 0) === 0}
             playsInline
             style={{
               position: "absolute",
@@ -591,26 +791,28 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         </div>
         <span className="st-tc st-num">{fmtClock(beat.outSec)}</span>
         <span className="st-tsep" />
-        <ModeSwitch mode={mode} setMode={setMode} />
+        {recordingControl()}
+        <ModeSwitch mode={mode} setMode={setMode} disabled={recorder.status !== "idle"} />
       </div>
     </>
   );
 }
 
-function ModeSwitch({ mode, setMode }: { mode: "beat" | "cut"; setMode: (m: "beat" | "cut") => void }) {
+function ModeSwitch({ mode, setMode, disabled = false }: { mode: "beat" | "cut"; setMode: (m: "beat" | "cut") => void; disabled?: boolean }) {
   return (
     <div className="st-preview-mode-switch">
-      <div className="st-preview-shortcuts" aria-label="Editor keyboard shortcuts">
-        <span><kbd>Space</kbd> Play/Pause</span>
-        <span><kbd>←</kbd><kbd>→</kbd> Beats</span>
-        <span><kbd>B</kbd><kbd>C</kbd> View</span>
-      </div>
       <SegmentedControl
         value={mode}
         options={[{ value: "beat", label: "Beat" }, { value: "cut", label: "Cut" }]}
         onChange={setMode}
         ariaLabel="Preview scope"
+        disabled={disabled}
       />
+      <div className="st-preview-shortcuts" aria-label="Editor keyboard shortcuts">
+        <span><kbd>Space</kbd> Play/Pause</span>
+        <span><kbd>←</kbd><kbd>→</kbd> Beats</span>
+        <span><kbd>B</kbd><kbd>C</kbd> View</span>
+      </div>
     </div>
   );
 }

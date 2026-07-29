@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, Sticker, ColorAdjustments } from "../domain/types";
+import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments } from "../domain/types";
 
 /** The whole editing session. One store; every phase reads/writes it. */
 export interface ProjectState {
@@ -47,6 +47,10 @@ export type Action =
   | { type: "UPDATE_SFX"; segment: SfxSegment }
   | { type: "REMOVE_SFX"; id: string }
   | { type: "DUPLICATE_SFX"; id: string; newSfxId?: string }
+  | { type: "ADD_USER_VOICE"; segment: UserVoiceSegment }
+  | { type: "UPDATE_USER_VOICE"; segment: UserVoiceSegment }
+  | { type: "REMOVE_USER_VOICE"; id: string }
+  | { type: "DUPLICATE_USER_VOICE"; id: string; newUserVoiceId?: string }
   | { type: "ADD_STICKER"; sticker: Sticker }
   | { type: "UPDATE_STICKER"; sticker: Sticker }
   | { type: "REMOVE_STICKER"; id: string }
@@ -304,6 +308,59 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       const duplicated: SfxSegment = { ...target, id: newId, startTimeSec: Math.round(newStart * 10) / 10 };
       const sfxSegments = [...(state.cut.sfxSegments ?? []), duplicated];
       return { ...state, cut: { ...state.cut, sfxSegments } };
+    }
+    case "ADD_USER_VOICE": {
+      if (!state.cut) return state;
+      return {
+        ...state,
+        cut: {
+          ...state.cut,
+          userVoiceSegments: [...(state.cut.userVoiceSegments ?? []), action.segment],
+        },
+      };
+    }
+    case "UPDATE_USER_VOICE": {
+      if (!state.cut) return state;
+      return {
+        ...state,
+        cut: {
+          ...state.cut,
+          userVoiceSegments: (state.cut.userVoiceSegments ?? []).map((segment) =>
+            segment.id === action.segment.id ? action.segment : segment
+          ),
+        },
+      };
+    }
+    case "REMOVE_USER_VOICE": {
+      if (!state.cut) return state;
+      return {
+        ...state,
+        cut: {
+          ...state.cut,
+          userVoiceSegments: (state.cut.userVoiceSegments ?? []).filter((segment) => segment.id !== action.id),
+        },
+      };
+    }
+    case "DUPLICATE_USER_VOICE": {
+      if (!state.cut) return state;
+      const target = (state.cut.userVoiceSegments ?? []).find((segment) => segment.id === action.id);
+      if (!target) return state;
+      const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+      const totalDur = state.cut.beats.reduce((sum, beat) => sum + (beat.durationSec || Math.max(0.05, beat.outSec - beat.inSec)), 0);
+      const newStart = Math.min(Math.max(0, totalDur - target.durationSec), target.startTimeSec + 0.5);
+      const duplicated: UserVoiceSegment = {
+        ...target,
+        id: action.newUserVoiceId ?? `user-vo-${genId()}`,
+        name: `${target.name} copy`,
+        startTimeSec: Math.round(newStart * 10) / 10,
+      };
+      return {
+        ...state,
+        cut: {
+          ...state.cut,
+          userVoiceSegments: [...(state.cut.userVoiceSegments ?? []), duplicated],
+        },
+      };
     }
     // The four Sticker cases mirror the SFX ones above, including the +0.5s
     // nudge on duplicate so the copy is visibly offset rather than hidden.
