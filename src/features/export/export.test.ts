@@ -133,3 +133,10 @@ describe("beatAudioStrategy", () => {
     expect(beatAudioStrategy({ kind: undefined }, 0)).toBe("silent");
   });
 });
+
+describe("TitleAnimation typewriter support", () => {
+  it("supports typewriter in TitleAnimation union", () => {
+    const validAnim: import("./export").TitleAnimation = "typewriter";
+    expect(validAnim).toBe("typewriter");
+  });
+});

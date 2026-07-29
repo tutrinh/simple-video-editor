@@ -28,6 +28,7 @@ export interface TitleLayerSettings {
   animDurationSec?: number;
   boxWidthPct?: number;
   lineHeight?: number;
+  typewriterCursor?: boolean;
 }
 
 

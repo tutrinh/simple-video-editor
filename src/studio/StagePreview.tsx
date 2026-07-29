@@ -13,6 +13,7 @@ import PauseIcon from "../design-system/icons/PauseIcon";
 import ReplayIcon from "../design-system/icons/ReplayIcon";
 import { previewFileForClip } from "./previewSource";
 import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "./previewPlayback";
+import { useProject } from "../state/ProjectContext";
 
 
 
@@ -51,6 +52,8 @@ interface Props {
   beat: Beat | null;
   clip: Clip | undefined;
   keyboardShortcutsActive?: boolean;
+  onSelectBeat?: (beatId: string) => void;
+  onPlayingChange?: (playing: boolean) => void;
 }
 
 /**
@@ -58,7 +61,8 @@ interface Props {
  *  - "Beat": the selected Beat's trimmed window, scrubbable, caption burned in.
  *  - "Cut": the whole edit played back sequentially (reuses the export FinalPreview).
  */
-export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false }: Props) {
+export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange }: Props) {
+  const { dispatch } = useProject();
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
@@ -77,6 +81,12 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const stillUrl = isStill && clip ? getClipBlobUrl(previewFileForClip(clip)) : null;
   const posRef = useRef(0);
   const setPosBoth = (p: number) => { posRef.current = p; setPos(p); };
+
+  useEffect(() => {
+    if (mode === "beat") {
+      onPlayingChange?.(playing);
+    }
+  }, [mode, playing, onPlayingChange]);
 
   useEffect(() => {
     if (!keyboardShortcutsActive) return;
@@ -355,6 +365,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
           <FinalPreview
             cut={cut}
             clips={clips}
+            selectedBeatId={beat?.id}
             captionScale={1}
             captionOpacity={0.5}
             captionLineHeight={1.6}
@@ -363,6 +374,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             musicVolume={0.5}
             voiceover={false}
             enableSpacebarPlayback={keyboardShortcutsActive}
+            onActiveBeatChange={(beatId) => onSelectBeat?.(beatId)}
+            onPlayingChange={onPlayingChange}
           />
         </div>
         <div className="st-transport">
@@ -504,7 +517,36 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         )}
         <StickerOverlay stickers={cut.stickers} beats={cut.beats} aspect={cut.aspect} cutSec={elapsedCutSec} />
         <BeatTitleOverlay layers={beat.titleLayers} aspect={cut.aspect} elapsed={beatElapsed} />
-        <div className="st-badgeTL st-num">Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}</div>
+        <div className="st-badgeTL st-num" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span>Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}</span>
+          {beat && (
+            <ControlButton
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                dispatch({
+                  type: "UPDATE_BEAT",
+                  beat: { ...beat, rotation: (Math.abs(beat.rotation ?? 0) === 180 ? 0 : 180) },
+                });
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Flip 180° (Fix upside-down video)"
+              style={{
+                background: Math.abs(beat.rotation ?? 0) === 180 ? "var(--accent)" : "rgba(0, 0, 0, 0.4)",
+                color: Math.abs(beat.rotation ?? 0) === 180 ? "var(--accent-ink)" : "#fff",
+                border: "1px solid rgba(255, 255, 255, 0.25)",
+                borderRadius: 4,
+                padding: "1px 6px",
+                fontSize: 10,
+                fontWeight: 600,
+                cursor: "pointer",
+                lineHeight: 1.2,
+              }}
+            >
+              🙃 180° Flip
+            </ControlButton>
+          )}
+        </div>
         <div className="cap"><span>{caption}</span></div>
       </div>
       <div className="st-transport">

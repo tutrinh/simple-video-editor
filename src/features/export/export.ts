@@ -23,7 +23,7 @@ import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type T
 // whole thing. Captions use drawtext `textfile=` + `expansion=none`, which reads
 // the caption from a file in the FS and sidesteps inline-escaping entirely.
 
-export type TitleAnimation = "none" | "fade" | "slide_left" | "slide_bottom" | "slide_top" | "pop";
+export type TitleAnimation = "none" | "fade" | "slide_left" | "slide_bottom" | "slide_top" | "pop" | "typewriter";
 
 export interface TitleLayer {
   id: string;
@@ -45,6 +45,7 @@ export interface TitleLayer {
   animDurationSec?: number;
   boxWidthPct?: number;
   lineHeight?: number;
+  typewriterCursor?: boolean;
 }
 
 
@@ -250,6 +251,8 @@ export async function exportCut(
     png: Uint8Array;
     pngName: string;
     index: number;
+    canvasFamily: string;
+    cssFamily: string;
   }
   const preRenderedTitleLayers: RenderedTitleLayer[] = [];
   if (opts.title && opts.title.layers) {
@@ -258,11 +261,12 @@ export async function exportCut(
       const l = activeLayers[k];
       const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
       const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
+      const cssFamily = l.fontCssFamily ?? "sans-serif";
       const png = await renderTitleLayerToPng(
         {
           text: l.text,
           canvasFamily,
-          cssFamily: l.fontCssFamily ?? "sans-serif",
+          cssFamily,
           fontBytes: l.fontBytes,
           fontWeight: l.weight ?? 400,
           sizePx: l.sizePx,
@@ -279,7 +283,7 @@ export async function exportCut(
         h,
       );
       if (png) {
-        preRenderedTitleLayers.push({ layer: l, png, pngName: `title_${k}.png`, index: k });
+        preRenderedTitleLayers.push({ layer: l, png, pngName: `title_${k}.png`, index: k, canvasFamily, cssFamily });
       }
     }
   }
@@ -297,11 +301,12 @@ export async function exportCut(
         const l = activeLayers[k];
         const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
         const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
+        const cssFamily = l.fontCssFamily ?? "sans-serif";
         const png = await renderTitleLayerToPng(
           {
             text: l.text,
             canvasFamily,
-            cssFamily: l.fontCssFamily ?? "sans-serif",
+            cssFamily,
             fontBytes: l.fontBytes,
             fontWeight: l.weight ?? 400,
             sizePx: l.sizePx,
@@ -317,7 +322,7 @@ export async function exportCut(
           w,
           h,
         );
-        if (png) rendered.push({ layer: l, png, pngName: `btitle_${beat.id}_${k}.png`, index: k });
+        if (png) rendered.push({ layer: l, png, pngName: `btitle_${beat.id}_${k}.png`, index: k, canvasFamily, cssFamily });
       }
       if (rendered.length) perBeatTitles.set(beat.id, rendered);
     }
@@ -608,6 +613,74 @@ export async function exportCut(
     // by buildSegmentGraph inside buildVideoChains below).
     const titleLayers: TitleLayerSpec[] = [];
 
+    const addTypewriterTitleSpecs = async (
+      layer: TitleLayer,
+      canvasFamily: string,
+      cssFamily: string,
+      bStart: number,
+      segDur: number,
+      scopeDur: number,
+      prefix: string,
+    ) => {
+      const text = layer.text;
+      const totalChars = text.length;
+      if (totalChars === 0) return;
+
+      const animDur = layer.animDurationSec ?? 0.5;
+      const stepDur = animDur / totalChars;
+
+      for (let s = 1; s <= totalChars; s++) {
+        const progress = s / totalChars;
+        const stepStartRel = (s - 1) * stepDur;
+        const stepEndRel = s === totalChars ? scopeDur : s * stepDur;
+
+        if (bStart < stepEndRel && bStart + segDur > stepStartRel) {
+          const segStepStart = Math.max(0, stepStartRel - bStart);
+          const segStepEnd = Math.min(segDur, stepEndRel - bStart);
+
+          if (segStepEnd > segStepStart + 0.001) {
+            const png = await renderTitleLayerToPng(
+              {
+                text: layer.text,
+                canvasFamily,
+                cssFamily,
+                fontBytes: layer.fontBytes,
+                fontWeight: layer.weight ?? 700,
+                sizePx: layer.sizePx,
+                letterSpacing: layer.letterSpacing,
+                arcDeg: layer.arcDeg,
+                shadow: layer.shadow,
+                color: layer.color,
+                posX: layer.posX,
+                posY: layer.posY,
+                boxWidthPct: layer.boxWidthPct,
+                lineHeight: layer.lineHeight,
+                typewriterProgress: progress,
+                showCursor: layer.typewriterCursor !== false,
+              },
+              w,
+              h,
+              progress,
+            );
+            if (png) {
+              const tName = `${prefix}_tw_${s}.png`;
+              inputs.push({ name: tName, data: png });
+              const enable = `:enable='between(t,${segStepStart.toFixed(3)},${segStepEnd.toFixed(3)})'`;
+              titleLayers.push({
+                kind: "title",
+                pngName: tName,
+                png,
+                fadeParts: [],
+                xExpr: "0",
+                yExpr: "0",
+                enable,
+              });
+            }
+          }
+        }
+      }
+    };
+
     for (let k = 0; k < preRenderedTitleLayers.length; k++) {
       const rtl = preRenderedTitleLayers[k];
       const l = rtl.layer;
@@ -615,10 +688,15 @@ export async function exportCut(
       const overlap = bStart < scopeDur && bStart + segDur > 0;
       if (!overlap) continue;
 
+      const anim = l.animation ?? "none";
+      if (anim === "typewriter") {
+        await addTypewriterTitleSpecs(l, rtl.canvasFamily, rtl.cssFamily, bStart, segDur, scopeDur, `title_${k}`);
+        continue;
+      }
+
       const tName = `title_seg_${k}.png`;
       inputs.push({ name: tName, data: rtl.png });
 
-      const anim = l.animation ?? "none";
       const animDur = l.animDurationSec ?? 0.5;
 
       const fadeParts: string[] = [];
@@ -668,10 +746,15 @@ export async function exportCut(
       const l = rtl.layer;
       const scopeDur = l.scope === "intro" ? (l.introSec ?? 3) : segDur;
 
+      const anim = l.animation ?? "none";
+      if (anim === "typewriter") {
+        await addTypewriterTitleSpecs(l, rtl.canvasFamily, rtl.cssFamily, 0, segDur, scopeDur, `btitle_${b.id}_${j}`);
+        continue;
+      }
+
       const tName = rtl.pngName;
       inputs.push({ name: tName, data: rtl.png });
 
-      const anim = l.animation ?? "none";
       const animDur = l.animDurationSec ?? 0.5;
 
       const fadeParts: string[] = [];

@@ -35,6 +35,8 @@ export interface TitleRenderLayer {
   posY: number; // -50..+50 (% vertical offset from frame center)
   boxWidthPct?: number; // 10..100 (% of frame width for text wrapping)
   lineHeight?: number; // -2..+2 (multiplier of font size)
+  typewriterProgress?: number; // 0..1 progress of character reveal
+  showCursor?: boolean; // whether to show blinking cursor '|' at typing tip
 }
 
 
@@ -153,11 +155,20 @@ async function drawArc(
   const shadow = layer.shadow !== false ? 'filter="drop-shadow(2px 2px 4px rgba(0,0,0,0.7))"' : "";
   const spacing = layer.letterSpacing ? `letter-spacing="${layer.letterSpacing}px"` : "";
 
+  let renderText = layer.text;
+  if (layer.typewriterProgress !== undefined) {
+    const chars = Math.floor(Math.max(0, Math.min(1, layer.typewriterProgress)) * layer.text.length);
+    renderText = layer.text.substring(0, chars);
+    if (layer.showCursor && chars < layer.text.length) {
+      renderText += "|";
+    }
+  }
+
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
     `<defs>${fontFaceCss}<path id="${pathId}" d="${pathD}" fill="none" /></defs>` +
     `<text fill="${layer.color}" font-weight="${layer.fontWeight}" font-family="'${primary}', sans-serif" font-size="${size}px" ${spacing} ${shadow}>` +
-    `<textPath href="#${pathId}" startOffset="50%" text-anchor="middle">${escapeXml(layer.text)}</textPath>` +
+    `<textPath href="#${pathId}" startOffset="50%" text-anchor="middle">${escapeXml(renderText)}</textPath>` +
     `</text></svg>`;
 
   const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
@@ -175,7 +186,7 @@ async function drawArc(
   }
 }
 
-/** Draw one title layer's STATIC glyphs onto a full-frame canvas context.
+/** Draw one title layer's STATIC or TYPEWRITER glyphs onto a full-frame canvas context.
  *  Animation and scope-fade are applied on top (CSS in preview, ffmpeg overlay
  *  expressions in export) — never baked into the bitmap. */
 export async function drawTitleLayer(
@@ -200,7 +211,6 @@ export async function drawTitleLayer(
     (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${layer.letterSpacing ?? 0}px`;
   }
   ctx.fillStyle = layer.color;
-  ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   if (layer.shadow !== false) {
     ctx.shadowColor = "rgba(0,0,0,0.6)";
@@ -214,9 +224,56 @@ export async function drawTitleLayer(
 
   const lineH = size * (layer.lineHeight ?? 1.15);
   const totalH = (lines.length - 1) * lineH;
-  lines.forEach((ln, i) => {
-    ctx.fillText(ln, centerX, centerY - totalH / 2 + i * lineH);
-  });
+
+  const isTypewriter = layer.typewriterProgress !== undefined;
+  const progress = isTypewriter ? Math.max(0, Math.min(1, layer.typewriterProgress!)) : 1.0;
+
+  if (!isTypewriter || progress >= 1.0) {
+    // Normal centered rendering
+    ctx.textAlign = "center";
+    lines.forEach((ln, i) => {
+      ctx.fillText(ln, centerX, centerY - totalH / 2 + i * lineH);
+    });
+  } else {
+    // Typewriter rendering with locked left anchors per line to prevent horizontal text jitter
+    const totalChars = layer.text.length;
+    const targetRevealed = Math.floor(progress * totalChars);
+
+    let charsRemaining = targetRevealed;
+    let foundCursorLine = false;
+
+    lines.forEach((fullLn, i) => {
+      const lineStartY = centerY - totalH / 2 + i * lineH;
+      const fullLen = fullLn.length;
+
+      let typedInLine = 0;
+      if (charsRemaining >= fullLen) {
+        typedInLine = fullLen;
+        charsRemaining -= fullLen;
+      } else {
+        typedInLine = charsRemaining;
+        charsRemaining = 0;
+      }
+
+      const partialLn = fullLn.substring(0, typedInLine);
+      const isCurrentActiveLine = !foundCursorLine && (typedInLine < fullLen || i === lines.length - 1);
+      if (typedInLine < fullLen) foundCursorLine = true;
+
+      // Measure full line width to lock the centered left-start position
+      const fullLineWidth = ctx.measureText(fullLn).width;
+      const lineStartX = centerX - fullLineWidth / 2;
+
+      ctx.textAlign = "left";
+      ctx.fillText(partialLn, lineStartX, lineStartY);
+
+      if (layer.showCursor !== false && isCurrentActiveLine && progress < 1.0) {
+        const partialWidth = ctx.measureText(partialLn).width;
+        const cursorX = lineStartX + partialWidth + size * 0.04;
+        ctx.fillText("|", cursorX, lineStartY);
+      }
+    });
+  }
+
   ctx.restore();
 }
 
@@ -235,6 +292,7 @@ export async function renderTitleLayerToPng(
   layer: TitleRenderLayer,
   w: number,
   h: number,
+  typewriterProgress?: number,
 ): Promise<Uint8Array | null> {
   if (typeof document === "undefined") return null;
   const canvas = document.createElement("canvas");
@@ -243,7 +301,8 @@ export async function renderTitleLayerToPng(
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   try {
-    await drawTitleLayer(ctx, layer, w, h);
+    const renderLayer = typewriterProgress !== undefined ? { ...layer, typewriterProgress } : layer;
+    await drawTitleLayer(ctx, renderLayer, w, h);
   } catch {
     return null;
   }

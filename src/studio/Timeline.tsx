@@ -48,6 +48,7 @@ interface Props {
   clips: Clip[];
   selectedBeatId: string | null;
   onSelectBeat: (id: string) => void;
+  isPlaying?: boolean;
   selectedOverlayId?: string | null;
   onSelectOverlay?: (id: string | null) => void;
   selectedVoId?: string | null;
@@ -65,6 +66,7 @@ export default function Timeline({
   clips,
   selectedBeatId,
   onSelectBeat,
+  isPlaying = false,
   selectedOverlayId,
   onSelectOverlay,
   selectedVoId,
@@ -1088,6 +1090,7 @@ export default function Timeline({
                         className={"st-beat" + (b.id === selectedBeatId ? " sel" : "")}
                         style={{ flex: `0 0 ${widthPct}%`, minWidth: `${widthPct}%` }}
                         onClick={() => {
+                          if (isPlaying) return;
                           onSelectBeat(b.id);
                           onSelectOverlay?.(null);
                         }}

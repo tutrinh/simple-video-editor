@@ -2262,7 +2262,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 size={14}
                 style={{ transform: rotationOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
               />
-              <label style={{ margin: 0, cursor: "pointer" }}>Rotation</label>
+              <label style={{ margin: 0, cursor: "pointer" }}>Rotation & Orientation</label>
               {Math.abs(b.rotation ?? 0) >= 0.05 && (
                 <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>
                   • {(b.rotation ?? 0) > 0 ? "+" : ""}{(b.rotation ?? 0).toFixed(1)}°
@@ -2273,6 +2273,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <ControlButton
                 style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
                 onClick={(e) => { e.stopPropagation(); update({ ...b, rotation: 0 }); }}
+                onPointerDown={(e) => e.stopPropagation()}
                 title="Reset rotation to 0°"
               >
                 Reset rotation
@@ -2282,24 +2283,127 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
           <div className={"st-color-collapsible" + (rotationOpen ? " open" : "")}>
             <div className="st-color-collapsible-inner">
-              <div className="st-color-adjustments" style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+              <div className="st-color-adjustments" style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Quick orientation presets (180° Flip for upside down videos, 90° turn) */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Quick Fix</span>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
+                    <ControlButton
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); update({ ...b, rotation: (Math.abs(b.rotation ?? 0) === 180 ? 0 : 180) }); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      title="Flip 180° (Fix upside-down video)"
+                      style={{
+                        fontSize: 11,
+                        padding: "3px 8px",
+                        background: Math.abs(b.rotation ?? 0) === 180 ? "rgba(255, 179, 57, 0.25)" : "var(--panel-3)",
+                        border: Math.abs(b.rotation ?? 0) === 180 ? "1px solid var(--accent)" : "1px solid var(--line)",
+                        color: Math.abs(b.rotation ?? 0) === 180 ? "var(--accent)" : "var(--ink)",
+                        fontWeight: Math.abs(b.rotation ?? 0) === 180 ? 600 : 400,
+                        borderRadius: 6,
+                        cursor: "pointer",
+                      }}
+                    >
+                      🙃 180° Flip
+                    </ControlButton>
+                    <ControlButton
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cur = b.rotation ?? 0;
+                        const next = cur - 90;
+                        const normalized = next < -180 ? next + 360 : next;
+                        update({ ...b, rotation: normalized });
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      title="Rotate 90° counter-clockwise"
+                      style={{
+                        fontSize: 11,
+                        padding: "3px 8px",
+                        background: "var(--panel-3)",
+                        border: "1px solid var(--line)",
+                        color: "var(--ink)",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                      }}
+                    >
+                      ↺ -90°
+                    </ControlButton>
+                    <ControlButton
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const cur = b.rotation ?? 0;
+                        const next = cur + 90;
+                        const normalized = next > 180 ? next - 360 : next;
+                        update({ ...b, rotation: normalized });
+                      }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      title="Rotate 90° clockwise"
+                      style={{
+                        fontSize: 11,
+                        padding: "3px 8px",
+                        background: "var(--panel-3)",
+                        border: "1px solid var(--line)",
+                        color: "var(--ink)",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                      }}
+                    >
+                      ↻ +90°
+                    </ControlButton>
+                    {Math.abs(b.rotation ?? 0) >= 0.05 && (
+                      <ControlButton
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); update({ ...b, rotation: 0 }); }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        title="Reset rotation to 0°"
+                        style={{
+                          fontSize: 11,
+                          padding: "3px 8px",
+                          background: "var(--panel-3)",
+                          border: "1px solid var(--line)",
+                          color: "var(--ink-2)",
+                          borderRadius: 6,
+                          cursor: "pointer",
+                        }}
+                      >
+                        0° Reset
+                      </ControlButton>
+                    )}
+                  </div>
+                </div>
+
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Angle</span>
                   <InputControl
-                    type="range" min={-15} max={15} step={0.1}
+                    type="range" min={-180} max={180} step={0.5}
                     value={b.rotation ?? 0}
                     onChange={(e) => update({ ...b, rotation: Number(e.target.value) })}
                     onDoubleClick={() => update({ ...b, rotation: 0 })}
-                    title="Fine rotation — straighten a horizon or add a subtle tilt. Double-click to reset."
-                    style={sliderTrackStyle(b.rotation ?? 0, -15, 15)}
+                    title="Rotation angle (-180° to +180°). Double-click to reset."
+                    style={sliderTrackStyle(b.rotation ?? 0, -180, 180)}
                   />
                   <span style={{ fontSize: 10, width: 40, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                     {(b.rotation ?? 0) > 0 ? `+${(b.rotation ?? 0).toFixed(1)}` : (b.rotation ?? 0).toFixed(1)}°
                   </span>
                 </div>
-                {Math.abs(b.rotation ?? 0) >= 0.05 && (
-                  <div style={{ fontSize: 10, color: "var(--ink-3)", marginLeft: 78, marginTop: 4 }}>
+                {Math.abs(b.rotation ?? 0) >= 0.05 && Math.abs(b.rotation ?? 0) !== 180 && (
+                  <div style={{ fontSize: 10, color: "var(--ink-3)", marginLeft: 78, marginTop: 2 }}>
                     Corners show — zoom to {rotationCoverScale(...canvasDims(cut?.aspect ?? "16:9"), b.rotation).toFixed(2)}× to hide them
+                  </div>
+                )}
+                {((b.zoom ?? 1) > 1.001 || (b.zoomX ?? 0) !== 0 || (b.zoomY ?? 0) !== 0) && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--panel-3)", padding: "4px 8px", borderRadius: 6, fontSize: 10, color: "var(--ink-2)", marginTop: 4 }}>
+                    <span>Active Zoom: {(b.zoom ?? 1).toFixed(2)}× (focus: {b.zoomX ?? 0}, {b.zoomY ?? 0})</span>
+                    <ControlButton
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); update({ ...b, zoom: 1, zoomX: 0, zoomY: 0 }); }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontWeight: 600, padding: 0 }}
+                    >
+                      Reset Zoom
+                    </ControlButton>
                   </div>
                 )}
               </div>

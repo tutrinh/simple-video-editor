@@ -30,7 +30,7 @@ interface Props {
 
 export default function TopBar({
   onExport,
-  onStartOver,
+  onStartOver: _onStartOver,
   onOpenSettings,
   onOpenAiStory,
 }: Props) {

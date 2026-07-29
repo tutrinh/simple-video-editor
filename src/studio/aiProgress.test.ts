@@ -16,7 +16,7 @@ describe("AI Story busy state", () => {
   it("animates progress while respecting reduced-motion preferences", () => {
     expect(css).toContain("@keyframes st-ai-progress");
     expect(css).toContain("@keyframes st-ai-spin");
-    expect(css).toContain("@media (prefers-reduced-motion:reduce)");
+    expect(css.replace(/\s+/g, "")).toContain("@media(prefers-reduced-motion:reduce)");
   });
 
   it("separates the Codex prompt from variadic image arguments", () => {

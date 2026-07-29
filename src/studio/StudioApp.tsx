@@ -41,6 +41,7 @@ export default function StudioApp() {
   // Same lazy-mount pattern for the AI Story drawer.
   const [aiStoryOpen, setAiStoryOpen] = useState(false);
   const [aiStoryMounted, setAiStoryMounted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [clipDragOver, setClipDragOver] = useState(false);
   const [editorHovered, setEditorHovered] = useState(false);
   const [pendingTrackDeletion, setPendingTrackDeletion] = useState<{ kind: TrackSegmentKind; id: string; label: string } | null>(null);
@@ -65,7 +66,7 @@ export default function StudioApp() {
   }, [beats, selectedBeatId]);
 
   useEffect(() => {
-    if (!editorHovered || beats.length === 0) return;
+    if (isPlaying || !editorHovered || beats.length === 0) return;
 
     function onKeyDown(event: KeyboardEvent) {
       if (
@@ -294,6 +295,8 @@ export default function StudioApp() {
                     beat={selectedBeat}
                     clip={selectedClip}
                     keyboardShortcutsActive={editorHovered}
+                    onSelectBeat={setSelectedBeatId}
+                    onPlayingChange={setIsPlaying}
                   />
                 </div>
                 <Timeline
@@ -302,6 +305,7 @@ export default function StudioApp() {
                   clips={clips}
                   selectedBeatId={selectedBeatId}
                   onSelectBeat={setSelectedBeatId}
+                  isPlaying={isPlaying}
                   selectedOverlayId={selectedOverlayId}
                   onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) { setSelectedVoId(null); setSelectedSfxId(null); } }}
                   selectedVoId={selectedVoId}

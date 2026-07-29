@@ -48,6 +48,16 @@ export const BUILT_IN_PRESETS: TitlePreset[] = [
       { id: "layer-3", enabled: false, text: "", fontId: "inter", weight: 400, sizePx: 36, letterSpacing: 3, arcDeg: 0, shadow: true, color: "#cccccc", posX: -22, posY: 44, scope: "intro", introSec: 3, animation: "fade" },
     ],
   },
+  {
+    id: "typewriter-modern",
+    name: "⌨️ Typewriter Focus",
+    isBuiltIn: true,
+    layers: [
+      { id: "layer-1", enabled: true, text: "IDEAS IN MOTION", fontId: "space-grotesk", weight: 700, sizePx: 120, letterSpacing: 4, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: -10, scope: "intro", introSec: 3, animation: "typewriter", animDurationSec: 1.0, typewriterCursor: true },
+      { id: "layer-2", enabled: true, text: "A Visual Storytelling Experiment", fontId: "inter", weight: 400, sizePx: 50, letterSpacing: 2, arcDeg: 0, shadow: true, color: "#ffb339", posX: 0, posY: 10, scope: "intro", introSec: 3, animation: "fade" },
+      { id: "layer-3", enabled: false, text: "", fontId: "inter", weight: 400, sizePx: 36, letterSpacing: 4, arcDeg: 0, shadow: true, color: "#a0a0a0", posX: 0, posY: 24, scope: "intro", introSec: 3, animation: "fade" },
+    ],
+  },
 ];
 
 function getStorageKey(projectKey?: string): string {

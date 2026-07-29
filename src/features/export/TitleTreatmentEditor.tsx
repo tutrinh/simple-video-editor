@@ -354,8 +354,21 @@ export default function TitleTreatmentEditor({
                   <option value="slide_bottom">⬆️ Slide Up</option>
                   <option value="slide_top">⬇️ Slide Down</option>
                   <option value="pop">💥 Pop & Bounce</option>
+                  <option value="typewriter">⌨️ Typewriter</option>
                 </select>
               </label>
+
+              {curLayer.animation === "typewriter" && (
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={curLayer.typewriterCursor !== false}
+                    onChange={(e) => updateLayer(activeIdx, { typewriterCursor: e.target.checked })}
+                    style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+                  />
+                  Blinking cursor
+                </label>
+              )}
 
               {curLayer.animation && curLayer.animation !== "none" && (
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -372,6 +385,10 @@ export default function TitleTreatmentEditor({
                     <option value={1.0}>1.0s (Slow)</option>
                     <option value={1.5}>1.5s (Cinematic)</option>
                     <option value={2.0}>2.0s (Epic)</option>
+                    <option value={2.5}>2.5s (Extended)</option>
+                    <option value={3.0}>3.0s (Long)</option>
+                    <option value={3.5}>3.5s (Deliberate)</option>
+                    <option value={4.0}>4.0s (Ultra Long)</option>
                   </select>
                 </label>
               )}

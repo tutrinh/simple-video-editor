@@ -54,6 +54,7 @@ export interface PreviewTitleLayer {
   animDurationSec?: number;
   boxWidthPct?: number;
   lineHeight?: number;
+  typewriterCursor?: boolean;
 }
 
 
@@ -83,6 +84,12 @@ interface Props {
   voiceoverLeadSec?: number;
   /** Enables Space to toggle playback while the surrounding editor is active. */
   enableSpacebarPlayback?: boolean;
+  /** Currently selected beat ID in the parent editor workspace. */
+  selectedBeatId?: string | null;
+  /** Callback fired when the active playing beat changes in Cut view. */
+  onActiveBeatChange?: (beatId: string, index: number) => void;
+  /** Callback fired when playback starts or stops. */
+  onPlayingChange?: (playing: boolean) => void;
 }
 
 export default function FinalPreview({
@@ -90,6 +97,9 @@ export default function FinalPreview({
   cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
   ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
   enableSpacebarPlayback = false,
+  selectedBeatId,
+  onActiveBeatChange,
+  onPlayingChange,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const slotVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -108,6 +118,33 @@ export default function FinalPreview({
   const [canvasW, canvasH] = canvasDims(cut.aspect);
 
   useEffect(() => { playingRef.current = playing; }, [playing]);
+
+  useEffect(() => {
+    onPlayingChange?.(playing);
+  }, [playing, onPlayingChange]);
+
+  // Sync internal index when selectedBeatId is changed by user clicking a beat in Timeline/ClipBin
+  useEffect(() => {
+    if (!selectedBeatId || cut.beats.length === 0) return;
+    const targetIdx = cut.beats.findIndex((b) => b.id === selectedBeatId);
+    if (targetIdx >= 0 && targetIdx !== index) {
+      beatElapsedRef.current = 0;
+      setBeatElapsed(0);
+      setIndex(targetIdx);
+      const b = cut.beats[targetIdx];
+      const v = videoRef.current;
+      if (v && b) {
+        v.currentTime = b.inSec;
+      }
+    }
+  }, [selectedBeatId, cut.beats]);
+
+  useEffect(() => {
+    const curBeat = cut.beats[index];
+    if (curBeat && playing) {
+      onActiveBeatChange?.(curBeat.id, index);
+    }
+  }, [index, cut.beats, playing, onActiveBeatChange]);
 
   // Cumulative start time of the current beat (for title "first Ns" timing).
   const beatStart = useMemo(() => {
@@ -719,7 +756,11 @@ export default function FinalPreview({
           const animDur = layer.animDurationSec ?? 0.5;
           let animTransform = "";
           let animOpacity = opacity;
-          if (elapsed < animDur && anim !== "none") {
+          let typewriterProgress: number | undefined = undefined;
+
+          if (anim === "typewriter") {
+            typewriterProgress = Math.min(1, Math.max(0, elapsed / animDur));
+          } else if (elapsed < animDur && anim !== "none") {
             const p = Math.min(1, Math.max(0, elapsed / animDur));
             animOpacity = opacity * p;
             const previewW = PREVIEW_H * ASPECT_RATIO[cut.aspect];
@@ -736,6 +777,7 @@ export default function FinalPreview({
               ch={canvasH}
               opacity={animOpacity}
               transform={animTransform}
+              typewriterProgress={typewriterProgress}
             />
           );
         })}
@@ -899,12 +941,14 @@ function TitleLayerCanvas({
   ch,
   opacity,
   transform,
+  typewriterProgress,
 }: {
   layer: PreviewTitleLayer;
   cw: number;
   ch: number;
   opacity: number;
   transform: string;
+  typewriterProgress?: number;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -937,6 +981,8 @@ function TitleLayerCanvas({
           posY: layer.posY,
           boxWidthPct: layer.boxWidthPct,
           lineHeight: layer.lineHeight,
+          typewriterProgress,
+          showCursor: layer.typewriterCursor !== false,
         }, cw, ch),
         () => cancelled,
       );
@@ -947,7 +993,8 @@ function TitleLayerCanvas({
   }, [
     layer.text, layer.fontId, layer.fontFile, layer.fontFamily, layer.fontWeight,
     layer.sizePx, layer.letterSpacing, layer.arcDeg, layer.shadow, layer.color,
-    layer.posX, layer.posY, layer.boxWidthPct, layer.lineHeight, cw, ch,
+    layer.posX, layer.posY, layer.boxWidthPct, layer.lineHeight, layer.typewriterCursor,
+    typewriterProgress, cw, ch,
   ]);
 
   return (
@@ -1071,7 +1118,7 @@ export function BeatTitleOverlay({
           posX: l.posX, posY: l.posY, scope: l.scope, introSec: l.introSec,
           fontFamily: findFontById(l.fontId)?.cssFamily, fontWeight: l.weight,
           fontId: l.fontId, fontFile: l.fontFile, animation: l.animation, animDurationSec: l.animDurationSec,
-          boxWidthPct: l.boxWidthPct, lineHeight: l.lineHeight,
+          boxWidthPct: l.boxWidthPct, lineHeight: l.lineHeight, typewriterCursor: l.typewriterCursor,
         };
 
 
@@ -1093,7 +1140,11 @@ export function BeatTitleOverlay({
         const animDur = layer.animDurationSec ?? 0.5;
         let animTransform = "";
         let animOpacity = opacity;
-        if (elapsed < animDur && anim !== "none") {
+        let typewriterProgress: number | undefined = undefined;
+
+        if (anim === "typewriter") {
+          typewriterProgress = Math.min(1, Math.max(0, elapsed / animDur));
+        } else if (elapsed < animDur && anim !== "none") {
           const p = Math.min(1, Math.max(0, elapsed / animDur));
           animOpacity = opacity * p;
           const previewW = PREVIEW_H * ASPECT_RATIO[aspect];
@@ -1110,6 +1161,7 @@ export function BeatTitleOverlay({
             ch={ch}
             opacity={animOpacity}
             transform={animTransform}
+            typewriterProgress={typewriterProgress}
           />
         );
       })}
