@@ -79,10 +79,57 @@ export interface Narration {
   durationSec: number;
 }
 
+let workerInstance: Worker | null = null;
+const pendingRequests = new Map<
+  string,
+  { resolve: (val: Narration) => void; reject: (err: Error) => void }
+>();
+
+function getWorker(): Worker | null {
+  if (typeof window === "undefined" || typeof Worker === "undefined") return null;
+  if (!workerInstance) {
+    try {
+      workerInstance = new Worker(new URL("../workers/kokoroWorker.ts", import.meta.url), {
+        type: "module",
+      });
+      workerInstance.onmessage = (e: MessageEvent) => {
+        const { type, id, wav, durationSec, error } = e.data ?? {};
+        const pending = pendingRequests.get(id);
+        if (!pending) return;
+        pendingRequests.delete(id);
+        if (type === "result") {
+          pending.resolve({
+            wav: new Uint8Array(wav),
+            durationSec,
+          });
+        } else {
+          pending.reject(new Error(error || "Worker synthesis failed"));
+        }
+      };
+      workerInstance.onerror = (err) => {
+        console.warn("Kokoro TTS worker error:", err);
+      };
+    } catch {
+      workerInstance = null;
+    }
+  }
+  return workerInstance;
+}
+
 /** Synthesize one line of narration to WAV bytes plus its exact duration.
  *  `speed` < 1 slows the read (1 = natural); pairs with the same knob on the
  *  ElevenLabs path so voiceover pacing is engine-agnostic. */
 export async function synthesizeVoiceover(text: string, voice: Voice = "af_heart", speed = 1): Promise<Narration> {
+  const worker = getWorker();
+  if (worker) {
+    const id = `req_${Math.random().toString(36).slice(2, 9)}`;
+    return new Promise<Narration>((resolve, reject) => {
+      pendingRequests.set(id, { resolve, reject });
+      worker.postMessage({ type: "synthesize", id, text, voice, speed });
+    });
+  }
+
+  // Fallback for node/vitest environments without Web Workers
   const tts = await loadVoiceModel();
   const audio = await tts.generate(text, { voice, speed });
   return {
@@ -90,3 +137,4 @@ export async function synthesizeVoiceover(text: string, voice: Voice = "af_heart
     durationSec: audio.audio.length / audio.sampling_rate,
   };
 }
+

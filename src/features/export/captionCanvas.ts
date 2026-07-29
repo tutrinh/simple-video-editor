@@ -77,10 +77,12 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
   ctx.closePath();
 }
 
+import { createOffscreenOrDomCanvas, canvasToPngBuffer } from "../../lib/offscreenCanvas";
+
 /** Draw the caption block (wrapped, boxed, bottom-aligned, centered) onto a
  *  full-frame canvas context. */
 export async function drawCaptionBlock(
-  ctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   spec: CaptionSpec,
   w: number,
   h: number,
@@ -96,7 +98,7 @@ export async function drawCaptionBlock(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const lines = wrapParagraphs(ctx, text, w * (spec.maxWidthFrac ?? 0.9));
+  const lines = wrapParagraphs(ctx as unknown as CanvasRenderingContext2D, text, w * (spec.maxWidthFrac ?? 0.9));
   if (lines.length === 0) {
     ctx.restore();
     return;
@@ -112,7 +114,7 @@ export async function drawCaptionBlock(
   const boxY = h - spec.marginPx - boxH;
 
   ctx.fillStyle = `rgba(0,0,0,${spec.bgOpacity})`;
-  roundRectPath(ctx, boxX, boxY, boxW, boxH, size * 0.18);
+  roundRectPath(ctx as unknown as CanvasRenderingContext2D, boxX, boxY, boxW, boxH, size * 0.18);
   ctx.fill();
 
   ctx.fillStyle = spec.color ?? "#ffffff";
@@ -125,21 +127,13 @@ export async function drawCaptionBlock(
 /** Export path: render a caption cue to a full-frame transparent PNG for ffmpeg
  *  to overlay (time-gated with `enable`). Null when there is no canvas. */
 export async function renderCaptionToPng(spec: CaptionSpec, w: number, h: number): Promise<Uint8Array | null> {
-  if (typeof document === "undefined") return null;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
+  const { canvas, ctx } = createOffscreenOrDomCanvas(w, h);
   if (!ctx) return null;
   try {
     await drawCaptionBlock(ctx, spec, w, h);
+    return await canvasToPngBuffer(canvas);
   } catch {
     return null;
   }
-  return new Promise((resolve) => {
-    canvas.toBlob((b) => {
-      if (!b) return resolve(null);
-      b.arrayBuffer().then((buf) => resolve(new Uint8Array(buf))).catch(() => resolve(null));
-    }, "image/png");
-  });
 }
+

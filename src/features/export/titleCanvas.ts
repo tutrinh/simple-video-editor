@@ -186,17 +186,19 @@ async function drawArc(
   }
 }
 
+import { createOffscreenOrDomCanvas, canvasToPngBuffer } from "../../lib/offscreenCanvas";
+
 /** Draw one title layer's STATIC or TYPEWRITER glyphs onto a full-frame canvas context.
  *  Animation and scope-fade are applied on top (CSS in preview, ffmpeg overlay
  *  expressions in export) — never baked into the bitmap. */
 export async function drawTitleLayer(
-  ctx: CanvasRenderingContext2D,
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   layer: TitleRenderLayer,
   w: number,
   h: number,
 ): Promise<void> {
   if ((layer.arcDeg ?? 0) !== 0) {
-    await drawArc(ctx, layer, w, h);
+    await drawArc(ctx as CanvasRenderingContext2D, layer, w, h);
     return;
   }
 
@@ -208,7 +210,7 @@ export async function drawTitleLayer(
   ctx.font = `${layer.fontWeight} ${size}px ${layer.canvasFamily}, sans-serif`;
   // Real tracking — the thing ffmpeg drawtext could not do.
   if ("letterSpacing" in ctx) {
-    (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${layer.letterSpacing ?? 0}px`;
+    (ctx as unknown as { letterSpacing: string }).letterSpacing = `${layer.letterSpacing ?? 0}px`;
   }
   ctx.fillStyle = layer.color;
   ctx.textBaseline = "middle";
@@ -220,7 +222,7 @@ export async function drawTitleLayer(
   }
 
   const boxWidthFrac = (layer.boxWidthPct ?? 90) / 100;
-  const lines = wrapLines(ctx, layer.text, w * boxWidthFrac);
+  const lines = wrapLines(ctx as unknown as CanvasRenderingContext2D, layer.text, w * boxWidthFrac);
 
   const lineH = size * (layer.lineHeight ?? 1.15);
   const totalH = (lines.length - 1) * lineH;
@@ -277,15 +279,6 @@ export async function drawTitleLayer(
   ctx.restore();
 }
 
-function canvasToPng(canvas: HTMLCanvasElement): Promise<Uint8Array | null> {
-  return new Promise((resolve) => {
-    canvas.toBlob((b) => {
-      if (!b) return resolve(null);
-      b.arrayBuffer().then((buf) => resolve(new Uint8Array(buf))).catch(() => resolve(null));
-    }, "image/png");
-  });
-}
-
 /** Export path: render one title layer to a full-frame transparent PNG for
  *  ffmpeg to overlay. Returns null when there is no canvas (e.g. non-browser). */
 export async function renderTitleLayerToPng(
@@ -294,17 +287,14 @@ export async function renderTitleLayerToPng(
   h: number,
   typewriterProgress?: number,
 ): Promise<Uint8Array | null> {
-  if (typeof document === "undefined") return null;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
+  const { canvas, ctx } = createOffscreenOrDomCanvas(w, h);
   if (!ctx) return null;
   try {
     const renderLayer = typewriterProgress !== undefined ? { ...layer, typewriterProgress } : layer;
     await drawTitleLayer(ctx, renderLayer, w, h);
+    return await canvasToPngBuffer(canvas);
   } catch {
     return null;
   }
-  return canvasToPng(canvas);
 }
+

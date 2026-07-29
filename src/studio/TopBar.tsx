@@ -23,7 +23,7 @@ const ASPECTS: Aspect[] = ["16:9", "9:16", "1:1"];
 
 interface Props {
   onExport: () => void;
-  onStartOver: () => void;
+  onStartOver?: () => void;
   onOpenSettings: () => void;
   onOpenAiStory: () => void;
 }

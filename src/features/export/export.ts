@@ -1,5 +1,5 @@
 import type { Clip, Cut, Aspect, OverlayClip, Sticker } from "../../domain/types";
-import { runIsolated, multithreadReady, type EngineInput } from "../../lib/ffmpegEngine";
+import { runIsolated, type EngineInput } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { fetchSfxBytes } from "../../lib/sfxLibrary";
@@ -209,7 +209,6 @@ export function wrapCaption(text: string, canvasW: number, fontsize: number): st
 // 1080p and short (much lighter than a 4K normalize), so 2 is comfortable, 3 on
 // high-RAM machines, 1 on very low-RAM. Each runs in its own isolated engine.
 function exportConcurrency(): number {
-  if (multithreadReady()) return 1;
   const mem = typeof navigator !== "undefined" ? (navigator as { deviceMemory?: number }).deviceMemory : undefined;
   if (typeof mem === "number") return mem <= 2 ? 1 : mem >= 8 ? 3 : 2;
   return 2;
@@ -371,40 +370,58 @@ export async function exportCut(
   if (activeOverlays.length > 0) {
     onProgress?.(0.05, "Preparing B-roll overlays…");
     let trimProgress = 0;
-    const trimResults = await Promise.all(
-      activeOverlays.map(async (o, idx) => {
-        const clip = clips.find((c) => c.id === o.clipId);
-        if (!clip) return null;
-        try {
-          const srcData = await bytesOf(clip.normalized ?? clip.file);
-          const srcName = sourceName(clip);
-          const out = await runIsolated(
-            [{ name: srcName, data: srcData }],
-            ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", srcName,
-             "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
-             "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
-            "ov.mp4",
-          );
-          trimProgress++;
-          onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
-          return { data: out, o };
-        } catch (err) {
-          console.warn(`Overlay ${idx} pre-trim failed; skipping overlay.`, err);
-          trimProgress++;
-          onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
-          return null;
-        }
-      }),
-    );
-    for (const r of trimResults) {
-      if (r) preTrimmedOverlays.push(r);
-    }
+    await runPool(activeOverlays, exportConcurrency(), async (o, idx) => {
+      const clip = clips.find((c) => c.id === o.clipId);
+      if (!clip) return;
+      try {
+        const srcData = await bytesOf(clip.normalized ?? clip.file);
+        const srcName = sourceName(clip);
+        const out = await runIsolated(
+          [{ name: srcName, data: srcData }],
+          ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", srcName,
+           "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+           "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
+          "ov.mp4",
+        );
+        trimProgress++;
+        onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
+        preTrimmedOverlays.push({ data: out, o });
+      } catch (err) {
+        console.warn(`Overlay ${idx} pre-trim failed; skipping overlay.`, err);
+        trimProgress++;
+        onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
+      }
+    });
   }
 
-  onProgress?.(0.10, "Preparing beat segments…");
-  // Beat duration is footage-only now — narration lives on the independent VO track
-  // (synthesized + mixed as a master audio bed at the final stage), so beats no longer
-  // stretch to fit voiceover.
+  onProgress?.(0.10, "Reading video source clip data…");
+  const uniqueClips = Array.from(
+    new Set(cut.beats.map((b) => clipById.get(b.clipId)).filter((c): c is Clip => !!c)),
+  );
+  const clipBytesMap = new Map<string, Uint8Array>();
+  let loadedClipsCount = 0;
+  for (const c of uniqueClips) {
+    if (!c.file) continue;
+    try {
+      const bytes = await bytesOf(c.normalized ?? c.file);
+      clipBytesMap.set(c.id, bytes);
+    } catch (err) {
+      console.warn(`Could not read bytes for clip ${c.name}:`, err);
+    }
+    loadedClipsCount++;
+    const loadFrac = 0.10 + (loadedClipsCount / Math.max(1, uniqueClips.length)) * 0.05;
+    onProgress?.(loadFrac, `Reading clip data ${loadedClipsCount} of ${uniqueClips.length}…`);
+  }
+
+  const getClipBytes = async (c: Clip): Promise<Uint8Array> => {
+    let hit = clipBytesMap.get(c.id);
+    if (!hit) {
+      hit = await bytesOf(c.normalized ?? c.file);
+      clipBytesMap.set(c.id, hit);
+    }
+    return hit;
+  };
+
   interface PrecomputedBeat {
     clip: Clip;
     inSec: number;
@@ -437,7 +454,7 @@ export async function exportCut(
   let completedBeats = 0;
 
   const reportBeatProg = () => {
-    const frac = (prog.reduce((a, x) => a + x, 0) / n) * 0.70 + 0.10;
+    const frac = (prog.reduce((a, x) => a + x, 0) / Math.max(1, n)) * 0.65 + 0.15;
     const displayNum = Math.min(n, completedBeats + 1);
     onProgress?.(frac, `Rendering beat segment ${displayNum} of ${n}…`);
   };
@@ -471,8 +488,7 @@ export async function exportCut(
       }
       srcName = "in.jpg";
     } else {
-
-      data = await bytesOf(clip.normalized ?? clip.file);
+      data = await getClipBytes(clip);
     }
 
     const isSplitScreen = !!(b.splitScreen && b.splitScreen.layout !== "none" && b.splitScreen.slots.length > 1);
@@ -484,11 +500,10 @@ export async function exportCut(
       for (let sIdx = 0; sIdx < normSplitCfg.slots.length; sIdx++) {
         const slot = normSplitCfg.slots[sIdx];
         const slotClip = clips.find((c: Clip) => c.id === slot.clipId) ?? clip;
-        const slotData = await bytesOf(slotClip.normalized ?? slotClip.file);
+        const slotData = await getClipBytes(slotClip);
         inputs.push({ name: `slot_${sIdx}_${sourceName(slotClip)}`, data: slotData });
       }
     } else {
-
       inputs.push({ name: srcName, data });
     }
     const numVideoInputs = inputs.length;

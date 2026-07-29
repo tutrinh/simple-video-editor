@@ -157,14 +157,7 @@ export function loadStickerImage(fileName: string): Promise<HTMLImageElement> {
   return p;
 }
 
-function canvasToPng(canvas: HTMLCanvasElement): Promise<Uint8Array | null> {
-  return new Promise((resolve) => {
-    canvas.toBlob(async (blob) => {
-      if (!blob) { resolve(null); return; }
-      resolve(new Uint8Array(await blob.arrayBuffer()));
-    }, "image/png");
-  });
-}
+
 
 /** Render Stickers onto one full-frame bitmap. Returns null off-DOM. */
 export async function renderStickersToCanvas(
@@ -193,19 +186,27 @@ export async function renderStickersToCanvas(
   return canvas;
 }
 
+import { createOffscreenOrDomCanvas, canvasToPngBuffer } from "../../lib/offscreenCanvas";
+
 /** The export's entry point: the same bitmap the preview shows, as PNG bytes. */
 export async function renderStickersToPng(
   stickers: Sticker[],
   w: number,
   h: number,
 ): Promise<Uint8Array | null> {
-  const canvas = await renderStickersToCanvas(stickers, w, h);
-  if (!canvas) return null;
+  const { canvas, ctx } = createOffscreenOrDomCanvas(w, h);
+  if (!ctx) return null;
+  for (const sticker of stickers) {
+    try {
+      const img = await loadStickerImage(sticker.fileName);
+      drawSticker(ctx as CanvasRenderingContext2D, sticker, img, w, h, img.naturalWidth, img.naturalHeight);
+    } catch (err) {
+      console.warn(`[sticker] could not draw "${sticker.fileName}" — skipping`, err);
+    }
+  }
   try {
-    return await canvasToPng(canvas);
+    return await canvasToPngBuffer(canvas);
   } catch (err) {
-    // A tainted canvas throws here. Same-origin assets should never taint, so if
-    // this fires the asset is being served from somewhere unexpected.
     console.warn("[sticker] canvas could not be exported to PNG", err);
     return null;
   }
