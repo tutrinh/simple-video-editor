@@ -209,8 +209,12 @@ export function wrapCaption(text: string, canvasW: number, fontsize: number): st
 // 1080p and short (much lighter than a 4K normalize), so 2 is comfortable, 3 on
 // high-RAM machines, 1 on very low-RAM. Each runs in its own isolated engine.
 function exportConcurrency(): number {
-  const mem = typeof navigator !== "undefined" ? (navigator as { deviceMemory?: number }).deviceMemory : undefined;
-  if (typeof mem === "number") return mem <= 2 ? 1 : mem >= 8 ? 3 : 2;
+  const nav = typeof navigator !== "undefined" ? (navigator as { deviceMemory?: number; hardwareConcurrency?: number }) : undefined;
+  const mem = nav?.deviceMemory;
+  const cores = nav?.hardwareConcurrency;
+  if (typeof mem === "number" && mem <= 2) return 1;
+  if (typeof cores === "number" && cores >= 8) return 3;
+  if (typeof cores === "number" && cores >= 4) return 2;
   return 2;
 }
 
@@ -379,7 +383,7 @@ export async function exportCut(
         const out = await runIsolated(
           [{ name: srcName, data: srcData }],
           ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", srcName,
-           "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+           "-c:v", "libx264", "-preset", "ultrafast", "-crf", String(crf), "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
           "ov.mp4",
         );
