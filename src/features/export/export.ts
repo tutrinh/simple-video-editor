@@ -1,5 +1,5 @@
-import type { Clip, Cut, Aspect, OverlayClip, Sticker } from "../../domain/types";
-import { runIsolated, type EngineInput } from "../../lib/ffmpegEngine";
+import type { Beat, Clip, Cut, Aspect, OverlayClip, Sticker, VideoTransitionType } from "../../domain/types";
+import { multithreadReady, runIsolated, type EngineInput, type EnginePhase } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
 import { fetchSfxBytes } from "../../lib/sfxLibrary";
@@ -12,6 +12,7 @@ import { renderCaptionToPng } from "./captionCanvas";
 import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers, resolveSfxSegments } from "./stickerCanvas";
 import { normalizeSplitConfig, buildSplitScreenFilterGraph } from "./splitScreenCanvas";
 import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LayerSpec } from "./segmentGraph";
+import { cacheSegment, getCachedSegment, segmentCacheKey } from "./segmentCache";
 
 
 
@@ -208,14 +209,16 @@ export function wrapCaption(text: string, canvasW: number, fontsize: number): st
 // Render at most N beat segments at once. Export segments are already-normalized
 // 1080p and short (much lighter than a 4K normalize), so 2 is comfortable, 3 on
 // high-RAM machines, 1 on very low-RAM. Each runs in its own isolated engine.
-function exportConcurrency(): number {
+export function exportConcurrency(): number {
+  if (multithreadReady()) return 1;
   const nav = typeof navigator !== "undefined" ? (navigator as { deviceMemory?: number; hardwareConcurrency?: number }) : undefined;
   const mem = nav?.deviceMemory;
   const cores = nav?.hardwareConcurrency;
-  if (typeof mem === "number" && mem <= 2) return 1;
-  if (typeof cores === "number" && cores >= 8) return 3;
+  if (typeof mem === "number" && mem <= 4) return 1;
+  if (typeof mem === "number" && mem >= 8 && typeof cores === "number" && cores >= 12) return 4;
+  if ((typeof mem !== "number" || mem >= 8) && typeof cores === "number" && cores >= 8) return 3;
   if (typeof cores === "number" && cores >= 4) return 2;
-  return 2;
+  return 1;
 }
 
 export function emptyTemplateSlotExportError(cut: Cut, clips: Clip[]): string | null {
@@ -225,6 +228,56 @@ export function emptyTemplateSlotExportError(cut: Cut, clips: Clip[]): string | 
   ).length;
   if (count === 0) return null;
   return `Fill all empty template slots before exporting (${count} ${count === 1 ? "slot" : "slots"} remaining).`;
+}
+
+const FIRST_PASS_FADE_TRANSITIONS = new Set<VideoTransitionType>([
+  "fade",
+  "fadeblack",
+  "fadewhite",
+]);
+
+/** True when every transition can be rendered on its own fully-composited Beat. */
+export function canBakeTransitionsInFirstPass(beats: Beat[]): boolean {
+  return beats.every((beat) =>
+    !beat.transition
+    || beat.transition === "none"
+    || FIRST_PASS_FADE_TRANSITIONS.has(beat.transition),
+  );
+}
+
+function transitionColor(transition: VideoTransitionType): "black" | "white" {
+  return transition === "fadewhite" ? "white" : "black";
+}
+
+/** Fade filters applied after all Layers, so blend Overlays fade with the frame. */
+export function firstPassTransitionFilters(beats: Beat[], index: number, segDur: number): string[] {
+  const beat = beats[index];
+  if (!beat || !canBakeTransitionsInFirstPass(beats)) return [];
+  const previous = index > 0 ? beats[index - 1] : undefined;
+  const next = beats[index + 1];
+
+  const incoming = beat.transition && beat.transition !== "none" && (beat.transitionPosition ?? "start") === "start"
+    ? beat
+    : previous?.transition && previous.transition !== "none" && previous.transitionPosition === "end"
+      ? previous
+      : undefined;
+  const outgoing = next?.transition && next.transition !== "none" && (next.transitionPosition ?? "start") === "start"
+    ? next
+    : beat.transition && beat.transition !== "none" && beat.transitionPosition === "end"
+      ? beat
+      : undefined;
+
+  const filters: string[] = [];
+  if (incoming?.transition && FIRST_PASS_FADE_TRANSITIONS.has(incoming.transition)) {
+    const duration = Math.min(segDur, Math.max(0.1, incoming.transitionSec ?? 0.5));
+    filters.push(`fade=t=in:st=0:d=${duration.toFixed(2)}:color=${transitionColor(incoming.transition)}`);
+  }
+  if (outgoing?.transition && FIRST_PASS_FADE_TRANSITIONS.has(outgoing.transition)) {
+    const duration = Math.min(segDur, Math.max(0.1, outgoing.transitionSec ?? 0.5));
+    const start = Math.max(0, segDur - duration);
+    filters.push(`fade=t=out:st=${start.toFixed(3)}:d=${duration.toFixed(2)}:color=${transitionColor(outgoing.transition)}`);
+  }
+  return filters;
 }
 
 export async function exportCut(
@@ -398,33 +451,11 @@ export async function exportCut(
     });
   }
 
-  onProgress?.(0.10, "Reading video source clip data…");
-  const uniqueClips = Array.from(
-    new Set(cut.beats.map((b) => clipById.get(b.clipId)).filter((c): c is Clip => !!c)),
-  );
-  const clipBytesMap = new Map<string, Uint8Array>();
-  let loadedClipsCount = 0;
-  for (const c of uniqueClips) {
-    if (!c.file) continue;
-    try {
-      const bytes = await bytesOf(c.normalized ?? c.file);
-      clipBytesMap.set(c.id, bytes);
-    } catch (err) {
-      console.warn(`Could not read bytes for clip ${c.name}:`, err);
-    }
-    loadedClipsCount++;
-    const loadFrac = 0.10 + (loadedClipsCount / Math.max(1, uniqueClips.length)) * 0.05;
-    onProgress?.(loadFrac, `Reading clip data ${loadedClipsCount} of ${uniqueClips.length}…`);
-  }
-
-  const getClipBytes = async (c: Clip): Promise<Uint8Array> => {
-    let hit = clipBytesMap.get(c.id);
-    if (!hit) {
-      hit = await bytesOf(c.normalized ?? c.file);
-      clipBytesMap.set(c.id, hit);
-    }
-    return hit;
-  };
+  // Load source bytes inside the active render worker instead of retaining every
+  // Clip in one global cache. With 25 normalized Clips the eager cache could hold
+  // gigabytes, then duplicate another source into FFmpeg/WASM before rendering
+  // even began. The worker pool now bounds source-byte memory along with engines.
+  const getClipBytes = (c: Clip): Promise<Uint8Array> => bytesOf(c.normalized ?? c.file);
 
   interface PrecomputedBeat {
     clip: Clip;
@@ -456,13 +487,24 @@ export async function exportCut(
   const timingSlots: (BeatTiming | null)[] = new Array(n).fill(null);
   const prog = new Array<number>(n).fill(0);
   let completedBeats = 0;
+  let reusedBeatSegments = 0;
 
   const reportBeatProg = () => {
     const frac = (prog.reduce((a, x) => a + x, 0) / Math.max(1, n)) * 0.65 + 0.15;
     const displayNum = Math.min(n, completedBeats + 1);
     onProgress?.(frac, `Rendering beat segment ${displayNum} of ${n}…`);
   };
+  const reportBeatStage = (i: number, text: string) => {
+    const frac = (prog.reduce((a, x) => a + x, 0) / Math.max(1, n)) * 0.65 + 0.15;
+    onProgress?.(frac, `${text} ${i + 1} of ${n}…`);
+  };
 
+  // Move the visible stage forward before the first FFmpeg core/worker loads.
+  // Engine startup can take time and does not emit ffmpeg progress events.
+  reportBeatProg();
+  // React state updates and browser painting need a macrotask boundary before
+  // canvas preparation and WASM startup begin monopolising the main thread.
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
   await runPool(cut.beats, exportConcurrency(), async (b, i) => {
     const pre = preBeats[i];
     if (!pre) {
@@ -474,6 +516,7 @@ export async function exportCut(
     const { clip, inSec, footageLen, segDur } = pre;
     const bStart = beatStartSecs[i];
     const bEnd = bStart + segDur;
+    reportBeatStage(i, "Loading source for beat");
 
     // Ken Burns is a Still's moving framing (ADR-0015). Its source is
     // pre-scaled ONCE here, on the GPU, rather than by a `scale` in the filter
@@ -583,23 +626,6 @@ export async function exportCut(
       ...frame.base,
       ...(colorLut ? [colorLut.filter] : []),
     ];
-
-    if (i === 0 && b.transition && b.transition !== "none" && (b.transitionPosition ?? "start") === "start") {
-      const fTr = b.transition;
-      const fSec = Math.min(1.0, b.transitionSec ?? 0.5);
-      if (fTr === "fadeblack" || fTr === "fade") {
-        vf.push(`fade=t=in:st=0:d=${fSec.toFixed(2)}`);
-      }
-    }
-
-    if (i === n - 1 && b.transition && b.transition !== "none" && b.transitionPosition === "end") {
-      const lTr = b.transition;
-      const lSec = Math.min(1.0, b.transitionSec ?? 0.5);
-      if (lTr === "fadeblack" || lTr === "fade") {
-        const fadeStart = Math.max(0, segDur - lSec).toFixed(3);
-        vf.push(`fade=t=out:st=${fadeStart}:d=${lSec.toFixed(2)}`);
-      }
-    }
 
     const freeze = segDur - footageLen;
     if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
@@ -841,10 +867,14 @@ export async function exportCut(
       ...overlayLayers,
       ...stickerLayers,
     ];
+    const transitionFilters = firstPassTransitionFilters(cut.beats, i, segDur);
 
     const audioIdx = numVideoInputs + allLayers.length;
 
-    const baseLabel = allLayers.length === 0 ? "[v]" : "[vbase]";
+    const needsPostCompositeTransition = transitionFilters.length > 0;
+    const baseLabel = allLayers.length === 0
+      ? (needsPostCompositeTransition ? "[vpretransition]" : "[v]")
+      : "[vbase]";
     let chains: string[] = [];
 
     if (isSplitScreen && normSplitCfg) {
@@ -883,6 +913,7 @@ export async function exportCut(
         baseLabel,
         segDurStr,
         rgbFormat,
+        terminal: !needsPostCompositeTransition,
       });
 
 
@@ -909,6 +940,9 @@ export async function exportCut(
       }
 
       const segChains = [...chains, ...sgResult.chains];
+      if (needsPostCompositeTransition) {
+        segChains.push(`${sgResult.lastLabel}${transitionFilters.join(",")}[v]`);
+      }
       const vFilterString = segChains.join(";");
       const aFilterString = aChains.join(";");
 
@@ -947,16 +981,37 @@ export async function exportCut(
     });
 
     const renderSeg = async (strat: "source" | "silent") => {
+      const handleEngineProgress = (f: number, phase?: EnginePhase) => {
+        prog[i] = f;
+        if (phase === "loading-mt") reportBeatStage(i, "Initializing accelerated encoder for beat");
+        else if (phase === "fallback-st") reportBeatStage(i, "Accelerated encoder unavailable; falling back for beat");
+        else if (phase === "loading-st") reportBeatStage(i, "Initializing compatible encoder for beat");
+        else reportBeatProg();
+      };
+      const runCached = async (rgbFormat: "gbrp" | null) => {
+        const args = buildSegArgs(strat, rgbFormat);
+        const key = await segmentCacheKey(inputs, args);
+        const cached = key ? getCachedSegment(key) : null;
+        if (cached) {
+          reusedBeatSegments++;
+          prog[i] = 1;
+          reportBeatStage(i, "Reusing cached render for beat");
+          return cached;
+        }
+        const rendered = await runIsolated(inputs, args, "seg.mp4", handleEngineProgress);
+        if (key) cacheSegment(key, rendered);
+        return rendered;
+      };
       if (hasRgbBlend) {
         for (const rgbFormat of ["gbrp", null] as const) {
           try {
-            return await runIsolated(inputs, buildSegArgs(strat, rgbFormat), "seg.mp4", (f) => { prog[i] = f; reportBeatProg(); });
+            return await runCached(rgbFormat);
           } catch (err) {
             console.warn(`Segment ${i} RGB blend pass failed (rgbFormat=${rgbFormat}), trying fallback...`, err);
           }
         }
       }
-      return runIsolated(inputs, buildSegArgs(strat, null), "seg.mp4", (f) => { prog[i] = f; reportBeatProg(); });
+      return runCached(null);
     };
 
     if (strategy === "source") {
@@ -974,16 +1029,19 @@ export async function exportCut(
     reportBeatProg();
   });
 
-  onProgress?.(0.80, "Beat segments rendered");
+  onProgress?.(0.80, reusedBeatSegments > 0
+    ? `Beat segments rendered · ${reusedBeatSegments} reused from cache`
+    : "Beat segments rendered");
 
   const timings: BeatTiming[] = timingSlots.filter((t): t is BeatTiming => t !== null);
   const segments: Uint8Array[] = segSlots.filter((s): s is Uint8Array => s !== null);
   const activeBeats = cut.beats.filter((b) => clips.some((c) => c.id === b.clipId));
 
   const hasTransitions = activeBeats.some((b) => b.transition && b.transition !== "none");
+  const transitionsBakedInSegments = hasTransitions && canBakeTransitionsInFirstPass(activeBeats);
   let video: Uint8Array;
 
-  if (hasTransitions && segments.length > 1) {
+  if (hasTransitions && !transitionsBakedInSegments && segments.length > 1) {
     const inputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     const ffmpegArgs: string[] = [];
     segments.forEach((_, i) => ffmpegArgs.push("-i", `seg_${i}.mp4`));
@@ -1035,7 +1093,9 @@ export async function exportCut(
       },
     );
   } else {
-    onProgress?.(0.86, "Concatenating video segments…");
+    onProgress?.(0.86, transitionsBakedInSegments
+      ? "Joining first-pass transition segments…"
+      : "Concatenating video segments…");
     const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
     try {

@@ -54,6 +54,7 @@ vi.mock("../../lib/frameSampler", async (orig) => ({
 }));
 
 const { exportCut } = await import("./export");
+const { clearSegmentCache } = await import("./segmentCache");
 
 // --- fixtures ---------------------------------------------------------------
 
@@ -99,7 +100,10 @@ async function segmentArgs(cut: Cut, clips: Clip[], opts: Record<string, unknown
   return calls.filter((c) => c.outputName === "seg.mp4").map((c) => c.args);
 }
 
-beforeEach(() => { calls.length = 0; });
+beforeEach(() => {
+  calls.length = 0;
+  clearSegmentCache();
+});
 
 // --- the matrix -------------------------------------------------------------
 // 2^4 presence combinations of the four Layer kinds, so every `isLast` /
@@ -171,6 +175,35 @@ describe("golden master — the base chain variants", () => {
     const [args] = await segmentArgs(
       { ...base, beats: [beat({ colorAdjustments: { exposure: 20, contrast: -10 } })] }, [clip("c1")]);
     expect(args.join(" ")).toMatchSnapshot();
+  });
+});
+
+describe("first-pass fades", () => {
+  it("applies a fade after an RGB blend Overlay has composited", async () => {
+    const first = beat({ id: "b1", clipId: "c1", inSec: 0, outSec: 4, durationSec: 4 });
+    const second = beat({
+      id: "b2",
+      clipId: "c2",
+      inSec: 0,
+      outSec: 4,
+      durationSec: 4,
+      transition: "fadeblack",
+      transitionSec: 0.5,
+      transitionPosition: "start",
+    });
+    const cut: Cut = {
+      aspect: "16:9",
+      beats: [first, second],
+      overlays: [overlay({ clipId: "c3", startTimeSec: 0, durationSec: 2, blendMode: "multiply" })],
+    };
+
+    const argsList = await segmentArgs(cut, [clip("c1"), clip("c2"), clip("c3")]);
+    const firstArgs = argsList.find((args) => args.join(" ").includes("blend=all_mode=multiply"));
+    expect(firstArgs).toBeDefined();
+    const graph = firstArgs![firstArgs!.indexOf("-filter_complex") + 1];
+
+    expect(graph.indexOf("blend=all_mode=multiply")).toBeGreaterThanOrEqual(0);
+    expect(graph.indexOf("fade=t=out")).toBeGreaterThan(graph.indexOf("blend=all_mode=multiply"));
   });
 });
 

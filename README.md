@@ -36,7 +36,9 @@
 ### ⚡ Local-First Persistence & Export
 - **IndexedDB Autosave**: Automatic project persistence in IndexedDB (`vidstr_projects_db`) with debounced auto-save status indicators.
 - **Project Portability**: Export and import complete self-contained `.json` project packages including media assets and custom fonts.
-- **In-Browser FFmpeg WASM Export**: Final MP4 rendering is executed entirely inside the browser using isolated single-threaded `ffmpeg.wasm` instances.
+- **In-Browser FFmpeg WASM Export**: Final MP4 rendering is executed entirely inside the browser using isolated `ffmpeg.wasm` instances. The stable single-threaded worker pool is the default; a guarded multithreaded core is available as an experimental opt-in and automatically falls back if it fails.
+- **Quality-Preserving Re-export Cache**: Beat renders are keyed by their exact FFmpeg command and input bytes, so unchanged Beats are reused bit-for-bit while edited Beats are re-encoded.
+- **First-Pass Fade Transitions**: Fade-to-black, fade-to-white, and standard fades are applied after the complete Beat Layer stack and joined with stream copy, avoiding a redundant full-Cut encode. Cross-Beat wipes and slides retain the compatibility transition pass.
 - **Subtitle Export**: Export final scripts to `.srt` subtitle files or formatted text scripts alongside the rendered MP4.
 
 ---
@@ -121,7 +123,8 @@ StudioApp (React 18 + TypeScript + Vite)
 2. **Media Blob URL Safety**:
    - Browser object URLs are cached and managed via `getClipBlobUrl()` (`src/lib/blobUrlCache.ts`) to avoid memory leaks and black screen preview bugs caused by premature `URL.revokeObjectURL()` calls.
 3. **Isolated FFmpeg WASM Execution**:
-   - To prevent WebAssembly heap exhaustion during complex video encoding, `ffmpeg.wasm` runs isolated single-threaded instances per operation. Single-threaded mode is strictly enforced for WASM stability.
+   - To prevent WebAssembly heap exhaustion during complex video encoding, `ffmpeg.wasm` runs a fresh isolated instance per operation. The default single-threaded mode uses a memory-aware operation pool. Experimental multithreaded mode is serialized to one engine and protected by a persistent circuit breaker.
+   - The single-threaded pool adapts from one to four workers based on reported device memory and CPU concurrency. Cached Beat segments use a bounded, memory-aware LRU.
 4. **Still Image Durations**:
    - Image files imported into the Clip Bin receive a synthetic default duration of 10 seconds, allowing full trimming and Ken Burns animation paths on the timeline.
 5. **No AI API Keys in Client**:
