@@ -36,6 +36,7 @@ import DeleteIcon from "../design-system/icons/DeleteIcon";
 import LockIcon from "../design-system/icons/LockIcon";
 import UnlockIcon from "../design-system/icons/UnlockIcon";
 import CopyIcon from "../design-system/icons/CopyIcon";
+import { collectBeatTitleEntries, updateBeatTitleText } from "./beatTitleIndex";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -66,6 +67,7 @@ interface Props {
   logline: string;
   index: number;
   total: number;
+  onSelectBeat?: (beatId: string) => void;
   onDuplicateBeat: (beatId: string) => void;
   selectedOverlayId?: string | null;
   onSelectOverlay?: (id: string | null) => void;
@@ -164,7 +166,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
   );
 }
 
-export default function Inspector({ beat, clip, clips, logline, index, total, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker, onRequestDeleteSegment }: Props) {
+export default function Inspector({ beat, clip, clips, logline, index, total, onSelectBeat, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedStickerId, onSelectSticker, onRequestDeleteSegment }: Props) {
   const { state, dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
@@ -983,6 +985,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   // have never had a title). Editing dispatches the whole beat back.
   const beatTitleLayers: TitleLayerSettings[] = b.titleLayers ?? makeBeatTitleLayers();
   const beatTitleCount = beatTitleLayers.filter((l) => l.enabled && l.text.trim()).length;
+  const indexedBeatTitles = collectBeatTitleEntries(cut?.beats ?? []);
+
+  function editIndexedBeatTitle(targetBeat: Beat, layerId: string, text: string) {
+    dispatch({
+      type: "UPDATE_BEAT",
+      beat: updateBeatTitleText(targetBeat, layerId, text),
+    });
+  }
 
 
 
@@ -2063,6 +2073,61 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <div className={"st-color-collapsible" + (titleOpen ? " open" : "")}>
             <div className="st-color-collapsible-inner">
               <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+                <div className="st-beat-title-index">
+                  <div className="st-beat-title-index-head">
+                    <div>
+                      <strong>Beat title index</strong>
+                      <span>Edit title copy here or open its Beat for full styling.</span>
+                    </div>
+                    <span>{indexedBeatTitles.length} titled</span>
+                  </div>
+
+                  {indexedBeatTitles.length > 0 ? (
+                    <div className="st-beat-title-index-list">
+                      {indexedBeatTitles.map((entry) => {
+                        const sourceName = clips.find((candidate) => candidate.id === entry.beat.clipId)?.name;
+                        const active = entry.beat.id === b.id;
+                        return (
+                          <div
+                            key={entry.beat.id}
+                            className={`st-beat-title-index-item${active ? " active" : ""}`}
+                          >
+                            <ControlButton
+                              type="button"
+                              className="st-beat-title-index-jump"
+                              onClick={() => {
+                                onSelectBeat?.(entry.beat.id);
+                                setTitleOpen(true);
+                              }}
+                              title={`Open Beat ${entry.beatIndex + 1}${sourceName ? ` · ${sourceName}` : ""}`}
+                            >
+                              <strong>{String(entry.beatIndex + 1).padStart(2, "0")}</strong>
+                              <span>{active ? "Current" : "Open"}</span>
+                            </ControlButton>
+                            <div className="st-beat-title-index-fields">
+                              {entry.layers.map((layer, layerIndex) => (
+                                <InputControl
+                                  key={layer.id}
+                                  value={layer.text}
+                                  onChange={(event) =>
+                                    editIndexedBeatTitle(entry.beat, layer.id, event.target.value)
+                                  }
+                                  aria-label={`Beat ${entry.beatIndex + 1} title layer ${layerIndex + 1}`}
+                                  title={sourceName}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="st-beat-title-index-empty">
+                      No Beat titles yet. Add one below and it will appear here.
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ fontSize: 11, color: "var(--ink-3)" }}>
                   Titles shown only during this beat. The cut-level intro title (in Export) stays separate.
                 </div>

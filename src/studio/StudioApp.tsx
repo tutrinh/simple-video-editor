@@ -343,6 +343,7 @@ export default function StudioApp() {
           logline={story?.logline ?? ""}
           index={selIndex}
           total={beats.length}
+          onSelectBeat={setSelectedBeatId}
           onDuplicateBeat={duplicateBeat}
           selectedOverlayId={selectedOverlayId}
           onSelectOverlay={setSelectedOverlayId}

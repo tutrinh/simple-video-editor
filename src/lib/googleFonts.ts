@@ -16,6 +16,7 @@ export const GOOGLE_TITLE_FONTS: GoogleFontOption[] = [
   { id: "oswald", name: "Oswald (Google Font)", category: "sans-serif", googleFontName: "Oswald", fontsourceSlug: "oswald", cssFamily: "'Oswald', sans-serif", weight: "400;600;700" },
   { id: "playfair", name: "Playfair Display (Google Font)", category: "serif", googleFontName: "Playfair+Display", fontsourceSlug: "playfair-display", cssFamily: "'Playfair Display', serif", weight: "400;600;700;900" },
   { id: "bebas", name: "Bebas Neue (Google Font)", category: "display", googleFontName: "Bebas+Neue", fontsourceSlug: "bebas-neue", cssFamily: "'Bebas Neue', display", weight: "400" },
+  { id: "darumadrop-one", name: "Darumadrop One (Google Font)", category: "display", googleFontName: "Darumadrop+One", fontsourceSlug: "darumadrop-one", cssFamily: "'Darumadrop One', display", weight: "400" },
   { id: "space-grotesk", name: "Space Grotesk (Google Font)", category: "sans-serif", googleFontName: "Space+Grotesk", fontsourceSlug: "space-grotesk", cssFamily: "'Space Grotesk', sans-serif", weight: "400;600;700" },
   { id: "poppins", name: "Poppins (Google Font)", category: "sans-serif", googleFontName: "Poppins", fontsourceSlug: "poppins", cssFamily: "'Poppins', sans-serif", weight: "400;600;700;800" },
   { id: "pacifico", name: "Pacifico (Google Font)", category: "handwriting", googleFontName: "Pacifico", fontsourceSlug: "pacifico", cssFamily: "'Pacifico', cursive", weight: "400" },
@@ -36,6 +37,32 @@ export const SYSTEM_TITLE_FONTS = [
 // migration.
 
 export const GOOGLE_FAMILY_PREFIX = "google:";
+
+/** Extract a family from a Google Fonts specimen or CSS URL. */
+export function parseGoogleFontUrl(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.toLowerCase();
+
+    if (host === "fonts.google.com") {
+      const match = url.pathname.match(/^\/specimen\/([^/]+)/i);
+      if (!match) return null;
+      const family = decodeURIComponent(match[1]).replace(/\+/g, " ").trim();
+      return family || null;
+    }
+
+    if (host === "fonts.googleapis.com") {
+      const rawFamily = url.searchParams.get("family");
+      if (!rawFamily) return null;
+      const firstFamily = rawFamily.split("|")[0].split(":")[0].trim();
+      return firstFamily || null;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
 
 /** `"Anton"` → `"google:Anton"`. */
 export function googleFamilyId(family: string): string {
@@ -229,4 +256,3 @@ export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400)
   }
   return new Uint8Array();
 }
-

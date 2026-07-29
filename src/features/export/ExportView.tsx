@@ -175,6 +175,11 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
         posY: pl.posY,
         scope: pl.scope,
         introSec: pl.introSec,
+        startSec: pl.startSec,
+        durationSec: pl.durationSec,
+        fadeOut: pl.fadeOut,
+        maskMode: pl.maskMode,
+        maskColor: pl.maskColor,
         ...(pl.text ? { text: pl.text } : {}),
       };
     });
@@ -356,9 +361,16 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
           posY: l.posY,
           scope: l.scope,
           introSec: l.introSec,
+          startSec: l.startSec,
+          durationSec: l.durationSec,
+          fadeOut: l.fadeOut,
           animation: l.animation,
           animDurationSec: l.animDurationSec,
           boxWidthPct: l.boxWidthPct,
+          lineHeight: l.lineHeight,
+          typewriterCursor: l.typewriterCursor,
+          maskMode: l.maskMode,
+          maskColor: l.maskColor,
         };
 
       };
@@ -423,6 +435,9 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       posY: l.posY,
       scope: l.scope,
       introSec: l.introSec,
+      startSec: l.startSec,
+      durationSec: l.durationSec,
+      fadeOut: l.fadeOut,
       fontFamily: fontObj?.cssFamily,
       fontWeight: l.weight,
       fontId: l.fontId,
@@ -430,6 +445,10 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       animation: l.animation,
       animDurationSec: l.animDurationSec,
       boxWidthPct: l.boxWidthPct,
+      lineHeight: l.lineHeight,
+      typewriterCursor: l.typewriterCursor,
+      maskMode: l.maskMode,
+      maskColor: l.maskColor,
     };
 
   });

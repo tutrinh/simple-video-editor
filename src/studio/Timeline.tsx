@@ -40,6 +40,7 @@ import {
   TimelineViewport,
   TimelineZoom,
 } from "../design-system/EditorTimeline";
+import { activeBeatTitleCount } from "./beatTitleIndex";
 
 
 interface Props {
@@ -1082,6 +1083,7 @@ export default function Timeline({
                   <div className="st-playhead" style={{ left: playheadLeft }} />
                   {beats.map((b, i) => {
                     const clip = clipById.get(b.clipId);
+                    const activeTitleCount = activeBeatTitleCount(b);
                     // Width proportional to beat duration
                     const widthPct = (b.durationSec / totalDur) * 100;
                     return (
@@ -1114,6 +1116,15 @@ export default function Timeline({
                           {b.splitScreen && b.splitScreen.layout !== "none" && (
                             <span style={{ position: "absolute", top: 4, right: 4, background: "rgba(139,124,255,0.9)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 3, zIndex: 5, backdropFilter: "blur(4px)" }}>
                               🥞 Split
+                            </span>
+                          )}
+                          {activeTitleCount > 0 && (
+                            <span
+                              className="st-beat-title-badge"
+                              title={`${activeTitleCount} active title layer${activeTitleCount === 1 ? "" : "s"}`}
+                              aria-label={`Beat has ${activeTitleCount} active title layer${activeTitleCount === 1 ? "" : "s"}`}
+                            >
+                              T{activeTitleCount > 1 ? activeTitleCount : ""}
                             </span>
                           )}
                           <span className="bn st-num">{String(i + 1).padStart(2, "0")}</span>

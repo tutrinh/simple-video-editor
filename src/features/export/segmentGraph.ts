@@ -41,6 +41,7 @@ export interface CaptionLayerSpec {
 
 export interface TitleLayerSpec {
   kind: "title";
+  maskMode?: "none" | "video";
   /** Filename inside the engine FS (e.g. `title_seg_0.png`). */
   pngName: string;
   /** Raw PNG bytes. */

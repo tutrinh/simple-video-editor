@@ -12,7 +12,7 @@ import type { Voice } from "../../lib/kokoroTts";
 import { getClipBlobUrl } from "../../lib/blobUrlCache";
 import { getSplitLayoutCss, normalizeSplitConfig, getSlotTransformStyle } from "./splitScreenCanvas";
 
-import { drawTitleLayer, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
+import { drawTitleLayerAsset, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { getTitleFontBytes } from "./titleFonts";
 import { drawCaptionBlock } from "./captionCanvas";
 import { findFontById } from "../../lib/googleFonts";
@@ -24,6 +24,7 @@ import ChevronRightIcon from "../../design-system/icons/ChevronRightIcon";
 import PauseIcon from "../../design-system/icons/PauseIcon";
 import PlayIcon from "../../design-system/icons/PlayIcon";
 import ReplayIcon from "../../design-system/icons/ReplayIcon";
+import { titleVisibilityAt, type TitleScope } from "./titleTiming";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -42,8 +43,11 @@ export interface PreviewTitleLayer {
   color: string;
   posX: number;
   posY: number;
-  scope: "intro" | "entire";
+  scope: TitleScope;
   introSec?: number;
+  startSec?: number;
+  durationSec?: number;
+  fadeOut?: boolean;
   fontFamily?: string;
   fontWeight?: number;
   /** Font id + optional uploaded file — so the preview loads the SAME TTF bytes
@@ -55,6 +59,8 @@ export interface PreviewTitleLayer {
   boxWidthPct?: number;
   lineHeight?: number;
   typewriterCursor?: boolean;
+  maskMode?: "none" | "video";
+  maskColor?: string;
 }
 
 
@@ -734,19 +740,8 @@ export default function FinalPreview({
         {title && title.layers.map((layer) => {
           if (!layer.enabled || !layer.text.trim()) return null;
 
-          // Scope: "entire" is always on; "intro" shows for introSec then fades.
-          let opacity = 1;
-          let visible = false;
-          if (layer.scope === "entire") {
-            visible = true;
-          } else {
-            const dur = layer.introSec ?? 3;
-            const fade = Math.min(0.8, dur / 2);
-            if (elapsed < dur) {
-              visible = true;
-              if (elapsed > dur - fade) opacity = Math.max(0, (dur - elapsed) / fade);
-            }
-          }
+          const timing = titleVisibilityAt(layer, elapsed);
+          const { visible, opacity, localElapsedSec } = timing;
           if (!visible) return null;
 
           // Motion rides on top of the static bitmap (ADR-0008): opacity eases in
@@ -759,15 +754,16 @@ export default function FinalPreview({
           let typewriterProgress: number | undefined = undefined;
 
           if (anim === "typewriter") {
-            typewriterProgress = Math.min(1, Math.max(0, elapsed / animDur));
-          } else if (elapsed < animDur && anim !== "none") {
-            const p = Math.min(1, Math.max(0, elapsed / animDur));
+            typewriterProgress = Math.min(1, Math.max(0, localElapsedSec / animDur));
+          } else if (localElapsedSec < animDur && anim !== "none") {
+            const p = Math.min(1, Math.max(0, localElapsedSec / animDur));
             animOpacity = opacity * p;
             const previewW = PREVIEW_H * ASPECT_RATIO[cut.aspect];
             if (anim === "slide_left") animTransform = `translateX(${(1 - p) * -(previewW * TITLE_ANIM.slideXFrac)}px)`;
             else if (anim === "slide_bottom") animTransform = `translateY(${(1 - p) * (PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
             else if (anim === "slide_top") animTransform = `translateY(${(1 - p) * -(PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
           }
+          if (layer.maskMode === "video") animTransform = "";
 
           return (
             <TitleLayerCanvas
@@ -966,7 +962,7 @@ function TitleLayerCanvas({
         canvas,
         cw,
         ch,
-        (ctx) => drawTitleLayer(ctx, {
+        (ctx) => drawTitleLayerAsset(ctx, {
           text: layer.text,
           canvasFamily,
           cssFamily,
@@ -983,6 +979,8 @@ function TitleLayerCanvas({
           lineHeight: layer.lineHeight,
           typewriterProgress,
           showCursor: layer.typewriterCursor !== false,
+          maskMode: layer.maskMode,
+          maskColor: layer.maskColor,
         }, cw, ch),
         () => cancelled,
       );
@@ -1116,24 +1114,18 @@ export function BeatTitleOverlay({
           id: l.id, enabled: l.enabled, text: l.text, sizePx: l.sizePx,
           letterSpacing: l.letterSpacing, arcDeg: l.arcDeg, shadow: l.shadow, color: l.color,
           posX: l.posX, posY: l.posY, scope: l.scope, introSec: l.introSec,
+          startSec: l.startSec, durationSec: l.durationSec,
+          fadeOut: l.fadeOut,
           fontFamily: findFontById(l.fontId)?.cssFamily, fontWeight: l.weight,
           fontId: l.fontId, fontFile: l.fontFile, animation: l.animation, animDurationSec: l.animDurationSec,
           boxWidthPct: l.boxWidthPct, lineHeight: l.lineHeight, typewriterCursor: l.typewriterCursor,
+          maskMode: l.maskMode,
+          maskColor: l.maskColor,
         };
 
 
-        let opacity = 1;
-        let visible = false;
-        if (layer.scope === "entire") {
-          visible = true;
-        } else {
-          const dur = layer.introSec ?? 3;
-          const fade = Math.min(0.8, dur / 2);
-          if (elapsed < dur) {
-            visible = true;
-            if (elapsed > dur - fade) opacity = Math.max(0, (dur - elapsed) / fade);
-          }
-        }
+        const timing = titleVisibilityAt(layer, elapsed);
+        const { visible, opacity, localElapsedSec } = timing;
         if (!visible) return null;
 
         const anim = layer.animation ?? "none";
@@ -1143,15 +1135,16 @@ export function BeatTitleOverlay({
         let typewriterProgress: number | undefined = undefined;
 
         if (anim === "typewriter") {
-          typewriterProgress = Math.min(1, Math.max(0, elapsed / animDur));
-        } else if (elapsed < animDur && anim !== "none") {
-          const p = Math.min(1, Math.max(0, elapsed / animDur));
+          typewriterProgress = Math.min(1, Math.max(0, localElapsedSec / animDur));
+        } else if (localElapsedSec < animDur && anim !== "none") {
+          const p = Math.min(1, Math.max(0, localElapsedSec / animDur));
           animOpacity = opacity * p;
           const previewW = PREVIEW_H * ASPECT_RATIO[aspect];
           if (anim === "slide_left") animTransform = `translateX(${(1 - p) * -(previewW * TITLE_ANIM.slideXFrac)}px)`;
           else if (anim === "slide_bottom") animTransform = `translateY(${(1 - p) * (PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
           else if (anim === "slide_top") animTransform = `translateY(${(1 - p) * -(PREVIEW_H * TITLE_ANIM.slideYFrac)}px)`;
         }
+        if (layer.maskMode === "video") animTransform = "";
 
         return (
           <TitleLayerCanvas

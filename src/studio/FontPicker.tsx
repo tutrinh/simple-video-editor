@@ -5,6 +5,7 @@ import {
   GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded,
   googleFamilyId, parseGoogleFamilyId, syntheticGoogleFont, probeGoogleFamily,
 } from "../lib/googleFonts";
+import { useSettings } from "../state/SettingsContext";
 
 // A font list that shows each face in its own typeface. A native select cannot
 // do this because browsers do not reliably honour font-family on each option, so this is
@@ -26,6 +27,8 @@ interface Props {
 const MAX_LIST_H = 280;
 
 export default function FontPicker({ value, onChange }: Props) {
+  const { settings } = useSettings();
+  const savedGoogleFonts = settings.customGoogleFonts.map(syntheticGoogleFont);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -57,8 +60,8 @@ export default function FontPicker({ value, onChange }: Props) {
   // enabled layers actually use, and unloaded rows would all render identically
   // in the fallback — exactly the problem this component exists to solve.
   useEffect(() => {
-    if (open) GOOGLE_TITLE_FONTS.forEach(ensureGoogleFontLoaded);
-  }, [open]);
+    if (open) [...GOOGLE_TITLE_FONTS, ...savedGoogleFonts].forEach(ensureGoogleFontLoaded);
+  }, [open, settings.customGoogleFonts]);
 
   useEffect(() => {
     if (!open) return;
@@ -205,6 +208,12 @@ export default function FontPicker({ value, onChange }: Props) {
                 <>
                   {groupHeader("Current")}
                   {row(value, typedFamily, current?.cssFamily)}
+                </>
+              )}
+              {savedGoogleFonts.length > 0 && (
+                <>
+                  {groupHeader("Saved Google Fonts")}
+                  {savedGoogleFonts.map((f) => row(f.id, f.name, f.cssFamily))}
                 </>
               )}
               {groupHeader("Google Fonts")}

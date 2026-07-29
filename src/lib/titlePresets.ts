@@ -97,6 +97,11 @@ export function savePreset(name: string, titleLayers: TitleLayerSettings[], proj
       posY: l.posY,
       scope: l.scope,
       introSec: l.introSec,
+      startSec: l.startSec,
+      durationSec: l.durationSec,
+      fadeOut: l.fadeOut,
+      maskMode: l.maskMode,
+      maskColor: l.maskColor,
     })),
   };
   const updated = [newPreset, ...custom];

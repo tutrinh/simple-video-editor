@@ -12,6 +12,8 @@ export interface Settings {
   tone: string;
   /** Genre/format that steers the Author prompt's structure (orthogonal to tone). */
   scriptType: string;
+  /** Google Font family names imported from Settings and available in Title pickers. */
+  customGoogleFonts: string[];
 }
 
 const DEFAULTS: Settings = {
@@ -20,6 +22,7 @@ const DEFAULTS: Settings = {
   authorModel: "claude-opus-4-8",
   tone: "casual",
   scriptType: "auto",
+  customGoogleFonts: [],
 };
 
 export const AI_PROVIDER_OPTIONS: { id: AiProvider; label: string }[] = [
@@ -83,7 +86,12 @@ function loadSettings(): Settings {
     // Antigravity was removed as an engine. Normalize old persisted values so
     // the select never hydrates with an option that no longer exists.
     const aiProvider = normalizeAiProvider(parsed.aiProvider);
-    return { ...DEFAULTS, ...parsed, aiProvider };
+    const customGoogleFonts = Array.isArray(parsed.customGoogleFonts)
+      ? [...new Set(parsed.customGoogleFonts.filter((family): family is string =>
+          typeof family === "string" && family.trim().length > 0
+        ).map((family) => family.trim()))]
+      : [];
+    return { ...DEFAULTS, ...parsed, aiProvider, customGoogleFonts };
   } catch {
     return DEFAULTS;
   }
@@ -92,7 +100,9 @@ function loadSettings(): Settings {
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const update = (patch: Partial<Settings>) => setSettings((s) => ({ ...s, ...patch }));
-  const reset = () => setSettings(DEFAULTS);
+  // Imported fonts are a user library, not project state, so "Start over"
+  // preserves them while resetting editor preferences.
+  const reset = () => setSettings((s) => ({ ...DEFAULTS, customGoogleFonts: s.customGoogleFonts }));
 
   // Persist across reloads. "Start over" calls reset() → DEFAULTS is written back.
   useEffect(() => {

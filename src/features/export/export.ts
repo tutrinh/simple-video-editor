@@ -13,6 +13,7 @@ import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers
 import { normalizeSplitConfig, buildSplitScreenFilterGraph } from "./splitScreenCanvas";
 import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LayerSpec } from "./segmentGraph";
 import { cacheSegment, getCachedSegment, segmentCacheKey } from "./segmentCache";
+import { titleWindow, type TitleScope } from "./titleTiming";
 
 
 
@@ -40,13 +41,18 @@ export interface TitleLayer {
   color: string;
   posX: number; // -50 .. +50 (% horizontal offset from center)
   posY: number; // -50 .. +50 (% vertical offset from center)
-  scope: "intro" | "entire";
+  scope: TitleScope;
   introSec?: number;
+  startSec?: number;
+  durationSec?: number;
+  fadeOut?: boolean;
   animation?: TitleAnimation;
   animDurationSec?: number;
   boxWidthPct?: number;
   lineHeight?: number;
   typewriterCursor?: boolean;
+  maskMode?: "none" | "video";
+  maskColor?: string;
 }
 
 
@@ -334,6 +340,8 @@ export async function exportCut(
           posY: l.posY,
           boxWidthPct: l.boxWidthPct,
           lineHeight: l.lineHeight,
+          maskMode: l.maskMode,
+          maskColor: l.maskColor,
         },
         w,
         h,
@@ -374,6 +382,8 @@ export async function exportCut(
             posY: l.posY,
             boxWidthPct: l.boxWidthPct,
             lineHeight: l.lineHeight,
+            maskMode: l.maskMode,
+            maskColor: l.maskColor,
           },
           w,
           h,
@@ -662,9 +672,10 @@ export async function exportCut(
       layer: TitleLayer,
       canvasFamily: string,
       cssFamily: string,
-      bStart: number,
+      segmentStartSec: number,
       segDur: number,
-      scopeDur: number,
+      windowStartSec: number,
+      windowEndSec: number,
       prefix: string,
     ) => {
       const text = layer.text;
@@ -676,12 +687,14 @@ export async function exportCut(
 
       for (let s = 1; s <= totalChars; s++) {
         const progress = s / totalChars;
-        const stepStartRel = (s - 1) * stepDur;
-        const stepEndRel = s === totalChars ? scopeDur : s * stepDur;
+        const stepStartRel = windowStartSec + (s - 1) * stepDur;
+        const stepEndRel = s === totalChars
+          ? windowEndSec
+          : Math.min(windowEndSec, windowStartSec + s * stepDur);
 
-        if (bStart < stepEndRel && bStart + segDur > stepStartRel) {
-          const segStepStart = Math.max(0, stepStartRel - bStart);
-          const segStepEnd = Math.min(segDur, stepEndRel - bStart);
+        if (segmentStartSec < stepEndRel && segmentStartSec + segDur > stepStartRel) {
+          const segStepStart = Math.max(0, stepStartRel - segmentStartSec);
+          const segStepEnd = Math.min(segDur, stepEndRel - segmentStartSec);
 
           if (segStepEnd > segStepStart + 0.001) {
             const png = await renderTitleLayerToPng(
@@ -702,6 +715,8 @@ export async function exportCut(
                 lineHeight: layer.lineHeight,
                 typewriterProgress: progress,
                 showCursor: layer.typewriterCursor !== false,
+                maskMode: layer.maskMode,
+                maskColor: layer.maskColor,
               },
               w,
               h,
@@ -713,6 +728,7 @@ export async function exportCut(
               const enable = `:enable='between(t,${segStepStart.toFixed(3)},${segStepEnd.toFixed(3)})'`;
               titleLayers.push({
                 kind: "title",
+                maskMode: layer.maskMode,
                 pngName: tName,
                 png,
                 fadeParts: [],
@@ -729,13 +745,22 @@ export async function exportCut(
     for (let k = 0; k < preRenderedTitleLayers.length; k++) {
       const rtl = preRenderedTitleLayers[k];
       const l = rtl.layer;
-      const scopeDur = l.scope === "intro" ? (l.introSec ?? 3) : totalDurationSec;
-      const overlap = bStart < scopeDur && bStart + segDur > 0;
+      const window = titleWindow(l, totalDurationSec);
+      const overlap = bStart < window.endSec && bStart + segDur > window.startSec;
       if (!overlap) continue;
 
       const anim = l.animation ?? "none";
       if (anim === "typewriter") {
-        await addTypewriterTitleSpecs(l, rtl.canvasFamily, rtl.cssFamily, bStart, segDur, scopeDur, `title_${k}`);
+        await addTypewriterTitleSpecs(
+          l,
+          rtl.canvasFamily,
+          rtl.cssFamily,
+          bStart,
+          segDur,
+          window.startSec,
+          window.endSec,
+          `title_${k}`,
+        );
         continue;
       }
 
@@ -745,27 +770,31 @@ export async function exportCut(
       const animDur = l.animDurationSec ?? 0.5;
 
       const fadeParts: string[] = [];
-      if (anim !== "none" && bStart < animDur) {
-        const dIn = Math.min(animDur - bStart, segDur);
-        if (dIn > 0) fadeParts.push(`fade=t=in:st=0:d=${dIn.toFixed(3)}:alpha=1`);
+      const animEnd = window.startSec + animDur;
+      if (anim !== "none" && bStart < animEnd && bEnd > window.startSec) {
+        const stIn = Math.max(0, window.startSec - bStart);
+        const dIn = Math.min(animEnd, bEnd) - Math.max(window.startSec, bStart);
+        if (dIn > 0) fadeParts.push(`fade=t=in:st=${stIn.toFixed(3)}:d=${dIn.toFixed(3)}:alpha=1`);
       }
-      if (l.scope === "intro") {
-        const fadeDur = Math.min(0.8, scopeDur / 2);
-        const fadeStart = Math.max(0, scopeDur - fadeDur);
-        if (bStart + segDur > fadeStart && bStart < scopeDur) {
+      if (l.scope !== "entire" && l.fadeOut !== false) {
+        const windowDur = window.endSec - window.startSec;
+        const fadeDur = Math.min(0.8, windowDur / 2);
+        const fadeStart = Math.max(window.startSec, window.endSec - fadeDur);
+        if (bEnd > fadeStart && bStart < window.endSec) {
           const stOut = Math.max(0, fadeStart - bStart);
-          const dOut = Math.min(fadeDur, scopeDur - Math.max(bStart, fadeStart));
+          const dOut = Math.min(fadeDur, window.endSec - Math.max(bStart, fadeStart));
           if (dOut > 0) fadeParts.push(`fade=t=out:st=${stOut.toFixed(3)}:d=${dOut.toFixed(3)}:alpha=1`);
         }
       }
 
       const dStr = animDur.toFixed(3);
       const bStartStr = bStart.toFixed(3);
-      const tExpr = bStart > 0 ? `(t+${bStartStr})` : "t";
+      const windowStartStr = window.startSec.toFixed(3);
+      const tExpr = `(t+${bStartStr}-${windowStartStr})`;
 
       let xExpr = "0";
       let yExpr = "0";
-      if (bStart < animDur) {
+      if (l.maskMode !== "video" && bStart < animEnd && bEnd > window.startSec) {
         if (anim === "slide_left") {
           xExpr = `if(lt(${tExpr},${dStr}),(1-${tExpr}/${dStr})*${(-w * TITLE_ANIM.slideXFrac).toFixed(1)},0)`;
         } else if (anim === "slide_bottom") {
@@ -775,10 +804,10 @@ export async function exportCut(
         }
       }
 
-      const enExpr = bStart > 0 ? `between(t+${bStartStr},0,${scopeDur.toFixed(3)})` : `between(t,0,${scopeDur.toFixed(3)})`;
-      const enable = l.scope === "intro" ? `:enable='${enExpr}'` : "";
+      const enExpr = `between(t+${bStartStr},${window.startSec.toFixed(3)},${window.endSec.toFixed(3)})`;
+      const enable = l.scope !== "entire" ? `:enable='${enExpr}'` : "";
 
-      titleLayers.push({ kind: "title", pngName: tName, png: rtl.png, fadeParts, xExpr, yExpr, enable });
+      titleLayers.push({ kind: "title", maskMode: l.maskMode, pngName: tName, png: rtl.png, fadeParts, xExpr, yExpr, enable });
     }
 
     // Per-beat titles: same compositing pipeline, but timed segment-locally
@@ -789,11 +818,21 @@ export async function exportCut(
     for (let j = 0; j < beatRendered.length; j++) {
       const rtl = beatRendered[j];
       const l = rtl.layer;
-      const scopeDur = l.scope === "intro" ? (l.introSec ?? 3) : segDur;
+      const window = titleWindow(l, segDur);
+      if (window.endSec <= window.startSec) continue;
 
       const anim = l.animation ?? "none";
       if (anim === "typewriter") {
-        await addTypewriterTitleSpecs(l, rtl.canvasFamily, rtl.cssFamily, 0, segDur, scopeDur, `btitle_${b.id}_${j}`);
+        await addTypewriterTitleSpecs(
+          l,
+          rtl.canvasFamily,
+          rtl.cssFamily,
+          0,
+          segDur,
+          window.startSec,
+          window.endSec,
+          `btitle_${b.id}_${j}`,
+        );
         continue;
       }
 
@@ -804,32 +843,38 @@ export async function exportCut(
 
       const fadeParts: string[] = [];
       if (anim !== "none") {
-        const dIn = Math.min(animDur, segDur);
-        if (dIn > 0) fadeParts.push(`fade=t=in:st=0:d=${dIn.toFixed(3)}:alpha=1`);
+        const dIn = Math.min(animDur, window.endSec - window.startSec);
+        if (dIn > 0) fadeParts.push(`fade=t=in:st=${window.startSec.toFixed(3)}:d=${dIn.toFixed(3)}:alpha=1`);
       }
-      if (l.scope === "intro") {
-        const fadeDur = Math.min(0.8, scopeDur / 2);
-        const fadeStart = Math.max(0, scopeDur - fadeDur);
+      if (l.scope !== "entire" && l.fadeOut !== false) {
+        const windowDur = window.endSec - window.startSec;
+        const fadeDur = Math.min(0.8, windowDur / 2);
+        const fadeStart = Math.max(window.startSec, window.endSec - fadeDur);
         if (segDur > fadeStart) {
-          const dOut = Math.min(fadeDur, scopeDur - fadeStart);
+          const dOut = Math.min(fadeDur, window.endSec - fadeStart);
           if (dOut > 0) fadeParts.push(`fade=t=out:st=${fadeStart.toFixed(3)}:d=${dOut.toFixed(3)}:alpha=1`);
         }
       }
 
       const dStr = animDur.toFixed(3);
+      const titleTimeExpr = `(t-${window.startSec.toFixed(3)})`;
       let xExpr = "0";
       let yExpr = "0";
-      if (anim === "slide_left") {
-        xExpr = `if(lt(t,${dStr}),(1-t/${dStr})*${(-w * TITLE_ANIM.slideXFrac).toFixed(1)},0)`;
-      } else if (anim === "slide_bottom") {
-        yExpr = `if(lt(t,${dStr}),(1-t/${dStr})*${(h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
-      } else if (anim === "slide_top") {
-        yExpr = `if(lt(t,${dStr}),(1-t/${dStr})*${(-h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+      if (l.maskMode !== "video") {
+        if (anim === "slide_left") {
+          xExpr = `if(lt(${titleTimeExpr},${dStr}),(1-${titleTimeExpr}/${dStr})*${(-w * TITLE_ANIM.slideXFrac).toFixed(1)},0)`;
+        } else if (anim === "slide_bottom") {
+          yExpr = `if(lt(${titleTimeExpr},${dStr}),(1-${titleTimeExpr}/${dStr})*${(h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+        } else if (anim === "slide_top") {
+          yExpr = `if(lt(${titleTimeExpr},${dStr}),(1-${titleTimeExpr}/${dStr})*${(-h * TITLE_ANIM.slideYFrac).toFixed(1)},0)`;
+        }
       }
 
-      const enable = l.scope === "intro" ? `:enable='between(t,0,${scopeDur.toFixed(3)})'` : "";
+      const enable = l.scope !== "entire"
+        ? `:enable='between(t,${window.startSec.toFixed(3)},${window.endSec.toFixed(3)})'`
+        : "";
 
-      titleLayers.push({ kind: "title", pngName: tName, png: rtl.png, fadeParts, xExpr, yExpr, enable });
+      titleLayers.push({ kind: "title", maskMode: l.maskMode, pngName: tName, png: rtl.png, fadeParts, xExpr, yExpr, enable });
     }
 
     // Check which pre-trimmed B-roll overlays overlap this beat segment's window [bStart, bEnd]
@@ -861,12 +906,24 @@ export async function exportCut(
 
 
 
-    const allLayers: LayerSpec[] = [
-      ...captionLayers,
-      ...titleLayers,
-      ...overlayLayers,
-      ...stickerLayers,
-    ];
+    const maskTitleLayers = titleLayers.filter((layer) => layer.maskMode === "video");
+    const regularTitleLayers = titleLayers.filter((layer) => layer.maskMode !== "video");
+    const allLayers: LayerSpec[] = maskTitleLayers.length > 0
+      ? [
+          ...regularTitleLayers,
+          ...overlayLayers,
+          ...stickerLayers,
+          // The matte consumes the fully composited picture. Captions remain
+          // readable above it, matching the preview's final caption layer.
+          ...maskTitleLayers,
+          ...captionLayers,
+        ]
+      : [
+          ...captionLayers,
+          ...titleLayers,
+          ...overlayLayers,
+          ...stickerLayers,
+        ];
     const transitionFilters = firstPassTransitionFilters(cut.beats, i, segDur);
 
     const audioIdx = numVideoInputs + allLayers.length;
@@ -897,10 +954,10 @@ export async function exportCut(
     }
 
     const audibleOverlays = overlayLayers
-      .map((ol, k) => ({
+      .map((ol) => ({
         o: ol.overlayClip,
         stLocalSec: ol.stLocalSec,
-        inputIdx: numVideoInputs + captionLayers.length + titleLayers.length + k,
+        inputIdx: numVideoInputs + allLayers.indexOf(ol),
       }))
       .filter(({ o }) => (o.volume ?? 0) > 0);
 

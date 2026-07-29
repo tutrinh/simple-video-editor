@@ -39,6 +39,7 @@
 - **In-Browser FFmpeg WASM Export**: Final MP4 rendering is executed entirely inside the browser using isolated `ffmpeg.wasm` instances. The stable single-threaded worker pool is the default; a guarded multithreaded core is available as an experimental opt-in and automatically falls back if it fails.
 - **Quality-Preserving Re-export Cache**: Beat renders are keyed by their exact FFmpeg command and input bytes, so unchanged Beats are reused bit-for-bit while edited Beats are re-encoded.
 - **First-Pass Fade Transitions**: Fade-to-black, fade-to-white, and standard fades are applied after the complete Beat Layer stack and joined with stream copy, avoiding a redundant full-Cut encode. Cross-Beat wipes and slides retain the compatibility transition pass.
+- **Video Title Masks**: Any cut-level or per-Beat Title Layer can reveal the fully composited moving picture through its glyphs against black, with the same canvas matte used in preview and export.
 - **Subtitle Export**: Export final scripts to `.srt` subtitle files or formatted text scripts alongside the rendered MP4.
 
 ---

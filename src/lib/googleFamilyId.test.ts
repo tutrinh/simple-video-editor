@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   googleFamilyId, parseGoogleFamilyId, slugifyFamily, syntheticGoogleFont,
   GOOGLE_FAMILY_PREFIX, GOOGLE_TITLE_FONTS, findFontById, looksLikeFontBytes,
+  parseGoogleFontUrl,
 } from "./googleFonts";
 
 // A family typed by name rides inside `fontId` as `google:Anton` (ADR-0014).
@@ -44,6 +45,32 @@ describe("googleFamilyId / parseGoogleFamilyId", () => {
     for (const f of GOOGLE_TITLE_FONTS) {
       expect(parseGoogleFamilyId(f.id), f.id).toBeNull();
     }
+  });
+});
+
+describe("parseGoogleFontUrl", () => {
+  it("reads a Google Fonts specimen URL", () => {
+    expect(parseGoogleFontUrl(
+      "https://fonts.google.com/specimen/Darumadrop+One",
+    )).toBe("Darumadrop One");
+  });
+
+  it("reads an encoded specimen URL with preview parameters", () => {
+    expect(parseGoogleFontUrl(
+      "https://fonts.google.com/specimen/Playfair%2BDisplay?preview.text=Hello",
+    )).toBe("Playfair Display");
+  });
+
+  it("reads a Google Fonts CSS URL", () => {
+    expect(parseGoogleFontUrl(
+      "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap",
+    )).toBe("Space Grotesk");
+  });
+
+  it("rejects unrelated and malformed URLs", () => {
+    expect(parseGoogleFontUrl("https://example.com/specimen/Roboto")).toBeNull();
+    expect(parseGoogleFontUrl("not a url")).toBeNull();
+    expect(parseGoogleFontUrl("https://fonts.google.com/")).toBeNull();
   });
 });
 

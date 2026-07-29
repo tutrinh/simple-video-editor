@@ -5,6 +5,7 @@ import { DEFAULT_ELEVEN_VOICE, DEFAULT_ELEVEN_MODEL } from "../lib/elevenLabs";
 import { activeVoPresetSettings } from "../lib/voPresets";
 
 import type { ExportQuality, TitleAnimation } from "../features/export/export";
+import type { TitleScope } from "../features/export/titleTiming";
 
 // Export-page settings live here (not in ExportView) so they survive tab
 // navigation — switching away and back keeps every slider, dropdown, and upload.
@@ -22,13 +23,23 @@ export interface TitleLayerSettings {
   color: string;
   posX: number;
   posY: number;
-  scope: "intro" | "entire";
+  scope: TitleScope;
   introSec: number;
+  /** Start time in Cut seconds, or Beat-local seconds for a Beat title. */
+  startSec?: number;
+  /** Visible duration when scope is "range". */
+  durationSec?: number;
+  /** Fade at the end of Intro/Timed range. Undefined preserves the default: on. */
+  fadeOut?: boolean;
   animation?: TitleAnimation;
   animDurationSec?: number;
   boxWidthPct?: number;
   lineHeight?: number;
   typewriterCursor?: boolean;
+  /** "video" reveals the composited picture through the title glyphs. */
+  maskMode?: "none" | "video";
+  /** Opaque matte behind a video-mask title. Defaults to black. */
+  maskColor?: string;
 }
 
 
@@ -68,7 +79,7 @@ export interface ExportSettings {
   titleSize: number;
   titleColor: string;
   titlePos: "top" | "center" | "bottom";
-  titleScope: "intro" | "entire";
+  titleScope: TitleScope;
   titleIntroSec: number;
 }
 

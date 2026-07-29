@@ -207,6 +207,93 @@ describe("first-pass fades", () => {
   });
 });
 
+describe("video title mask ordering", () => {
+  it("masks the completed blend Overlay while leaving Captions above the matte", async () => {
+    const cut: Cut = {
+      aspect: "16:9",
+      beats: [beat({ id: "b1", clipId: "c1", inSec: 0, outSec: 4, durationSec: 4 })],
+      overlays: [overlay({ clipId: "c2", startTimeSec: 0, durationSec: 2, blendMode: "multiply" })],
+      voSegments: [vo({ startTimeSec: 0, durationSec: 3, captionVisible: true })],
+    };
+    const opts = { title: { layers: [titleLayer({ maskMode: "video" })] } };
+
+    const argsList = await segmentArgs(cut, [clip("c1"), clip("c2")], opts);
+    const args = argsList.find((candidate) => candidate.join(" ").includes("blend=all_mode=multiply"));
+    expect(args).toBeDefined();
+    const graph = args![args!.indexOf("-filter_complex") + 1];
+    const blendAt = graph.indexOf("blend=all_mode=multiply");
+    const titleAt = graph.indexOf("format=rgba[ovt_0]");
+    const captionAt = graph.lastIndexOf("overlay=x=0:y=0");
+
+    expect(titleAt).toBeGreaterThan(blendAt);
+    expect(captionAt).toBeGreaterThan(titleAt);
+  });
+});
+
+describe("timed title ranges", () => {
+  it("gates a cut-level title to its exact Cut-time range", async () => {
+    const [args] = await segmentArgs(
+      { aspect: "16:9", beats: [beat()] },
+      [clip("c1")],
+      {
+        title: {
+          layers: [titleLayer({
+            scope: "range",
+            startSec: 1,
+            durationSec: 1.5,
+            animation: "none",
+          })],
+        },
+      },
+    );
+    const graph = args[args.indexOf("-filter_complex") + 1];
+
+    expect(graph).toContain("enable='between(t+0.000,1.000,2.500)'");
+  });
+
+  it("gates a Beat title using Beat-local time", async () => {
+    const [args] = await segmentArgs(
+      { aspect: "16:9", beats: [beat()] },
+      [clip("c1")],
+      {
+        beatTitles: {
+          b1: [titleLayer({
+            scope: "range",
+            startSec: 0.75,
+            durationSec: 1.25,
+            animation: "none",
+          })],
+        },
+      },
+    );
+    const graph = args[args.indexOf("-filter_complex") + 1];
+
+    expect(graph).toContain("enable='between(t,0.750,2.000)'");
+  });
+
+  it("omits the alpha fade when fade out is disabled", async () => {
+    const [args] = await segmentArgs(
+      { aspect: "16:9", beats: [beat()] },
+      [clip("c1")],
+      {
+        title: {
+          layers: [titleLayer({
+            scope: "range",
+            startSec: 1,
+            durationSec: 1.5,
+            animation: "none",
+            fadeOut: false,
+          })],
+        },
+      },
+    );
+    const graph = args[args.indexOf("-filter_complex") + 1];
+
+    expect(graph).not.toContain("fade=t=out");
+    expect(graph).toContain("enable='between(t+0.000,1.000,2.500)'");
+  });
+});
+
 describe("golden master — the widest members", () => {
   it("a blended Overlay drives the gbrp retry", async () => {
     const [args] = await segmentArgs(

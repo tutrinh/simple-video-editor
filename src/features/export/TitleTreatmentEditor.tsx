@@ -6,6 +6,7 @@ import ColorField from "../../studio/ColorField";
 import FontPicker from "../../studio/FontPicker";
 import CopyIcon from "../../design-system/icons/CopyIcon";
 import SaveIcon from "../../design-system/icons/SaveIcon";
+import type { TitleScope } from "./titleTiming";
 
 /** The weight ladder, shown as a row of `A`s rather than a dropdown. */
 const TITLE_WEIGHTS = [
@@ -301,14 +302,45 @@ export default function TitleTreatmentEditor({
                 <input type="number" min={16} max={300} step={2} value={curLayer.sizePx} onChange={(e) => updateLayer(activeIdx, { sizePx: Number(e.target.value) })} style={{ width: 56, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 6px", fontSize: 12, textAlign: "right", outline: "none" }} /> px
               </label>
 
-              {/* The shared palette (ADR-0013) — same swatches the Sticker
-                  tint row shows, and a colour picked here shows up there. */}
-              <ColorField
-                value={curLayer.color}
-                onChange={(hex) => updateLayer(activeIdx, { color: hex })}
-                label="Color"
-                noun="text colour"
-              />
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Fill
+                <select
+                  value={curLayer.maskMode ?? "none"}
+                  onChange={(e) => {
+                    const maskMode = e.target.value as "none" | "video";
+                    const sliding = ["slide_left", "slide_bottom", "slide_top"].includes(curLayer.animation ?? "none");
+                    updateLayer(activeIdx, {
+                      maskMode,
+                      ...(maskMode === "video" && sliding ? { animation: "fade" as const } : {}),
+                    });
+                  }}
+                  style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--accent)", fontWeight: 600, fontSize: 12, padding: "4px 8px", outline: "none", cursor: "pointer" }}
+                  title="Solid color draws text normally; Video mask reveals the picture through the title on a colored background"
+                >
+                  <option value="none">Solid color</option>
+                  <option value="video">Video mask</option>
+                </select>
+              </label>
+
+              {curLayer.maskMode !== "video" && (
+                /* The shared palette (ADR-0013) — same swatches the Sticker
+                   tint row shows, and a colour picked here shows up there. */
+                <ColorField
+                  value={curLayer.color}
+                  onChange={(hex) => updateLayer(activeIdx, { color: hex })}
+                  label="Color"
+                  noun="text colour"
+                />
+              )}
+
+              {curLayer.maskMode === "video" && (
+                <ColorField
+                  value={curLayer.maskColor ?? "#000000"}
+                  onChange={(hex) => updateLayer(activeIdx, { maskColor: hex })}
+                  label="Background"
+                  noun="video mask background"
+                />
+              )}
 
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                 <input
@@ -322,21 +354,69 @@ export default function TitleTreatmentEditor({
 
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 Show
-                <select value={curLayer.scope} onChange={(e) => updateLayer(activeIdx, { scope: e.target.value as "intro" | "entire" })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
+                <select value={curLayer.scope} onChange={(e) => updateLayer(activeIdx, { scope: e.target.value as TitleScope })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
                   <option value="intro">{introScopeLabel}</option>
                   <option value="entire">{scopeEntireLabel}</option>
+                  <option value="range">Timed range</option>
                 </select>
               </label>
 
               {curLayer.scope === "intro" && (
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   Duration
-                  <select value={curLayer.introSec} onChange={(e) => updateLayer(activeIdx, { introSec: Number(e.target.value) })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
-                    <option value={2}>2s</option>
-                    <option value={3}>3s</option>
-                    <option value={4}>4s</option>
-                    <option value={5}>5s</option>
-                  </select>
+                  <input
+                    type="number"
+                    min={0.1}
+                    step={0.1}
+                    value={curLayer.introSec}
+                    onChange={(e) => updateLayer(activeIdx, { introSec: Math.max(0.1, Number(e.target.value) || 0.1) })}
+                    style={{ width: 58, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 6px", outline: "none" }}
+                    aria-label="Title duration in seconds"
+                  />
+                  s
+                </label>
+              )}
+
+              {curLayer.scope === "range" && (
+                <>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    Start
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={curLayer.startSec ?? 0}
+                      onChange={(e) => updateLayer(activeIdx, { startSec: Math.max(0, Number(e.target.value) || 0) })}
+                      style={{ width: 58, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 6px", outline: "none" }}
+                      aria-label="Title start time in seconds"
+                    />
+                    s
+                  </label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    Duration
+                    <input
+                      type="number"
+                      min={0.1}
+                      step={0.1}
+                      value={curLayer.durationSec ?? 3}
+                      onChange={(e) => updateLayer(activeIdx, { durationSec: Math.max(0.1, Number(e.target.value) || 0.1) })}
+                      style={{ width: 58, background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 6px", outline: "none" }}
+                      aria-label="Timed title duration in seconds"
+                    />
+                    s
+                  </label>
+                </>
+              )}
+
+              {curLayer.scope !== "entire" && (
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={curLayer.fadeOut !== false}
+                    onChange={(e) => updateLayer(activeIdx, { fadeOut: e.target.checked })}
+                    style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+                  />
+                  Fade out
                 </label>
               )}
 

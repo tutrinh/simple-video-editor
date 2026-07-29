@@ -14,4 +14,16 @@ describe("googleFonts module", () => {
     expect(font).toBeDefined();
     expect(font?.name).toContain("Outfit");
   });
+
+  it("includes Darumadrop One as its regular display face", () => {
+    const font = findFontById("darumadrop-one");
+
+    expect(font).toMatchObject({
+      googleFontName: "Darumadrop+One",
+      fontsourceSlug: "darumadrop-one",
+      cssFamily: "'Darumadrop One', display",
+      weight: "400",
+      isGoogle: true,
+    });
+  });
 });

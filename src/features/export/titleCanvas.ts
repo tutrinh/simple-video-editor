@@ -37,6 +37,8 @@ export interface TitleRenderLayer {
   lineHeight?: number; // -2..+2 (multiplier of font size)
   typewriterProgress?: number; // 0..1 progress of character reveal
   showCursor?: boolean; // whether to show blinking cursor '|' at typing tip
+  maskMode?: "none" | "video";
+  maskColor?: string; // opaque matte surrounding video-filled glyphs
 }
 
 
@@ -279,6 +281,30 @@ export async function drawTitleLayer(
   ctx.restore();
 }
 
+/**
+ * Draw the final title bitmap shared by preview and export. Video-mask mode is
+ * an opaque configurable matte with title-shaped transparent holes; overlaying it on
+ * the composited Beat reveals the live picture inside the glyphs.
+ */
+export async function drawTitleLayerAsset(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  layer: TitleRenderLayer,
+  w: number,
+  h: number,
+): Promise<void> {
+  if (layer.maskMode !== "video") {
+    await drawTitleLayer(ctx, layer, w, h);
+    return;
+  }
+
+  ctx.save();
+  ctx.fillStyle = layer.maskColor ?? "#000000";
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = "destination-out";
+  await drawTitleLayer(ctx, { ...layer, color: "#ffffff" }, w, h);
+  ctx.restore();
+}
+
 /** Export path: render one title layer to a full-frame transparent PNG for
  *  ffmpeg to overlay. Returns null when there is no canvas (e.g. non-browser). */
 export async function renderTitleLayerToPng(
@@ -291,10 +317,9 @@ export async function renderTitleLayerToPng(
   if (!ctx) return null;
   try {
     const renderLayer = typewriterProgress !== undefined ? { ...layer, typewriterProgress } : layer;
-    await drawTitleLayer(ctx, renderLayer, w, h);
+    await drawTitleLayerAsset(ctx, renderLayer, w, h);
     return await canvasToPngBuffer(canvas);
   } catch {
     return null;
   }
 }
-
