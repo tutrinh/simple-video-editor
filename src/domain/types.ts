@@ -183,6 +183,8 @@ export interface Beat {
   captionText: string;
   /** Expected footage for this position when the Beat came from a template. */
   templateSlotDescription?: string;
+  /** Creator-selected AI shot execution that fulfills the template slot role. */
+  templateSlotSuggestion?: string;
   captionDurations?: number[];
   colorAdjustments?: ColorAdjustments;
   /** Per-beat stacked title layers, shown during this beat (parallel to the

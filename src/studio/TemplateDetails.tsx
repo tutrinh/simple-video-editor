@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Aspect, ProjectTemplate } from "../domain/types";
+import { isBuiltInReelTemplate } from "../features/templates/builtInTemplates";
 
 interface Props {
   template: ProjectTemplate;
@@ -27,10 +28,12 @@ export default function TemplateDetails({ template, compact = false }: Props) {
     : [];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: compact ? 10 : 14 }}>
-      <ReferenceVideo file={template.inspirationVideo} aspect={template.aspect ?? "16:9"} />
+    <div className={`st-template-details${compact ? " compact" : ""}`}>
+      {!isBuiltInReelTemplate(template) && (
+        <ReferenceVideo file={template.inspirationVideo} aspect={template.aspect ?? "16:9"} />
+      )}
 
-      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+      <div className="st-template-detail-chips">
         <DetailChip label="Aspect" value={template.aspect ?? "16:9"} />
         <DetailChip label="Tone" value={template.toneHint || "Not specified"} />
         <DetailChip label="Structure" value={`${template.beats.length} beats`} />
@@ -38,33 +41,19 @@ export default function TemplateDetails({ template, compact = false }: Props) {
       </div>
 
       <div>
-        <div style={{ marginBottom: 7, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "var(--ink-3)" }}>
-          EDIT SEQUENCE
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        <div className="st-template-detail-label">EDIT SEQUENCE</div>
+        <div className="st-template-detail-beats">
           {template.beats.map((beat, index) => (
-            <div
-              key={index}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "24px minmax(0, 1fr) auto",
-                alignItems: "center",
-                gap: 9,
-                padding: compact ? "7px 9px" : "9px 11px",
-                background: "var(--panel)",
-                border: "1px solid var(--line)",
-                borderRadius: 7,
-              }}
-            >
-              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", textAlign: "center" }}>{index + 1}</span>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--ink)" }}>{beat.description}</span>
-                <span style={{ display: "block", marginTop: 2, fontSize: 9.5, color: "var(--ink-3)" }}>
+            <div key={index} className="st-template-detail-beat">
+              <span className="st-template-detail-number">{index + 1}</span>
+              <span className="st-template-detail-copy">
+                <span className="st-template-detail-description">{beat.description}</span>
+                <span className="st-template-detail-transition">
                   {beat.transition && beat.transition !== "none" ? `${beat.transition} · ${beat.transitionSec ?? 0.5}s` : index === 0 ? "Opening beat" : "Straight cut"}
                   {beat.zoom && beat.zoom > 1 ? ` · ${beat.zoom.toFixed(1)}× zoom` : ""}
                 </span>
               </span>
-              <span style={{ fontSize: 10, color: "var(--ink-2)", fontVariantNumeric: "tabular-nums" }}>
+              <span className="st-template-detail-duration">
                 {beat.approxDurationSec != null ? `~${beat.approxDurationSec}s` : "Auto"}
               </span>
             </div>
@@ -74,13 +63,11 @@ export default function TemplateDetails({ template, compact = false }: Props) {
 
       {colorEntries.length > 0 && (
         <div>
-          <div style={{ marginBottom: 7, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "var(--ink-3)" }}>
-            COLOR GRADE
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <div className="st-template-detail-label">COLOR GRADE</div>
+          <div className="st-template-color-chips">
             {colorEntries.map(([key, value]) => (
-              <span key={key} style={{ padding: "4px 7px", background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 6, fontSize: 9.5, color: "var(--ink-2)" }}>
-                {COLOR_LABELS[key]} <strong style={{ color: value ? "var(--accent)" : "var(--ink-3)" }}>{signed(value)}</strong>
+              <span key={key} className="st-template-color-chip">
+                {COLOR_LABELS[key]} <strong className={value ? "active" : ""}>{signed(value)}</strong>
               </span>
             ))}
           </div>
@@ -103,14 +90,11 @@ function ReferenceVideo({ file, aspect }: { file?: File; aspect: Aspect }) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const aspectRatio = aspect === "9:16" ? "9 / 16" : aspect === "1:1" ? "1 / 1" : "16 / 9";
-  const maxWidth = aspect === "9:16" ? 180 : aspect === "1:1" ? 260 : 360;
+  const aspectClass = aspect === "9:16" ? "portrait" : aspect === "1:1" ? "square" : "landscape";
 
   return (
-    <div>
-      <div style={{ marginBottom: 7, fontSize: 10, fontWeight: 700, letterSpacing: ".08em", color: "var(--ink-3)" }}>
-        REFERENCE VIDEO
-      </div>
+    <div className="st-template-reference">
+      <div className="st-template-detail-label">REFERENCE VIDEO</div>
       {src ? (
         <video
           src={src}
@@ -118,19 +102,10 @@ function ReferenceVideo({ file, aspect }: { file?: File; aspect: Aspect }) {
           playsInline
           preload="metadata"
           aria-label="Inspiration video"
-          style={{
-            display: "block",
-            width: "100%",
-            maxWidth,
-            aspectRatio,
-            objectFit: "contain",
-            background: "#050607",
-            border: "1px solid var(--line)",
-            borderRadius: 8,
-          }}
+          className={`st-template-reference-video ${aspectClass}`}
         />
       ) : (
-        <div style={{ padding: "9px 11px", border: "1px dashed var(--line)", borderRadius: 7, fontSize: 10.5, color: "var(--ink-3)" }}>
+        <div className="st-template-reference-empty">
           Reference video unavailable for this older template.
         </div>
       )}
@@ -140,8 +115,8 @@ function ReferenceVideo({ file, aspect }: { file?: File; aspect: Aspect }) {
 
 function DetailChip({ label, value }: { label: string; value: string }) {
   return (
-    <span style={{ padding: "4px 8px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 999, fontSize: 9.5, color: "var(--ink-2)" }}>
-      <span style={{ color: "var(--ink-3)" }}>{label}:</span> {value}
+    <span className="st-template-detail-chip">
+      <span>{label}:</span> {value}
     </span>
   );
 }

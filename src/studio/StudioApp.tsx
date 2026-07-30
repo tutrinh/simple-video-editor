@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { makeBeat } from "../features/assemble/assemble";
 import { useSettings } from "../state/SettingsContext";
@@ -23,6 +23,8 @@ import DeleteIcon from "../design-system/icons/DeleteIcon";
 
 type TrackSegmentKind = "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker";
 
+const ProductReviewDrawer = lazy(() => import("./ProductReviewDrawer"));
+
 export default function StudioApp() {
   const { state, dispatch } = useProject();
   const { reset: resetSettings } = useSettings();
@@ -43,6 +45,8 @@ export default function StudioApp() {
   // Same lazy-mount pattern for the AI Story drawer.
   const [aiStoryOpen, setAiStoryOpen] = useState(false);
   const [aiStoryMounted, setAiStoryMounted] = useState(false);
+  const [productReviewOpen, setProductReviewOpen] = useState(false);
+  const [productReviewMounted, setProductReviewMounted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [clipDragOver, setClipDragOver] = useState(false);
   const [editorHovered, setEditorHovered] = useState(false);
@@ -247,6 +251,8 @@ export default function StudioApp() {
     setExportMounted(false); // fully discard the drawer's local state (video, etc.)
     setAiStoryOpen(false);
     setAiStoryMounted(false);
+    setProductReviewOpen(false);
+    setProductReviewMounted(false);
   }
 
   return (
@@ -255,10 +261,19 @@ export default function StudioApp() {
         onExport={() => { setExportMounted(true); setExportOpen(true); }}
         onStartOver={startOver}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenAiStory={() => { setAiStoryMounted(true); setAiStoryOpen(true); }}
+        onOpenAiStory={() => {
+          setAiStoryMounted(true);
+          setProductReviewOpen(false);
+          setAiStoryOpen(true);
+        }}
+        onOpenProductReview={() => {
+          setProductReviewMounted(true);
+          setAiStoryOpen(false);
+          setProductReviewOpen(true);
+        }}
       />
 
-      <WorkspaceMain className={"st-main" + (clipBinCollapsed ? " clips-collapsed" : "") + (aiStoryOpen ? " ai-open" : "")}>
+      <WorkspaceMain className={"st-main" + (clipBinCollapsed ? " clips-collapsed" : "") + (aiStoryOpen || productReviewOpen ? " drawer-open" : "")}>
         <ClipBin
           usedClipIds={usedClipIds}
           selectedClipId={selectedClip?.id ?? null}
@@ -393,8 +408,23 @@ export default function StudioApp() {
           onRequestDeleteSegment={requestTrackSegmentDeletion}
         />
 
-        {/* Docked side panel — pushes the layout (see .st-main.ai-open in studio.css). */}
-        {aiStoryMounted && <AiStoryDrawer open={aiStoryOpen} onClose={() => setAiStoryOpen(false)} />}
+        {(aiStoryMounted || productReviewMounted) && (
+          <div className="st-creation-drawer-stack">
+            {aiStoryMounted && <AiStoryDrawer open={aiStoryOpen} onClose={() => setAiStoryOpen(false)} />}
+            {productReviewMounted && (
+              <Suspense fallback={<div className="st-creation-drawer-loading" role="status">Loading Product Review…</div>}>
+                <ProductReviewDrawer
+                  open={productReviewOpen}
+                  onClose={() => setProductReviewOpen(false)}
+                  onApplied={(firstBeatId) => {
+                    setSelectedBeatId(firstBeatId);
+                    setProductReviewOpen(false);
+                  }}
+                />
+              </Suspense>
+            )}
+          </div>
+        )}
       </WorkspaceMain>
 
       {exportMounted && <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} />}

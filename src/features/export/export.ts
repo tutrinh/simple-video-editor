@@ -17,6 +17,7 @@ import { titleWindow, type TitleScope } from "./titleTiming";
 import { clampUserVoiceLevelDb, clampUserVoiceVolume, dbToLinear, userVoiceEqFilterChain } from "../../studio/userVoiceEq";
 import { captionVoiceDuckingFilterChain } from "../../studio/userVoicePriority";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
+import { exportedCaptionWindows } from "./captionWindows";
 
 
 
@@ -686,16 +687,8 @@ export async function exportCut(
     // VO-track captions: burn each visible segment that overlaps this beat's window
     // [bStart, bEnd], gated to the overlap in segment-local time. A caption spanning a
     // beat boundary is drawn in each segment it touches.
-    for (const seg of (cut.voSegments ?? [])) {
-      if (!seg.captionVisible || !seg.text.trim()) continue;
-      const segEnd = seg.startTimeSec + seg.durationSec;
-      if (seg.startTimeSec < bEnd && segEnd > bStart) {
-        const localStart = Math.max(0, seg.startTimeSec - bStart);
-        const localEnd = Math.min(segDur, segEnd - bStart);
-        if (localEnd > localStart + 0.01) {
-          await addCaption(seg.text, `between(t,${localStart.toFixed(3)},${localEnd.toFixed(3)})`);
-        }
-      }
+    for (const window of exportedCaptionWindows(cut.voSegments, bStart, segDur)) {
+      await addCaption(window.text, `between(t,${window.startSec.toFixed(3)},${window.endSec.toFixed(3)})`);
     }
 
     timingSlots[i] = { id: b.id, inSec, outSec: inSec + footageLen, durationSec: segDur };

@@ -22,6 +22,8 @@
 - **Visual Frame Sampling**: Automatically samples keyframes from video clips and images to feed visual context to AI models.
 - **Local CLI AI Providers**: Integrates seamlessly with your authenticated local **Claude CLI** (`claude -p`) or **Codex CLI** (`codex exec`), ensuring zero third-party API key exposure in browser client code.
 - **Guided Script Generation**: Generate structured, one-line-per-beat scripts matching your project's direction, tone, and genre, with single-beat refinement capabilities.
+- **Built-in Reel Templates**: Start a vertical Product Review, Lifestyle Vlog, Fashion Vlog, or Motivation Vlog from an ordered shot structure, with empty footage placeholders that can be filled later.
+- **AI Autofill & Coverage Coach**: Match analyzed footage to template roles, reject weak or duplicate matches, and turn missing coverage into specific shots to film.
 
 ### 🎨 Motion, Color Grading & Framing
 - **Ken Burns & Static Zoom**: Smooth pan-and-zoom motion paths for still images and static framing controls for video.
@@ -150,6 +152,7 @@ StudioApp (React 18 + TypeScript + Vite)
 For deep-dive technical guidelines and developer context, consult:
 - [`CODEBASE_KNOWLEDGE.md`](./CODEBASE_KNOWLEDGE.md) — Comprehensive technical overview of architecture, domain invariants, and domain vocabulary.
 - [`CONTEXT.md`](./CONTEXT.md) — Ubiquitous language and domain vocabulary.
+- [`PHASE_2_PRODUCT_REVIEW_ARCHITECTURE.md`](./PHASE_2_PRODUCT_REVIEW_ARCHITECTURE.md) — Architecture for the Amazon Product Review drawer, grounded AI Script, and Shot List workflow.
 - [`DESIGN_PATTERNS.md`](./DESIGN_PATTERNS.md) — Mandatory UI design system rules, CSS variable tokens, and accessibility standards.
 - [`PREVIEW_BLACK_SCREEN_PREVENTION.md`](./PREVIEW_BLACK_SCREEN_PREVENTION.md) — Media object URL lifecycle and seek safety rules.
 
