@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { drawTitleLayerAsset, type TitleRenderLayer } from "./titleCanvas";
+import { drawTitleLayerAsset, wrapLines, type TitleRenderLayer } from "./titleCanvas";
 
 function fakeContext() {
   const operations: Array<{ op: string; composite: string; fill?: string }> = [];
@@ -70,5 +70,20 @@ describe("video title mask", () => {
       composite: "source-over",
       fill: "#ff3366",
     });
+  });
+});
+
+describe("wrapLines", () => {
+  it("breaks words character-by-character when a single word exceeds maxWidth", () => {
+    const ctx = {
+      measureText(text: string) {
+        return { width: text.length * 10 };
+      },
+    } as unknown as CanvasRenderingContext2D;
+
+    // "SUMMER" has length 6 -> width 60. maxWidth is 40.
+    // Should break "SUMMER" into "SUMM" (40px) and "ER" (20px).
+    const lines = wrapLines(ctx, "SUMMER", 40);
+    expect(lines).toEqual(["SUMM", "ER"]);
   });
 });
