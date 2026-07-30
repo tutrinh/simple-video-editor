@@ -437,4 +437,37 @@ describe("projectReducer", () => {
     s = projectReducer(s, { type: "RESET" });
     expect(s).toEqual(initialState);
   });
+
+  it("stores a coherent Product Brief, Creator Notes, and Review Plan workspace", () => {
+    const brief = {
+      source: { kind: "amazon" as const, url: "https://www.amazon.com/dp/B012345678", asin: "B012345678" },
+      title: "Travel Coffee Press",
+      features: [{ id: "claim-1", text: "Insulated steel body", source: "listing" as const }],
+    };
+    const creatorNotes = {
+      audience: "commuters",
+      problem: "bad hotel coffee",
+      experience: "kept coffee hot through a long train ride",
+      pros: ["compact"],
+      cons: ["hand wash only"],
+      verdict: "worth packing",
+      disclosure: "purchased" as const,
+    };
+    const plan = {
+      id: "plan-1",
+      productTitle: brief.title,
+      targetDurationSec: 30 as const,
+      hook: "Hotel coffee is optional now.",
+      script: [],
+      shots: [],
+      createdAt: 1,
+    };
+
+    let state = projectReducer(initialState, { type: "SET_PRODUCT_BRIEF", brief });
+    state = projectReducer(state, { type: "SET_CREATOR_NOTES", creatorNotes });
+    state = projectReducer(state, { type: "SET_REVIEW_PLAN", plan });
+
+    expect(state.productReview).toEqual({ brief, creatorNotes, plan });
+    expect(projectReducer(state, { type: "CLEAR_PRODUCT_REVIEW" }).productReview).toBeUndefined();
+  });
 });

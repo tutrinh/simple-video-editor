@@ -17,6 +17,10 @@ import { useExportSettings } from "../state/ExportSettingsContext";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
 import CloseButton from "../design-system/CloseButton";
+import {
+  isBuiltInReelTemplate,
+  listAvailableTemplates,
+} from "../features/templates/builtInTemplates";
 
 
 interface Props {
@@ -38,6 +42,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
   const [applyTemplateTarget, setApplyTemplateTarget] = useState<ProjectTemplate | null>(null);
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [showInspirationModal, setShowInspirationModal] = useState(false);
+  const availableTemplates = listAvailableTemplates(templates);
 
   useEffect(() => {
     if (isOpen) {
@@ -198,7 +203,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                 textTransform: "capitalize",
               }}
             >
-              {tab === "projects" ? `My Projects (${projects.length})` : `Templates (${templates.length})`}
+              {tab === "projects" ? `My Projects (${projects.length})` : `Templates (${availableTemplates.length})`}
             </ControlButton>
           ))}
         </div>
@@ -360,16 +365,9 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
             </div>
 
             <div style={{ padding: 18, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-              {templates.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 24px", color: "var(--ink-3)", fontSize: 13 }}>
-                  No templates saved yet.
-                  <br />
-                  <span style={{ fontSize: 11, marginTop: 6, display: "block" }}>
-                    Upload an inspiration video to extract a reusable edit structure.
-                  </span>
-                </div>
-              ) : (
-                templates.map((t) => (
+              {availableTemplates.map((t) => {
+                const isBuiltIn = isBuiltInReelTemplate(t);
+                return (
                   <div
                     key={t.id}
                     style={{
@@ -385,7 +383,10 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{t.name}</div>
+                      <div className="st-template-title-row">
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>{t.name}</div>
+                        {isBuiltIn && <span className="ui-badge positive">Reel starter</span>}
+                      </div>
                       {t.description && (
                         <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>{t.description}</div>
                       )}
@@ -421,13 +422,15 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                       >
                         Use Template
                       </ControlButton>
-                      <ControlButton
-                        className="st-btn ghost"
-                        style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}
-                        onClick={() => setDeleteTemplateTarget(t)}
-                      >
-                        Delete
-                      </ControlButton>
+                      {!isBuiltIn && (
+                        <ControlButton
+                          className="st-btn ghost"
+                          style={{ fontSize: 11, padding: "4px 8px", borderColor: "var(--danger)", color: "var(--danger)" }}
+                          onClick={() => setDeleteTemplateTarget(t)}
+                        >
+                          Delete
+                        </ControlButton>
+                      )}
                     </div>
                     {expandedTemplateId === t.id && (
                       <div style={{ flexBasis: "100%", width: "100%", borderTop: "1px solid var(--line)", paddingTop: 12, marginTop: 2 }}>
@@ -435,8 +438,8 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                       </div>
                     )}
                   </div>
-                ))
-              )}
+                );
+              })}
             </div>
           </>
         )}

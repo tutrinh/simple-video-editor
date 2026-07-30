@@ -124,3 +124,42 @@ describe("importProjectFile — Ken Burns", () => {
     expect(b.zoom).toBe(1.4);
   });
 });
+
+describe("importProjectFile — Product Review workspace", () => {
+  it("round-trips the verified brief, Creator Notes, and generated plan", async () => {
+    const productReview = {
+      brief: {
+        source: { kind: "amazon", url: "https://www.amazon.com/dp/B0ABC12345", asin: "B0ABC12345" },
+        title: "Trail Press",
+        features: [{ id: "claim-1", text: "Steel body", source: "listing" }],
+      },
+      creatorNotes: {
+        audience: "travel vloggers",
+        problem: "hotel coffee",
+        experience: "used on a train",
+        pros: ["compact"],
+        cons: [],
+        verdict: "pack it",
+        disclosure: "purchased",
+      },
+      plan: {
+        id: "plan-1",
+        productTitle: "Trail Press",
+        targetDurationSec: 30,
+        hook: "Skip hotel coffee.",
+        script: [],
+        shots: [],
+        createdAt: 1,
+      },
+    };
+    const pkg = {
+      version: 1,
+      exportedAt: 0,
+      title: "review",
+      stateJson: JSON.stringify({ title: "review", clips: [], direction: "", productReview }),
+      media: [],
+    };
+    const state = await importProjectFile(new File([JSON.stringify(pkg)], "review.vidstr", { type: "application/json" }));
+    expect(state.productReview).toEqual(productReview);
+  });
+});

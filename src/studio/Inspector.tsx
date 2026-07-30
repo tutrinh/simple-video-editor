@@ -59,6 +59,11 @@ import {
   type UserVoiceLevelAnalysis,
 } from "./userVoiceLevel";
 import UserVoiceWaveform from "./UserVoiceWaveform";
+import {
+  applyTemplateSlotSuggestion,
+  generateTemplateSlotSuggestions,
+  templateSlotSuggestionMode,
+} from "../features/templates/slotSuggestions";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -450,11 +455,20 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const [altBusy, setAltBusy] = useState(false);
   const [altErr, setAltErr] = useState<string | null>(null);
   const [alts, setAlts] = useState<string[][]>([]);
+  const [slotSuggestions, setSlotSuggestions] = useState<string[]>([]);
+  const [slotSuggestionsBusy, setSlotSuggestionsBusy] = useState(false);
+  const [slotSuggestionsError, setSlotSuggestionsError] = useState("");
   const [transitionOpen, setTransitionOpen] = useState(false);
   const [beatAudioOpen, setBeatAudioOpen] = useState(false);
   const [globalFilterOpen, setGlobalFilterOpen] = useState(false);
   const [voHintsOpen, setVoHintsOpen] = useState(false);
   const voTextRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setSlotSuggestions([]);
+    setSlotSuggestionsError("");
+    setSlotSuggestionsBusy(false);
+  }, [beat?.id]);
 
   // Insert an audio tag at the caret in the narration textarea (falls back to the
   // end if the field was never focused). Keeps single spaces around the tag and
@@ -1407,6 +1421,38 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const b = beat;
   const update = (next: Beat) => dispatch({ type: "UPDATE_BEAT", beat: next });
 
+  const slotSuggestionMode = templateSlotSuggestionMode(index, b.templateSlotDescription);
+  const isHookSlot = slotSuggestionMode === "hook";
+
+  async function requestSlotSuggestions() {
+    if (!b.templateSlotDescription || slotSuggestionsBusy) return;
+    setSlotSuggestionsBusy(true);
+    setSlotSuggestionsError("");
+    try {
+      const suggestions = await generateTemplateSlotSuggestions({
+        templateName: cut?.templateName ?? "Social Reel",
+        templateTone: cut?.templateToneHint,
+        slotDescription: b.templateSlotDescription,
+        beatIndex: index,
+        beatCount: total,
+        durationSec: b.durationSec,
+        projectDirection: state.direction,
+      }, {
+        provider: settings.aiProvider,
+        model: settings.authorModel,
+      });
+      setSlotSuggestions(suggestions);
+    } catch (error) {
+      setSlotSuggestionsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSlotSuggestionsBusy(false);
+    }
+  }
+
+  function useSlotSuggestion(suggestion: string) {
+    update(applyTemplateSlotSuggestion(b, suggestion, slotSuggestionMode));
+  }
+
   function handleSwapClip(newClipId: string) {
     if (!b || newClipId === b.clipId) return;
     if (clip?.isTemplatePlaceholder) {
@@ -1633,24 +1679,59 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         </div>
 
         {b.templateSlotDescription && (
-          <div
-            className="st-field"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid color-mix(in srgb, var(--accent) 38%, var(--line))",
-              background: "color-mix(in srgb, var(--accent) 8%, var(--panel-2))",
-            }}
-          >
-            <div style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: ".08em", color: "var(--accent)", textTransform: "uppercase" }}>
-              Template slot · Beat {index + 1}
+          <div className="st-field st-template-slot-card">
+            <div className="st-template-slot-heading">
+              <span>Template slot · Beat {index + 1}</span>
+              <Button
+                variant="secondary"
+                size="small"
+                onClick={requestSlotSuggestions}
+                disabled={slotSuggestionsBusy}
+              >
+                {slotSuggestionsBusy
+                  ? "Thinking…"
+                  : slotSuggestions.length
+                    ? "Refresh ideas"
+                    : isHookSlot
+                      ? "Suggest hooks"
+                      : "Suggest shots"}
+              </Button>
             </div>
-            <div style={{ marginTop: 5, fontSize: 12, fontWeight: 650, lineHeight: 1.4, color: "var(--ink)" }}>
+            <div className="st-template-slot-role">
               {b.templateSlotDescription}
             </div>
-            <div style={{ marginTop: 4, fontSize: 10, lineHeight: 1.35, color: "var(--ink-3)" }}>
+            <div className="st-template-slot-help">
               Choose footage that matches this role. The guidance remains when you swap clips.
             </div>
+            {b.templateSlotSuggestion && (
+              <div className="st-template-slot-selected">
+                <strong>Selected shot</strong>
+                <span>{b.templateSlotSuggestion}</span>
+              </div>
+            )}
+            {slotSuggestionsError && (
+              <div className="ui-field-error st-template-slot-error" role="alert">
+                {slotSuggestionsError}
+              </div>
+            )}
+            {slotSuggestions.length > 0 && (
+              <div className="st-template-slot-suggestions" aria-label={isHookSlot ? "AI hook suggestions" : "AI shot suggestions"}>
+                {slotSuggestions.map((suggestion, suggestionIndex) => (
+                  <Button
+                    key={`${suggestionIndex}-${suggestion}`}
+                    variant="quiet"
+                    size="small"
+                    className="st-template-slot-suggestion"
+                    onClick={() => useSlotSuggestion(suggestion)}
+                    title={isHookSlot ? "Use this as the Beat line" : "Choose this shot idea"}
+                    aria-pressed={!isHookSlot ? b.templateSlotSuggestion === suggestion : undefined}
+                  >
+                    <span>{suggestion}</span>
+                    <strong>{isHookSlot ? "Use" : "Choose"}</strong>
+                  </Button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

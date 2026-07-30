@@ -26,6 +26,7 @@ interface Props {
   onStartOver?: () => void;
   onOpenSettings: () => void;
   onOpenAiStory: () => void;
+  onOpenProductReview: () => void;
 }
 
 export default function TopBar({
@@ -33,6 +34,7 @@ export default function TopBar({
   onStartOver: _onStartOver,
   onOpenSettings,
   onOpenAiStory,
+  onOpenProductReview,
 }: Props) {
   const { state, dispatch } = useProject();
   const { theme, toggleTheme } = useTheme();
@@ -131,6 +133,15 @@ export default function TopBar({
       )}
 
       <div className="st-spacer" />
+
+      <Button
+        variant="quiet"
+        size="small"
+        onClick={onOpenProductReview}
+        title="Import a product and generate a grounded review Script and Shot List"
+      >
+        Product Review
+      </Button>
 
       <Button
         variant="quiet"
