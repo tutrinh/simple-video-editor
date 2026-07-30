@@ -557,6 +557,16 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     }
   }
 
+  const [voTextCopied, setVoTextCopied] = useState(false);
+
+  function copyVoText() {
+    if (!selectedVo?.text) return;
+    navigator.clipboard.writeText(selectedVo.text).then(() => {
+      setVoTextCopied(true);
+      setTimeout(() => setVoTextCopied(false), 2000);
+    }).catch(() => {});
+  }
+
   // VO Segment editor card — narration text + caption visibility, decoupled from the
   // beat. Rendered in both the empty state and the normal Inspector so a selected VO
   // chip is always editable. (Mirrors the overlay clip card.)
@@ -590,7 +600,19 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         </div>
       </div>
 
-      <label>Narration</label>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        <label style={{ margin: 0 }}>Narration</label>
+        <ControlButton
+          type="button"
+          className="st-btn ghost"
+          style={{ padding: "2px 6px", fontSize: 10, display: "inline-flex", alignItems: "center", gap: 4 }}
+          onClick={copyVoText}
+          disabled={!selectedVo.text.trim()}
+          title="Copy narration text to clipboard"
+        >
+          <CopyIcon size={11} /> {voTextCopied ? "Copied!" : "Copy"}
+        </ControlButton>
+      </div>
       <TextareaControl
         className="st-caption-edit"
         ref={voTextRef}
@@ -672,11 +694,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         <InputControl
           type="range"
           min={0}
-          max={1}
+          max={2}
           step={0.05}
           value={selectedVo.volume ?? 1}
           onChange={(e) => dispatch({ type: "UPDATE_VO", segment: { ...selectedVo, volume: Number(e.target.value) } })}
-          style={sliderTrackStyle(selectedVo.volume ?? 1, 0, 1)}
+          style={sliderTrackStyle(selectedVo.volume ?? 1, 0, 2)}
         />
         <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
           {Math.round((selectedVo.volume ?? 1) * 100)}%

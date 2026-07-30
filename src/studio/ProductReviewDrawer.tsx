@@ -25,7 +25,7 @@ export default function ProductReviewDrawer({ open, onClose, onApplied }: Props)
         <CloseButton onClick={onClose} label="Close Product Review panel" />
       </div>
       <div className="st-product-review-body no-scrollbar">
-        <ProductReviewView onApplied={onApplied} />
+        <ProductReviewView onClose={onClose} onApplied={onApplied} />
       </div>
     </aside>
   );

@@ -32,6 +32,7 @@ export type Action =
   | { type: "SET_PRODUCT_BRIEF"; brief: ProductBrief; importWarnings?: string[] }
   | { type: "SET_CREATOR_NOTES"; creatorNotes: CreatorNotes }
   | { type: "SET_REVIEW_PLAN"; plan: ReviewPlan }
+  | { type: "LOAD_PRODUCT_REVIEW"; workspace: ProductReviewWorkspace }
   | { type: "CLEAR_PRODUCT_REVIEW" }
   | { type: "SET_STORY"; story: Story }
   | { type: "SET_CUT"; cut: Cut }
@@ -170,6 +171,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
           plan: action.plan,
         },
       };
+    case "LOAD_PRODUCT_REVIEW":
+      return { ...state, productReview: action.workspace };
     case "CLEAR_PRODUCT_REVIEW":
       return { ...state, productReview: undefined };
     case "SET_STORY":

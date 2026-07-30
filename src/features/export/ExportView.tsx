@@ -940,7 +940,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Volume multiplier for narration audio.">
                       <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Voiceover volume</span>
-                      <input type="range" min={0} max={1} step={0.05} value={voiceoverVolume} onChange={(e) => update({ voiceoverVolume: Number(e.target.value) })} style={sliderTrackStyle(voiceoverVolume, 0, 1)} />
+                      <input type="range" min={0} max={2} step={0.05} value={voiceoverVolume} onChange={(e) => update({ voiceoverVolume: Number(e.target.value) })} style={sliderTrackStyle(voiceoverVolume, 0, 2)} />
                       <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(voiceoverVolume * 100)}%</span>
                     </div>
 

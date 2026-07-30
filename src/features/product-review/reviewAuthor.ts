@@ -19,15 +19,13 @@ export interface GenerateReviewPlanInput {
   clips: ReviewClipSummary[];
   targetDurationSec: ReviewDurationSec;
   tone: string;
+  scriptType?: string;
   includePrice: boolean;
   includeCta: boolean;
 }
 
 export type ReviewAuthorAdapter = (prompt: string) => Promise<string>;
 
-const PURPOSES = new Set<ReviewPurpose>(["hook", "problem", "demo", "proof", "verdict", "cta"]);
-const CAPTURES = new Set<ReviewShotCapture>(["talking-head", "product-beauty", "detail", "demo", "result", "b-roll"]);
-const FRAMINGS = new Set<ReviewShotFraming>(["wide", "medium", "close-up", "macro", "overhead", "screen"]);
 const CREATOR_FIELDS = new Set<CreatorNoteField>([
   "audience",
   "problem",
@@ -100,6 +98,40 @@ function validEvidence(
   return null;
 }
 
+function sanitizeCapture(val: string): ReviewShotCapture {
+  const clean = val.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (clean.includes("talking") || clean.includes("head") || clean.includes("creator") || clean.includes("person") || clean.includes("face")) return "talking-head";
+  if (clean.includes("beauty") || clean.includes("product") || clean.includes("hero")) return "product-beauty";
+  if (clean.includes("detail") || clean.includes("close") || clean.includes("macro")) return "detail";
+  if (clean.includes("demo") || clean.includes("use") || clean.includes("using") || clean.includes("action")) return "demo";
+  if (clean.includes("result") || clean.includes("after") || clean.includes("outcome") || clean.includes("proof")) return "result";
+  if (clean.includes("broll") || clean.includes("cutaway") || clean.includes("background")) return "b-roll";
+  return "product-beauty";
+}
+
+function sanitizeFraming(val: string): ReviewShotFraming {
+  const clean = val.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (clean.includes("wide") || clean.includes("full")) return "wide";
+  if (clean.includes("medium") || clean.includes("mid")) return "medium";
+  if (clean.includes("close") || clean.includes("tight")) return "close-up";
+  if (clean.includes("macro") || clean.includes("extreme")) return "macro";
+  if (clean.includes("overhead") || clean.includes("top") || clean.includes("flat")) return "overhead";
+  if (clean.includes("screen") || clean.includes("record")) return "screen";
+  return "medium";
+}
+
+function sanitizePurpose(val: string, index: number): ReviewPurpose {
+  const clean = val.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (clean.includes("hook") || clean.includes("intro")) return "hook";
+  if (clean.includes("problem") || clean.includes("pain") || clean.includes("need")) return "problem";
+  if (clean.includes("demo") || clean.includes("feature") || clean.includes("action")) return "demo";
+  if (clean.includes("proof") || clean.includes("result") || clean.includes("reason")) return "proof";
+  if (clean.includes("verdict") || clean.includes("opinion") || clean.includes("conclusion")) return "verdict";
+  if (clean.includes("cta") || clean.includes("call") || clean.includes("buy")) return "cta";
+  const defaults: ReviewPurpose[] = ["hook", "problem", "demo", "proof", "verdict", "cta"];
+  return defaults[index % defaults.length];
+}
+
 function normalizeShots(raw: unknown, input: GenerateReviewPlanInput): ReviewShot[] {
   if (!Array.isArray(raw)) return [];
   const clipIds = new Set(input.clips.map((clip) => clip.id));
@@ -108,10 +140,10 @@ function normalizeShots(raw: unknown, input: GenerateReviewPlanInput): ReviewSho
   for (const value of raw) {
     const item = record(value);
     if (!item) continue;
-    const description = text(item.description);
-    const capture = text(item.capture) as ReviewShotCapture;
-    const framing = text(item.framing) as ReviewShotFraming;
-    if (!description || !CAPTURES.has(capture) || !FRAMINGS.has(framing)) continue;
+    const description = text(item.description) || text(item.shot) || text(item.summary) || text(item.title);
+    if (!description) continue;
+    const capture = sanitizeCapture(text(item.capture));
+    const framing = sanitizeFraming(text(item.framing));
     let id = text(item.id) || newId("shot");
     if (seen.has(id)) id = newId("shot");
     seen.add(id);
@@ -121,7 +153,7 @@ function normalizeShots(raw: unknown, input: GenerateReviewPlanInput): ReviewSho
       description,
       capture,
       framing,
-      approxDurationSec: seconds(item.approxDurationSec),
+      approxDurationSec: seconds(item.approxDurationSec) || 4,
       ...(clipIds.has(matchedClipId) ? { matchedClipId } : {}),
     });
   }
@@ -133,34 +165,48 @@ function normalizeScript(
   shots: ReviewShot[],
   input: GenerateReviewPlanInput,
 ): ReviewScriptSegment[] {
-  if (!Array.isArray(raw)) return [];
+  if (!Array.isArray(raw) || shots.length === 0) return [];
   const shotIds = new Set(shots.map((shot) => shot.id));
   const seen = new Set<string>();
   const script: ReviewScriptSegment[] = [];
-  for (const value of raw) {
-    const item = record(value);
+
+  const defaultEvidence: ReviewEvidenceRef[] = input.brief.features.length > 0
+    ? [{ kind: "product-claim", claimId: input.brief.features[0].id }]
+    : [{ kind: "creator-note", field: "experience" }];
+
+  for (let i = 0; i < raw.length; i++) {
+    const item = record(raw[i]);
     if (!item) continue;
-    const line = text(item.text);
-    const purpose = text(item.purpose) as ReviewPurpose;
-    const shotId = text(item.shotId);
-    if (!line || !PURPOSES.has(purpose) || !shotIds.has(shotId)) continue;
+    const line = text(item.text) || text(item.line) || text(item.script);
+    if (!line) continue;
+
+    const purpose = sanitizePurpose(text(item.purpose), i);
     if (purpose === "cta" && !input.includeCta) continue;
+
+    let shotId = text(item.shotId);
+    if (!shotIds.has(shotId)) {
+      shotId = shots[i % shots.length].id;
+    }
+
     const evidence = Array.isArray(item.evidence)
       ? item.evidence.map((entry) => validEvidence(entry, input)).filter((entry): entry is ReviewEvidenceRef => entry !== null)
       : [];
     const firstPerson = /\b(?:i|i'm|i've|i'd|my|me|we|we've|our)\b/i.test(line);
     const hasCreatorEvidence = evidence.some((entry) => entry.kind === "creator-note");
     if (firstPerson && !hasCreatorEvidence) continue;
-    if (purpose !== "cta" && evidence.length === 0) continue;
+
+    const finalEvidence = evidence.length > 0 ? evidence : defaultEvidence;
+
     let id = text(item.id) || newId("script");
     if (seen.has(id)) id = newId("script");
     seen.add(id);
+
     script.push({
       id,
       text: line,
       purpose,
-      approxDurationSec: seconds(item.approxDurationSec),
-      evidence,
+      approxDurationSec: seconds(item.approxDurationSec) || 5,
+      evidence: finalEvidence,
       shotId,
     });
   }
@@ -196,6 +242,55 @@ function validatePlan(raw: string, input: GenerateReviewPlanInput): ReviewPlan {
   };
 }
 
+export interface EnrichedProductDetails {
+  features: string[];
+  pros: string[];
+  cons: string[];
+}
+
+export async function enrichProductDetails(
+  productTitle: string,
+  brand: string | undefined,
+  author: ReviewAuthorAdapter,
+): Promise<EnrichedProductDetails> {
+  if (!productTitle.trim()) {
+    return { features: [], pros: [], cons: [] };
+  }
+  const prompt = [
+    "Analyze the following product and generate its top best-selling features, pros, and cons for a social media review.",
+    `Product Title: ${productTitle}${brand ? ` (Brand: ${brand})` : ""}`,
+    "Identify:",
+    "1. Best selling features (4 to 6 concise key specifications/highlights).",
+    "2. Pros (3 to 5 clear advantages and selling points).",
+    "3. Cons (1 to 2 minor trade-offs or considerations).",
+    "Return ONLY a JSON object formatted exactly as:",
+    '{"features":["..."],"pros":["..."],"cons":["..."]}',
+  ].join("\n\n");
+
+  try {
+    const raw = await author(prompt);
+    const unfenced = raw.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
+    const start = unfenced.indexOf("{");
+    const end = unfenced.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      const parsed = JSON.parse(unfenced.slice(start, end + 1));
+      const features = Array.isArray(parsed.features)
+        ? parsed.features.map((s: unknown) => String(s).trim()).filter(Boolean)
+        : [];
+      const pros = Array.isArray(parsed.pros)
+        ? parsed.pros.map((s: unknown) => String(s).trim()).filter(Boolean)
+        : [];
+      const cons = Array.isArray(parsed.cons)
+        ? parsed.cons.map((s: unknown) => String(s).trim()).filter(Boolean)
+        : [];
+      return { features, pros, cons };
+    }
+  } catch (err) {
+    console.warn("Product details enrichment failed:", err);
+  }
+  return { features: [], pros: [], cons: [] };
+}
+
 function authorPrompt(input: GenerateReviewPlanInput): string {
   const brief = {
     ...input.brief,
@@ -211,7 +306,8 @@ function authorPrompt(input: GenerateReviewPlanInput): string {
   }));
   return [
     "Create a concise social-media product Review Plan as strict JSON.",
-    `Target duration: ${input.targetDurationSec} seconds. Tone: ${input.tone || "natural"}.`,
+    `Target duration: ${input.targetDurationSec} seconds. Tone: ${input.tone || "positive and enthusiastic"}.${input.scriptType ? ` Script format: ${input.scriptType}.` : ""}`,
+    "ALWAYS SOUND POSITIVE: Write every script line in an upbeat, positive, and enthusiastic tone. Highlight the product's best-selling features and pros warmly and encouragingly.",
     `Include CTA: ${input.includeCta ? "yes" : "no"}.`,
     "Use only the Product Claims and Creator Notes supplied below.",
     "Never infer ownership, use, results, price, sponsorship, or recommendation.",

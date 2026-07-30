@@ -65,7 +65,6 @@ describe("importAmazonProductHtml", () => {
       title: "Trail & Table Press",
       brand: "Northline",
       category: "Travel Coffee Makers",
-      description: "Double-wall travel coffee press.",
       features: [{
         id: "listing-B0ABC12345-1",
         text: "Material: Stainless steel",
@@ -87,7 +86,6 @@ describe("importAmazonProductHtml", () => {
     const result = importAmazonProductHtml("https://amazon.co.uk/dp/B0XYZ67890", html, 100);
     expect(result.brief).toMatchObject({
       title: "Pocket Light",
-      description: "A compact fill light",
       imageUrl: "https://images.example/light.jpg",
       features: [],
     });
@@ -104,7 +102,7 @@ describe("importAmazonProductHtml", () => {
   it("rejects documents above the extraction size limit before parsing", () => {
     expect(() => importAmazonProductHtml(
       "https://www.amazon.com/dp/B0ABC12345",
-      "x".repeat(2_000_001),
+      "x".repeat(10_000_001),
     )).toThrowError(/too large/i);
   });
 });

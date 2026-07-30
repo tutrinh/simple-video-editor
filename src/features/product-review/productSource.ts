@@ -13,7 +13,7 @@ export interface ProductSource {
 
 type ProductRouteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
-export function createAmazonProductSource(fetchRoute: ProductRouteFetch = fetch): ProductSource {
+export function createWebProductSource(fetchRoute: ProductRouteFetch = fetch): ProductSource {
   return {
     async import({ url }): Promise<ProductImportResult> {
       const manualSeed: Partial<ProductBrief> = {
@@ -52,6 +52,8 @@ export function createAmazonProductSource(fetchRoute: ProductRouteFetch = fetch)
     },
   };
 }
+
+export const createAmazonProductSource = createWebProductSource;
 
 export interface ManualProductFields {
   title: string;

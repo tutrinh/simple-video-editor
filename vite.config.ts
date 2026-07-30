@@ -71,6 +71,42 @@ function productImportProxy(): Plugin {
           return send(502, { error: message, reason: "network" });
         }
       });
+
+      server.middlewares.use("/api/product/image", async (req, res) => {
+        const send = (code: number, body: unknown) => {
+          res.statusCode = code;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(body));
+        };
+        if (req.method !== "GET" && req.method !== "HEAD") return send(405, { error: "Method not allowed." });
+        const reqUrl = new URL(req.url ?? "/", "http://localhost");
+        const imageUrl = reqUrl.searchParams.get("url");
+        if (!imageUrl || !/^https?:\/\//i.test(imageUrl)) {
+          return send(400, { error: "A valid image URL is required." });
+        }
+        try {
+          const imageRes = await fetch(imageUrl, {
+            headers: {
+              "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, Gecko) Chrome/120.0.0.0 Safari/537.36",
+              accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+            },
+          });
+          if (!imageRes.ok) {
+            return send(imageRes.status, { error: `Failed to fetch image: HTTP ${imageRes.status}` });
+          }
+          const contentType = imageRes.headers.get("content-type") || "image/jpeg";
+          const buffer = Buffer.from(await imageRes.arrayBuffer());
+          res.statusCode = 200;
+          res.setHeader("content-type", contentType);
+          res.setHeader("content-length", String(buffer.length));
+          res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+          res.setHeader("cache-control", "public, max-age=86400");
+          res.end(req.method === "HEAD" ? undefined : buffer);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return send(502, { error: message });
+        }
+      });
     },
   };
 }

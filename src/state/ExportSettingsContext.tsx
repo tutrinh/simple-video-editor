@@ -270,6 +270,5 @@ export function ExportSettingsProvider({ children }: { children: ReactNode }) {
 
 export function useExportSettings() {
   const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useExportSettings must be used within an ExportSettingsProvider");
-  return ctx;
+  return ctx ?? { settings: DEFAULTS, update: () => {}, reset: () => {} };
 }

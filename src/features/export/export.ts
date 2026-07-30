@@ -1335,12 +1335,12 @@ export async function exportCut(
     inIdx++;
   }
 
-  const globalVoVol = Math.min(1, Math.max(0, opts.voiceoverVolume ?? 1.0));
+  const globalVoVol = Math.min(2, Math.max(0, opts.voiceoverVolume ?? 1.0));
   for (const r of renderedVo) {
     finalInputs.push({ name: r.name, data: r.data });
     inputArgs.push("-i", r.name);
     const delayMs = Math.round(r.startTimeSec * 1000);
-    const segVol = Math.min(1, Math.max(0, (r.volume ?? 1.0) * globalVoVol));
+    const segVol = Math.min(2, Math.max(0, (r.volume ?? 1.0) * globalVoVol));
     const priorityGain = captionVoiceDuckingFilterChain(
       segVol,
       r.startTimeSec,

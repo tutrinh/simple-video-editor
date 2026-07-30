@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Clip } from "../../domain/types";
 import type { ReviewPlan } from "../../domain/productReview";
-import { applyReviewPlan } from "./applyReviewPlan";
+import { applyReviewPlan, fitReviewPlanVoiceoversToLength } from "./applyReviewPlan";
 
 const clip = (id: string, durationSec = 12): Clip => ({
   id,
@@ -135,5 +135,30 @@ describe("applyReviewPlan", () => {
     applyReviewPlan(sourcePlan, clips);
     expect(JSON.stringify(sourcePlan)).toBe(beforePlan);
     expect(clips[0]).toBe(beforeClip);
+  });
+
+  it("fits all AI voiceovers and beats to exact spoken narration duration", async () => {
+    const raw = applyReviewPlan(plan(), [clip("clip-1")]);
+    const synthMock = async (text: string) => {
+      if (text.includes("steel press")) return { durationSec: 2.8 };
+      return { durationSec: 4.5 };
+    };
+
+    const fitted = await fitReviewPlanVoiceoversToLength(raw, synthMock);
+
+    expect(fitted.cut.beats[0].durationSec).toBe(2.8);
+    expect(fitted.cut.beats[0].outSec).toBe(fitted.cut.beats[0].inSec + 2.8);
+    expect(fitted.cut.voSegments?.[0]).toMatchObject({
+      startTimeSec: 0,
+      durationSec: 2.8,
+      fitToBeat: true,
+    });
+
+    expect(fitted.cut.beats[1].durationSec).toBe(4.5);
+    expect(fitted.cut.voSegments?.[1]).toMatchObject({
+      startTimeSec: 2.8,
+      durationSec: 4.5,
+      fitToBeat: true,
+    });
   });
 });

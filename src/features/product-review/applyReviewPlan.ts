@@ -102,6 +102,7 @@ export function applyReviewPlan(
         startTimeSec: cutCursorSec,
         durationSec,
         captionVisible: true,
+        fitToBeat: true,
       });
     }
     cutCursorSec += durationSec;
@@ -118,5 +119,79 @@ export function applyReviewPlan(
     templateName: `Product review · ${plan.productTitle}`,
   };
   return { story, cut, placeholderClips };
+}
+
+export async function fitReviewPlanVoiceoversToLength(
+  applied: AppliedReviewPlan,
+  synthFn: (text: string) => Promise<{ durationSec: number }>,
+): Promise<AppliedReviewPlan> {
+  const beats = [...applied.cut.beats];
+  const voSegments = [...(applied.cut.voSegments ?? [])];
+
+  const spokenDurations = await Promise.all(
+    beats.map(async (beat, i) => {
+      const voSeg = voSegments.find((v) => v.id === `review-vo-${beat.id.replace("review-beat-", "")}`)
+        || voSegments[i];
+      if (voSeg && voSeg.text.trim()) {
+        try {
+          const narration = await synthFn(voSeg.text.trim());
+          if (narration && narration.durationSec > 0.2) {
+            return Math.max(0.4, Math.round(narration.durationSec * 10) / 10);
+          }
+        } catch (err) {
+          console.warn(`[Apply Plan] Voiceover fit to length fallback for beat ${i}:`, err);
+        }
+      }
+      return beat.durationSec;
+    })
+  );
+
+  let cumulativeTimeSec = 0;
+
+  for (let i = 0; i < beats.length; i++) {
+    const beat = beats[i];
+    const spokenDur = spokenDurations[i];
+    const voSeg = voSegments.find((v) => v.id === `review-vo-${beat.id.replace("review-beat-", "")}`)
+      || voSegments[i];
+
+    const inSec = beat.inSec;
+    const outSec = inSec + spokenDur;
+    beats[i] = {
+      ...beat,
+      durationSec: spokenDur,
+      outSec,
+    };
+
+    if (voSeg) {
+      const voIdx = voSegments.findIndex((v) => v.id === voSeg.id);
+      if (voIdx >= 0) {
+        voSegments[voIdx] = {
+          ...voSeg,
+          startTimeSec: cumulativeTimeSec,
+          durationSec: spokenDur,
+          fitToBeat: true,
+        };
+      }
+    }
+
+    cumulativeTimeSec += spokenDur;
+  }
+
+  const updatedStory: Story = {
+    ...applied.story,
+    beats: beats.map((b) => ({ clipId: b.clipId, scriptText: b.scriptText })),
+  };
+
+  const updatedCut: Cut = {
+    ...applied.cut,
+    beats,
+    voSegments,
+  };
+
+  return {
+    ...applied,
+    story: updatedStory,
+    cut: updatedCut,
+  };
 }
 

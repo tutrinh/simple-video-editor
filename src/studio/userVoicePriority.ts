@@ -55,7 +55,7 @@ export function captionVoiceDuckingFilterChain(
   captionDurationSec: number,
   userVoiceSegments: readonly TimedAudioSegment[],
 ): string {
-  const normalizedBase = Math.min(1, Math.max(0, baseGain));
+  const normalizedBase = Math.min(2, Math.max(0, baseGain));
   const filters = [`volume=${normalizedBase.toFixed(4)}`];
   for (const window of captionVoiceOverlapWindows(
     captionStartSec,

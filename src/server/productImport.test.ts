@@ -31,7 +31,7 @@ describe("fetchAmazonProduct", () => {
           headers: { location: "https://127.0.0.1/internal" },
         });
       },
-    )).rejects.toThrow(/Amazon domain|supported/i);
+    )).rejects.toThrow(/Local IP|network address|supported/i);
     expect(calls).toBe(1);
   });
 
@@ -44,7 +44,7 @@ describe("fetchAmazonProduct", () => {
     await expect(fetchAmazonProduct(
       "https://www.amazon.com/dp/B0ABC12345",
       async () => new Response("x", {
-        headers: { "content-type": "text/html", "content-length": "2000001" },
+        headers: { "content-type": "text/html", "content-length": "10000001" },
       }),
     )).rejects.toThrow(/too large/i);
   });

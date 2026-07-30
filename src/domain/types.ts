@@ -353,6 +353,7 @@ export interface VoSegment {
   durationSec: number;
   captionVisible: boolean;
   volume?: number; // 0..1 volume multiplier (default 1)
+  fitToBeat?: boolean;
 }
 
 

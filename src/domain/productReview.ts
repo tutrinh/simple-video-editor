@@ -1,6 +1,6 @@
 import type { ClipDescription } from "./types";
 
-export type ProductSourceKind = "amazon" | "manual";
+export type ProductSourceKind = "amazon" | "web" | "manual";
 export type ProductClaimSource = "listing" | "author-entered";
 export type ReviewDisclosure = "purchased" | "gifted" | "sponsored" | "affiliate" | "unspecified";
 export type ReviewDurationSec = 15 | 30 | 45 | 60;

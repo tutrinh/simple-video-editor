@@ -90,7 +90,7 @@ describe("ProductReviewView", () => {
       </SettingsProvider>,
     );
 
-    await user.type(screen.getByLabelText("Amazon product URL"), "https://www.amazon.com/dp/B0ABC12345");
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
     await user.click(screen.getByRole("button", { name: "Import details" }));
 
     expect(await screen.findByDisplayValue("Trail Press")).toBeTruthy();
@@ -116,7 +116,7 @@ describe("ProductReviewView", () => {
       </SettingsProvider>,
     );
 
-    await user.type(screen.getByLabelText("Amazon product URL"), "https://www.amazon.com/dp/B0ABC12345");
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
     await user.click(screen.getByRole("button", { name: "Import details" }));
     await user.type(await screen.findByLabelText("Your verdict"), "Useful for trips");
     await user.click(screen.getByRole("button", { name: "Continue to generation" }));

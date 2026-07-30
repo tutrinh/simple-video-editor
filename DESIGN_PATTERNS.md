@@ -1,5 +1,8 @@
 # 🎨 Simple Video Editor — UI Design System & Governance Guide
 
+> [!IMPORTANT]
+> **THE DESIGN BIBLE**: This document is the absolute design authority for the Simple Video Editor workspace. Developers and AI agents **MUST NEVER** stray away from this established design system under any circumstances. All UI components, tokens, typography, layouts, and interactive behaviors must strictly adhere to the patterns documented here without exception.
+
 This document establishes the official Design System governance for the **Simple Video Editor** workspace. All developers and AI agents **MUST** follow these tokens, rules, and component patterns when creating or modifying UI elements to prevent design drift.
 
 ---

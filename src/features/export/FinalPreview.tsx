@@ -316,10 +316,10 @@ export default function FinalPreview({
   useEffect(() => {
     const a = audioRef.current;
     if (!a || !music) return;
-    const url = URL.createObjectURL(music);
+    const url = getClipBlobUrl(music);
+    if (!url) return;
     a.src = url;
     a.loop = true;
-    return () => URL.revokeObjectURL(url);
   }, [music]);
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = muteAllAudio ? 0 : Math.min(1, Math.max(0, musicVolume));
@@ -352,10 +352,10 @@ export default function FinalPreview({
           const narration = await synthesizeVoiceover(text, { engine: ttsEngine ?? "kokoro", voice, elevenVoiceId, speed: voiceoverSpeed, elevenModel, elevenStability, elevenStyle });
           if (cancelled) return;
           const blob = new Blob([new Uint8Array(narration.data)], { type: narration.ext === "mp3" ? "audio/mpeg" : "audio/wav" });
-          url = URL.createObjectURL(blob);
-          voCacheRef.current.set(key, url);
+          url = getClipBlobUrl(blob);
+          if (url) voCacheRef.current.set(key, url);
         }
-        if (cancelled) return;
+        if (cancelled || !url) return;
         audio = new Audio(url);
         generatedVoAudioRef.current = audio;
         audio.volume = Math.min(1, Math.max(0,

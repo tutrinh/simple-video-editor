@@ -1,6 +1,6 @@
 import type { ProductBrief, ProductClaim } from "../../domain/productReview";
 
-const MAX_HTML_BYTES = 2_000_000;
+const MAX_HTML_BYTES = 10_000_000;
 const AMAZON_HOSTS = new Set([
   "amazon.com",
   "www.amazon.com",
@@ -40,7 +40,7 @@ const AMAZON_HOSTS = new Set([
   "www.amazon.sa",
 ]);
 
-export type AmazonProductImportFailure =
+export type ProductImportFailure =
   | "invalid-url"
   | "unsupported-domain"
   | "unsafe-url"
@@ -49,47 +49,105 @@ export type AmazonProductImportFailure =
   | "too-large"
   | "no-product-data";
 
-export class AmazonProductImportError extends Error {
+export class ProductImportError extends Error {
   constructor(
-    public readonly reason: AmazonProductImportFailure,
+    public readonly reason: ProductImportFailure,
     message: string,
   ) {
     super(message);
-    this.name = "AmazonProductImportError";
+    this.name = "ProductImportError";
   }
 }
 
-export interface NormalizedAmazonProductUrl {
+export type AmazonProductImportFailure = ProductImportFailure;
+export const AmazonProductImportError = ProductImportError;
+
+export interface NormalizedProductUrl {
   asin: string;
   canonicalUrl: string;
   hostname: string;
+  kind: "amazon" | "web";
 }
 
-export interface AmazonProductImport {
+export type NormalizedAmazonProductUrl = NormalizedProductUrl;
+
+export interface ProductImportResult {
   brief: ProductBrief;
   warnings: string[];
 }
 
-export function normalizeAmazonProductUrl(input: string): NormalizedAmazonProductUrl {
+export type AmazonProductImport = ProductImportResult;
+
+export function normalizeProductUrl(input: string): NormalizedProductUrl {
   let url: URL;
   try {
     url = new URL(input.trim());
   } catch {
-    throw new AmazonProductImportError("invalid-url", "Enter a complete Amazon product URL.");
+    throw new ProductImportError("invalid-url", "Enter a complete product URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new ProductImportError("unsafe-url", "Product links must use HTTP or HTTPS.");
+  }
+  if (url.username || url.password || (url.port && url.port !== "80" && url.port !== "443")) {
+    throw new ProductImportError("unsafe-url", "Product links cannot include credentials or custom ports.");
+  }
+  const hostname = url.hostname.toLowerCase();
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname.endsWith(".local")) {
+    throw new ProductImportError("unsafe-url", "Local IP and network addresses cannot be imported.");
+  }
+
+  if (AMAZON_HOSTS.has(hostname)) {
+    const match = url.pathname.match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/)([A-Z0-9]{10})(?:[/?]|$)/i);
+    if (match) {
+      const asin = match[1].toUpperCase();
+      return {
+        asin,
+        canonicalUrl: `https://${hostname}/dp/${asin}`,
+        hostname,
+        kind: "amazon",
+      };
+    }
+  }
+
+  const cleanUrl = new URL(url.toString());
+  const searchParams = new URLSearchParams(cleanUrl.search);
+  const keysToDelete: string[] = [];
+  searchParams.forEach((_, key) => {
+    if (/^(utm_|ref|fbclid|gclid|mc_eid|_ga)/i.test(key)) {
+      keysToDelete.push(key);
+    }
+  });
+  keysToDelete.forEach((key) => searchParams.delete(key));
+  cleanUrl.search = searchParams.toString();
+
+  return {
+    asin: "",
+    canonicalUrl: cleanUrl.toString(),
+    hostname,
+    kind: "web",
+  };
+}
+
+export function normalizeAmazonProductUrl(input: string): { asin: string; canonicalUrl: string; hostname: string } {
+  let url: URL;
+  try {
+    url = new URL(input.trim());
+  } catch {
+    throw new ProductImportError("invalid-url", "Enter a complete Amazon product URL.");
   }
   if (url.protocol !== "https:") {
-    throw new AmazonProductImportError("unsafe-url", "Amazon product links must use HTTPS.");
+    throw new ProductImportError("unsafe-url", "Amazon product links must use HTTPS.");
   }
   if (url.username || url.password || url.port) {
-    throw new AmazonProductImportError("unsafe-url", "Amazon product links cannot include credentials or a custom port.");
+    throw new ProductImportError("unsafe-url", "Amazon product links cannot include credentials or a custom port.");
   }
   const hostname = url.hostname.toLowerCase();
   if (!AMAZON_HOSTS.has(hostname)) {
-    throw new AmazonProductImportError("unsupported-domain", "This Amazon domain is not supported.");
+    throw new ProductImportError("unsupported-domain", "This Amazon domain is not supported.");
   }
   const match = url.pathname.match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aw\/d\/)([A-Z0-9]{10})(?:[/?]|$)/i);
   if (!match) {
-    throw new AmazonProductImportError("not-a-product", "The link does not contain an Amazon product identifier.");
+    throw new ProductImportError("not-a-product", "The link does not contain an Amazon product identifier.");
   }
   const asin = match[1].toUpperCase();
   return {
@@ -171,10 +229,18 @@ function productImage(node: Record<string, unknown>): string {
   const image = node.image;
   if (typeof image === "string") return image;
   if (Array.isArray(image)) {
-    const first = image.find((item) => typeof item === "string");
-    return typeof first === "string" ? first : "";
+    for (const item of image) {
+      if (typeof item === "string" && item.trim()) return item.trim();
+      if (item && typeof item === "object") {
+        const url = (item as Record<string, unknown>).url || (item as Record<string, unknown>).contentUrl;
+        if (typeof url === "string" && url.trim()) return url.trim();
+      }
+    }
   }
-  if (image && typeof image === "object") return decodeHtml((image as Record<string, unknown>).url);
+  if (image && typeof image === "object") {
+    const url = (image as Record<string, unknown>).url || (image as Record<string, unknown>).contentUrl;
+    if (typeof url === "string") return decodeHtml(url);
+  }
   return "";
 }
 
@@ -210,41 +276,146 @@ function challengePage(html: string): boolean {
   return /robot check|enter the characters you see|api-services-support@amazon|captcha/i.test(html);
 }
 
+export function cleanAmazonTitle(rawTitle: string): string {
+  let title = rawTitle
+    .replace(/^Amazon\.[a-z.]+\s*:\s*/i, "")
+    .replace(/:\s*Amazon\.[a-z.]+.*$/i, "")
+    .replace(/:\s*Beauty & Personal Care.*$/i, "")
+    .replace(/:\s*Everything Else.*$/i, "")
+    .trim();
+
+  if (title.length > 100) {
+    const parts = title.split(/\s+[|:]\s+/);
+    if (parts[0] && parts[0].trim().length >= 10) {
+      title = parts[0].trim();
+    }
+  }
+  return title;
+}
+
+export function cleanImageUrl(rawUrl: string): string {
+  if (!rawUrl) return "";
+  let url = rawUrl.trim();
+  url = url
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+
+  if (url.startsWith("//")) {
+    url = `https:${url}`;
+  }
+  if (url.startsWith("/api/") || url.startsWith("blob:") || url.startsWith("data:")) {
+    return url;
+  }
+  if (/^https?:\/\//i.test(url)) {
+    return `/api/product/image?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 export function importAmazonProductHtml(
   sourceUrl: string,
   html: string,
   fetchedAt = Date.now(),
 ): AmazonProductImport {
-  const normalized = normalizeAmazonProductUrl(sourceUrl);
+  const normalized = normalizeProductUrl(sourceUrl);
   if (html.length > MAX_HTML_BYTES) {
-    throw new AmazonProductImportError("too-large", "The Amazon response was too large to import safely.");
+    throw new AmazonProductImportError("too-large", "The product page response was too large to import safely.");
   }
   if (challengePage(html)) {
-    throw new AmazonProductImportError("blocked", "Amazon blocked the product import; enter the details manually.");
+    throw new AmazonProductImportError("blocked", "The store blocked the product import; enter the details manually.");
   }
 
   const node = jsonLdProduct(html);
-  const title = decodeHtml(node?.name) || metaContent(html, "og:title");
+  
+  let rawTitle = decodeHtml(node?.name) || metaContent(html, "og:title") || metaContent(html, "title");
+  if (!rawTitle) {
+    const spanTitleMatch = /<span\b[^>]*id\s*=\s*["']productTitle["'][^>]*>([\s\S]*?)<\/span>/i.exec(html);
+    if (spanTitleMatch) rawTitle = decodeHtml(spanTitleMatch[1]);
+  }
+  if (!rawTitle) {
+    const pageTitleMatch = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+    if (pageTitleMatch) {
+      rawTitle = decodeHtml(pageTitleMatch[1]);
+    }
+  }
+
+  const title = rawTitle && !/robot check|captcha/i.test(rawTitle) ? cleanAmazonTitle(rawTitle) : "";
+
   if (!title) {
-    throw new AmazonProductImportError("no-product-data", "No product details were found on this Amazon page.");
+    console.warn("[Product Import] Could not extract title from HTML length:", html.length);
+    throw new AmazonProductImportError("no-product-data", "No product details were found on this product page.");
   }
 
   const brand = node ? productBrand(node) : "";
-  const description = decodeHtml(node?.description) || metaContent(html, "og:description");
-  const imageUrl = (node ? productImage(node) : "") || metaContent(html, "og:image");
-  const features = node ? productFeatures(node, normalized.asin) : [];
+  let imageUrl = (node ? productImage(node) : "")
+    || metaContent(html, "og:image")
+    || metaContent(html, "og:image:secure_url")
+    || metaContent(html, "twitter:image")
+    || metaContent(html, "twitter:image:src");
+
+  if (!imageUrl) {
+    const linkMatch = /<link\b[^>]*rel=["'](?:image_src|preload)["'][^>]*href=["']([^"']+)["']/i.exec(html);
+    if (linkMatch) imageUrl = linkMatch[1];
+  }
+
+  if (!imageUrl) {
+    const cdnMatch = /(https:\/\/(?:target\.scene7\.com|images\.target|cdn\.shopify|images\.unsplash|m\.media-amazon|pisces\.bbystatic)[^"' \s]+\.(?:jpg|jpeg|png|webp|avif)(?:\?[^"' \s]*)?)/i.exec(html);
+    if (cdnMatch) imageUrl = cdnMatch[1];
+  }
+
+  if (!imageUrl) {
+    const landingImageMatch = /id=["']landingImage["'][^>]*src=["']([^"']+)["']/i.exec(html)
+      || /data-old-hires=["']([^"']+)["']/i.exec(html)
+      || /data-a-dynamic-image=["']\{&quot;([^&"]+)&quot;/i.exec(html);
+    if (landingImageMatch) imageUrl = landingImageMatch[1];
+  }
+
+  if (imageUrl) {
+    imageUrl = imageUrl
+      .replace(/&amp;/gi, "&")
+      .replace(/&quot;/gi, "\"")
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">");
+    if (imageUrl.startsWith("//")) imageUrl = `https:${imageUrl}`;
+  }
+
+  const features = node ? productFeatures(node, normalized.asin || "web") : [];
   const warnings: string[] = [];
   if (features.length === 0) warnings.push("No product feature claims were found; add or verify them manually.");
   if (!brand) warnings.push("Brand was not found; verify it manually.");
 
+  console.log("%c[Product Import DevTools Log]", "color: #ffb339; font-weight: bold;", {
+    sourceUrl,
+    asin: normalized.asin,
+    title,
+    brand: brand || "(none)",
+    imageUrl: imageUrl || "(none)",
+    featuresCount: features.length,
+    warnings,
+    htmlBytesReceived: html.length,
+  });
+
+  const source: ProductBrief["source"] = normalized.kind === "amazon"
+    ? {
+        kind: "amazon",
+        url: sourceUrl,
+        canonicalUrl: normalized.canonicalUrl,
+        asin: normalized.asin,
+        fetchedAt,
+      }
+    : {
+        kind: "web",
+        url: sourceUrl,
+        canonicalUrl: normalized.canonicalUrl,
+        fetchedAt,
+      };
+
   const brief: ProductBrief = {
-    source: {
-      kind: "amazon",
-      url: sourceUrl,
-      canonicalUrl: normalized.canonicalUrl,
-      asin: normalized.asin,
-      fetchedAt,
-    },
+    source,
     title,
     features,
   };
@@ -252,7 +423,6 @@ export function importAmazonProductHtml(
   const priceText = node ? productPrice(node) : "";
   if (brand) brief.brand = brand;
   if (category) brief.category = category;
-  if (description) brief.description = description;
   if (imageUrl) brief.imageUrl = imageUrl;
   if (priceText) brief.priceText = priceText;
 

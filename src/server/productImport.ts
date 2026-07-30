@@ -1,7 +1,7 @@
-import { AmazonProductImportError, importAmazonProductHtml, normalizeAmazonProductUrl } from "../features/product-review/amazonProductSource";
+import { AmazonProductImportError, importAmazonProductHtml, normalizeProductUrl } from "../features/product-review/amazonProductSource";
 
 const MAX_REDIRECTS = 3;
-const MAX_HTML_BYTES = 2_000_000;
+const MAX_HTML_BYTES = 10_000_000;
 const REQUEST_TIMEOUT_MS = 10_000;
 
 type PageFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -11,7 +11,7 @@ export async function fetchAmazonProduct(
   pageFetch: PageFetch = fetch,
   fetchedAt = Date.now(),
 ) {
-  const source = normalizeAmazonProductUrl(sourceUrl);
+  const source = normalizeProductUrl(sourceUrl);
   let currentUrl = source.canonicalUrl;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -29,35 +29,35 @@ export async function fetchAmazonProduct(
       });
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
-        if (!location) throw new AmazonProductImportError("no-product-data", "Amazon returned an empty redirect.");
+        if (!location) throw new AmazonProductImportError("no-product-data", "The store returned an empty redirect.");
         if (redirect === MAX_REDIRECTS) {
-          throw new AmazonProductImportError("no-product-data", "Amazon returned too many redirects.");
+          throw new AmazonProductImportError("no-product-data", "The store returned too many redirects.");
         }
         const next = new URL(location, currentUrl).toString();
-        currentUrl = normalizeAmazonProductUrl(next).canonicalUrl;
+        currentUrl = normalizeProductUrl(next).canonicalUrl;
         continue;
       }
       if (!response.ok) {
         throw new AmazonProductImportError(
           response.status === 429 || response.status === 403 ? "blocked" : "no-product-data",
-          `Amazon returned HTTP ${response.status}.`,
+          `The store returned HTTP ${response.status}.`,
         );
       }
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
       if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
-        throw new AmazonProductImportError("no-product-data", "Amazon did not return an HTML product page.");
+        throw new AmazonProductImportError("no-product-data", "The product page did not return HTML.");
       }
       const declaredLength = Number(response.headers.get("content-length") ?? 0);
       if (declaredLength > MAX_HTML_BYTES) {
-        throw new AmazonProductImportError("too-large", "The Amazon response was too large to import safely.");
+        throw new AmazonProductImportError("too-large", "The product page response was too large to import safely.");
       }
       const html = await response.text();
       if (html.length > MAX_HTML_BYTES) {
-        throw new AmazonProductImportError("too-large", "The Amazon response was too large to import safely.");
+        throw new AmazonProductImportError("too-large", "The product page response was too large to import safely.");
       }
       return importAmazonProductHtml(sourceUrl, html, fetchedAt);
     }
-    throw new AmazonProductImportError("no-product-data", "Amazon returned too many redirects.");
+    throw new AmazonProductImportError("no-product-data", "The store returned too many redirects.");
   } finally {
     clearTimeout(timeout);
   }

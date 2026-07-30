@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Beat, Clip } from "../../domain/types";
 import { advanceStillPos } from "../../studio/util";
 import { ControlButton } from "../../design-system/ControlPrimitives";
+import { getClipBlobUrl } from "../../lib/blobUrlCache";
 
 // Drag-to-trim: a timeline with in/out handles over a scrub video. Dragging a
 // handle seeks the video to that frame (live preview) and, on release, commits
@@ -46,20 +47,21 @@ export default function BeatTrimmer({ beat, clip, onChange, compact = false, loc
   // lifetime matches the <video> src (StrictMode-safe). Reload only on clip change.
   useEffect(() => {
     if (compact) return; // no preview element in compact mode
+    const srcFile = clip.normalized ?? clip.file;
+    if (!srcFile) return;
+    const url = getClipBlobUrl(srcFile);
+    if (!url) return;
     if (isStill) {
-      const url = URL.createObjectURL(clip.normalized ?? clip.file);
       setStillUrl(url);
-      return () => { setStillUrl(null); URL.revokeObjectURL(url); };
+      return () => { setStillUrl(null); };
     }
     const v = videoRef.current;
     if (!v) return;
-    const url = URL.createObjectURL(clip.normalized ?? clip.file);
     v.src = url;
     const onMeta = () => { v.currentTime = beat.inSec; };
     v.addEventListener("loadedmetadata", onMeta, { once: true });
     return () => {
       v.removeEventListener("loadedmetadata", onMeta);
-      URL.revokeObjectURL(url);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clip.id, compact, isStill]);
