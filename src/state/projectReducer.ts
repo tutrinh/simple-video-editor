@@ -1,4 +1,6 @@
 import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments } from "../domain/types";
+import type { CreatorNotes, ProductBrief, ProductReviewWorkspace, ReviewPlan } from "../domain/productReview";
+import { emptyCreatorNotes } from "../domain/productReview";
 
 /** The whole editing session. One store; every phase reads/writes it. */
 export interface ProjectState {
@@ -9,6 +11,8 @@ export interface ProjectState {
   direction: string;
   story?: Story;
   cut?: Cut;
+  /** Product-review planning workspace; optional for pre-Phase-2 projects. */
+  productReview?: ProductReviewWorkspace;
 }
 
 export const initialState: ProjectState = { title: "", clips: [], direction: "" };
@@ -25,6 +29,10 @@ export type Action =
   | { type: "SET_INCLUDED"; id: string; included: boolean }
   | { type: "SET_CLIP_TAGS"; id: string; tags: string[] }
   | { type: "SET_DIRECTION"; direction: string }
+  | { type: "SET_PRODUCT_BRIEF"; brief: ProductBrief; importWarnings?: string[] }
+  | { type: "SET_CREATOR_NOTES"; creatorNotes: CreatorNotes }
+  | { type: "SET_REVIEW_PLAN"; plan: ReviewPlan }
+  | { type: "CLEAR_PRODUCT_REVIEW" }
   | { type: "SET_STORY"; story: Story }
   | { type: "SET_CUT"; cut: Cut }
   | { type: "APPLY_TEMPLATE"; cut: Cut; placeholderClips?: Clip[] }
@@ -135,6 +143,35 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, clips: patchClip(state.clips, action.id, { tags: action.tags }) };
     case "SET_DIRECTION":
       return { ...state, direction: action.direction };
+    case "SET_PRODUCT_BRIEF":
+      return {
+        ...state,
+        productReview: {
+          creatorNotes: state.productReview?.creatorNotes ?? emptyCreatorNotes(),
+          ...state.productReview,
+          brief: action.brief,
+          importWarnings: action.importWarnings,
+        },
+      };
+    case "SET_CREATOR_NOTES":
+      return {
+        ...state,
+        productReview: {
+          ...state.productReview,
+          creatorNotes: action.creatorNotes,
+        },
+      };
+    case "SET_REVIEW_PLAN":
+      return {
+        ...state,
+        productReview: {
+          creatorNotes: state.productReview?.creatorNotes ?? emptyCreatorNotes(),
+          ...state.productReview,
+          plan: action.plan,
+        },
+      };
+    case "CLEAR_PRODUCT_REVIEW":
+      return { ...state, productReview: undefined };
     case "SET_STORY":
       return { ...state, story: action.story };
     case "SET_CUT":

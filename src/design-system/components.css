@@ -12,6 +12,7 @@
   cursor: pointer;
 }
 .ui-close:hover { background: var(--panel-3); color: var(--ink); }
+.ui-close:disabled { opacity: .45; cursor: not-allowed; }
 
 .ui-drawer-scrim {
   position: fixed;

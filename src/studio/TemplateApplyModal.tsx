@@ -1,10 +1,20 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Clip, ProjectTemplate } from "../domain/types";
 import { applyTemplate } from "../features/templates/applyTemplate";
+import {
+  recommendTemplateCoverage,
+  type TemplateCoveragePlan,
+} from "../features/templates/templateCoverage";
+import { analyzeClip } from "../features/analyze/analyze";
+import { callClaude } from "../lib/claudeClient";
 import { useProject } from "../state/ProjectContext";
-import { ControlButton, SelectControl } from "../design-system/ControlPrimitives";
+import { useSettings } from "../state/SettingsContext";
+import { SelectControl } from "../design-system/ControlPrimitives";
 import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
-import CloseIcon from "../design-system/icons/CloseIcon";
+import CloseButton from "../design-system/CloseButton";
+import Button from "../design-system/Button";
+import Badge from "../design-system/Badge";
+import { ProgressNotice } from "../design-system/Feedback";
 import TemplateDetails from "./TemplateDetails";
 
 interface Props {
@@ -16,11 +26,15 @@ interface Props {
 
 export default function TemplateApplyModal({ template, clips, onClose, onApplied }: Props) {
   const { state, dispatch } = useProject();
+  const { settings } = useSettings();
   const usableClips = clips.filter((clip) => !clip.isTemplatePlaceholder);
   const [assignments, setAssignments] = useState<string[]>(
     template.beats.map((_, index) => usableClips[index]?.id ?? ""),
   );
   const [error, setError] = useState("");
+  const [coverage, setCoverage] = useState<TemplateCoveragePlan | null>(null);
+  const [coverageBusy, setCoverageBusy] = useState(false);
+  const [coverageProgress, setCoverageProgress] = useState("");
 
   const duplicateIds = useMemo(() => {
     const seen = new Set<string>();
@@ -35,7 +49,56 @@ export default function TemplateApplyModal({ template, clips, onClose, onApplied
 
   const canApply = duplicateIds.size === 0;
 
-  const handleApply = () => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !coverageBusy) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [coverageBusy, onClose]);
+
+  async function handleRecommendCoverage() {
+    if (coverageBusy || usableClips.length === 0) return;
+    setCoverageBusy(true);
+    setCoverage(null);
+    setError("");
+    try {
+      const analyzedClips: Clip[] = [];
+      for (let index = 0; index < usableClips.length; index++) {
+        const clip = usableClips[index];
+        if (clip.description) {
+          analyzedClips.push(clip);
+          continue;
+        }
+        setCoverageProgress(`Analyzing Clip ${index + 1} of ${usableClips.length} · ${clip.name}`);
+        const description = await analyzeClip(clip, {
+          provider: settings.aiProvider,
+          model: settings.analyzeModel,
+        });
+        dispatch({ type: "SET_DESCRIPTION", id: clip.id, description });
+        analyzedClips.push({ ...clip, description });
+      }
+
+      setCoverageProgress("Matching Clips to template roles…");
+      const plan = await recommendTemplateCoverage({
+        template,
+        clips: analyzedClips,
+      }, (prompt) => callClaude(prompt, {
+        provider: settings.aiProvider,
+        model: settings.authorModel,
+      }));
+      setCoverage(plan);
+      setAssignments(plan.recommendations.map((recommendation) => recommendation.clipId ?? ""));
+      setCoverageProgress("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+      setCoverageProgress("");
+    } finally {
+      setCoverageBusy(false);
+    }
+  }
+
+  function handleApply() {
     try {
       const result = applyTemplate(
         template,
@@ -44,105 +107,157 @@ export default function TemplateApplyModal({ template, clips, onClose, onApplied
       );
       dispatch({ type: "APPLY_TEMPLATE", cut: result.cut, placeholderClips: result.placeholderClips });
       onApplied();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not apply this template.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not apply this template.");
     }
-  };
+  }
 
   return (
     <ModalScrim
-      className="st-modal-scrim"
+      className="st-modal-scrim st-template-apply-scrim"
       onClick={(event) => {
         event.stopPropagation();
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget && !coverageBusy) onClose();
       }}
-      style={{ zIndex: 1200 }}
     >
       <ModalSurface
-        className="st-modal-card"
+        className="st-modal-card st-template-apply-modal"
         role="dialog"
         aria-modal="true"
         aria-label={`Use ${template.name}`}
         onClick={(event) => event.stopPropagation()}
-        style={{
-          width: "min(880px, calc(100vw - 40px))",
-          maxWidth: 880,
-          maxHeight: "88vh",
-          padding: 0,
-          gap: 0,
-          boxSizing: "border-box",
-          display: "flex",
-          flexDirection: "column",
-        }}
       >
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--line)", display: "flex", justifyContent: "space-between", gap: 16 }}>
+        <header className="st-template-apply-header">
           <div>
-            <h3 style={{ margin: 0, fontSize: 15, color: "var(--ink)" }}>Use “{template.name}”</h3>
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--ink-2)" }}>
-              Assign a different project clip to each template beat.
-            </p>
+            <h3>Use “{template.name}”</h3>
+            <p>Let AI match your footage, then review or override every Beat.</p>
           </div>
-          <ControlButton aria-label="Close" onClick={onClose} style={{ background: "none", border: 0, color: "var(--ink-2)", alignSelf: "flex-start" }}>
-            <CloseIcon size={15} />
-          </ControlButton>
-        </div>
+          <CloseButton onClick={onClose} label="Close template assignment" disabled={coverageBusy} />
+        </header>
 
-        <div style={{ padding: 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ padding: 12, background: "var(--panel-2)", border: "1px solid var(--line)", borderRadius: 9 }}>
+        <div className="st-template-apply-body">
+          <section className="st-template-coverage-tools" aria-label="AI coverage coach">
+            <div>
+              <strong>AI Autofill &amp; Coverage</strong>
+              <span>Analyzes visible Clip content, proposes unique matches, and identifies shots you still need.</span>
+            </div>
+            <Button
+              variant="primary"
+              size="small"
+              disabled={coverageBusy || usableClips.length === 0}
+              onClick={handleRecommendCoverage}
+            >
+              {coverageBusy ? "Working…" : coverage ? "Run again" : "Analyze & Autofill"}
+            </Button>
+          </section>
+
+          {coverageBusy && (
+            <ProgressNotice
+              title="Building coverage plan"
+              message={coverageProgress || "Preparing Clip analysis…"}
+            />
+          )}
+
+          {coverage && (
+            <div className="st-template-coverage-summary" role="status">
+              <Badge tone="positive">{coverage.matchedCount} matched</Badge>
+              <Badge tone={coverage.missingCount ? "critical" : "positive"}>
+                {coverage.missingCount} missing
+              </Badge>
+              <span>Review every recommendation before applying the template.</span>
+            </div>
+          )}
+
+          <section className="st-template-apply-details">
             <TemplateDetails template={template} compact />
-          </div>
+          </section>
 
           {usableClips.length < template.beats.length && (
-            <div style={{ padding: "10px 12px", border: "1px solid var(--accent)", borderRadius: 8, color: "var(--ink-2)", background: "color-mix(in srgb, var(--accent) 8%, transparent)", fontSize: 12 }}>
-              This template has {template.beats.length} beats and the project has {usableClips.length} clips. Unassigned beats will stay in order as empty timeline slots that you can fill later.
+            <div className="st-template-apply-notice">
+              This template has {template.beats.length} Beats and the Project has {usableClips.length} Clips.
+              Unmatched Beats remain labeled placeholders that you can fill later.
             </div>
           )}
 
           {state.cut?.beats.length ? (
-            <div style={{ padding: "10px 12px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 8, color: "var(--ink-2)", fontSize: 11 }}>
-              Applying this template replaces the current cut. Your uploaded clips stay in the project.
+            <div className="st-template-apply-replace">
+              Applying this template replaces the current Cut. Uploaded Clips remain in the Project.
             </div>
           ) : null}
 
-          {template.beats.map((beat, index) => {
-            const selected = assignments[index];
-            const isDuplicate = Boolean(selected && duplicateIds.has(selected));
-            return (
-              <label key={index} style={{ display: "grid", gridTemplateColumns: "minmax(150px, 1fr) minmax(220px, 1.3fr)", gap: 14, alignItems: "center", padding: 12, background: "var(--panel)", border: `1px solid ${isDuplicate ? "var(--danger)" : "var(--line)"}`, borderRadius: 8 }}>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--ink)" }}>{index + 1}. {beat.description}</span>
-                  <span style={{ display: "block", marginTop: 3, fontSize: 10, color: "var(--ink-3)" }}>
-                    {beat.approxDurationSec ? `About ${beat.approxDurationSec}s` : "Default duration"}
-                  </span>
-                </span>
-                <SelectControl
-                  value={selected}
-                  onChange={(event) => {
-                    const next = [...assignments];
-                    next[index] = event.target.value;
-                    setAssignments(next);
-                    setError("");
-                  }}
-                  style={{ width: "100%", minWidth: 0, boxSizing: "border-box", padding: "7px 9px", background: "var(--panel-2)", color: "var(--ink)", border: `1px solid ${isDuplicate ? "var(--danger)" : "var(--line)"}`, borderRadius: 6 }}
+          <div className="st-template-assignment-list">
+            {template.beats.map((beat, index) => {
+              const selected = assignments[index];
+              const isDuplicate = Boolean(selected && duplicateIds.has(selected));
+              const recommendation = coverage?.recommendations[index];
+              const manuallyOverridden = Boolean(coverage && selected !== (recommendation?.clipId ?? ""));
+              return (
+                <label
+                  key={index}
+                  className={`st-template-assignment${isDuplicate ? " invalid" : ""}`}
                 >
-                  <option value="">Leave empty — fill later</option>
-                  {usableClips.map((clip) => (
-                    <option key={clip.id} value={clip.id} disabled={assignments.some((id, i) => i !== index && id === clip.id)}>
-                      {clip.name} · {clip.durationSec.toFixed(1)}s
-                    </option>
-                  ))}
-                </SelectControl>
-              </label>
-            );
-          })}
+                  <span className="st-template-assignment-role">
+                    <span>
+                      <strong>{index + 1}. {beat.description}</strong>
+                      <small>{beat.approxDurationSec ? `About ${beat.approxDurationSec}s` : "Default duration"}</small>
+                    </span>
+                    {recommendation && (
+                      <Badge tone={recommendation.missing ? "critical" : "positive"}>
+                        {manuallyOverridden
+                          ? "Manual"
+                          : recommendation.missing
+                            ? "Needs shot"
+                            : `${Math.round(recommendation.confidence * 100)}% match`}
+                      </Badge>
+                    )}
+                  </span>
 
-          {error && <div style={{ color: "var(--danger)", fontSize: 12 }}>{error}</div>}
+                  <SelectControl
+                    value={selected}
+                    aria-label={`Clip for Beat ${index + 1}: ${beat.description}`}
+                    onChange={(event) => {
+                      const next = [...assignments];
+                      next[index] = event.target.value;
+                      setAssignments(next);
+                      setError("");
+                    }}
+                  >
+                    <option value="">Leave empty — fill later</option>
+                    {usableClips.map((clip) => (
+                      <option
+                        key={clip.id}
+                        value={clip.id}
+                        disabled={assignments.some((id, assignmentIndex) =>
+                          assignmentIndex !== index && id === clip.id
+                        )}
+                      >
+                        {clip.name} · {clip.durationSec.toFixed(1)}s
+                      </option>
+                    ))}
+                  </SelectControl>
+
+                  {recommendation && !manuallyOverridden && (
+                    <span className="st-template-assignment-reason">
+                      {recommendation.reason}
+                      {recommendation.missingShot && (
+                        <strong>Reshoot: {recommendation.missingShot}</strong>
+                      )}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+
+          {error && <div className="ui-field-error st-template-apply-error" role="alert">{error}</div>}
         </div>
 
-        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <ControlButton className="st-btn ghost" onClick={onClose}>Cancel</ControlButton>
-          <ControlButton className="st-btn primary" disabled={!canApply} onClick={handleApply}>Apply Template</ControlButton>
-        </div>
+        <footer className="st-template-apply-footer">
+          <Button variant="secondary" onClick={onClose} disabled={coverageBusy}>Cancel</Button>
+          <Button variant="primary" disabled={!canApply || coverageBusy} onClick={handleApply}>
+            Apply Template
+          </Button>
+        </footer>
       </ModalSurface>
     </ModalScrim>
   );

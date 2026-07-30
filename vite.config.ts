@@ -5,6 +5,8 @@ import { execFile } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, basename, resolve, isAbsolute } from "node:path";
+import { AmazonProductImportError } from "./src/features/product-review/amazonProductSource";
+import { fetchAmazonProduct } from "./src/server/productImport";
 
 // COOP/COEP enable SharedArrayBuffer for the multithreaded ffmpeg core (a Phase-7
 // perf swap). The single-threaded core works without them; harmless to set now.
@@ -20,6 +22,57 @@ function readBody(req: NodeJS.ReadableStream): Promise<string> {
     req.on("end", () => resolve(d));
     req.on("error", reject);
   });
+}
+
+function productImportProxy(): Plugin {
+  const recentImports = new Map<string, number>();
+  return {
+    name: "amazon-product-import",
+    configureServer(server) {
+      server.middlewares.use("/api/product/amazon", async (req, res) => {
+        const send = (code: number, body: unknown) => {
+          res.statusCode = code;
+          res.setHeader("content-type", "application/json");
+          res.setHeader("cache-control", "no-store");
+          res.end(JSON.stringify(body));
+        };
+        if (req.method !== "POST") return send(405, { error: "Method not allowed." });
+        if (Number(req.headers["content-length"] ?? 0) > 16_384) {
+          return send(413, { error: "Product import request is too large.", reason: "too-large" });
+        }
+        try {
+          const bodyText = await readBody(req);
+          if (bodyText.length > 16_384) {
+            return send(413, { error: "Product import request is too large.", reason: "too-large" });
+          }
+          const body = JSON.parse(bodyText) as { url?: unknown };
+          if (typeof body.url !== "string" || !body.url.trim()) {
+            return send(400, { error: "An Amazon product URL is required.", reason: "invalid-url" });
+          }
+          const now = Date.now();
+          const lastImport = recentImports.get(body.url) ?? 0;
+          if (now - lastImport < 1_200) {
+            return send(429, { error: "Wait a moment before importing this product again.", reason: "blocked" });
+          }
+          recentImports.set(body.url, now);
+          if (recentImports.size > 100) {
+            const oldest = recentImports.keys().next().value;
+            if (oldest) recentImports.delete(oldest);
+          }
+          const imported = await fetchAmazonProduct(body.url);
+          return send(200, imported);
+        } catch (error) {
+          if (error instanceof AmazonProductImportError) {
+            return send(422, { error: error.message, reason: error.reason });
+          }
+          const message = error instanceof Error && error.name === "AbortError"
+            ? "Amazon product import timed out."
+            : error instanceof Error ? error.message : String(error);
+          return send(502, { error: message, reason: "network" });
+        }
+      });
+    },
+  };
 }
 
 // Raw binary body (for file uploads — the string reader above corrupts bytes).
@@ -522,6 +575,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      productImportProxy(),
       claudeProxy(),
       codexProxy(),
       elevenProxy(env.ELEVENLABS_API_KEY ?? ""),
