@@ -54,11 +54,31 @@ function wrapParagraphs(ctx: CanvasRenderingContext2D, text: string, maxWidth: n
     if (words.length === 0) continue;
     let line = "";
     for (const word of words) {
-      const trial = line ? `${line} ${word}` : word;
-      if (!line || ctx.measureText(trial).width <= maxWidth) line = trial;
-      else {
-        out.push(line);
-        line = word;
+      if (ctx.measureText(word).width > maxWidth) {
+        if (line) {
+          out.push(line);
+          line = "";
+        }
+        let charChunk = "";
+        for (const char of word) {
+          const trialChunk = charChunk + char;
+          if (!charChunk || ctx.measureText(trialChunk).width <= maxWidth) {
+            charChunk = trialChunk;
+          } else {
+            out.push(charChunk);
+            charChunk = char;
+          }
+        }
+        if (charChunk) {
+          line = charChunk;
+        }
+      } else {
+        const trial = line ? `${line} ${word}` : word;
+        if (!line || ctx.measureText(trial).width <= maxWidth) line = trial;
+        else {
+          out.push(line);
+          line = word;
+        }
       }
     }
     if (line) out.push(line);

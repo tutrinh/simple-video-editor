@@ -648,7 +648,7 @@ export default function FinalPreview({
             // here rather than animated: this preview already advances
             // `beatElapsed` on its own rAF clock and scrubs through the whole
             // Cut, so there is no playback phase a CSS animation could own.
-            ...(currentBeatClip?.kind === "still" && beat?.framing === "kenBurns" && beat.kenBurns
+            ...(beat?.framing === "kenBurns" && beat.kenBurns
               // Normalised over the TRIM, not over `durationSec`. The export
               // spans the move across `outSec - inSec` and StagePreview does the
               // same; `durationSec` is a third derivation of that quantity, kept
@@ -1035,6 +1035,7 @@ function TitleLayerCanvas({
     layer.text, layer.fontId, layer.fontFile, layer.fontFamily, layer.fontWeight,
     layer.sizePx, layer.letterSpacing, layer.arcDeg, layer.shadow, layer.color,
     layer.posX, layer.posY, layer.boxWidthPct, layer.lineHeight, layer.typewriterCursor,
+    layer.maskMode, layer.maskColor,
     typewriterProgress, cw, ch,
   ]);
 

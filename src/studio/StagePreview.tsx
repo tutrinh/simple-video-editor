@@ -599,7 +599,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   // The move, if this Beat has one. Its keyframes are injected rather than
   // written inline because CSS has no inline @keyframes; the name is derived
   // from the move so two Beats with different moves cannot share a rule.
-  const kbMove = clip?.kind === "still" && beat.framing === "kenBurns" ? beat.kenBurns ?? null : null;
+  const kbMove = beat.framing === "kenBurns" ? beat.kenBurns ?? null : null;
   const kbFrames = kbMove ? kenBurnsKeyframes(kbMove) : null;
   const kbAnimName = `kb-${beat.id.replace(/[^a-z0-9]/gi, "")}`;
 
@@ -717,35 +717,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         )}
         <StickerOverlay stickers={cut.stickers} beats={cut.beats} aspect={cut.aspect} cutSec={elapsedCutSec} />
         <BeatTitleOverlay layers={beat.titleLayers} aspect={cut.aspect} elapsed={beatElapsed} />
-        <div className="st-badgeTL st-num" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span>Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}</span>
-          {beat && (
-            <ControlButton
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                dispatch({
-                  type: "UPDATE_BEAT",
-                  beat: { ...beat, rotation: (Math.abs(beat.rotation ?? 0) === 180 ? 0 : 180) },
-                });
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              title="Flip 180° (Fix upside-down video)"
-              style={{
-                background: Math.abs(beat.rotation ?? 0) === 180 ? "var(--accent)" : "rgba(0, 0, 0, 0.4)",
-                color: Math.abs(beat.rotation ?? 0) === 180 ? "var(--accent-ink)" : "#fff",
-                border: "1px solid rgba(255, 255, 255, 0.25)",
-                borderRadius: 4,
-                padding: "1px 6px",
-                fontSize: 10,
-                fontWeight: 600,
-                cursor: "pointer",
-                lineHeight: 1.2,
-              }}
-            >
-              🙃 180° Flip
-            </ControlButton>
-          )}
+        <div className="st-badgeTL st-num">
+          Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}
         </div>
         <div className="cap"><span>{caption}</span></div>
       </div>

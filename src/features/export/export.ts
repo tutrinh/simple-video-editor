@@ -8,6 +8,8 @@ import { captionSchedule } from "../../lib/pacing";
 import { renderStillContained } from "../../lib/frameSampler";
 import { ffmpegColorLut, beatFrameFilters, kenBurnsChain, kenBurnsPreScale } from "../../studio/util";
 import { ensureTitleFontFace, renderTitleLayerToPng, titleFontKey, TITLE_ANIM } from "./titleCanvas";
+import { getTitleFontBytes } from "./titleFonts";
+import { findFontById } from "../../lib/googleFonts";
 import { renderCaptionToPng } from "./captionCanvas";
 import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers, resolveSfxSegments } from "./stickerCanvas";
 import { normalizeSplitConfig, buildSplitScreenFilterGraph } from "./splitScreenCanvas";
@@ -35,6 +37,8 @@ export interface TitleLayer {
   id: string;
   enabled: boolean;
   text: string;
+  fontId?: string;
+  fontFile?: File | null;
   fontBytes?: Uint8Array;
   fontCssFamily?: string;
   weight?: number;
@@ -362,15 +366,18 @@ export async function exportCut(
     const activeLayers = opts.title.layers.filter((l) => l.enabled && l.text.trim());
     for (let k = 0; k < activeLayers.length; k++) {
       const l = activeLayers[k];
-      const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
-      const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
-      const cssFamily = l.fontCssFamily ?? "sans-serif";
+      const fId = l.fontId;
+      const fFile = l.fontFile;
+      const fontBytes = l.fontBytes ?? (fId ? await getTitleFontBytes(fId, l.weight, fFile) : undefined);
+      const cssFamily = l.fontCssFamily ?? (fId ? findFontById(fId)?.cssFamily : undefined) ?? "sans-serif";
+      const fontKey = titleFontKey(cssFamily, l.weight ?? 400, fontBytes?.length);
+      const canvasFamily = await ensureTitleFontFace(fontKey, fontBytes, cssFamily);
       const png = await renderTitleLayerToPng(
         {
           text: l.text,
           canvasFamily,
           cssFamily,
-          fontBytes: l.fontBytes,
+          fontBytes,
           fontWeight: l.weight ?? 400,
           sizePx: l.sizePx,
           letterSpacing: l.letterSpacing,
@@ -388,7 +395,7 @@ export async function exportCut(
         h,
       );
       if (png) {
-        preRenderedTitleLayers.push({ layer: l, png, pngName: `title_${k}.png`, index: k, canvasFamily, cssFamily });
+        preRenderedTitleLayers.push({ layer: { ...l, fontBytes, fontCssFamily: cssFamily }, png, pngName: `title_${k}.png`, index: k, canvasFamily, cssFamily });
       }
     }
   }
@@ -396,43 +403,46 @@ export async function exportCut(
   // Pre-render each beat's OWN title layers (parallel to the cut-level title).
   // These composite only within their own beat segment, timed segment-locally.
   const perBeatTitles = new Map<string, RenderedTitleLayer[]>();
-  if (opts.beatTitles) {
-    for (const beat of cut.beats) {
-      const layers = opts.beatTitles[beat.id];
-      if (!layers) continue;
-      const activeLayers = layers.filter((l) => l.enabled && l.text.trim());
-      const rendered: RenderedTitleLayer[] = [];
-      for (let k = 0; k < activeLayers.length; k++) {
-        const l = activeLayers[k];
-        const fontKey = titleFontKey(l.fontCssFamily ?? "sans-serif", l.weight ?? 400, l.fontBytes?.length);
-        const canvasFamily = await ensureTitleFontFace(fontKey, l.fontBytes, l.fontCssFamily ?? "sans-serif");
-        const cssFamily = l.fontCssFamily ?? "sans-serif";
-        const png = await renderTitleLayerToPng(
-          {
-            text: l.text,
-            canvasFamily,
-            cssFamily,
-            fontBytes: l.fontBytes,
-            fontWeight: l.weight ?? 400,
-            sizePx: l.sizePx,
-            letterSpacing: l.letterSpacing,
-            arcDeg: l.arcDeg,
-            shadow: l.shadow,
-            color: l.color,
-            posX: l.posX,
-            posY: l.posY,
-            boxWidthPct: l.boxWidthPct,
-            lineHeight: l.lineHeight,
-            maskMode: l.maskMode,
-            maskColor: l.maskColor,
-          },
-          w,
-          h,
-        );
-        if (png) rendered.push({ layer: l, png, pngName: `btitle_${beat.id}_${k}.png`, index: k, canvasFamily, cssFamily });
-      }
-      if (rendered.length) perBeatTitles.set(beat.id, rendered);
+  for (const beat of cut.beats) {
+    const layers = opts.beatTitles?.[beat.id] ?? beat.titleLayers;
+    if (!layers) continue;
+    const activeLayers = layers.filter((l) => l.enabled && l.text.trim());
+    const rendered: RenderedTitleLayer[] = [];
+    for (let k = 0; k < activeLayers.length; k++) {
+      const l = activeLayers[k];
+      const fBytes = "fontBytes" in l ? l.fontBytes : undefined;
+      const fFamily = "fontCssFamily" in l ? l.fontCssFamily : undefined;
+      const fFile = "fontFile" in l ? l.fontFile : undefined;
+      const fId = l.fontId;
+      const fontBytes = fBytes ?? (fId ? await getTitleFontBytes(fId, l.weight, fFile) : undefined);
+      const cssFamily = fFamily ?? (fId ? findFontById(fId)?.cssFamily : undefined) ?? "sans-serif";
+      const fontKey = titleFontKey(cssFamily, l.weight ?? 400, fontBytes?.length);
+      const canvasFamily = await ensureTitleFontFace(fontKey, fontBytes, cssFamily);
+      const png = await renderTitleLayerToPng(
+        {
+          text: l.text,
+          canvasFamily,
+          cssFamily,
+          fontBytes,
+          fontWeight: l.weight ?? 400,
+          sizePx: l.sizePx,
+          letterSpacing: l.letterSpacing,
+          arcDeg: l.arcDeg,
+          shadow: l.shadow,
+          color: l.color,
+          posX: l.posX,
+          posY: l.posY,
+          boxWidthPct: l.boxWidthPct,
+          lineHeight: l.lineHeight,
+          maskMode: l.maskMode,
+          maskColor: l.maskColor,
+        },
+        w,
+        h,
+      );
+      if (png) rendered.push({ layer: { ...l, fontBytes, fontCssFamily: cssFamily }, png, pngName: `btitle_${beat.id}_${k}.png`, index: k, canvasFamily, cssFamily });
     }
+    if (rendered.length) perBeatTitles.set(beat.id, rendered);
   }
 
   // Pre-render resolved stickers (ADR-0011). Each sticker asset is rendered ONCE to a PNG
@@ -520,8 +530,10 @@ export async function exportCut(
     if (!clip) return null;
     const clipDur = clip.durationSec || b.outSec - b.inSec;
     const inSec = Math.min(Math.max(0, b.inSec), Math.max(0, clipDur - 0.1));
-    const footageLen = Math.min(Math.max(0.1, b.outSec - b.inSec), Math.max(0.1, clipDur - inSec));
-    return { clip, inSec, footageLen, segDur: footageLen };
+    const targetDur = Math.max(0.1, b.outSec - b.inSec);
+    const maxAvailable = Math.max(0.1, clipDur - inSec);
+    const footageLen = clip.kind === "still" ? targetDur : Math.min(targetDur, maxAvailable);
+    return { clip, inSec, footageLen, segDur: targetDur };
   });
 
   const beatStartSecs: number[] = new Array(cut.beats.length).fill(0);
@@ -573,10 +585,10 @@ export async function exportCut(
     // pre-scaled ONCE here, on the GPU, rather than by a `scale` in the filter
     // chain — the spike measured that as slower than no pre-scale at all,
     // because -loop 1 made ffmpeg re-scale the same picture 300 times.
-    const isKenBurns = clip.kind === "still" && b.framing === "kenBurns" && !!b.kenBurns;
+    const isKenBurns = b.framing === "kenBurns" && !!b.kenBurns;
     let data: Uint8Array;
     let srcName = sourceName(clip);
-    if (isKenBurns) {
+    if (isKenBurns && clip.kind === "still") {
       const cached = kenBurnsStills.get(clip.id);
       if (cached) {
         data = cached;
@@ -663,15 +675,22 @@ export async function exportCut(
     );
     if (colorLut) inputs.push(colorLut.input);
 
+    const speedRatio = segDur / Math.max(0.05, footageLen);
+    const needTimeStretch = clip.kind === "video" && speedRatio > 1.005;
+
     const vf = [
       "setpts=PTS-STARTPTS",
-      // Ken Burns REPLACES the fit-and-pad rather than following it: the static
-      // Zoom runs after the pad and so scales the letterbox bars too, which for
-      // a Still would also discard the native resolution ADR-0012 preserved.
-      // The one-time pre-render already contained and padded to canvas aspect,
-      // so zoompan crops straight to canvas dimensions.
+      ...(needTimeStretch
+        ? (speedRatio <= 2.5
+            ? [`setpts=${speedRatio.toFixed(4)}*PTS`]
+            : [`loop=loop=-1:size=${Math.max(1, Math.round(footageLen * 30))}:start=0`])
+        : []),
       ...(kbMove
-        ? kenBurnsChain(w, h, kbMove, segDur)
+        ? [
+            ...kenBurnsChain(w, h, kbMove, segDur),
+            `trim=duration=${segDur.toFixed(3)}`,
+            "setpts=PTS-STARTPTS",
+          ]
         : [
             `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
             `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
@@ -681,7 +700,7 @@ export async function exportCut(
       ...(colorLut ? [colorLut.filter] : []),
     ];
 
-    const freeze = segDur - footageLen;
+    const freeze = Math.max(0, segDur - (needTimeStretch ? segDur : footageLen));
     if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
 
     // VO-track captions: burn each visible segment that overlaps this beat's window
@@ -946,22 +965,13 @@ export async function exportCut(
 
     const maskTitleLayers = titleLayers.filter((layer) => layer.maskMode === "video");
     const regularTitleLayers = titleLayers.filter((layer) => layer.maskMode !== "video");
-    const allLayers: LayerSpec[] = maskTitleLayers.length > 0
-      ? [
-          ...regularTitleLayers,
-          ...overlayLayers,
-          ...stickerLayers,
-          // The matte consumes the fully composited picture. Captions remain
-          // readable above it, matching the preview's final caption layer.
-          ...maskTitleLayers,
-          ...captionLayers,
-        ]
-      : [
-          ...captionLayers,
-          ...titleLayers,
-          ...overlayLayers,
-          ...stickerLayers,
-        ];
+    const allLayers: LayerSpec[] = [
+      ...overlayLayers,
+      ...stickerLayers,
+      ...maskTitleLayers,
+      ...regularTitleLayers,
+      ...captionLayers,
+    ];
     const transitionFilters = firstPassTransitionFilters(cut.beats, i, segDur);
 
     const audioIdx = numVideoInputs + allLayers.length;

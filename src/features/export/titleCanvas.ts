@@ -87,7 +87,9 @@ export function ensureTitleFontFace(
   if (cached) return cached;
   const p = (async () => {
     try {
-      const face = new FontFace(family, bytes as BufferSource);
+      const weightMatch = key.match(/-(\d+)$/);
+      const weight = weightMatch ? weightMatch[1] : "400";
+      const face = new FontFace(family, bytes as BufferSource, { weight });
       await face.load();
       document.fonts.add(face);
       return `'${family}'`;
@@ -99,19 +101,39 @@ export function ensureTitleFontFace(
   return p;
 }
 
-function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+export function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const out: string[] = [];
   for (const para of text.split("\n")) {
     const words = para.split(/\s+/).filter(Boolean);
     if (words.length === 0) continue;
     let line = "";
     for (const word of words) {
-      const trial = line ? `${line} ${word}` : word;
-      if (!line || ctx.measureText(trial).width <= maxWidth) {
-        line = trial;
+      if (ctx.measureText(word).width > maxWidth) {
+        if (line) {
+          out.push(line);
+          line = "";
+        }
+        let charChunk = "";
+        for (const char of word) {
+          const trialChunk = charChunk + char;
+          if (!charChunk || ctx.measureText(trialChunk).width <= maxWidth) {
+            charChunk = trialChunk;
+          } else {
+            out.push(charChunk);
+            charChunk = char;
+          }
+        }
+        if (charChunk) {
+          line = charChunk;
+        }
       } else {
-        out.push(line);
-        line = word;
+        const trial = line ? `${line} ${word}` : word;
+        if (!line || ctx.measureText(trial).width <= maxWidth) {
+          line = trial;
+        } else {
+          out.push(line);
+          line = word;
+        }
       }
     }
     if (line) out.push(line);
@@ -146,7 +168,7 @@ async function drawArc(
     const bytes = layer.fontBytes;
     for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
     const b64 = btoa(binary);
-    fontFaceCss = `<style>@font-face { font-family: '${primary}'; src: url('data:font/ttf;base64,${b64}') format('truetype'); }</style>`;
+    fontFaceCss = `<style>@font-face { font-family: '${primary}'; font-weight: ${layer.fontWeight}; src: url('data:font/ttf;base64,${b64}') format('truetype'); }</style>`;
   }
 
   const hOffset = (curvature / 180) * (h * 0.45);

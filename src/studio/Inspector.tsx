@@ -2710,38 +2710,35 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
 
                 {/* A Beat's framing is static (Zoom) or moving (Ken Burns) —
-                    a mode, never both (ADR-0015). Stills only for now, so a
-                    video Beat never sees the switch and keeps the Zoom it had. */}
-                {clip?.kind === "still" && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Framing</span>
-                    <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
-                      {([["zoom", "Zoom"], ["kenBurns", "Ken Burns"]] as const).map(([mode, label]) => {
-                        const on = (b.framing ?? "zoom") === mode;
-                        return (
-                          <ControlButton
-                            key={mode}
-                            type="button"
-                            onClick={() => update(mode === "kenBurns"
-                              // Seed a visible-but-subtle move, and clear the Zoom
-                              // so nothing is left set that no longer applies.
-                              ? { ...b, framing: "kenBurns", kenBurns: b.kenBurns ?? KEN_BURNS_DEFAULT, zoom: 1, zoomX: 0, zoomY: 0 }
-                              : { ...b, framing: "zoom" })}
-                            style={{
-                              fontSize: 10, padding: "3px 10px", border: "none", cursor: "pointer",
-                              background: on ? "rgba(255, 179, 57, 0.15)" : "var(--panel-3)",
-                              color: on ? "var(--accent)" : "var(--ink-2)", fontWeight: on ? 600 : 400,
-                            }}
-                          >
-                            {label}
-                          </ControlButton>
-                        );
-                      })}
-                    </div>
+                    a mode, never both (ADR-0015). Available for both stills and videos. */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Framing</span>
+                  <div style={{ display: "inline-flex", border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden" }}>
+                    {([["zoom", "Zoom"], ["kenBurns", "Ken Burns"]] as const).map(([mode, label]) => {
+                      const on = (b.framing ?? "zoom") === mode;
+                      return (
+                        <ControlButton
+                          key={mode}
+                          type="button"
+                          onClick={() => update(mode === "kenBurns"
+                            // Seed a visible-but-subtle move, and clear the Zoom
+                            // so nothing is left set that no longer applies.
+                            ? { ...b, framing: "kenBurns", kenBurns: b.kenBurns ?? KEN_BURNS_DEFAULT, zoom: 1, zoomX: 0, zoomY: 0 }
+                            : { ...b, framing: "zoom" })}
+                          style={{
+                            fontSize: 10, padding: "3px 10px", border: "none", cursor: "pointer",
+                            background: on ? "rgba(255, 179, 57, 0.15)" : "var(--panel-3)",
+                            color: on ? "var(--accent)" : "var(--ink-2)", fontWeight: on ? 600 : 400,
+                          }}
+                        >
+                          {label}
+                        </ControlButton>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
 
-                {b.framing === "kenBurns" && clip?.kind === "still" ? (
+                {b.framing === "kenBurns" && clip ? (
                   <KenBurnsControls beat={b} clip={clip} aspect={cut?.aspect ?? "16:9"} update={update} />
                 ) : (
                 <>
