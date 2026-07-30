@@ -129,7 +129,7 @@ export default function Timeline({
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem("vidstr_timeline_zoom", String(timelineZoom)); } catch {}
+    try { localStorage.setItem("vidstr_timeline_zoom", String(timelineZoom)); } catch { }
   }, [timelineZoom]);
 
   function setTimelineZoom(nextValue: number) {
@@ -233,7 +233,7 @@ export default function Timeline({
         fetch(
           `/api/overlays/upload?name=${encodeURIComponent(f.name)}&category=${encodeURIComponent(category)}`,
           { method: "POST", body: f, headers: { "content-type": "application/octet-stream" } },
-        ).catch(() => {}); // fire-and-forget; don't block timeline use
+        ).catch(() => { }); // fire-and-forget; don't block timeline use
       } catch (e) {
         console.warn("Failed to import overlay file:", f.name, e);
       }
@@ -317,7 +317,7 @@ export default function Timeline({
 
   function endOverlayDrag(e: React.PointerEvent) {
     if (draggingOverlayId) {
-      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { }
       setDraggingOverlayId(null);
       dragStartRef.current = null;
     }
@@ -425,7 +425,7 @@ export default function Timeline({
 
   function endVoDrag(e: React.PointerEvent) {
     if (draggingVoId) {
-      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { }
       setDraggingVoId(null);
       voDragStartRef.current = null;
     }
@@ -506,7 +506,7 @@ export default function Timeline({
 
   function endSfxDrag(e: React.PointerEvent) {
     if (draggingSfxId) {
-      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { }
       setDraggingSfxId(null);
       sfxDragStartRef.current = null;
     }
@@ -566,7 +566,7 @@ export default function Timeline({
 
   function endUserVoiceDrag(e: React.PointerEvent) {
     if (!draggingUserVoiceId) return;
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { }
     setDraggingUserVoiceId(null);
     userVoiceDragStartRef.current = null;
   }
@@ -656,7 +656,7 @@ export default function Timeline({
 
   function endStickerDrag(e: React.PointerEvent) {
     if (draggingStickerId) {
-      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { }
       setDraggingStickerId(null);
       stickerDragStartRef.current = null;
     }
@@ -742,7 +742,7 @@ export default function Timeline({
             }}
             title="Add a voiceover segment"
           >
-            VO
+            Caption VO
           </TimelineAddButton>
           <div style={{ position: "relative" }}>
             <TimelineAddButton
@@ -755,9 +755,9 @@ export default function Timeline({
             >
               SFX
             </TimelineAddButton>
-          {sfxPickerOpen && (
-            <SfxPicker onPick={(fileName) => addSfxFromLibrary(fileName)} onClose={() => setSfxPickerOpen(false)} />
-          )}
+            {sfxPickerOpen && (
+              <SfxPicker onPick={(fileName) => addSfxFromLibrary(fileName)} onClose={() => setSfxPickerOpen(false)} />
+            )}
           </div>
           <div style={{ position: "relative" }}>
             <TimelineAddButton
@@ -769,10 +769,10 @@ export default function Timeline({
               aria-pressed={stickerPickerOpen}
             >
               Sticker
-          </TimelineAddButton>
-          {stickerPickerOpen && (
-            <StickerPicker onPick={(fileName) => addStickerFromLibrary(fileName)} onClose={() => setStickerPickerOpen(false)} />
-          )}
+            </TimelineAddButton>
+            {stickerPickerOpen && (
+              <StickerPicker onPick={(fileName) => addStickerFromLibrary(fileName)} onClose={() => setStickerPickerOpen(false)} />
+            )}
           </div>
           <div style={{ position: "relative" }}>
             <TimelineAddButton
@@ -1097,7 +1097,7 @@ export default function Timeline({
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (
-                <TimelineLane label="Voiceover" hint="Drag to move or resize">
+                <TimelineLane label="Caption VO" hint="Drag to move or resize">
                   <TimelineLaneCanvas canvasRef={voTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
                     {/* Beat dividers for alignment reference */}
                     {beats.map((b, i) => {
