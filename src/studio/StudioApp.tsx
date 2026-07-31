@@ -24,6 +24,7 @@ import DeleteIcon from "../design-system/icons/DeleteIcon";
 type TrackSegmentKind = "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker";
 
 const ProductReviewDrawer = lazy(() => import("./ProductReviewDrawer"));
+const MotivationalStoryDrawer = lazy(() => import("./MotivationalStoryDrawer"));
 
 export default function StudioApp() {
   const { state, dispatch } = useProject();
@@ -47,6 +48,8 @@ export default function StudioApp() {
   const [aiStoryMounted, setAiStoryMounted] = useState(false);
   const [productReviewOpen, setProductReviewOpen] = useState(false);
   const [productReviewMounted, setProductReviewMounted] = useState(false);
+  const [motivationalStoryOpen, setMotivationalStoryOpen] = useState(false);
+  const [motivationalStoryMounted, setMotivationalStoryMounted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [clipDragOver, setClipDragOver] = useState(false);
   const [editorHovered, setEditorHovered] = useState(false);
@@ -269,11 +272,18 @@ export default function StudioApp() {
         onOpenProductReview={() => {
           setProductReviewMounted(true);
           setAiStoryOpen(false);
+          setMotivationalStoryOpen(false);
           setProductReviewOpen(true);
+        }}
+        onOpenMotivationalStory={() => {
+          setMotivationalStoryMounted(true);
+          setAiStoryOpen(false);
+          setProductReviewOpen(false);
+          setMotivationalStoryOpen(true);
         }}
       />
 
-      <WorkspaceMain className={"st-main" + (clipBinCollapsed ? " clips-collapsed" : "") + (aiStoryOpen || productReviewOpen ? " drawer-open" : "")}>
+      <WorkspaceMain className={"st-main" + (clipBinCollapsed ? " clips-collapsed" : "") + (aiStoryOpen || productReviewOpen || motivationalStoryOpen ? " drawer-open" : "")}>
         <ClipBin
           usedClipIds={usedClipIds}
           selectedClipId={selectedClip?.id ?? null}
@@ -408,7 +418,7 @@ export default function StudioApp() {
           onRequestDeleteSegment={requestTrackSegmentDeletion}
         />
 
-        {(aiStoryMounted || productReviewMounted) && (
+        {(aiStoryMounted || productReviewMounted || motivationalStoryMounted) && (
           <div className="st-creation-drawer-stack">
             {aiStoryMounted && <AiStoryDrawer open={aiStoryOpen} onClose={() => setAiStoryOpen(false)} />}
             {productReviewMounted && (
@@ -419,6 +429,18 @@ export default function StudioApp() {
                   onApplied={(firstBeatId) => {
                     setSelectedBeatId(firstBeatId);
                     setProductReviewOpen(false);
+                  }}
+                />
+              </Suspense>
+            )}
+            {motivationalStoryMounted && (
+              <Suspense fallback={<div className="st-creation-drawer-loading" role="status">Loading Motivational Story…</div>}>
+                <MotivationalStoryDrawer
+                  open={motivationalStoryOpen}
+                  onClose={() => setMotivationalStoryOpen(false)}
+                  onApplied={(firstBeatId) => {
+                    setSelectedBeatId(firstBeatId);
+                    setMotivationalStoryOpen(false);
                   }}
                 />
               </Suspense>

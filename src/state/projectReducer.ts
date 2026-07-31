@@ -1,5 +1,6 @@
 import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments } from "../domain/types";
 import type { CreatorNotes, ProductBrief, ProductReviewWorkspace, ReviewPlan } from "../domain/productReview";
+import type { MotivationalStoryWorkspace } from "../domain/motivationalStory";
 import { emptyCreatorNotes } from "../domain/productReview";
 
 /** The whole editing session. One store; every phase reads/writes it. */
@@ -13,6 +14,8 @@ export interface ProjectState {
   cut?: Cut;
   /** Product-review planning workspace; optional for pre-Phase-2 projects. */
   productReview?: ProductReviewWorkspace;
+  /** Motivational story workspace. */
+  motivationalStory?: MotivationalStoryWorkspace;
 }
 
 export const initialState: ProjectState = { title: "", clips: [], direction: "" };
@@ -34,6 +37,9 @@ export type Action =
   | { type: "SET_REVIEW_PLAN"; plan: ReviewPlan }
   | { type: "LOAD_PRODUCT_REVIEW"; workspace: ProductReviewWorkspace }
   | { type: "CLEAR_PRODUCT_REVIEW" }
+  | { type: "SET_MOTIVATIONAL_STORY"; workspace: MotivationalStoryWorkspace }
+  | { type: "LOAD_MOTIVATIONAL_STORY"; workspace: MotivationalStoryWorkspace }
+  | { type: "CLEAR_MOTIVATIONAL_STORY" }
   | { type: "SET_STORY"; story: Story }
   | { type: "SET_CUT"; cut: Cut }
   | { type: "APPLY_TEMPLATE"; cut: Cut; placeholderClips?: Clip[] }
@@ -175,6 +181,12 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, productReview: action.workspace };
     case "CLEAR_PRODUCT_REVIEW":
       return { ...state, productReview: undefined };
+    case "SET_MOTIVATIONAL_STORY":
+      return { ...state, motivationalStory: action.workspace };
+    case "LOAD_MOTIVATIONAL_STORY":
+      return { ...state, motivationalStory: action.workspace };
+    case "CLEAR_MOTIVATIONAL_STORY":
+      return { ...state, motivationalStory: undefined };
     case "SET_STORY":
       return { ...state, story: action.story };
     case "SET_CUT":

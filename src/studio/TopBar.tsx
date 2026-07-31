@@ -27,6 +27,7 @@ interface Props {
   onOpenSettings: () => void;
   onOpenAiStory: () => void;
   onOpenProductReview: () => void;
+  onOpenMotivationalStory?: () => void;
 }
 
 export default function TopBar({
@@ -35,6 +36,7 @@ export default function TopBar({
   onOpenSettings,
   onOpenAiStory,
   onOpenProductReview,
+  onOpenMotivationalStory,
 }: Props) {
   const { state, dispatch } = useProject();
   const { theme, toggleTheme } = useTheme();
@@ -142,6 +144,17 @@ export default function TopBar({
       >
         Product Review
       </Button>
+
+      {onOpenMotivationalStory && (
+        <Button
+          variant="quiet"
+          size="small"
+          onClick={onOpenMotivationalStory}
+          title="Generate a high-impact Motivational Story Reel Script and Shot List"
+        >
+          Motivational Story
+        </Button>
+      )}
 
       <Button
         variant="quiet"
