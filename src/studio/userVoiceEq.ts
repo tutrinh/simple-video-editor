@@ -19,6 +19,13 @@ const USER_VOICE_EFFECT_BANDS: Record<UserVoiceEffect, { highpassHz: number; low
   underwater: { highpassHz: 20, lowpassHz: 700 },
 };
 
+/** The band-limiting pair behind a character effect, or null for clean audio. */
+export function userVoiceEffectBand(
+  effect: UserVoiceEffect | undefined,
+): { highpassHz: number; lowpassHz: number } | null {
+  return USER_VOICE_EFFECT_BANDS[normalizeUserVoiceEffect(effect)];
+}
+
 export const USER_VOICE_EFFECT_OPTIONS: readonly { value: UserVoiceEffect; label: string }[] = [
   { value: "none", label: "Clean" },
   { value: "vintage-phone", label: "Vintage Phone" },

@@ -570,6 +570,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             captionOpacity={0.5}
             captionLineHeight={1.6}
             captionFontId={es.captionFontId}
+            voiceoverBassDb={es.voiceoverBassDb}
+            voiceoverTrebleDb={es.voiceoverTrebleDb}
+            voiceoverEffect={es.voiceoverEffect}
             title={null}
             music={null}
             musicVolume={0.5}

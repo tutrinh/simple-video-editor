@@ -17,6 +17,7 @@ import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type T
 import { cacheSegment, getCachedSegment, segmentCacheKey } from "./segmentCache";
 import { titleWindow, type TitleScope } from "./titleTiming";
 import { clampUserVoiceLevelDb, clampUserVoiceVolume, dbToLinear, userVoiceEqFilterChain } from "../../studio/userVoiceEq";
+import { hasVoTone, voToneFilterChain } from "../../studio/voTone";
 import { captionVoiceDuckingFilterChain } from "../../studio/userVoicePriority";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
 import { exportedCaptionWindows } from "./captionWindows";
@@ -121,6 +122,9 @@ export interface ExportOptions {
   captionLineHeight?: number;
   /** Font id for captions; empty keeps the bundled caption face. */
   captionFontId?: string;
+  voiceoverBassDb?: number;
+  voiceoverTrebleDb?: number;
+  voiceoverEffect?: UserVoiceEffect;
 }
 
 // Build the ffmpeg overlay graph for stacked title layers. Each layer is
@@ -349,6 +353,10 @@ export async function exportCut(
   const bgOpacity = Math.min(1, Math.max(0, opts.captionBgOpacity ?? 0.5));
   const lineHeight = opts.captionLineHeight ?? 1.6;
   const captionFontId = opts.captionFontId;
+  // One tone for the whole narration bed — the VO card's setting, not per segment.
+  const voTone = hasVoTone(opts.voiceoverBassDb, opts.voiceoverTrebleDb, opts.voiceoverEffect)
+    ? voToneFilterChain(opts.voiceoverBassDb, opts.voiceoverTrebleDb, opts.voiceoverEffect)
+    : "";
   const margin = Math.round(h * 0.07);
 
   const qualityKey = opts.exportQuality ?? EDITOR_DEFAULTS.DEFAULT_EXPORT_QUALITY;
@@ -1350,7 +1358,10 @@ export async function exportCut(
       r.durationSec,
       cut.userVoiceSegments ?? [],
     );
-    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${priorityGain},adelay=${delayMs}|${delayMs}[vo${inIdx}]`);
+    // Tone before the ducking gain: the shelves shape the voice, then the gain rides
+    // it under any User VO. Reversing them would make the duck depth depend on the EQ.
+    const tone = voTone ? `${voTone},` : "";
+    mixChains.push(`[${inIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,${tone}${priorityGain},adelay=${delayMs}|${delayMs}[vo${inIdx}]`);
     mixLabels.push(`[vo${inIdx}]`);
     inIdx++;
   }

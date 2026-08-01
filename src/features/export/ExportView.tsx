@@ -10,6 +10,7 @@ import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./Final
 import { ensureFontLoadedById, findFontById } from "../../lib/googleFonts";
 import { getTitleFontBytes } from "./titleFonts";
 import TitleTreatmentEditor from "./TitleTreatmentEditor";
+import { USER_VOICE_EFFECT_OPTIONS, USER_VOICE_EQ_MAX_DB, USER_VOICE_EQ_MIN_DB } from "../../studio/userVoiceEq";
 import FontPicker from "../../studio/FontPicker";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, type TitlePreset } from "../../lib/titlePresets";
 import {
@@ -68,7 +69,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   // Two-step confirm before overwriting the selected preset with the current settings.
   const [confirmSaveMod, setConfirmSaveMod] = useState(false);
   const {
-    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight, captionFontId,
+    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight, captionFontId,
   } = es;
 
   // Transient per-render state (fine to reset on navigation).
@@ -392,7 +393,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight, captionFontId },
+        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight, captionFontId },
 
         (p, status) => {
           setProgress(p);
@@ -604,6 +605,9 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
               clips={clips}
               captionScale={captionScale}
               captionFontId={captionFontId}
+              voiceoverBassDb={voiceoverBassDb}
+              voiceoverTrebleDb={voiceoverTrebleDb}
+              voiceoverEffect={voiceoverEffect}
               captionOpacity={captionOpacity}
               captionLineHeight={captionLineHeight}
               title={previewTitle}
@@ -958,6 +962,43 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
                       <input type="range" min={0.7} max={1.2} step={0.05} value={voiceoverSpeed} onChange={(e) => update({ voiceoverSpeed: Number(e.target.value) })} style={sliderTrackStyle(voiceoverSpeed, 0.7, 1.2)} />
                       <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{voiceoverSpeed.toFixed(2)}×</span>
                     </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Band-limiting character applied to all narration, before the tone shelves.">
+                      <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Voice character</span>
+                      <select
+                        value={voiceoverEffect}
+                        onChange={(e) => update({ voiceoverEffect: e.target.value as typeof voiceoverEffect })}
+                        style={{ flex: 1, minWidth: 0 }}
+                      >
+                        {USER_VOICE_EFFECT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Tone for the whole narration bed. Same shelves and ±12 dB range as
+                        the recorded User VO track, so both voices shape identically. */}
+                    {([
+                      { key: "voiceoverBassDb", label: "Voice bass", value: voiceoverBassDb, hint: "Low-frequency tone for all narration; double-click to reset" },
+                      { key: "voiceoverTrebleDb", label: "Voice treble", value: voiceoverTrebleDb, hint: "High-frequency tone for all narration; double-click to reset" },
+                    ] as const).map(({ key, label, value, hint }) => (
+                      <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }} title={hint}>
+                        <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>{label}</span>
+                        <input
+                          type="range"
+                          min={USER_VOICE_EQ_MIN_DB}
+                          max={USER_VOICE_EQ_MAX_DB}
+                          step={1}
+                          value={value}
+                          onChange={(e) => update({ [key]: Number(e.target.value) })}
+                          onDoubleClick={() => update({ [key]: 0 })}
+                          style={sliderTrackStyle(value, USER_VOICE_EQ_MIN_DB, USER_VOICE_EQ_MAX_DB)}
+                        />
+                        <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                          {value > 0 ? "+" : ""}{value} dB
+                        </span>
+                      </div>
+                    ))}
 
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Silence before the voice starts in each beat.">

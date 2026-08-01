@@ -6,6 +6,7 @@ import { activeVoPresetSettings } from "../lib/voPresets";
 
 import type { ExportQuality, TitleAnimation } from "../features/export/export";
 import type { TitleScope } from "../features/export/titleTiming";
+import type { UserVoiceEffect } from "../domain/types";
 import { DEFAULT_CAPTION_FONT_ID } from "../features/export/captionFont";
 
 // Export-page settings live here (not in ExportView) so they survive tab
@@ -63,6 +64,11 @@ export interface ExportSettings {
   elevenStyle: number;
   /** Narration audio volume multiplier 0..1. */
   voiceoverVolume: number;
+  /** Global VO tone, same shelves as the User VO track. 0 dB is neutral. */
+  voiceoverBassDb: number;
+  voiceoverTrebleDb: number;
+  /** Character filter for narration, same presets as the User VO track. */
+  voiceoverEffect: UserVoiceEffect;
   /** Narration speed, 0.7 (slow) .. 1.2 (fast); 1 = natural. */
   voiceoverSpeed: number;
 
@@ -174,6 +180,9 @@ const DEFAULTS: ExportSettings = {
   elevenStability: 0.5,
   elevenStyle: 0,
   voiceoverVolume: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_VOLUME,
+  voiceoverBassDb: 0,
+  voiceoverTrebleDb: 0,
+  voiceoverEffect: "none",
   voiceoverSpeed: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_SPEED,
 
   voiceoverLeadSec: EDITOR_DEFAULTS.AUDIO.DEFAULT_VOICEOVER_LEAD_SEC,

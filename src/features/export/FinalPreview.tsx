@@ -15,6 +15,8 @@ import { getSplitLayoutCss, normalizeSplitConfig, getSlotTransformStyle } from "
 import { drawTitleLayerAsset, ensureTitleFontFace, titleFontKey, TITLE_ANIM } from "./titleCanvas";
 import { getTitleFontBytes } from "./titleFonts";
 import { drawCaptionBlock } from "./captionCanvas";
+import { createVoToneGraph, hasVoTone, type VoToneGraph } from "../../studio/voTone";
+import type { UserVoiceEffect } from "../../domain/types";
 import { findFontById } from "../../lib/googleFonts";
 import { previewFileForClip } from "../../studio/previewSource";
 import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "../../studio/previewPlayback";
@@ -80,6 +82,10 @@ interface Props {
   captionLineHeight: number;
   /** Font id for captions; empty keeps the bundled caption face. */
   captionFontId?: string;
+  /** Global VO tone in dB; 0 is neutral. */
+  voiceoverBassDb?: number;
+  voiceoverTrebleDb?: number;
+  voiceoverEffect?: UserVoiceEffect;
   title: PreviewTitle | null;
   music: File | null;
   musicVolume: number;
@@ -109,7 +115,7 @@ interface Props {
 
 export default function FinalPreview({
   active = true,
-  cut, clips, captionScale, captionOpacity, captionLineHeight, captionFontId, title, music, musicVolume,
+  cut, clips, captionScale, captionOpacity, captionLineHeight, captionFontId, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, title, music, musicVolume,
   voiceover,
   ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
   enableSpacebarPlayback = false,
@@ -125,6 +131,11 @@ export default function FinalPreview({
   const audioRef = useRef<HTMLAudioElement>(null);
   const voCacheRef = useRef<Map<string, string>>(new Map());
   const generatedVoAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Bass/treble routing for AI VO. Created only when a segment actually asks for tone,
+  // so the default (neutral) path plays through the plain element exactly as before —
+  // routing every segment through Web Audio would risk a suspended context silencing it.
+  const voToneCtxRef = useRef<AudioContext | null>(null);
+  const voToneGraphRef = useRef<VoToneGraph | null>(null);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [beatElapsed, setBeatElapsed] = useState(0); // seconds into the current beat
@@ -337,6 +348,35 @@ export default function FinalPreview({
   // regardless of whether its caption is visible), decoupled from beats.
   const activeVo = activeVoSegment(cut.voSegments, elapsed);
 
+  /**
+   * Route the current narration element through the shelving filters. Safe to call more
+   * than once for the same element: createMediaElementSource may only run once, so the
+   * graph is kept and only its gains are updated afterwards.
+   */
+  function attachVoTone(audio: HTMLAudioElement, bassDb?: number, trebleDb?: number, effect?: UserVoiceEffect) {
+    if (!voToneGraphRef.current) {
+      if (!voToneCtxRef.current) {
+        const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctor) return;
+        try { voToneCtxRef.current = new Ctor(); } catch { return; }
+      }
+      voToneGraphRef.current = createVoToneGraph(audio, voToneCtxRef.current);
+      if (!voToneGraphRef.current) return;
+    }
+    // A context created before any gesture starts suspended and would mute the voice.
+    void voToneCtxRef.current?.resume().catch(() => {});
+    voToneGraphRef.current.set(bassDb, trebleDb, effect);
+  }
+
+  // The tone context outlives individual segments so it is reused rather than rebuilt;
+  // close it with the component.
+  useEffect(() => () => {
+    voToneGraphRef.current?.destroy();
+    voToneGraphRef.current = null;
+    void voToneCtxRef.current?.close().catch(() => {});
+    voToneCtxRef.current = null;
+  }, []);
+
   // Play the active VO segment's narration (Kokoro/ElevenLabs, synth cached),
   // seeking to how far into the segment we already are. Matches the export.
   useEffect(() => {
@@ -360,6 +400,9 @@ export default function FinalPreview({
         if (cancelled || !url) return;
         audio = new Audio(url);
         generatedVoAudioRef.current = audio;
+        if (hasVoTone(voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect)) {
+          attachVoTone(audio, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect);
+        }
         audio.volume = Math.min(1, Math.max(0,
           (activeVo.volume ?? 1) * captionVoiceGainAtTime(
             cut.userVoiceSegments ?? [],
@@ -382,6 +425,8 @@ export default function FinalPreview({
         audio.pause();
         audio.src = "";
         if (generatedVoAudioRef.current === audio) generatedVoAudioRef.current = null;
+        voToneGraphRef.current?.destroy();
+        voToneGraphRef.current = null;
       }
     };
     // Re-run when the active segment (or its text) changes, or play toggles.
@@ -391,10 +436,14 @@ export default function FinalPreview({
   useEffect(() => {
     const audio = generatedVoAudioRef.current;
     if (!audio || !activeVo) return;
+    // Adjusting a slider mid-playback must take effect now, not on the next segment.
+    if (voToneGraphRef.current || hasVoTone(voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect)) {
+      attachVoTone(audio, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect);
+    }
     audio.volume = Math.min(1, Math.max(0,
       (activeVo.volume ?? 1) * captionVoiceGainAtTime(cut.userVoiceSegments ?? [], elapsed),
     ));
-  }, [activeVo, cut.userVoiceSegments, elapsed]);
+  }, [activeVo, cut.userVoiceSegments, elapsed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect]);
 
   // SFX track — one HTMLAudio "voice" per active segment (overlaps allowed), synced
   // to the global `elapsed` clock like the overlay/VO effects. Trim is enforced by

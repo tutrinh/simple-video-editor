@@ -713,6 +713,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       </div>
 
 
+
       <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
         <span>Start {selectedVo.startTimeSec.toFixed(1)}s</span>
         <span>Length {selectedVo.durationSec.toFixed(1)}s</span>
