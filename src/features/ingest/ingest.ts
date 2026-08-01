@@ -48,6 +48,7 @@ export async function createClip(file: File): Promise<Clip> {
     durationSec: meta.durationSec,
     width: meta.width,
     height: meta.height,
+    ...(meta.fps ? { fps: meta.fps } : {}),
     ...(still ? { kind: "still" as const } : {}),
   };
 }

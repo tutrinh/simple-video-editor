@@ -31,6 +31,7 @@ export type Action =
   | { type: "SET_DESCRIPTION"; id: string; description: ClipDescription }
   | { type: "SET_INCLUDED"; id: string; included: boolean }
   | { type: "SET_CLIP_TAGS"; id: string; tags: string[] }
+  | { type: "SET_CLIP_FPS"; id: string; fps: number }
   | { type: "SET_DIRECTION"; direction: string }
   | { type: "SET_PRODUCT_BRIEF"; brief: ProductBrief; importWarnings?: string[] }
   | { type: "SET_CREATOR_NOTES"; creatorNotes: CreatorNotes }
@@ -152,6 +153,12 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, clips: patchClip(state.clips, action.id, { included: action.included }) };
     case "SET_CLIP_TAGS":
       return { ...state, clips: patchClip(state.clips, action.id, { tags: action.tags }) };
+    // Backfill for Clips imported before frame rate was measured. Never clears a
+    // known rate, so a failed re-measure cannot blank a badge that was correct.
+    case "SET_CLIP_FPS":
+      return action.fps > 0
+        ? { ...state, clips: patchClip(state.clips, action.id, { fps: action.fps }) }
+        : state;
     case "SET_DIRECTION":
       return { ...state, direction: action.direction };
     case "SET_PRODUCT_BRIEF":

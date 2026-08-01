@@ -6,6 +6,23 @@ exports a single finished video.
 
 ## Language
 
+**Author**:
+The person operating the editor — the only human role in this domain. They name
+the Project, supply Direction and Creator Notes, and own every claim the finished
+video makes. Not the Writer, which is the AI.
+_Avoid_: user, creator, editor
+
+**Writer**:
+The AI that drafts a Script from what the Author supplied. It proposes; the
+Author disposes. Distinct from the Author, who is always the human.
+_Avoid_: author, AI, Claude, generator
+
+**Writer Prompt**:
+The full instruction the Writer receives. Normally composed from the Author's
+Direction, Tone, Stance and emphasis choices; the Author may replace it outright,
+which detaches those controls until it is reset.
+_Avoid_: prompt, instructions, template, system prompt
+
 **Project**:
 The whole editing session — its Clips, Direction, Tone, Story, and Cut, plus the
 export settings. The thing the author names (its Title) and clears with "Start
@@ -50,22 +67,51 @@ Tone shapes *how* the Story sounds. Applies to the Script's voice only; the Clip
 Description stays neutral and factual.
 _Avoid_: mood, style, vibe, direction
 
+**Stance**:
+How favourable a product review's Script is toward the product — favourable,
+balanced, or critical. It decides which recorded material leads, never what
+material exists, so it can foreground the Author's cons but never invent one.
+Distinct from Tone, which sets how the Script sounds, and Direction, which sets
+what it says.
+_Avoid_: tone, angle, slant, bias, sentiment
+
 **Product Brief**:
 The editable, source-attributed facts about the product being reviewed, imported
 from a seller listing or entered by the author. It describes the product, not
 the author's experience of using it.
 _Avoid_: product details, listing data, review
 
+**Product Feature**:
+One stated capability of the product, carried by the Product Brief and always
+attributed to where it came from — a seller listing or the Author's own entry.
+The attribution is load-bearing: a listing-sourced Feature is what the seller
+asserts, never an independently verified fact.
+_Avoid_: claim, spec, bullet, selling point
+
 **Creator Notes**:
-The author's own observations, verdict, audience, disclosure, and talking points
+The Author's own observations, verdict, audience, disclosure, and talking points
 for a product review. The only source for claims about personal experience.
-_Avoid_: review notes, product facts, prompt
+"Creator" names this artifact, not a second human role — the Author fills it in.
+_Avoid_: review notes, product facts, prompt, Author Notes
+
+**Evidence**:
+The Creator Note a Script line draws on, naming the Author as the source of what
+the line says. It is what permits first-person language; a line that speaks for
+the Author without it is discarded. Factual lines carry none — a Product Feature
+is context the Writer may describe, never backing for a personal claim.
+_Avoid_: source, citation, grounding, proof
 
 **Review Plan**:
-An AI-proposed product-review structure made from a Script and a Shot List,
-grounded in a Product Brief and Creator Notes. It remains a proposal until the
-author applies it to the Project.
+A Writer-proposed product-review structure made from a Script and a Shot List,
+built from a Product Brief and Creator Notes but grounded only in the latter. It
+remains a proposal until the Author applies it to the Project.
 _Avoid_: review, draft Cut, template
+
+**Hook**:
+The Script's opening line — the one the reel leads with, chosen by the Author
+from alternatives the Writer proposes. A product review's Story takes its logline
+from the Hook.
+_Avoid_: logline, opener, intro, teaser
 
 **Shot List**:
 The ordered footage the author should capture or match from existing Clips to
@@ -189,6 +235,21 @@ change, so the framing must. A Beat's framing is either a Zoom or a Ken Burns,
 never both, because the two command the same thing. Available on Still Beats
 only for now.
 _Avoid_: pan, zoom, animation, motion, effect
+
+**Speed**:
+How fast a Beat's footage plays relative to its source — 1× is untouched, lower
+is slow motion, higher is fast motion. It sets how long the Beat runs: the Beat
+lasts exactly as long as its footage takes to play at that Speed (ADR-0020), so
+slowing one lengthens it and the Cut with it. Unavailable on a Still, whose
+picture is the same at any Speed.
+_Avoid_: rate, slow motion, time stretch, playback rate
+
+**Fill**:
+What a Beat shows if it ever outlasts its footage — the last frame holds, or the
+trim window loops. Vestigial: a Beat is now sized to its footage (ADR-0020), so
+it cannot outlast it. The term survives because Projects saved earlier still
+carry the choice.
+_Avoid_: stretch, padding, freeze, hold, loop
 
 ## Working docs & known issues
 

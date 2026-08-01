@@ -1,4 +1,13 @@
+---
+status: superseded by ADR-0020
+---
+
 # Script-driven pacing — a Beat's duration derives from its Script segment
+
+> **Superseded by [ADR-0020](./0020-footage-over-speed-is-the-master-clock.md).**
+> A Beat's length now derives from its footage and its Speed, not from the
+> Script. The reasoning below is kept because it explains why words were the
+> clock for as long as they were, and what was given up in changing it.
 
 Each Beat pairs a trimmed Clip with a Script segment shown as a Caption. Its
 duration is set by the **Script segment's natural spoken length** (with a

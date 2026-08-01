@@ -4,7 +4,10 @@ import type { Clip, Beat, OverlayBlendMode } from "../domain/types";
 import { CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
 import type { IngestStatus } from "./useClipIngest";
 import { fmtClock, posterBg } from "./util";
+import { formatFps } from "../lib/videoFps";
+import { PROJECT_FPS } from "../domain/types";
 import { getTagStyle } from "../lib/tagPresets";
+import { useClipFpsBackfill } from "./useClipFpsBackfill";
 import FileDropzone from "../design-system/FileDropzone";
 import {
   ControlButton,
@@ -71,6 +74,10 @@ export default function ClipBin({
   const [deleteClipTarget, setDeleteClipTarget] = useState<Clip | null>(null);
 
   const clipById = new Map(state.clips.map((c) => [c.id, c]));
+
+  // Clips imported before frame rate was recorded carry none, so measure them
+  // once here rather than leaving their badge blank forever.
+  useClipFpsBackfill(state.clips, (id, fps) => dispatch({ type: "SET_CLIP_FPS", id, fps }));
 
   const allProjectTags = Array.from(
     new Set(state.clips.flatMap((c) => c.tags ?? [])),
@@ -158,6 +165,20 @@ export default function ClipBin({
           )}
           <div className="st-crow">
             <span className="st-cdur st-num">{fmtClock(clip.durationSec)}</span>
+            {/* The source's own rate, not the Cut's. Worth surfacing because it
+                decides whether slowing this Clip stays smooth (ADR-0020). */}
+            {clip.kind !== "still" && clip.fps ? (
+              <span
+                className="st-cfps st-num"
+                title={
+                  clip.fps >= PROJECT_FPS * 2
+                    ? `Original ${formatFps(clip.fps)} fps — slows smoothly down to ${Math.round((PROJECT_FPS / clip.fps) * 100)}%`
+                    : `Original ${formatFps(clip.fps)} fps — the Cut renders at ${PROJECT_FPS} fps`
+                }
+              >
+                {formatFps(clip.fps)} fps
+              </span>
+            ) : null}
             {clip.kind === "still" && (
               <span
                 className="st-status"
@@ -426,6 +447,14 @@ export default function ClipBin({
                       <span className="st-cdur st-num">
                         {fmtClock(b.durationSec ?? clip.durationSec)}
                       </span>
+                      {clip.kind !== "still" && clip.fps ? (
+                        <span
+                          className="st-cfps st-num"
+                          title={`Original ${formatFps(clip.fps)} fps — the Cut renders at ${PROJECT_FPS} fps`}
+                        >
+                          {formatFps(clip.fps)} fps
+                        </span>
+                      ) : null}
                       {clip.isTemplatePlaceholder && (
                         <span
                           className="st-status"
