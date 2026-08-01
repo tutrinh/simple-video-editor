@@ -34,7 +34,7 @@ import Button from "../design-system/Button";
 import DeleteIcon from "../design-system/icons/DeleteIcon";
 // AI actions (analyze/author/refine) now live inside AiStoryDrawer's own hook.
 
-type TrackSegmentKind = "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker";
+import { pendingDeletionForSelection, type PendingTrackDeletion, type TrackSegmentKind } from "./timelineDeletion";
 
 const ProductReviewDrawer = lazy(() => import("./ProductReviewDrawer"));
 const MotivationalStoryDrawer = lazy(() => import("./MotivationalStoryDrawer"));
@@ -98,7 +98,9 @@ export default function StudioApp() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [clipDragOver, setClipDragOver] = useState(false);
   const [editorHovered, setEditorHovered] = useState(false);
-  const [pendingTrackDeletion, setPendingTrackDeletion] = useState<{ kind: TrackSegmentKind; id: string; label: string } | null>(null);
+  // Carries a list, not one id: the voiceover track multi-selects, so Delete has to be
+  // able to remove the whole set rather than just the chip the Inspector happens to edit.
+  const [pendingTrackDeletion, setPendingTrackDeletion] = useState<PendingTrackDeletion | null>(null);
   const { ingestFiles, statuses } = useClipIngest();
   // One fit run for the whole editor, shared by the Inspector button and the `f` key.
   const voFit = useVoFit();
@@ -222,13 +224,16 @@ export default function StudioApp() {
     selectedVoId, voSelection.ids, voFit,
   ]);
 
+  /** A single chip, targeted directly — the X on a chip, wherever it sits in a selection. */
   function requestTrackSegmentDeletion(kind: TrackSegmentKind, id: string, label: string) {
-    setPendingTrackDeletion({ kind, id, label });
+    setPendingTrackDeletion({ kind, ids: [id], label });
   }
 
   function confirmTrackSegmentDeletion() {
     if (!pendingTrackDeletion) return;
-    const { kind, id } = pendingTrackDeletion;
+    const { kind, ids } = pendingTrackDeletion;
+    const [id] = ids;
+
     if (kind === "sticker") {
       dispatch({ type: "REMOVE_STICKER", id });
       setSelectedStickerId(null);
@@ -239,7 +244,8 @@ export default function StudioApp() {
       dispatch({ type: "REMOVE_USER_VOICE", id });
       setSelectedUserVoiceId(null);
     } else if (kind === "voiceover") {
-      dispatch({ type: "REMOVE_VO", id });
+      if (ids.length > 1) dispatch({ type: "REMOVE_VOS", ids });
+      else dispatch({ type: "REMOVE_VO", id });
       setSelectedVoId(null);
     } else {
       dispatch({ type: "REMOVE_OVERLAY", id });
@@ -254,27 +260,31 @@ export default function StudioApp() {
       if (e.key === "Delete" || e.key === "Backspace") {
         const tag = (e.target as HTMLElement)?.tagName?.toUpperCase();
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        if (selectedStickerId) {
-          const segment = cut?.stickers?.find((item) => item.id === selectedStickerId);
-          requestTrackSegmentDeletion("sticker", selectedStickerId, segment?.fileName ?? "Selected sticker");
-        } else if (selectedUserVoiceId) {
-          const segment = cut?.userVoiceSegments?.find((item) => item.id === selectedUserVoiceId);
-          requestTrackSegmentDeletion("user voice", selectedUserVoiceId, segment?.name ?? "Selected recording");
-        } else if (selectedSfxId) {
-          const segment = cut?.sfxSegments?.find((item) => item.id === selectedSfxId);
-          requestTrackSegmentDeletion("sound effect", selectedSfxId, segment?.fileName ?? "Selected sound effect");
-        } else if (selectedVoId) {
-          const segment = cut?.voSegments?.find((item) => item.id === selectedVoId);
-          requestTrackSegmentDeletion("voiceover", selectedVoId, segment?.text ?? "Selected voiceover");
-        } else if (selectedOverlayId) {
-          const segment = cut?.overlays?.find((item) => item.id === selectedOverlayId);
-          requestTrackSegmentDeletion("overlay", selectedOverlayId, clipById.get(segment?.clipId ?? "")?.name ?? "Selected overlay");
-        }
+
+        // The key acts on the whole selection, unlike a chip's own X button.
+        const pending = pendingDeletionForSelection(
+          {
+            voIds: voSelection.ids,
+            sfxId: selectedSfxId,
+            userVoiceId: selectedUserVoiceId,
+            stickerId: selectedStickerId,
+            overlayId: selectedOverlayId,
+          },
+          (kind, id) => {
+            if (kind === "sticker") return cut?.stickers?.find((s) => s.id === id)?.fileName ?? "Selected sticker";
+            if (kind === "user voice") return cut?.userVoiceSegments?.find((s) => s.id === id)?.name ?? "Selected recording";
+            if (kind === "sound effect") return cut?.sfxSegments?.find((s) => s.id === id)?.fileName ?? "Selected sound effect";
+            if (kind === "voiceover") return cut?.voSegments?.find((s) => s.id === id)?.text?.trim() || "Selected voiceover";
+            const overlay = cut?.overlays?.find((s) => s.id === id);
+            return clipById.get(overlay?.clipId ?? "")?.name ?? "Selected overlay";
+          },
+        );
+        if (pending) setPendingTrackDeletion(pending);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [clipById, cut, selectedOverlayId, selectedVoId, selectedSfxId, selectedUserVoiceId, selectedStickerId]);
+  }, [clipById, cut, selectedOverlayId, voSelection.ids, selectedSfxId, selectedUserVoiceId, selectedStickerId]);
 
   // Keep VO selection valid as segments change — drops deleted ids and hands the anchor
   // on, rather than clearing the whole set because one chip went away.
@@ -295,6 +305,8 @@ export default function StudioApp() {
       setSelectedUserVoiceId(null);
     }
   }, [cut?.userVoiceSegments, selectedUserVoiceId]);
+
+  const pendingDeletionCount = pendingTrackDeletion?.ids.length ?? 0;
 
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
   const selectedBeat = selIndex >= 0 ? beats[selIndex] : null;
@@ -573,15 +585,21 @@ export default function StudioApp() {
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Modal
         open={Boolean(pendingTrackDeletion)}
-        title="Delete timeline segment?"
-        description={`Remove this ${pendingTrackDeletion?.kind ?? "track"} segment from the timeline?`}
+        title={pendingDeletionCount > 1 ? `Delete ${pendingDeletionCount} timeline segments?` : "Delete timeline segment?"}
+        description={
+          pendingDeletionCount > 1
+            ? `Remove these ${pendingDeletionCount} ${pendingTrackDeletion?.kind ?? "track"} segments from the timeline?`
+            : `Remove this ${pendingTrackDeletion?.kind ?? "track"} segment from the timeline?`
+        }
         ariaLabel="Confirm timeline segment deletion"
         maxWidth={410}
         onClose={() => setPendingTrackDeletion(null)}
         footer={(
           <>
             <Button variant="secondary" onClick={() => setPendingTrackDeletion(null)}>Cancel</Button>
-            <Button variant="danger" autoFocus onClick={confirmTrackSegmentDeletion}>Delete segment</Button>
+            <Button variant="danger" autoFocus onClick={confirmTrackSegmentDeletion}>
+              {pendingDeletionCount > 1 ? `Delete ${pendingDeletionCount} segments` : "Delete segment"}
+            </Button>
           </>
         )}
       >
@@ -592,7 +610,9 @@ export default function StudioApp() {
           <div>
             <strong style={{ display: "block", fontSize: 13 }}>{pendingTrackDeletion?.label}</strong>
             <p style={{ margin: "5px 0 0", color: "var(--ink-3)", fontSize: 11, lineHeight: 1.45 }}>
-              This action removes the segment from the Cut and cannot be undone.
+              {pendingDeletionCount > 1
+                ? "This action removes them all from the Cut and cannot be undone."
+                : "This action removes the segment from the Cut and cannot be undone."}
             </p>
           </div>
         </div>

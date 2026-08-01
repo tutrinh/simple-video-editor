@@ -510,4 +510,28 @@ describe("projectReducer", () => {
     });
     expect(next.cut?.voSegments).toEqual([vo]);
   });
+
+  it("REMOVE_VOS deletes a whole selection in one step", () => {
+    const vo = (id: string, startTimeSec: number) => ({
+      id, text: id, startTimeSec, durationSec: 2, captionVisible: true,
+    });
+    const cut: Cut = {
+      beats: [beat("1", "a")],
+      aspect: "9:16",
+      voSegments: [vo("v1", 0), vo("v2", 3), vo("v3", 6)],
+    };
+    const state = { ...initialState, clips: [clip("a")], cut };
+
+    const next = projectReducer(state, { type: "REMOVE_VOS", ids: ["v1", "v3"] });
+    expect(next.cut?.voSegments?.map((s) => s.id)).toEqual(["v2"]);
+  });
+
+  it("REMOVE_VOS is a no-op for empty or unknown ids", () => {
+    const vo = { id: "v1", text: "a", startTimeSec: 0, durationSec: 2, captionVisible: true };
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "9:16", voSegments: [vo] };
+    const state = { ...initialState, clips: [clip("a")], cut };
+
+    expect(projectReducer(state, { type: "REMOVE_VOS", ids: [] })).toBe(state);
+    expect(projectReducer(state, { type: "REMOVE_VOS", ids: ["ghost"] })).toBe(state);
+  });
 });

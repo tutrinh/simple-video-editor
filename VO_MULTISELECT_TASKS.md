@@ -63,6 +63,7 @@ jsdom stubs for `ResizeObserver`, pointer capture, and `localStorage`.
 - Multi-select on the SFX, user-voice, sticker and overlay tracks (helpers are ready for it).
 - Collapsing a multi-selection to one chip on click-without-drag.
 - Group resize, and multi-segment editing in the Inspector (it still edits the primary chip).
-- **Delete still removes only the primary chip**, not the whole selection — the confirm modal
-  and `REMOVE_VO` are both single-segment. This is the most visible rough edge of the current
-  scope; a bulk remove + a "Delete N segments?" modal would close it.
+- ~~Delete removes only the primary chip~~ — **done.** `REMOVE_VOS` deletes the set in one
+  dispatch, the confirm modal counts ("Delete 3 timeline segments?"), and the targeting moved
+  into `studio/timelineDeletion.ts` so it is testable. A chip's own X button still removes only
+  that chip: pointing at one chip's X is an unambiguous single-target gesture.

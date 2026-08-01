@@ -59,6 +59,8 @@ export type Action =
   /** Replace several VO segments at once — one dispatch per group drag frame. */
   | { type: "UPDATE_VOS"; segments: VoSegment[] }
   | { type: "REMOVE_VO"; id: string }
+  /** Remove several VO segments at once, so deleting a multi-selection is one step. */
+  | { type: "REMOVE_VOS"; ids: string[] }
   | { type: "DUPLICATE_VO"; id: string; newVoId?: string }
   | { type: "ADD_SFX"; segment: SfxSegment }
   | { type: "UPDATE_SFX"; segment: SfxSegment }
@@ -328,6 +330,14 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case "REMOVE_VO": {
       if (!state.cut) return state;
       const voSegments = (state.cut.voSegments ?? []).filter((s) => s.id !== action.id);
+      return { ...state, cut: { ...state.cut, voSegments } };
+    }
+    case "REMOVE_VOS": {
+      if (!state.cut || action.ids.length === 0) return state;
+      const drop = new Set(action.ids);
+      const current = state.cut.voSegments ?? [];
+      const voSegments = current.filter((s) => !drop.has(s.id));
+      if (voSegments.length === current.length) return state;
       return { ...state, cut: { ...state.cut, voSegments } };
     }
     case "DUPLICATE_VO": {
