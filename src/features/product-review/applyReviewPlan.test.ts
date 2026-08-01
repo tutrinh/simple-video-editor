@@ -17,6 +17,7 @@ const plan = (): ReviewPlan => ({
   productTitle: "Trail Press",
   targetDurationSec: 30,
   hook: "Hotel coffee is optional.",
+  hookOptions: ["Hotel coffee is optional."],
   createdAt: 1,
   shots: [{
     id: "shot-demo",
@@ -37,7 +38,7 @@ const plan = (): ReviewPlan => ({
     text: "The steel press replaces weak hotel coffee.",
     purpose: "demo",
     approxDurationSec: 6,
-    evidence: [{ kind: "product-claim", claimId: "claim-1" }],
+    evidence: [],
     shotId: "shot-demo",
   }, {
     id: "line-verdict",

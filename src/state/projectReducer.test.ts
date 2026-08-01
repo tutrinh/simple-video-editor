@@ -458,6 +458,7 @@ describe("projectReducer", () => {
       productTitle: brief.title,
       targetDurationSec: 30 as const,
       hook: "Hotel coffee is optional now.",
+      hookOptions: ["Hotel coffee is optional now."],
       script: [],
       shots: [],
       createdAt: 1,

@@ -19,13 +19,14 @@ const plan: ReviewPlan = {
   productTitle: "Pocket Light",
   targetDurationSec: 15,
   hook: "Better light, less luggage.",
+  hookOptions: ["Better light, less luggage."],
   createdAt: 1,
   shots: [
     { id: "a", description: "Demo", capture: "demo", framing: "close-up", approxDurationSec: 4, matchedClipId: "clip-1" },
     { id: "b", description: "Verdict", capture: "talking-head", framing: "medium", approxDurationSec: 3 },
   ],
   script: [
-    { id: "sa", text: "This light fits in a side pocket.", purpose: "demo", approxDurationSec: 4, evidence: [{ kind: "product-claim", claimId: "c1" }], shotId: "a" },
+    { id: "sa", text: "This light fits in a side pocket.", purpose: "demo", approxDurationSec: 4, evidence: [], shotId: "a" },
     { id: "sb", text: "I would carry it again.", purpose: "verdict", approxDurationSec: 3, evidence: [{ kind: "creator-note", field: "verdict" }], shotId: "b" },
   ],
 };

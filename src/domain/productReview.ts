@@ -44,9 +44,9 @@ export interface CreatorNotes {
 
 export type CreatorNoteField = keyof CreatorNotes;
 
-export type ReviewEvidenceRef =
-  | { kind: "product-claim"; claimId: string }
-  | { kind: "creator-note"; field: CreatorNoteField };
+// Only the creator's own Notes ground a Script line. The Brief's features are
+// still sent to the author as context, but they no longer back anything.
+export type ReviewEvidenceRef = { kind: "creator-note"; field: CreatorNoteField };
 
 export interface ReviewScriptSegment {
   id: string;
@@ -71,6 +71,8 @@ export interface ReviewPlan {
   productTitle: string;
   targetDurationSec: ReviewDurationSec;
   hook: string;
+  /** Up to three opening lines to choose between; `hook` is the chosen one. */
+  hookOptions: string[];
   script: ReviewScriptSegment[];
   shots: ReviewShot[];
   disclosureReminder?: string;

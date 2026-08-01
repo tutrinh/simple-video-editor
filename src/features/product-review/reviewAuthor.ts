@@ -22,6 +22,14 @@ export interface GenerateReviewPlanInput {
   scriptType?: string;
   includePrice: boolean;
   includeCta: boolean;
+  /** Spend the duration on the supplied Product Features and recorded pros. */
+  emphasizeFeaturesAndPros: boolean;
+  /**
+   * A hand-edited Author Prompt, used verbatim in place of the generated one.
+   * Blank or absent falls back to `buildAuthorPrompt`. The response is validated
+   * the same way either way — editing the prompt cannot loosen the grounding.
+   */
+  promptOverride?: string;
 }
 
 export type ReviewAuthorAdapter = (prompt: string) => Promise<string>;
@@ -82,20 +90,11 @@ function validEvidence(
   input: GenerateReviewPlanInput,
 ): ReviewEvidenceRef | null {
   const item = record(value);
-  if (!item) return null;
-  if (item.kind === "product-claim") {
-    const claimId = text(item.claimId);
-    return input.brief.features.some((claim) => claim.id === claimId)
-      ? { kind: "product-claim", claimId }
-      : null;
-  }
-  if (item.kind === "creator-note") {
-    const field = text(item.field) as CreatorNoteField;
-    return CREATOR_FIELDS.has(field) && creatorNoteHasValue(input.creatorNotes, field)
-      ? { kind: "creator-note", field }
-      : null;
-  }
-  return null;
+  if (!item || item.kind !== "creator-note") return null;
+  const field = text(item.field) as CreatorNoteField;
+  return CREATOR_FIELDS.has(field) && creatorNoteHasValue(input.creatorNotes, field)
+    ? { kind: "creator-note", field }
+    : null;
 }
 
 function sanitizeCapture(val: string): ReviewShotCapture {
@@ -134,6 +133,9 @@ function sanitizePurpose(val: string, index: number): ReviewPurpose {
 
 function normalizeShots(raw: unknown, input: GenerateReviewPlanInput): ReviewShot[] {
   if (!Array.isArray(raw)) return [];
+  // The author is no longer shown the Project's Clips, so it should not be
+  // proposing matches. Anything it invents anyway is dropped here; real matches
+  // come from the creator picking one per Shot on the plan review step.
   const clipIds = new Set(input.clips.map((clip) => clip.id));
   const seen = new Set<string>();
   const shots: ReviewShot[] = [];
@@ -160,6 +162,28 @@ function normalizeShots(raw: unknown, input: GenerateReviewPlanInput): ReviewSho
   return shots;
 }
 
+const FIRST_PERSON = /\b(?:i|i'm|i've|i'd|my|me|we|we've|our)\b/i;
+
+/** How many opening lines the creator gets to choose between. */
+export const HOOK_OPTION_COUNT = 3;
+
+// Most substantive Note first. A line the author left unevidenced is pinned to
+// whichever of these the creator actually filled in; with no Notes at all there
+// is nothing left to cite, so the line carries none.
+const FALLBACK_EVIDENCE_FIELDS: CreatorNoteField[] = [
+  "experience",
+  "verdict",
+  "pros",
+  "problem",
+  "audience",
+  "cons",
+];
+
+function fallbackEvidence(notes: CreatorNotes): ReviewEvidenceRef[] {
+  const field = FALLBACK_EVIDENCE_FIELDS.find((candidate) => creatorNoteHasValue(notes, candidate));
+  return field ? [{ kind: "creator-note", field }] : [];
+}
+
 function normalizeScript(
   raw: unknown,
   shots: ReviewShot[],
@@ -170,9 +194,7 @@ function normalizeScript(
   const seen = new Set<string>();
   const script: ReviewScriptSegment[] = [];
 
-  const defaultEvidence: ReviewEvidenceRef[] = input.brief.features.length > 0
-    ? [{ kind: "product-claim", claimId: input.brief.features[0].id }]
-    : [{ kind: "creator-note", field: "experience" }];
+  const defaultEvidence = fallbackEvidence(input.creatorNotes);
 
   for (let i = 0; i < raw.length; i++) {
     const item = record(raw[i]);
@@ -191,9 +213,8 @@ function normalizeScript(
     const evidence = Array.isArray(item.evidence)
       ? item.evidence.map((entry) => validEvidence(entry, input)).filter((entry): entry is ReviewEvidenceRef => entry !== null)
       : [];
-    const firstPerson = /\b(?:i|i'm|i've|i'd|my|me|we|we've|our)\b/i.test(line);
-    const hasCreatorEvidence = evidence.some((entry) => entry.kind === "creator-note");
-    if (firstPerson && !hasCreatorEvidence) continue;
+    // First person must be earned by an explicit Note, never by the fallback.
+    if (FIRST_PERSON.test(line) && evidence.length === 0) continue;
 
     const finalEvidence = evidence.length > 0 ? evidence : defaultEvidence;
 
@@ -221,6 +242,35 @@ function normalizeScript(
   return script;
 }
 
+/**
+ * The chosen hook first, then the author's alternatives — deduped, capped, and
+ * held to the same first-person rule as a Script line, since whichever the
+ * creator picks becomes the spoken opening line.
+ */
+function normalizeHookOptions(
+  raw: unknown,
+  chosen: string,
+  input: GenerateReviewPlanInput,
+): string[] {
+  const canSpeakFirstPerson = fallbackEvidence(input.creatorNotes).length > 0;
+  const seen = new Set<string>();
+  const options: string[] = [];
+
+  const add = (value: unknown) => {
+    if (options.length >= HOOK_OPTION_COUNT) return;
+    const line = text(value);
+    const key = line.toLowerCase();
+    if (!line || seen.has(key)) return;
+    if (FIRST_PERSON.test(line) && !canSpeakFirstPerson) return;
+    seen.add(key);
+    options.push(line);
+  };
+
+  add(chosen);
+  if (Array.isArray(raw)) for (const value of raw) add(value);
+  return options;
+}
+
 function validatePlan(raw: string, input: GenerateReviewPlanInput): ReviewPlan {
   const parsed = parseJsonObject(raw);
   const shots = normalizeShots(parsed.shots, input);
@@ -233,6 +283,7 @@ function validatePlan(raw: string, input: GenerateReviewPlanInput): ReviewPlan {
     productTitle: input.brief.title,
     targetDurationSec: input.targetDurationSec,
     hook,
+    hookOptions: normalizeHookOptions(parsed.hookOptions, hook, input),
     script,
     shots,
     ...(input.creatorNotes.disclosure === "unspecified"
@@ -291,35 +342,57 @@ export async function enrichProductDetails(
   return { features: [], pros: [], cons: [] };
 }
 
-function authorPrompt(input: GenerateReviewPlanInput): string {
-  const brief = {
+/** The Brief as the author sees it — price is withheld until the creator confirms it. */
+function briefForPrompt(input: GenerateReviewPlanInput): ProductBrief {
+  return {
     ...input.brief,
     ...(input.includePrice ? {} : { priceText: undefined }),
   };
-  const clips = input.clips.map((clip) => ({
-    id: clip.id,
-    name: clip.name,
-    subjectAction: clip.description?.subjectAction,
-    settingMood: clip.description?.settingMood,
-    usability: clip.description?.usability,
-    tags: clip.tags,
-  }));
+}
+
+// Opt-in coverage push. Left to itself the author spends a short duration on
+// narrative beats and gestures at the product in general terms, so the listed
+// features and recorded pros never reach the Script. This raises how much of the
+// supplied material gets used; it does not loosen what may be said about it.
+function emphasisDirectives(input: GenerateReviewPlanInput): string[] {
+  if (!input.emphasizeFeaturesAndPros) return [];
+  return [
+    [
+      "EMPHASIS — PRODUCT FEATURES AND PROS: make the listed features and recorded pros the substance of the Script, not background colour.",
+      "- Name Product Features explicitly and specifically. Do not reduce a feature to vague praise.",
+      "- Cover as many distinct Product Features as the target duration allows, strongest first, spread across the Demonstration and Proof lines rather than stacked into one.",
+      "- Give each pro the creator recorded in their Notes its own beat where the duration allows, carrying evidence {kind:'creator-note',field:'pros'}. A pro written in first person without that evidence is discarded.",
+      "- Give every feature or pro you feature a Shot that visibly shows it.",
+      "- This widens how much supplied material is used. It never licenses material that was not supplied, and the grounding rules above still bind every line.",
+    ].join("\n"),
+  ];
+}
+
+/**
+ * The Author Prompt for these inputs. Exported so the Generate step can show it,
+ * let the creator edit it, and hand the edit back as `promptOverride`.
+ */
+export function buildAuthorPrompt(input: GenerateReviewPlanInput): string {
   return [
     "Create a concise social-media product Review Plan as strict JSON.",
     `Target duration: ${input.targetDurationSec} seconds. Tone: ${input.tone || "positive and enthusiastic"}.${input.scriptType ? ` Script format: ${input.scriptType}.` : ""}`,
-    "ALWAYS SOUND POSITIVE: Write every script line in an upbeat, positive, and enthusiastic tone. Highlight the product's best-selling features and pros warmly and encouragingly.",
     `Include CTA: ${input.includeCta ? "yes" : "no"}.`,
-    "Use only the Product Claims and Creator Notes supplied below.",
+    // Stance steers wording only. Stating the precedence explicitly keeps a
+    // favourable read from being taken as licence to embellish or bury a con.
+    "GROUNDING OUTRANKS STANCE AND TONE: the rules below decide what a line may say; stance and tone decide only how it is worded.",
+    "Use only the Product Features and Creator Notes supplied below.",
     "Never infer ownership, use, results, price, sponsorship, or recommendation.",
-    "First-person language requires evidence {kind:'creator-note',field:<field>}.",
-    "Product facts require evidence {kind:'product-claim',claimId:<id>}.",
-    "Match matchedClipId only when the Clip Description visibly supports the Shot.",
-    "Every Script line must point to a Shot. Request phone-filmable shots for missing footage.",
+    "Stance: keep the review favourable — lead with the strongest supplied features and pros, and deliver them in the Tone above.",
+    "A favourable stance may never invent a benefit, strength, or result that is absent from the supplied material, restate a Product Feature as your own recommendation, or soften, omit, or contradict a drawback the creator recorded in their Notes. State a recorded drawback plainly and stay warm about the rest.",
+    ...emphasisDirectives(input),
+    "Evidence cites the creator's own Notes only: {kind:'creator-note',field:<field>}. Product Features are context you may describe, but they are never evidence.",
+    "First-person language requires evidence. A first-person line with no Creator Note behind it is discarded.",
+    "Every Script line must point to a Shot. Describe each Shot as something the creator can film on a phone.",
     "Structure: Hook, Problem, Demonstration, Proof, Verdict, CTA.",
-    "Return exactly: {hook,script:[{id,text,purpose,approxDurationSec,evidence,shotId}],shots:[{id,description,capture,framing,approxDurationSec,matchedClipId?}]}",
-    `Product Brief:\n${JSON.stringify(brief)}`,
+    `Write exactly ${HOOK_OPTION_COUNT} opening lines into hookOptions, each a genuinely different angle on the same grounded material — not a rewording of the others. Set hook to the strongest one and open the Script with it. Every option must obey the rules above, because the creator picks which one is spoken.`,
+    "Return exactly: {hook,hookOptions:[<string>],script:[{id,text,purpose,approxDurationSec,evidence,shotId}],shots:[{id,description,capture,framing,approxDurationSec}]}",
+    `Product Brief:\n${JSON.stringify(briefForPrompt(input))}`,
     `Creator Notes:\n${JSON.stringify(input.creatorNotes)}`,
-    `Existing Clips:\n${JSON.stringify(clips)}`,
   ].join("\n\n");
 }
 
@@ -327,7 +400,7 @@ export async function generateReviewPlan(
   input: GenerateReviewPlanInput,
   author: ReviewAuthorAdapter,
 ): Promise<ReviewPlan> {
-  const prompt = authorPrompt(input);
+  const prompt = input.promptOverride?.trim() || buildAuthorPrompt(input);
   const first = await author(prompt);
   try {
     return validatePlan(first, input);
