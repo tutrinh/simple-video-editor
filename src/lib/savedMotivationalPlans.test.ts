@@ -55,4 +55,54 @@ describe("savedMotivationalPlans", () => {
     expect(updated.length).toBe(0);
     expect(getSavedMotivationalPlans().length).toBe(0);
   });
+
+  it("round-trips the persona steer a plan was written under", () => {
+    const withPersona: MotivationalStoryWorkspace = {
+      ...mockWorkspace,
+      personaId: "custom",
+      pov: "third-person",
+      targetDurationSec: 45,
+      customPersona: {
+        speaker: "A welder taking evening drafting classes",
+        audience: "Someone told they are too far along to retrain",
+        pov: "first-person",
+        world: "sparks on a shop floor, a night-class parking permit",
+        vernacular: "Blunt, trade-specific.",
+      },
+    };
+
+    saveMotivationalPlanToHistory(withPersona);
+    const [restored] = getSavedMotivationalPlans();
+
+    expect(restored.workspace.personaId).toBe("custom");
+    expect(restored.workspace.pov).toBe("third-person");
+    expect(restored.workspace.targetDurationSec).toBe(45);
+    expect(restored.workspace.customPersona?.speaker).toBe("A welder taking evening drafting classes");
+  });
+
+  it("round-trips per-line concreteDetail and the plan's persona/incident", () => {
+    saveMotivationalPlanToHistory({
+      ...mockWorkspace,
+      plan: {
+        ...mockWorkspace.plan!,
+        persona: "A 22-year-old rehabbing a retorn ACL",
+        incident: "The first morning back in the empty 6AM gym",
+        script: [
+          {
+            id: "l1",
+            text: "The surgery date is on a strip of tape inside my locker.",
+            purpose: "hook",
+            approxDurationSec: 4,
+            shotId: "s1",
+            concreteDetail: "strip of tape with the surgery date",
+          },
+        ],
+      },
+    });
+
+    const [restored] = getSavedMotivationalPlans();
+    expect(restored.workspace.plan?.persona).toMatch(/retorn ACL/);
+    expect(restored.workspace.plan?.incident).toMatch(/6AM gym/);
+    expect(restored.workspace.plan?.script[0].concreteDetail).toBe("strip of tape with the surgery date");
+  });
 });

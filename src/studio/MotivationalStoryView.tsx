@@ -7,7 +7,18 @@ import type {
   SavedMotivationalPlanItem,
 } from "../domain/motivationalStory";
 import {
+  AUTO_PERSONA_ID,
+  CUSTOM_PERSONA_ID,
+  MOTIVATIONAL_PERSONAS,
+  POV_OPTIONS,
+  personaById,
+  resolvePersona,
+  type CustomPersonaDraft,
+  type MotivationalPov,
+} from "../domain/motivationalPersona";
+import {
   DEFAULT_MOTIVATIONAL_PROMPT,
+  findGenericScriptLines,
   generateMotivationalStoryPlan,
   type ReviewAuthorAdapter,
 } from "../features/motivational-story/storyAuthor";
@@ -27,29 +38,28 @@ import { SelectField, TextareaField } from "../design-system/Field";
 import { ProgressNotice } from "../design-system/Feedback";
 import Modal from "../design-system/Modal";
 import { useProject } from "../state/ProjectContext";
-import { CODEX_MODEL_OPTIONS, MODEL_OPTIONS, useSettings } from "../state/SettingsContext";
+import {
+  CODEX_MODEL_OPTIONS,
+  MODEL_OPTIONS,
+  SCRIPT_TYPE_OPTIONS,
+  TONE_OPTIONS,
+  scriptTypeHint,
+  toneHint,
+  useSettings,
+} from "../state/SettingsContext";
 import { useExportSettings } from "../state/ExportSettingsContext";
 import { synthesizeVoiceover } from "../lib/tts";
 
 type StoryStep = "prompt" | "generate" | "plan";
 type DurationOption = "15" | "30" | "45" | "60";
 
-const MOTIVATIONAL_TONES = [
-  "Inspiring",
-  "Hype & High Energy",
-  "Chill & Reflective",
-  "Cinematic & Epic",
-  "Heartfelt",
-  "Bold & Unstoppable",
-];
-
-const MOTIVATIONAL_FORMATS = [
-  "Motivational reel",
-  "Speech / Monologue",
-  "Story / Journey",
-  "Dramatic news",
-  "Vlog",
-];
+const EMPTY_CUSTOM_PERSONA: CustomPersonaDraft = {
+  speaker: "",
+  audience: "",
+  pov: "first-person",
+  world: "",
+  vernacular: "",
+};
 
 interface Props {
   author?: ReviewAuthorAdapter;
@@ -70,9 +80,21 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
   const [prompt, setPrompt] = useState(
     workspace?.prompt || DEFAULT_MOTIVATIONAL_PROMPT
   );
-  const [duration, setDuration] = useState<DurationOption>("30");
+  const [duration, setDuration] = useState<DurationOption>(
+    (String(workspace?.targetDurationSec ?? 30) as DurationOption) || "30"
+  );
   const [creatorNotes, setCreatorNotes] = useState(workspace?.creatorNotes || "");
   const [plan, setPlan] = useState<MotivationalStoryPlan | undefined>(workspace?.plan);
+
+  const [personaId, setPersonaId] = useState(workspace?.personaId || AUTO_PERSONA_ID);
+  const [pov, setPov] = useState<MotivationalPov | "">(workspace?.pov || "");
+  const [customPersona, setCustomPersona] = useState<CustomPersonaDraft>(
+    workspace?.customPersona || EMPTY_CUSTOM_PERSONA
+  );
+
+  const selectedPreset = personaById(personaId);
+  const effectivePov: MotivationalPov =
+    pov || selectedPreset?.pov || (personaId === CUSTOM_PERSONA_ID ? customPersona.pov : "first-person");
 
   const [busy, setBusy] = useState<"generate" | "apply" | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -92,6 +114,13 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
     return () => clearInterval(timer);
   }, [busy]);
 
+  // Advisory only: highlights beats that fell back to stock phrasing or carry no
+  // concrete anchor, so a weak line gets caught before it reaches the timeline.
+  const genericLineIds = useMemo(() => {
+    if (!plan) return new Map<string, "banned-phrase" | "no-concrete-detail">();
+    return new Map(findGenericScriptLines(plan).map((f) => [f.lineId, f.reason]));
+  }, [plan]);
+
   const clipSummaries = useMemo(
     () =>
       state.clips.map((clip) => ({
@@ -101,6 +130,19 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
       })),
     [state.clips]
   );
+
+  /** The workspace as the drawer currently stands, so persona/duration survive every dispatch. */
+  function buildWorkspace(nextPlan?: MotivationalStoryPlan): MotivationalStoryWorkspace {
+    return {
+      prompt: prompt.trim(),
+      plan: nextPlan,
+      creatorNotes: creatorNotes.trim() || undefined,
+      personaId,
+      pov: pov || undefined,
+      customPersona: personaId === CUSTOM_PERSONA_ID ? customPersona : undefined,
+      targetDurationSec: Number(duration),
+    };
+  }
 
   async function handleGeneratePlan() {
     if (!prompt.trim()) {
@@ -132,22 +174,19 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
       const input: GenerateMotivationalStoryInput = {
         prompt: prompt.trim(),
         targetDurationSec: Number(duration),
-        tone: settings.tone,
-        scriptType: settings.scriptType,
+        tone: toneHint(settings.tone),
+        scriptType: scriptTypeHint(settings.scriptType),
         creatorNotes: creatorNotes.trim() || undefined,
         aiProvider: settings.aiProvider,
         authorModel: settings.authorModel,
         aspect: state.cut?.aspect || "9:16",
+        persona: resolvePersona(personaId, customPersona, pov || undefined),
       };
 
       const generated = await generateMotivationalStoryPlan(input, state.clips, adapter);
       setPlan(generated);
 
-      const nextWorkspace: MotivationalStoryWorkspace = {
-        prompt: prompt.trim(),
-        plan: generated,
-        creatorNotes: creatorNotes.trim() || undefined,
-      };
+      const nextWorkspace: MotivationalStoryWorkspace = buildWorkspace(generated);
 
       dispatch({ type: "SET_MOTIVATIONAL_STORY", workspace: nextWorkspace });
       saveMotivationalPlanToHistory(nextWorkspace);
@@ -217,7 +256,7 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
     const updatedScript = plan.script.map((line) => (line.id === id ? { ...line, text } : line));
     const updatedPlan = { ...plan, script: updatedScript };
     setPlan(updatedPlan);
-    dispatch({ type: "SET_MOTIVATIONAL_STORY", workspace: { ...workspace, prompt, plan: updatedPlan } });
+    dispatch({ type: "SET_MOTIVATIONAL_STORY", workspace: buildWorkspace(updatedPlan) });
   }
 
   function updateShot(id: string, updates: Partial<MotivationalShot>) {
@@ -225,7 +264,7 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
     const updatedShots = plan.shots.map((shot) => (shot.id === id ? { ...shot, ...updates } : shot));
     const updatedPlan = { ...plan, shots: updatedShots };
     setPlan(updatedPlan);
-    dispatch({ type: "SET_MOTIVATIONAL_STORY", workspace: { ...workspace, prompt, plan: updatedPlan } });
+    dispatch({ type: "SET_MOTIVATIONAL_STORY", workspace: buildWorkspace(updatedPlan) });
   }
 
   function restoreHistoryPlan(item: SavedMotivationalPlanItem) {
@@ -233,6 +272,16 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
     setPrompt(ws.prompt || item.prompt);
     setCreatorNotes(ws.creatorNotes || "");
     setPlan(ws.plan);
+    // Restore the steer the plan was written under, not just the plan text — otherwise
+    // "Regenerate" from a restored plan silently authors under a different persona.
+    setPersonaId(ws.personaId || AUTO_PERSONA_ID);
+    setPov(ws.pov || "");
+    setCustomPersona(ws.customPersona || EMPTY_CUSTOM_PERSONA);
+    if (ws.targetDurationSec) {
+      setDuration(String(ws.targetDurationSec) as DurationOption);
+    } else if (ws.plan?.targetDurationSec) {
+      setDuration(String(ws.plan.targetDurationSec) as DurationOption);
+    }
     dispatch({ type: "LOAD_MOTIVATIONAL_STORY", workspace: ws });
     setHistoryOpen(false);
     setStep(ws.plan ? "plan" : "prompt");
@@ -369,6 +418,119 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
               gap: "10px",
             }}
           >
+            <div>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
+                🎭 Whose story is this?
+              </span>
+              <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--ink-3)" }}>
+                A named speaker with a concrete world is what stops the script reading like every
+                other motivational reel.
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "8px" }}>
+              <SelectField
+                label="Persona"
+                value={personaId}
+                onChange={(e) => {
+                  setPersonaId(e.target.value);
+                  setPov("");
+                }}
+              >
+                <option value={AUTO_PERSONA_ID}>Auto — let the AI invent one</option>
+                {MOTIVATIONAL_PERSONAS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+                <option value={CUSTOM_PERSONA_ID}>Custom — describe your own</option>
+              </SelectField>
+
+              <SelectField
+                label="Point of view"
+                value={effectivePov}
+                onChange={(e) => setPov(e.target.value as MotivationalPov)}
+                disabled={personaId === AUTO_PERSONA_ID}
+                help={personaId === AUTO_PERSONA_ID ? "Chosen by the AI" : undefined}
+              >
+                {POV_OPTIONS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </SelectField>
+            </div>
+
+            {selectedPreset && (
+              <div
+                style={{
+                  padding: "8px 10px",
+                  background: "var(--panel)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  color: "var(--ink-2)",
+                  lineHeight: 1.5,
+                }}
+              >
+                <div>{selectedPreset.speaker}</div>
+                <div style={{ marginTop: "4px", color: "var(--ink-3)" }}>
+                  Spoken to: {selectedPreset.audience}
+                </div>
+                <div style={{ marginTop: "4px", color: "var(--ink-3)" }}>
+                  Told through: {selectedPreset.world.slice(0, 3).join(" · ")}
+                </div>
+              </div>
+            )}
+
+            {personaId === CUSTOM_PERSONA_ID && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <TextareaField
+                  label="Who is speaking?"
+                  rows={2}
+                  value={customPersona.speaker}
+                  onChange={(e) => setCustomPersona((c) => ({ ...c, speaker: e.target.value }))}
+                  placeholder="e.g. A 34-year-old line cook taking 6AM classes before their shift"
+                  help="An age and a situation beat a job title."
+                />
+                <TextareaField
+                  label="Who are they talking to?"
+                  rows={2}
+                  value={customPersona.audience}
+                  onChange={(e) => setCustomPersona((c) => ({ ...c, audience: e.target.value }))}
+                  placeholder="e.g. Someone who's been talked out of retraining twice"
+                  help="One person in one situation — not 'everyone'."
+                />
+                <TextareaField
+                  label="Their world — concrete details, comma separated"
+                  rows={2}
+                  value={customPersona.world}
+                  onChange={(e) => setCustomPersona((c) => ({ ...c, world: e.target.value }))}
+                  placeholder="e.g. burn scars on a forearm, a 5:10 bus, textbooks in a locker"
+                  help="Objects, hours, places, sensations. This is what the script gets built from."
+                />
+                <TextareaField
+                  label="How they talk (optional)"
+                  rows={2}
+                  value={customPersona.vernacular}
+                  onChange={(e) => setCustomPersona((c) => ({ ...c, vernacular: e.target.value }))}
+                  placeholder="e.g. Blunt, kitchen slang, never sentimental"
+                />
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              padding: "12px",
+              background: "var(--panel-2)",
+              borderRadius: "8px",
+              border: "1px solid var(--line)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
             <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>
               🤖 AI Engine & Tone Settings
             </span>
@@ -397,14 +559,18 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {/* Tone and Format are shared settings holding *ids* that every AI feature
+                  resolves through toneHint()/scriptTypeHint(). This drawer used to write
+                  display labels straight into them, which dropped its own steer and
+                  silently emptied the steer for AI Story and Product Review too. */}
               <SelectField
                 label="Tone / Voice"
                 value={settings.tone}
                 onChange={(e) => updateSettings({ tone: e.target.value })}
               >
-                {MOTIVATIONAL_TONES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {TONE_OPTIONS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
                   </option>
                 ))}
               </SelectField>
@@ -414,9 +580,9 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
                 value={settings.scriptType}
                 onChange={(e) => updateSettings({ scriptType: e.target.value })}
               >
-                {MOTIVATIONAL_FORMATS.map((f) => (
-                  <option key={f} value={f}>
-                    {f}
+                {SCRIPT_TYPE_OPTIONS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
                   </option>
                 ))}
               </SelectField>
@@ -462,11 +628,21 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
               justifyContent: "space-between",
             }}
           >
-            <div>
+            <div style={{ minWidth: 0, paddingRight: "8px" }}>
               <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--ink)" }}>{plan.title}</h3>
               <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--ink-2)" }}>
                 Hook: "{plan.hook}" · {plan.shots.length} beats (~{plan.targetDurationSec}s)
               </p>
+              {plan.persona && (
+                <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--ink-3)" }}>
+                  🎭 {plan.persona}
+                </p>
+              )}
+              {plan.incident && (
+                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--ink-3)" }}>
+                  📍 {plan.incident}
+                </p>
+              )}
             </div>
             <Badge>{settings.aiProvider === "claude" ? "Claude" : "Codex"}</Badge>
           </div>
@@ -503,6 +679,15 @@ export default function MotivationalStoryView({ author, onClose, onApplied }: Pr
                       rows={2}
                       value={line.text}
                       onChange={(e) => updateScriptLine(line.id, e.target.value)}
+                      help={
+                        line && genericLineIds.has(line.id)
+                          ? genericLineIds.get(line.id) === "banned-phrase"
+                            ? "⚠️ Reads generic — this is a stock motivational phrase."
+                            : "⚠️ Reads generic — no concrete detail to hold on to."
+                          : line?.concreteDetail
+                            ? `Built on: ${line.concreteDetail}`
+                            : undefined
+                      }
                     />
                   )}
 
