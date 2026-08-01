@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useProject } from "../state/ProjectContext";
-import { makeBeat } from "../features/assemble/assemble";
+import { cutDuration, makeBeat } from "../features/assemble/assemble";
 import { stepBeatDuration } from "../domain/beatDuration";
+import { stepSegmentDuration } from "../domain/segmentDuration";
 import { isFromFormControl, resolveTimelineKeyAction } from "./timelineKeys";
 import {
   activeTimelineTrack,
@@ -155,19 +156,78 @@ export default function StudioApp() {
       }
 
       if (action.kind === "resize") {
-        // Beats only, and only while a beat is the active element — selectedBeatId
-        // survives underneath a selected segment, so without this the arrows would
-        // resize a beat that isn't highlighted.
-        if (track !== "beat") return;
+        // Resizes whatever is active. Bounds per track mirror that track's own
+        // resize-right drag in Timeline, so keyboard and mouse can't disagree.
+        const totalDur = cut ? cutDuration(cut) : 0;
+        const room = (startTimeSec: number) => totalDur - startTimeSec;
+        const step = (currentSec: number, bounds: { minSec: number; maxSec: number }) =>
+          stepSegmentDuration(currentSec, bounds, action.direction);
 
-        // Same step, clamp and "custom" preset as the Inspector's duration input.
-        const beat = beats.find((candidate) => candidate.id === selectedBeatId);
-        const clip = beat ? clipById.get(beat.clipId) : undefined;
-        if (!beat || !clip) return;
+        if (track === "beat") {
+          // Same step, clamp and "custom" preset as the Inspector's duration input.
+          const beat = beats.find((candidate) => candidate.id === selectedBeatId);
+          const clip = beat ? clipById.get(beat.clipId) : undefined;
+          if (!beat || !clip) return;
+
+          event.preventDefault();
+          const next = stepBeatDuration(beat, clip.durationSec, action.direction);
+          if (next) dispatch({ type: "UPDATE_BEAT", beat: next });
+          return;
+        }
 
         event.preventDefault();
-        const next = stepBeatDuration(beat, clip.durationSec, action.direction);
-        if (next) dispatch({ type: "UPDATE_BEAT", beat: next });
+        switch (track) {
+          case "vo": {
+            // Resizes the whole selection, like dragging and deleting it does.
+            const selected = (cut?.voSegments ?? []).filter((s) => voSelection.ids.includes(s.id));
+            const resized = selected.flatMap((segment) => {
+              const next = step(segment.durationSec, { minSec: 0.5, maxSec: room(segment.startTimeSec) });
+              return next === null ? [] : [{ ...segment, durationSec: next }];
+            });
+            if (resized.length === 1) dispatch({ type: "UPDATE_VO", segment: resized[0] });
+            else if (resized.length > 1) dispatch({ type: "UPDATE_VOS", segments: resized });
+            break;
+          }
+          case "sfx": {
+            const segment = cut?.sfxSegments?.find((s) => s.id === selectedSfxId);
+            if (!segment) break;
+            const next = step(segment.durationSec, {
+              minSec: 0.1,
+              // Trim-tail only: a sound effect can never outlast its source file.
+              maxSec: Math.min(segment.sourceDurationSec, room(segment.startTimeSec)),
+            });
+            if (next !== null) dispatch({ type: "UPDATE_SFX", segment: { ...segment, durationSec: next } });
+            break;
+          }
+          case "userVoice": {
+            const segment = cut?.userVoiceSegments?.find((s) => s.id === selectedUserVoiceId);
+            if (!segment) break;
+            const next = step(segment.durationSec, {
+              minSec: 0.1,
+              maxSec: Math.min(
+                segment.sourceDurationSec - (segment.sourceStartSec ?? 0),
+                room(segment.startTimeSec),
+              ),
+            });
+            if (next !== null) dispatch({ type: "UPDATE_USER_VOICE", segment: { ...segment, durationSec: next } });
+            break;
+          }
+          case "sticker": {
+            const sticker = cut?.stickers?.find((s) => s.id === selectedStickerId);
+            if (!sticker) break;
+            // A sticker has no source length, so the cut end is the only ceiling.
+            const next = step(sticker.durationSec, { minSec: 0.1, maxSec: room(sticker.startTimeSec) });
+            if (next !== null) dispatch({ type: "UPDATE_STICKER", sticker: { ...sticker, durationSec: next } });
+            break;
+          }
+          case "overlay": {
+            const overlay = cut?.overlays?.find((s) => s.id === selectedOverlayId);
+            if (!overlay) break;
+            const next = step(overlay.durationSec, { minSec: 0.5, maxSec: room(overlay.startTimeSec) });
+            if (next !== null) dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, durationSec: next } });
+            break;
+          }
+        }
         return;
       }
 
