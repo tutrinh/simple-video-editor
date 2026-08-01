@@ -3,6 +3,8 @@ import type { Beat, Clip, Cut } from "../domain/types";
 import FinalPreview, { BeatTitleOverlay, StickerOverlay } from "../features/export/FinalPreview";
 import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
+import { captionCssFamily } from "../features/export/captionFont";
+import { useExportSettings } from "../state/ExportSettingsContext";
 import { fmtClock, cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, advanceStillPos, kenBurnsStyleAt, kenBurnsKeyframes } from "./util";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import { getSplitLayoutCss, normalizeSplitConfig, getSlotTransformStyle } from "../features/export/splitScreenCanvas";
@@ -67,6 +69,7 @@ interface Props {
  */
 export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated }: Props) {
   const { dispatch } = useProject();
+  const { settings: es } = useExportSettings();
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
   const overlayVideoRef = useRef<HTMLVideoElement>(null);
@@ -566,6 +569,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             captionScale={1}
             captionOpacity={0.5}
             captionLineHeight={1.6}
+            captionFontId={es.captionFontId}
             title={null}
             music={null}
             musicVolume={0.5}
@@ -606,6 +610,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
   // Captions now come from the VO track by absolute cut time (decoupled from beats).
   const caption = activeVoCaption(cut.voSegments, elapsedCutSec);
+  // The Beat preview draws its caption as DOM, so it needs a CSS family rather than the
+  // canvas face the Cut preview and the export register.
+  const captionFamily = captionCssFamily(es.captionFontId);
   const isAtEnd = !playing && pos >= 0.98;
 
   return (
@@ -720,7 +727,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         <div className="st-badgeTL st-num">
           Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}
         </div>
-        <div className="cap"><span>{caption}</span></div>
+        <div className="cap" style={captionFamily ? { fontFamily: captionFamily } : undefined}><span>{caption}</span></div>
       </div>
       <div className="st-transport">
         <ControlButton

@@ -43,6 +43,8 @@ export interface CaptionSpec {
   color?: string; // default white
   weight?: number; // default 700
   maxWidthFrac?: number; // default 0.9 of frame width
+  /** Font id from the picker. Empty/absent keeps the bundled caption face. */
+  fontId?: string;
 }
 
 /** Wrap on width, but honour explicit newlines as hard breaks. Same rule on both
@@ -98,6 +100,7 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 import { createOffscreenOrDomCanvas, canvasToPngBuffer } from "../../lib/offscreenCanvas";
+import { resolveCaptionFontFamily } from "./captionFont";
 
 /** Draw the caption block (wrapped, boxed, bottom-aligned, centered) onto a
  *  full-frame canvas context. */
@@ -109,7 +112,9 @@ export async function drawCaptionBlock(
 ): Promise<void> {
   const text = spec.text.trim();
   if (!text) return;
-  const family = await ensureCaptionFont();
+  // A chosen font wins; otherwise the bundled caption face. Resolved before any
+  // measuring, since wrapping is measured against whichever face actually draws.
+  const family = (await resolveCaptionFontFamily(spec.fontId)) ?? (await ensureCaptionFont());
   const size = spec.fontSizePx;
   const weight = spec.weight ?? 700;
 

@@ -6,6 +6,7 @@ import { activeVoPresetSettings } from "../lib/voPresets";
 
 import type { ExportQuality, TitleAnimation } from "../features/export/export";
 import type { TitleScope } from "../features/export/titleTiming";
+import { DEFAULT_CAPTION_FONT_ID } from "../features/export/captionFont";
 
 // Export-page settings live here (not in ExportView) so they survive tab
 // navigation — switching away and back keeps every slider, dropdown, and upload.
@@ -48,6 +49,8 @@ export interface ExportSettings {
   captionScale: number;
   captionOpacity: number;
   captionLineHeight: number;
+  /** Font id for captions. Empty keeps the bundled caption face (see captionFont.ts). */
+  captionFontId: string;
   voiceover: boolean;
   ttsEngine: TtsEngine;
   voice: Voice;
@@ -162,6 +165,7 @@ const DEFAULTS: ExportSettings = {
   captionScale: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_SCALE,
   captionOpacity: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_OPACITY,
   captionLineHeight: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_LINE_HEIGHT,
+  captionFontId: DEFAULT_CAPTION_FONT_ID,
   voiceover: true,
   ttsEngine: "elevenlabs",
   voice: "af_heart",

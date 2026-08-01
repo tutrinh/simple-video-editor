@@ -10,6 +10,7 @@ import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./Final
 import { ensureFontLoadedById, findFontById } from "../../lib/googleFonts";
 import { getTitleFontBytes } from "./titleFonts";
 import TitleTreatmentEditor from "./TitleTreatmentEditor";
+import FontPicker from "../../studio/FontPicker";
 import { BUILT_IN_PRESETS, loadSavedPresets, savePreset, type TitlePreset } from "../../lib/titlePresets";
 import {
   loadVoPresets, saveVoPreset, updateVoPreset, deleteVoPreset, getDefaultPresetId, setDefaultPresetId,
@@ -67,7 +68,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   // Two-step confirm before overwriting the selected preset with the current settings.
   const [confirmSaveMod, setConfirmSaveMod] = useState(false);
   const {
-    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight,
+    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight, captionFontId,
   } = es;
 
   // Transient per-render state (fine to reset on navigation).
@@ -391,7 +392,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight },
+        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight, captionFontId },
 
         (p, status) => {
           setProgress(p);
@@ -602,6 +603,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
               cut={cut}
               clips={clips}
               captionScale={captionScale}
+              captionFontId={captionFontId}
               captionOpacity={captionOpacity}
               captionLineHeight={captionLineHeight}
               title={previewTitle}
@@ -741,6 +743,13 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
             <div className={`st-color-collapsible ${captionsOpen ? "open" : ""}`}>
               <div className="st-color-collapsible-inner">
                 <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)", flexShrink: 0 }}>Caption font</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <FontPicker value={captionFontId} onChange={(id) => update({ captionFontId: id })} />
+                    </div>
+                  </div>
+
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Caption size</span>
                     <input type="range" min={0.5} max={2} step={0.1} value={captionScale} onChange={(e) => update({ captionScale: Number(e.target.value) })} style={sliderTrackStyle(captionScale, 0.5, 2)} />

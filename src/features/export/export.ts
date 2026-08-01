@@ -119,6 +119,8 @@ export interface ExportOptions {
   /** Caption line height as a multiple of font size (default 1.6 = boxes flush,
    *  no gap. Below ~1.6 the per-line boxes overlap; above it they gap apart). */
   captionLineHeight?: number;
+  /** Font id for captions; empty keeps the bundled caption face. */
+  captionFontId?: string;
 }
 
 // Build the ffmpeg overlay graph for stacked title layers. Each layer is
@@ -346,6 +348,7 @@ export async function exportCut(
   const fontsize = Math.round(Math.max(24, h * 0.045) * (opts.captionScale ?? 1));
   const bgOpacity = Math.min(1, Math.max(0, opts.captionBgOpacity ?? 0.5));
   const lineHeight = opts.captionLineHeight ?? 1.6;
+  const captionFontId = opts.captionFontId;
   const margin = Math.round(h * 0.07);
 
   const qualityKey = opts.exportQuality ?? EDITOR_DEFAULTS.DEFAULT_EXPORT_QUALITY;
@@ -627,7 +630,7 @@ export async function exportCut(
     const captionLayers: CaptionLayerSpec[] = [];
     const addCaption = async (text: string, enable: string) => {
       if (!text.trim()) return;
-      const png = await renderCaptionToPng({ text, fontSizePx: fontsize, bgOpacity, lineHeight, marginPx: margin }, w, h);
+      const png = await renderCaptionToPng({ text, fontSizePx: fontsize, bgOpacity, lineHeight, marginPx: margin, fontId: captionFontId }, w, h);
       if (png) {
         const k = captionLayers.length;
         inputs.push({ name: `cap_${k}.png`, data: png });

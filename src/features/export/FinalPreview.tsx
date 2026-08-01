@@ -78,6 +78,8 @@ interface Props {
   captionScale: number;
   captionOpacity: number;
   captionLineHeight: number;
+  /** Font id for captions; empty keeps the bundled caption face. */
+  captionFontId?: string;
   title: PreviewTitle | null;
   music: File | null;
   musicVolume: number;
@@ -107,7 +109,7 @@ interface Props {
 
 export default function FinalPreview({
   active = true,
-  cut, clips, captionScale, captionOpacity, captionLineHeight, title, music, musicVolume,
+  cut, clips, captionScale, captionOpacity, captionLineHeight, captionFontId, title, music, musicVolume,
   voiceover,
   ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
   enableSpacebarPlayback = false,
@@ -833,6 +835,7 @@ export default function FinalPreview({
             bgOpacity={captionOpacity}
             lineHeight={captionLineHeight}
             marginPx={canvasH * 0.07}
+            fontId={captionFontId}
           />
         )}
       </div>
@@ -1218,6 +1221,7 @@ function CaptionCanvas({
   ch,
   fontSizePx,
   bgOpacity,
+  fontId,
   lineHeight,
   marginPx,
 }: {
@@ -1226,6 +1230,7 @@ function CaptionCanvas({
   ch: number;
   fontSizePx: number;
   bgOpacity: number;
+  fontId?: string;
   lineHeight: number;
   marginPx: number;
 }) {
@@ -1240,14 +1245,14 @@ function CaptionCanvas({
         canvas,
         cw,
         ch,
-        (ctx) => drawCaptionBlock(ctx, { text, fontSizePx, bgOpacity, lineHeight, marginPx }, cw, ch),
+        (ctx) => drawCaptionBlock(ctx, { text, fontSizePx, bgOpacity, lineHeight, marginPx, fontId }, cw, ch),
         () => cancelled,
       );
     })();
     return () => {
       cancelled = true;
     };
-  }, [text, cw, ch, fontSizePx, bgOpacity, lineHeight, marginPx]);
+  }, [text, cw, ch, fontSizePx, bgOpacity, lineHeight, marginPx, fontId]);
 
   return (
     <canvas
