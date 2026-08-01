@@ -14,6 +14,7 @@ import { cutDuration } from "../features/assemble/assemble";
 import { fmtSecs, sliderTrackStyle, cssFilterFor, getFilterPreset, rotationCoverScale, fillMove, KEN_BURNS_PRESETS, KEN_BURNS_DEFAULT } from "./util";
 import { normalizeSplitConfig } from "../features/export/splitScreenCanvas";
 import { isIdentityGrade } from "../lib/grade";
+import { autoRec709Grade } from "../lib/autoRec709";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import SplitClipPickerModal from "./SplitClipPickerModal";
 
@@ -1688,6 +1689,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     update(rest);
   }
 
+  function applyAutoRec709() {
+    update({ ...b, colorAdjustments: autoRec709Grade() });
+  }
+
   function hasColorAdjustments(adj?: ColorAdjustments) {
     return !isIdentityGrade(adj);
   }
@@ -2486,6 +2491,22 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <div className={"st-color-collapsible" + (colorOpen ? " open" : "")}>
             <div className="st-color-collapsible-inner">
               <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, paddingBottom: 8, borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: "var(--ink)", fontSize: 11, fontWeight: 650 }}>Flat footage?</div>
+                    <div style={{ color: "var(--ink-3)", fontSize: 9, lineHeight: 1.4, marginTop: 2 }}>Add a neutral Rec.709-style look without choosing a camera profile.</div>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    onClick={applyAutoRec709}
+                    title="Replace this beat's color adjustments with a camera-agnostic Rec.709-style normalization"
+                    style={{ flex: "none" }}
+                  >
+                    Auto Rec.709
+                  </Button>
+                </div>
+
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
                   <InputControl
