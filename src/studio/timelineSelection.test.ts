@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeTimelineTrack,
+  idsInTimelineOrder,
   intentFromModifiers,
   nextSelection,
   primarySelectedId,
   pruneSelection,
+  stepWithinTrack,
   type SelectionState,
+  type TrackSelectionSnapshot,
 } from "./timelineSelection";
 
 const ORDER = ["a", "b", "c", "d", "e"];
@@ -131,5 +135,88 @@ describe("primarySelectedId", () => {
 
   it("is null when nothing is selected", () => {
     expect(primarySelectedId(empty)).toBeNull();
+  });
+});
+
+describe("activeTimelineTrack", () => {
+  const none: TrackSelectionSnapshot = {
+    voIds: [], sfxId: null, userVoiceId: null, stickerId: null, overlayId: null,
+  };
+
+  it("falls back to the beat track when nothing is selected", () => {
+    expect(activeTimelineTrack(none)).toBe("beat");
+  });
+
+  it("names whichever segment track is lit", () => {
+    expect(activeTimelineTrack({ ...none, voIds: ["v1"] })).toBe("vo");
+    expect(activeTimelineTrack({ ...none, sfxId: "s1" })).toBe("sfx");
+    expect(activeTimelineTrack({ ...none, userVoiceId: "u1" })).toBe("userVoice");
+    expect(activeTimelineTrack({ ...none, stickerId: "k1" })).toBe("sticker");
+    expect(activeTimelineTrack({ ...none, overlayId: "o1" })).toBe("overlay");
+  });
+
+  it("treats a whole voiceover multi-selection as the voiceover track", () => {
+    expect(activeTimelineTrack({ ...none, voIds: ["v1", "v2", "v3"] })).toBe("vo");
+  });
+});
+
+describe("idsInTimelineOrder", () => {
+  it("sorts by start time rather than array order", () => {
+    const items = [
+      { id: "late", startTimeSec: 9 },
+      { id: "early", startTimeSec: 1 },
+      { id: "middle", startTimeSec: 4 },
+    ];
+    expect(idsInTimelineOrder(items)).toEqual(["early", "middle", "late"]);
+  });
+
+  it("breaks ties on id so the order is stable", () => {
+    const items = [
+      { id: "b", startTimeSec: 2 },
+      { id: "a", startTimeSec: 2 },
+    ];
+    expect(idsInTimelineOrder(items)).toEqual(["a", "b"]);
+  });
+
+  it("does not mutate the input", () => {
+    const items = [{ id: "b", startTimeSec: 5 }, { id: "a", startTimeSec: 1 }];
+    idsInTimelineOrder(items);
+    expect(items.map((i) => i.id)).toEqual(["b", "a"]);
+  });
+
+  it("handles a missing track", () => {
+    expect(idsInTimelineOrder(undefined)).toEqual([]);
+  });
+});
+
+describe("stepWithinTrack", () => {
+  const ids = ["a", "b", "c"];
+
+  it("moves forward and backward", () => {
+    expect(stepWithinTrack(ids, "b", 1)).toBe("c");
+    expect(stepWithinTrack(ids, "b", -1)).toBe("a");
+  });
+
+  it("wraps at both ends, the way beat navigation always has", () => {
+    expect(stepWithinTrack(ids, "c", 1)).toBe("a");
+    expect(stepWithinTrack(ids, "a", -1)).toBe("c");
+  });
+
+  it("starts from the first element when nothing is active", () => {
+    expect(stepWithinTrack(ids, null, 1)).toBe("b");
+    expect(stepWithinTrack(ids, null, -1)).toBe("c");
+  });
+
+  it("treats an unknown active id as the first element", () => {
+    expect(stepWithinTrack(ids, "gone", 1)).toBe("b");
+  });
+
+  it("returns the same id for a single-element track", () => {
+    expect(stepWithinTrack(["only"], "only", 1)).toBe("only");
+    expect(stepWithinTrack(["only"], "only", -1)).toBe("only");
+  });
+
+  it("returns null for an empty track", () => {
+    expect(stepWithinTrack([], null, 1)).toBeNull();
   });
 });

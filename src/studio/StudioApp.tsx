@@ -4,10 +4,13 @@ import { makeBeat } from "../features/assemble/assemble";
 import { stepBeatDuration } from "../domain/beatDuration";
 import { isFromFormControl, resolveTimelineKeyAction } from "./timelineKeys";
 import {
+  activeTimelineTrack,
+  idsInTimelineOrder,
   intentFromModifiers,
   nextSelection,
   primarySelectedId,
   pruneSelection,
+  stepWithinTrack,
   type SelectionState,
 } from "./timelineSelection";
 import { useVoFit } from "./useVoFit";
@@ -132,6 +135,15 @@ export default function StudioApp() {
       });
       if (!action) return;
 
+      // Every shortcut acts on whatever the timeline shows as active.
+      const track = activeTimelineTrack({
+        voIds: voSelection.ids,
+        sfxId: selectedSfxId,
+        userVoiceId: selectedUserVoiceId,
+        stickerId: selectedStickerId,
+        overlayId: selectedOverlayId,
+      });
+
       if (action.kind === "fit-vo") {
         const segment = (cut?.voSegments ?? []).find((candidate) => candidate.id === selectedVoId);
         if (!segment || !segment.text.trim()) return;
@@ -141,6 +153,11 @@ export default function StudioApp() {
       }
 
       if (action.kind === "resize") {
+        // Beats only, and only while a beat is the active element — selectedBeatId
+        // survives underneath a selected segment, so without this the arrows would
+        // resize a beat that isn't highlighted.
+        if (track !== "beat") return;
+
         // Same step, clamp and "custom" preset as the Inspector's duration input.
         const beat = beats.find((candidate) => candidate.id === selectedBeatId);
         const clip = beat ? clipById.get(beat.clipId) : undefined;
@@ -152,15 +169,58 @@ export default function StudioApp() {
         return;
       }
 
+      // Left/Right steps through whichever track is currently active, not always the
+      // beats — if a voiceover chip is lit, the arrows walk the voiceover track.
       event.preventDefault();
-      const currentIndex = Math.max(0, beats.findIndex((beat) => beat.id === selectedBeatId));
-      const nextIndex = (currentIndex + action.direction + beats.length) % beats.length;
-      selectBeatFromUser(beats[nextIndex].id);
+
+      if (track === "beat") {
+        const nextBeatId = stepWithinTrack(beats.map((beat) => beat.id), selectedBeatId, action.direction);
+        if (nextBeatId) selectBeatFromUser(nextBeatId);
+        return;
+      }
+
+      const step = (
+        items: { id: string; startTimeSec: number }[] | undefined,
+        activeId: string | null,
+      ) => stepWithinTrack(idsInTimelineOrder(items), activeId, action.direction);
+
+      // Stepping always lands on exactly one segment, collapsing any multi-selection.
+      switch (track) {
+        case "vo": {
+          const id = step(cut?.voSegments, selectedVoId);
+          if (id) { clearSegmentSelections(); setVoSelection({ ids: [id], anchorId: id }); }
+          break;
+        }
+        case "sfx": {
+          const id = step(cut?.sfxSegments, selectedSfxId);
+          if (id) { clearSegmentSelections(); setSelectedSfxId(id); }
+          break;
+        }
+        case "userVoice": {
+          const id = step(cut?.userVoiceSegments, selectedUserVoiceId);
+          if (id) { clearSegmentSelections(); setSelectedUserVoiceId(id); }
+          break;
+        }
+        case "sticker": {
+          const id = step(cut?.stickers, selectedStickerId);
+          if (id) { clearSegmentSelections(); setSelectedStickerId(id); }
+          break;
+        }
+        case "overlay": {
+          const id = step(cut?.overlays, selectedOverlayId);
+          if (id) { clearSegmentSelections(); setSelectedOverlayId(id); }
+          break;
+        }
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [beats, clipById, cut?.voSegments, dispatch, editorHovered, selectBeatFromUser, selectedBeatId, selectedVoId, voFit]);
+  }, [
+    beats, clipById, clearSegmentSelections, cut, dispatch, editorHovered, selectBeatFromUser,
+    selectedBeatId, selectedOverlayId, selectedSfxId, selectedStickerId, selectedUserVoiceId,
+    selectedVoId, voSelection.ids, voFit,
+  ]);
 
   function requestTrackSegmentDeletion(kind: TrackSegmentKind, id: string, label: string) {
     setPendingTrackDeletion({ kind, id, label });
