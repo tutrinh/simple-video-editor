@@ -12,7 +12,7 @@ import { useSettings } from "../state/SettingsContext";
 
 /**
  * Slide-over side panel for workspace settings. Mounted only while open.
- * AI options (engine, model, tone, script type) now live in the ✨ AI Story drawer.
+ * AI options (engine, model, tone, script type) now live in the AI Director drawer.
  */
 export default function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { settings, update } = useSettings();
@@ -160,7 +160,7 @@ export default function SettingsDrawer({ open, onClose }: { open: boolean; onClo
             <div className="st-setting-text">
               <div className="st-setting-name">AI options moved</div>
               <div className="st-setting-desc">
-                Engine, model, tone, and script type now live in the ✨ AI Story panel (top bar).
+                Engine, model, tone, and script type now live in AI Director (top bar).
               </div>
             </div>
           </div>

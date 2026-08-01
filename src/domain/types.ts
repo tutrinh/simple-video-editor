@@ -3,6 +3,10 @@
 
 export type Aspect = "16:9" | "9:16" | "1:1";
 
+/** The editorial job a Beat performs in the Story Spine. */
+export type StoryPurpose = "hook" | "problem" | "proof" | "payoff" | "cta";
+export const STORY_PURPOSES: readonly StoryPurpose[] = ["hook", "problem", "proof", "payoff", "cta"];
+
 /** A single uploaded source file — video footage, or a Still. */
 export interface Clip {
   id: string;
@@ -188,6 +192,8 @@ export interface Beat {
   durationSec: number;
   scriptText: string;
   captionText: string;
+  /** Optional for backward compatibility. The Beat's editorial job in the Story Spine. */
+  storyPurpose?: StoryPurpose;
   /** Expected footage for this position when the Beat came from a template. */
   templateSlotDescription?: string;
   /** Creator-selected AI shot execution that fulfills the template slot role. */

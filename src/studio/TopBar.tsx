@@ -181,9 +181,9 @@ export default function TopBar({
           variant="quiet"
           size="small"
           onClick={onOpenAiStory}
-          title="Open the AI Story generator — analyze clips, author the story & script, refine each beat"
+          title="Open AI Director to brief, generate hooks, write the story, and refine each beat"
         >
-          AI Story
+          AI Director
         </Button>
       )}
       {/* <Button variant="danger" size="small" onClick={onStartOver} title="Clear everything">Start over</Button> */}

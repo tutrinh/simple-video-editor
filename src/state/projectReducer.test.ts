@@ -535,4 +535,29 @@ describe("projectReducer", () => {
     expect(projectReducer(state, { type: "REMOVE_VOS", ids: [] })).toBe(state);
     expect(projectReducer(state, { type: "REMOVE_VOS", ids: ["ghost"] })).toBe(state);
   });
+
+  it("persists the AI Director brief and Hook Lab results", () => {
+    const workspace = {
+      brief: {
+        audience: "new runners",
+        goal: "saves" as const,
+        promise: "a steadier first mile",
+        evidence: "GPS split shown on screen",
+        callToAction: "Save the drill",
+      },
+      hooks: [{
+        id: "hook-question",
+        mechanism: "question" as const,
+        spokenLine: "Is your first mile stealing your finish?",
+        onScreenText: "First mile too fast?",
+        visualDirection: "Open on the GPS split",
+        rationale: "Creates a specific curiosity gap",
+      }],
+      selectedHookId: "hook-question",
+    };
+
+    const next = projectReducer(initialState, { type: "SET_AI_DIRECTOR", workspace });
+    expect(next.aiDirector).toEqual(workspace);
+    expect(next.aiDirector).not.toBeUndefined();
+  });
 });

@@ -1438,6 +1438,11 @@ export default function Timeline({
                               T{activeTitleCount > 1 ? activeTitleCount : ""}
                             </span>
                           )}
+                          {b.storyPurpose && (
+                            <span className="st-beat-purpose-badge" title={`Beat purpose: ${b.storyPurpose}`}>
+                              {b.storyPurpose === "cta" ? "CTA" : b.storyPurpose}
+                            </span>
+                          )}
                           <span className="bn st-num">{String(i + 1).padStart(2, "0")}</span>
                         </div>
 

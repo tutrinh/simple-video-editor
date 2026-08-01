@@ -1,6 +1,7 @@
 import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments } from "../domain/types";
 import type { CreatorNotes, ProductBrief, ProductReviewWorkspace, ReviewPlan } from "../domain/productReview";
 import type { MotivationalStoryWorkspace } from "../domain/motivationalStory";
+import type { AiDirectorWorkspace } from "../domain/aiDirector";
 import { emptyCreatorNotes } from "../domain/productReview";
 
 /** The whole editing session. One store; every phase reads/writes it. */
@@ -16,6 +17,8 @@ export interface ProjectState {
   productReview?: ProductReviewWorkspace;
   /** Motivational story workspace. */
   motivationalStory?: MotivationalStoryWorkspace;
+  /** General-purpose creator brief and Hook Lab results. */
+  aiDirector?: AiDirectorWorkspace;
 }
 
 export const initialState: ProjectState = { title: "", clips: [], direction: "" };
@@ -41,6 +44,7 @@ export type Action =
   | { type: "SET_MOTIVATIONAL_STORY"; workspace: MotivationalStoryWorkspace }
   | { type: "LOAD_MOTIVATIONAL_STORY"; workspace: MotivationalStoryWorkspace }
   | { type: "CLEAR_MOTIVATIONAL_STORY" }
+  | { type: "SET_AI_DIRECTOR"; workspace: AiDirectorWorkspace }
   | { type: "SET_STORY"; story: Story }
   | { type: "SET_CUT"; cut: Cut }
   | { type: "APPLY_TEMPLATE"; cut: Cut; placeholderClips?: Clip[] }
@@ -198,6 +202,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, motivationalStory: action.workspace };
     case "CLEAR_MOTIVATIONAL_STORY":
       return { ...state, motivationalStory: undefined };
+    case "SET_AI_DIRECTOR":
+      return { ...state, aiDirector: action.workspace };
     case "SET_STORY":
       return { ...state, story: action.story };
     case "SET_CUT":

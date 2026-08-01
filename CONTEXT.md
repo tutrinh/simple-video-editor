@@ -113,6 +113,14 @@ from alternatives the Writer proposes. A product review's Story takes its loglin
 from the Hook.
 _Avoid_: logline, opener, intro, teaser
 
+**Beat Purpose**:
+The editorial job a Beat performs in the Story: Hook, Problem, Proof, Payoff, or CTA. It describes why the Beat is present, not what its Clip shows.
+_Avoid_: role, phase, section, label
+
+**Story Spine**:
+The ordered Beat Purposes across a Cut. It exposes the Story's structure without changing the Cut's Beat order, Clips, timing, or Script.
+_Avoid_: outline, framework, arc labels, beat map
+
 **Shot List**:
 The ordered footage the author should capture or match from existing Clips to
 realize a Review Plan. A Shot is a request for footage; a Beat is footage already

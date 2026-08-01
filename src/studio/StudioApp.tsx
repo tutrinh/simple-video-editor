@@ -89,7 +89,7 @@ export default function StudioApp() {
   // Mount the export drawer lazily on first open, then keep it mounted so its
   // state survives close/reopen (only slid out of view). Reset on "Start over".
   const [exportMounted, setExportMounted] = useState(false);
-  // Same lazy-mount pattern for the AI Story drawer.
+  // Same lazy-mount pattern for the AI Director drawer.
   const [aiStoryOpen, setAiStoryOpen] = useState(false);
   const [aiStoryMounted, setAiStoryMounted] = useState(false);
   const [productReviewOpen, setProductReviewOpen] = useState(false);
@@ -572,7 +572,7 @@ export default function StudioApp() {
                 <h2>{clips.length ? "Ready when you are" : "Start with your footage"}</h2>
                 <p>
                   {clips.length
-                    ? "Drag a clip here to start editing, or open ✨ AI Story to build a cut with Claude."
+                    ? "Drag a clip here to start editing, or open AI Director to build a cut and shape the story."
                     : "Drop video or image files here to start a cut, or add them to the Clips panel on the left."}
                 </p>
                 {clips.length > 0 && (

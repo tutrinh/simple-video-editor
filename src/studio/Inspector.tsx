@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
-import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType, SplitLayoutType } from "../domain/types";
-import { BEAT_SPEED_STEPS, nearestBeatSpeedIndex } from "../domain/types";
+import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType, SplitLayoutType, StoryPurpose } from "../domain/types";
+import { BEAT_SPEED_STEPS, nearestBeatSpeedIndex, STORY_PURPOSES } from "../domain/types";
 import { beatTiming, beatFill, beatGapSec, beatDurationSec, beatSpeed } from "../domain/beatTiming";
 import { resizeBeat } from "../domain/beatDuration";
 import { hasAudioTags, stripAudioTags } from "../lib/audioTags";
@@ -1723,6 +1723,26 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           }}
         >
           <div className="cap">{b.captionText}</div>
+        </div>
+
+        <div className="st-field st-story-purpose-field">
+          <label htmlFor={`beat-purpose-${b.id}`}>Beat purpose</label>
+          <SelectControl
+            id={`beat-purpose-${b.id}`}
+            value={b.storyPurpose ?? ""}
+            onChange={(event) => update({
+              ...b,
+              storyPurpose: (event.target.value || undefined) as StoryPurpose | undefined,
+            })}
+          >
+            <option value="">Unassigned</option>
+            {STORY_PURPOSES.map((purpose) => (
+              <option value={purpose} key={purpose}>
+                {purpose === "cta" ? "CTA" : purpose[0].toUpperCase() + purpose.slice(1)}
+              </option>
+            ))}
+          </SelectControl>
+          <span className="st-field-help">The editorial job this Beat performs in the Story Spine.</span>
         </div>
 
         {b.templateSlotDescription && (
