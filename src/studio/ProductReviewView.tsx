@@ -93,6 +93,10 @@ function lines(value: string): string[] {
   return [...new Set(value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))];
 }
 
+function sameList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((item, index) => item === b[index]);
+}
+
 function briefFromForm(form: ProductForm, previous?: ProductBrief, sourceUrl?: string): ProductBrief {
   const manual = createManualProductBrief({
     ...form,
@@ -116,6 +120,46 @@ function notesHaveContent(notes: CreatorNotes): boolean {
     || notes.cons.length
     || notes.verdict.trim()
     || notes.callToAction?.trim(),
+  );
+}
+
+/**
+ * One verified evidence list, shown in full on the Generate step. Nothing here is
+ * truncated: what the creator can see is exactly what the author prompt is grounded
+ * in, so a missing pro or an unwanted claim is visible before the plan is written.
+ */
+function EvidenceList({
+  title,
+  items,
+  emptyHint,
+  tone,
+}: {
+  title: string;
+  items: string[];
+  emptyHint: string;
+  tone?: "positive" | "caution";
+}) {
+  const accent = tone === "positive" ? "var(--positive)" : tone === "caution" ? "var(--danger)" : "var(--ink-3)";
+
+  return (
+    <div className="st-product-review-evidence-group">
+      <div className="st-product-review-evidence-head">
+        <span className="st-product-review-label">{title}</span>
+        <span className="st-product-review-evidence-count">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="st-product-review-evidence-empty">{emptyHint}</p>
+      ) : (
+        <ul className="st-product-review-evidence-list">
+          {items.map((item, index) => (
+            <li key={`${item}-${index}`}>
+              <span aria-hidden="true" style={{ color: accent }}>•</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -219,6 +263,12 @@ export default function ProductReviewView({
   const [sourceUrl, setSourceUrl] = useState(workspace?.brief?.source.url ?? "");
   const [form, setForm] = useState<ProductForm>(() => formFromBrief(workspace?.brief));
   const [creatorNotes, setCreatorNotes] = useState<CreatorNotes>(() => workspace?.creatorNotes ?? emptyCreatorNotes());
+  // Pros/Cons are stored as clean string[], but `lines()` trims and drops empties — so
+  // binding the textareas straight to `pros.join("\n")` ate a trailing space or newline
+  // on every keystroke, making multi-word, multi-line entry impossible. The raw text is
+  // what the creator edits; the arrays stay derived from it.
+  const [prosText, setProsText] = useState(() => creatorNotes.pros.join("\n"));
+  const [consText, setConsText] = useState(() => creatorNotes.cons.join("\n"));
   const [duration, setDuration] = useState<DurationOption>("30");
   const [includePrice, setIncludePrice] = useState(false);
   const [includeCta, setIncludeCta] = useState(true);
@@ -247,6 +297,17 @@ export default function ProductReviewView({
       setSavedPlans(saveReviewPlanToHistory(workspace));
     }
   }, [workspace]);
+
+  // Re-seed the editable text whenever pros/cons change from outside the textareas —
+  // AI enrichment, import, restoring a saved plan, start over. Keeping the draft when
+  // it already normalizes to the same list is what stops it clobbering mid-word.
+  useEffect(() => {
+    setProsText((current) => (sameList(lines(current), creatorNotes.pros) ? current : creatorNotes.pros.join("\n")));
+  }, [creatorNotes.pros]);
+
+  useEffect(() => {
+    setConsText((current) => (sameList(lines(current), creatorNotes.cons) ? current : creatorNotes.cons.join("\n")));
+  }, [creatorNotes.cons]);
 
   const brief = workspace?.brief;
   const plan = workspace?.plan;
@@ -313,6 +374,16 @@ export default function ProductReviewView({
 
   function updateNotes<K extends keyof CreatorNotes>(key: K, value: CreatorNotes[K]) {
     setCreatorNotes((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateProsText(text: string) {
+    setProsText(text);
+    updateNotes("pros", lines(text));
+  }
+
+  function updateConsText(text: string) {
+    setConsText(text);
+    updateNotes("cons", lines(text));
   }
 
   async function importProduct() {
@@ -809,8 +880,8 @@ export default function ProductReviewView({
           <TextField label="Problem it solves" value={creatorNotes.problem} onChange={(event) => updateNotes("problem", event.target.value)} />
           <TextareaField label="Your real experience" rows={3} value={creatorNotes.experience} onChange={(event) => updateNotes("experience", event.target.value)} />
           <div className="st-product-review-grid">
-            <TextareaField label="Pros (one per line)" rows={3} value={creatorNotes.pros.join("\n")} onChange={(event) => updateNotes("pros", lines(event.target.value))} />
-            <TextareaField label="Cons (one per line)" rows={3} value={creatorNotes.cons.join("\n")} onChange={(event) => updateNotes("cons", lines(event.target.value))} />
+            <TextareaField label="Pros (one per line)" rows={3} value={prosText} onChange={(event) => updateProsText(event.target.value)} />
+            <TextareaField label="Cons (one per line)" rows={3} value={consText} onChange={(event) => updateConsText(event.target.value)} />
           </div>
           <TextField label="Your verdict" value={creatorNotes.verdict} onChange={(event) => updateNotes("verdict", event.target.value)} />
           <TextField label="Call to action" value={creatorNotes.callToAction ?? ""} onChange={(event) => updateNotes("callToAction", event.target.value)} />
@@ -992,6 +1063,37 @@ export default function ProductReviewView({
             </div>
           </div>
         </div>
+
+        <section className="st-product-review-section">
+          <div className="st-product-review-section-head">
+            <div>
+              <h3>What the script will be built from</h3>
+              <p>Everything you verified in step 1. Anything missing here can't reach the script.</p>
+            </div>
+            <Button variant="secondary" size="small" onClick={() => setStep("verify")} disabled={busy !== null}>
+              Edit in step 1
+            </Button>
+          </div>
+          <EvidenceList
+            title="Product features"
+            items={lines(form.featureText)}
+            emptyHint="No product features verified — the script will lean on your Creator Notes alone."
+          />
+          <div className="st-product-review-grid">
+            <EvidenceList
+              title="Pros"
+              tone="positive"
+              items={creatorNotes.pros}
+              emptyHint="No pros recorded yet."
+            />
+            <EvidenceList
+              title="Cons"
+              tone="caution"
+              items={creatorNotes.cons}
+              emptyHint="No cons recorded — a review with no cons reads like an ad."
+            />
+          </div>
+        </section>
         {busy === "generate" && (
           <ProgressNotice
             title={`Building Review Plan (${elapsedSec}s)`}

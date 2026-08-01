@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectProvider, useProject } from "../state/ProjectContext";
 import { SettingsProvider } from "../state/SettingsContext";
@@ -64,6 +64,12 @@ const aiJson = JSON.stringify({
 });
 
 describe("ProductReviewView", () => {
+  // Vitest runs without `globals: true` here, so Testing Library's automatic cleanup
+  // never registers and renders would otherwise pile up in one document.
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     const values = new Map<string, string>();
     Object.defineProperty(globalThis, "localStorage", {
@@ -104,6 +110,117 @@ describe("ProductReviewView", () => {
     await user.click(screen.getByRole("button", { name: "Apply to Project" }));
 
     await waitFor(() => expect(screen.getByLabelText("project state").textContent).toBe("2|9:16|2"));
+  });
+
+  it("accepts spaces and newlines while typing pros and cons", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsProvider>
+        <ProjectProvider>
+          <ProductReviewView productSource={source} author={async () => aiJson} />
+        </ProjectProvider>
+      </SettingsProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
+    await user.click(screen.getByRole("button", { name: "Import details" }));
+    await screen.findByDisplayValue("Trail Press");
+
+    // The array-backed value used to be re-normalized on every keystroke, so the
+    // trailing space and newline were swallowed and this came out "FirstlineSecondline".
+    const pros = screen.getByLabelText("Pros (one per line)") as HTMLTextAreaElement;
+    await user.type(pros, "Brews in four minutes\nNo paper filters");
+    expect(pros.value).toBe("Brews in four minutes\nNo paper filters");
+
+    const cons = screen.getByLabelText("Cons (one per line)") as HTMLTextAreaElement;
+    await user.type(cons, "Plunger sticks when cold");
+    expect(cons.value).toBe("Plunger sticks when cold");
+  });
+
+  it("recaps every verified feature, pro and con on the Generate step", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsProvider>
+        <ProjectProvider>
+          <ProductReviewView productSource={source} author={async () => aiJson} />
+        </ProjectProvider>
+      </SettingsProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
+    await user.click(screen.getByRole("button", { name: "Import details" }));
+    await screen.findByDisplayValue("Trail Press");
+
+    const features = screen.getByLabelText("Product features (one per line)");
+    await user.clear(features);
+    await user.type(features, "Stainless steel body\nDouble-wall vacuum seal\nFits a 20oz bottle cage");
+
+    await user.type(
+      screen.getByLabelText("Pros (one per line)"),
+      "Brews in four minutes\nNo paper filters\nSurvived a checked bag"
+    );
+    await user.type(
+      screen.getByLabelText("Cons (one per line)"),
+      "Plunger sticks when cold\nPricey for the size"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Continue to generation" }));
+
+    // Every item must be visible on step 2 — not a count, and nothing truncated.
+    for (const item of [
+      "Stainless steel body",
+      "Double-wall vacuum seal",
+      "Fits a 20oz bottle cage",
+      "Brews in four minutes",
+      "No paper filters",
+      "Survived a checked bag",
+      "Plunger sticks when cold",
+      "Pricey for the size",
+    ]) {
+      expect(screen.getByText(item)).toBeTruthy();
+    }
+
+    expect(screen.getByText("What the script will be built from")).toBeTruthy();
+  });
+
+  it("tells the creator when pros or cons are still empty on the Generate step", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsProvider>
+        <ProjectProvider>
+          <ProductReviewView productSource={source} author={async () => aiJson} />
+        </ProjectProvider>
+      </SettingsProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
+    await user.click(screen.getByRole("button", { name: "Import details" }));
+    await screen.findByDisplayValue("Trail Press");
+    await user.click(screen.getByRole("button", { name: "Continue to generation" }));
+
+    expect(screen.getByText("No pros recorded yet.")).toBeTruthy();
+    expect(screen.getByText(/a review with no cons reads like an ad/i)).toBeTruthy();
+    // The imported listing claim still shows through.
+    expect(screen.getByText("Stainless steel body")).toBeTruthy();
+  });
+
+  it("returns to step 1 from the Generate step recap", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsProvider>
+        <ProjectProvider>
+          <ProductReviewView productSource={source} author={async () => aiJson} />
+        </ProjectProvider>
+      </SettingsProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
+    await user.click(screen.getByRole("button", { name: "Import details" }));
+    await screen.findByDisplayValue("Trail Press");
+    await user.click(screen.getByRole("button", { name: "Continue to generation" }));
+
+    await user.click(screen.getByRole("button", { name: "Edit in step 1" }));
+    expect(screen.getByLabelText("Product features (one per line)")).toBeTruthy();
   });
 
   it("preserves verified inputs when generation fails", async () => {
