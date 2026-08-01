@@ -1,4 +1,5 @@
 import type { VoSegment } from "../../domain/types";
+import { stripAudioTags } from "../../lib/audioTags";
 
 export interface ExportedCaptionWindow {
   text: string;
@@ -19,7 +20,9 @@ export function exportedCaptionWindows(
   const beatEndSec = beatStartSec + beatDurationSec;
   const windows: ExportedCaptionWindow[] = [];
   for (const segment of segments ?? []) {
-    const caption = segment.text.trim();
+    // Audio tags steer the synthesized delivery and are never spoken, so they must not
+    // be burned in. A segment that is nothing but tags leaves no caption at all.
+    const caption = stripAudioTags(segment.text).trim();
     if (!segment.captionVisible || !caption) continue;
     const segmentEndSec = segment.startTimeSec + segment.durationSec;
     if (segment.startTimeSec >= beatEndSec || segmentEndSec <= beatStartSec) continue;

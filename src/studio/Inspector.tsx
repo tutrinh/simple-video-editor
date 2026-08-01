@@ -3,6 +3,7 @@ import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
 import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType, SplitLayoutType } from "../domain/types";
 import { resizeBeat } from "../domain/beatDuration";
+import { hasAudioTags, stripAudioTags } from "../lib/audioTags";
 import type { VoFitController } from "./useVoFit";
 import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
@@ -610,6 +611,23 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         placeholder="Type what the voiceover should say…"
         rows={3}
       />
+
+      {/* Audio tags steer the synthesized delivery and are never spoken, so they are
+          stripped from the caption. Show the result, since the two now differ. */}
+      {hasAudioTags(selectedVo.text) && (
+        <div style={{ marginTop: 6, fontSize: 10, color: "var(--ink-3)", lineHeight: 1.45 }}>
+          {selectedVo.captionVisible ? (
+            <>
+              Caption reads:{" "}
+              <span style={{ color: "var(--ink-2)" }}>
+                {stripAudioTags(selectedVo.text).trim() || "— nothing, this is all tags"}
+              </span>
+            </>
+          ) : (
+            <>Audio tags are spoken as delivery, never shown — this segment's caption is off anyway.</>
+          )}
+        </div>
+      )}
 
       {/* Expressive hints — inline audio tags the user can drop into the narration. */}
       <div style={{ marginTop: 8 }}>

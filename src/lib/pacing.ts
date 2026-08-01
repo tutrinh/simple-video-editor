@@ -1,5 +1,6 @@
 import { EDITOR_DEFAULTS } from "../config/editorDefaults";
 import type { VoSegment } from "../domain/types";
+import { stripAudioTags } from "./audioTags";
 
 // Script-driven pacing (ADR-0004): a Beat's duration derives from its Script
 // segment's spoken length. Words are the master clock; the trim window is chosen
@@ -20,10 +21,12 @@ export function activeVoSegment(segs: VoSegment[] | undefined, absSec: number): 
 }
 
 /** Caption text to show at an absolute cut time — only from VO segments with the
- *  caption toggle on. Empty string when nothing is showing. */
+ *  caption toggle on. Empty string when nothing is showing. ElevenLabs audio tags are
+ *  stripped: they steer the delivery of the synthesized voice and are not spoken, so
+ *  they must not appear on screen. */
 export function activeVoCaption(segs: VoSegment[] | undefined, absSec: number): string {
   const s = activeVoSegment(segs, absSec);
-  return s && s.captionVisible ? s.text.trim() : "";
+  return s && s.captionVisible ? stripAudioTags(s.text).trim() : "";
 }
 
 // Per-line caption timing. When the author sets explicit per-line timers
