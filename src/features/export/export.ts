@@ -1,4 +1,7 @@
 import type { Beat, Clip, Cut, Aspect, OverlayClip, SplitScreenConfig, Sticker, UserVoiceEffect, VideoTransitionType } from "../../domain/types";
+import { PROJECT_FPS } from "../../domain/types";
+// Aliased: this module already has an unrelated local `BeatTiming` for timing slots.
+import { atempoChain, beatDurationSec, beatFill, beatSpeed, speedPlan, type BeatTiming as SpeedTiming } from "../../domain/beatTiming";
 import { multithreadReady, runIsolated, type EngineInput, type EnginePhase } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -182,7 +185,7 @@ export function beatInputArgs(
 ): string[] {
   const name = nameOverride ?? sourceName(clip);
   if (clip.kind === "still") {
-    return ["-loop", "1", "-t", String(footageLen), "-r", "30", "-i", name];
+    return ["-loop", "1", "-t", String(footageLen), "-r", String(PROJECT_FPS), "-i", name];
   }
   return ["-ss", String(inSec), "-t", String(footageLen), "-i", name];
 }
@@ -544,7 +547,12 @@ export async function exportCut(
     const targetDur = Math.max(0.1, b.outSec - b.inSec);
     const maxAvailable = Math.max(0.1, clipDur - inSec);
     const footageLen = clip.kind === "still" ? targetDur : Math.min(targetDur, maxAvailable);
-    return { clip, inSec, footageLen, segDur: targetDur };
+    // Footage over Speed is the Beat's length (ADR-0020), snapped to whole
+    // frames. A Still has no source rate, so its synthetic window stands.
+    const segDur = clip.kind === "still"
+      ? targetDur
+      : Math.max(0.1, beatDurationSec(footageLen, beatSpeed(b)));
+    return { clip, inSec, footageLen, segDur };
   });
 
   const beatStartSecs: number[] = new Array(cut.beats.length).fill(0);
@@ -686,16 +694,31 @@ export async function exportCut(
     );
     if (colorLut) inputs.push(colorLut.input);
 
-    const speedRatio = segDur / Math.max(0.05, footageLen);
-    const needTimeStretch = clip.kind === "video" && speedRatio > 1.005;
+    // Speed and Fill (ADR-0020). Speed retimes the picture; Fill decides only
+    // what happens once the footage is spent. Both come from `speedPlan` so the
+    // graph cannot drift from what StagePreview shows.
+    //
+    // `setpts` runs FIRST, before the encoder conforms to PROJECT_FPS, so a
+    // 60fps source slowed to 0.5× spreads its own frames across the longer
+    // window and lands one distinct source frame per output frame. Conforming
+    // first would throw half those frames away and then duplicate what remained.
+    const timing: SpeedTiming = {
+      timelineSec: segDur,
+      // The whole available window is played, however long that takes. Clamping
+      // this to segDur would halve it under fast motion, where segDur is the
+      // shorter of the two, and invent a shortfall that is not there.
+      windowSec: footageLen,
+      speed: clip.kind === "still" ? 1 : beatSpeed(b),
+      fill: beatFill(b),
+    };
+    const plan = speedPlan(timing);
 
     const vf = [
       "setpts=PTS-STARTPTS",
-      ...(needTimeStretch
-        ? (speedRatio <= 2.5
-            ? [`setpts=${speedRatio.toFixed(4)}*PTS`]
-            : [`loop=loop=-1:size=${Math.max(1, Math.round(footageLen * 30))}:start=0`])
+      ...(plan.loops
+        ? [`loop=loop=-1:size=${Math.max(1, Math.round(timing.windowSec * PROJECT_FPS))}:start=0`]
         : []),
+      ...(plan.retimed ? [`setpts=${plan.ptsFactor.toFixed(4)}*PTS`] : []),
       ...(kbMove
         ? [
             ...kenBurnsChain(w, h, kbMove, segDur),
@@ -711,8 +734,14 @@ export async function exportCut(
       ...(colorLut ? [colorLut.filter] : []),
     ];
 
-    const freeze = Math.max(0, segDur - (needTimeStretch ? segDur : footageLen));
-    if (freeze > 0.01) vf.push(`tpad=stop_duration=${freeze.toFixed(3)}:stop_mode=clone`);
+    // Fill "hold". A looping Beat has no shortfall left to pad.
+    if (plan.holdSec > 0.01) vf.push(`tpad=stop_duration=${plan.holdSec.toFixed(3)}:stop_mode=clone`);
+    // Speed can overrun the Beat as easily as it can fall short — 2s of window
+    // at 0.5× is 4s of picture for a 3s Beat — so the retimed stream is cut back
+    // to the Beat's own length. Looping is unbounded and needs the same cap.
+    if (plan.retimed || plan.loops) {
+      vf.push(`trim=duration=${segDur.toFixed(3)}`, "setpts=PTS-STARTPTS");
+    }
 
     // VO-track captions: burn each visible segment that overlaps this beat's window
     // [bStart, bEnd], gated to the overlap in segment-local time. A caption spanning a
@@ -1039,11 +1068,16 @@ export async function exportCut(
 
       if (strat === "source") {
         audioInputArgs = [];
+        // A retimed Beat's own audio is stretched to match its picture, pitch
+        // preserved (ADR-0020). `atempo` bottoms out at 0.5 per instance, so
+        // slower Speeds chain. It sits before apad/atrim so the padding and the
+        // cut to segment length still measure timeline seconds, not source ones.
+        const tempo = atempoChain(timing.speed).map((f) => `atempo=${f.toFixed(4)},`).join("");
         if (isSplitScreen) {
           const labels: string[] = [];
           activeSplitAudioInputs.forEach(({ inputIdx, volume }, index) => {
             const label = `[aslot_${index}]`;
-            aChains.push(`[${inputIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${volume.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS${label}`);
+            aChains.push(`[${inputIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${volume.toFixed(2)},${tempo}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS${label}`);
             labels.push(label);
           });
           if (labels.length === 1) {
@@ -1052,7 +1086,7 @@ export async function exportCut(
             aChains.push(`${labels.join("")}amix=inputs=${labels.length}:duration=first:normalize=0[abase]`);
           }
         } else {
-          aChains.push(`[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
+          aChains.push(`[0:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${beatVol.toFixed(2)},${tempo}apad,atrim=0:${segDurStr},asetpts=PTS-STARTPTS[abase]`);
         }
       } else {
         audioInputArgs = ["-f", "lavfi", "-t", segDurStr, "-i", "anullsrc=r=48000:cl=stereo"];
@@ -1103,7 +1137,7 @@ export async function exportCut(
         "-filter_complex", `${vFilterString};${aFilterString}`,
         "-map", "[v]", "-map", "[a]",
         "-shortest",
-        "-r", "30", "-c:v", "libx264", "-preset", segPreset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+        "-r", String(PROJECT_FPS), "-c:v", "libx264", "-preset", segPreset, "-crf", String(crf), "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4",
       ];
 

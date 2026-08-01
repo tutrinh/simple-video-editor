@@ -1,6 +1,7 @@
 import type { ProjectState } from "../state/projectReducer";
 import type { Clip, ProjectTemplate } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
+import { migrateCutSpeeds } from "../domain/beatTiming";
 import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, titleFontKeys } from "./titleFontPersist";
 import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles, userVoiceKeys } from "./userVoicePersist";
 
@@ -204,6 +205,7 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     {
       ...parsedState,
       clips: rehydratedClips,
+      cut: migrateCutSpeeds(parsedState.cut, rehydratedClips),
     },
     fontMap,
   ), voiceMap);

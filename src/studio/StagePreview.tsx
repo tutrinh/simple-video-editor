@@ -1,5 +1,7 @@
 import React, { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
+import { PROJECT_FPS } from "../domain/types";
+import { beatTiming, sourceOffsetAt } from "../domain/beatTiming";
 import FinalPreview, { BeatTitleOverlay, StickerOverlay } from "../features/export/FinalPreview";
 import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
@@ -95,6 +97,21 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const posRef = useRef(0);
   const setPosBoth = (p: number) => { posRef.current = p; setPos(p); };
 
+  // Speed and Fill (ADR-0020). `pos` stays a fraction of the Beat's *timeline*,
+  // which is what it always was; what changes is that timeline elapsed no longer
+  // equals source elapsed. Every timeline→source mapping below goes through
+  // `sourceOffsetAt`, the same function the export's filter graph is built from,
+  // so the two cannot drift.
+  const timing = beat
+    ? beatTiming(beat, isStill ? undefined : clip?.durationSec)
+    : null;
+  const previewSpeed = isStill ? 1 : (timing?.speed ?? 1);
+  /** Absolute source time to show at a fraction `p` through the Beat. */
+  const sourceTimeAt = (p: number): number => {
+    if (!beat || !timing) return 0;
+    return beat.inSec + sourceOffsetAt(timing, p * timing.timelineSec).offsetSec;
+  };
+
   useEffect(() => {
     if (mode === "beat") {
       onPlayingChange?.(playing);
@@ -157,7 +174,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
       v.src = url;
     }
 
-    const targetSec = beat.inSec + posRef.current * (beat.outSec - beat.inSec);
+    const targetSec = sourceTimeAt(posRef.current);
     const syncTime = () => {
       if (v.readyState >= 1) {
         v.currentTime = Math.min(targetSec, Math.max(0, (v.duration || 0) - 0.05));
@@ -174,9 +191,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     if (mode !== "beat" || playing) return;
     const v = videoRef.current;
     if (!v || !beat || v.readyState < 1) return;
-    const targetSec = beat.inSec + pos * (beat.outSec - beat.inSec);
+    const targetSec = sourceTimeAt(pos);
     v.currentTime = Math.min(targetSec, Math.max(0, (v.duration || 0) - 0.05));
-  }, [mode, playing, pos, beat?.inSec, beat?.outSec]);
+  }, [mode, playing, pos, beat?.inSec, beat?.outSec, beat?.speed, beat?.fill]);
 
 
   // 2. Update beat video volume and muted state dynamically
@@ -208,12 +225,71 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStill, playing, beat?.id, beat?.inSec, beat?.outSec]);
 
+  // 2c. The video transport. `pos` is a fraction of the Beat's *timeline* and is
+  // advanced by a real-time clock rather than read back from the element —
+  // because with Fill "hold" many timeline positions map to the same source
+  // frame, so source time cannot be inverted into a position (ADR-0020).
+  //
+  // The element plays itself at `playbackRate = speed`, which produces the right
+  // motion without seeking every frame; it is only nudged when it drifts from
+  // what `sourceOffsetAt` says. That nudge is what wraps a loop and what parks it
+  // on the last frame while a hold runs out. The 0.15s tolerance matches the one
+  // the overlay and split-slot sync already use.
+  useEffect(() => {
+    if (isStill || !playing || !beat || !timing || timing.timelineSec <= 0) return;
+    const v = videoRef.current;
+    if (!v) return;
+
+    let raf = 0;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000;
+      last = now;
+
+      const elapsed = Math.min(timing.timelineSec, posRef.current * timing.timelineSec + dt);
+      if (elapsed >= timing.timelineSec - 1e-4) {
+        v.pause();
+        setPosBoth(1);
+        setPlaying(false);
+        return;
+      }
+      setPosBoth(elapsed / timing.timelineSec);
+
+      const { offsetSec, holding } = sourceOffsetAt(timing, elapsed);
+      if (holding) {
+        if (!v.paused) v.pause();
+      } else {
+        const target = beat.inSec + offsetSec;
+        if (Math.abs(v.currentTime - target) > 0.15) v.currentTime = target;
+        if (v.paused) void v.play().catch(() => {});
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStill, playing, beat?.id, beat?.inSec, beat?.outSec, beat?.speed, beat?.fill]);
+
+  // Speed drives the element's own rate, so the picture moves correctly between
+  // the clock's nudges above.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) v.playbackRate = previewSpeed;
+  }, [previewSpeed, clip?.id, beat?.id]);
+
   // 3. Calculations for active beat & overlay
   const beatIndex = beat ? cut.beats.indexOf(beat) : -1;
-  const beatStartSec = (beat && beatIndex >= 0) ? cut.beats.slice(0, beatIndex).reduce((sum, b) => sum + b.durationSec, 0) : 0;
-  const beatElapsed = beat ? pos * (beat.outSec - beat.inSec) : 0;
+  // Beat lengths are derived from footage and Speed (ADR-0020), so both the
+  // playhead offset and the Cut total must ask the model rather than trust the
+  // stored durationSec, which can lag a Speed change by a render.
+  const clipDurationById = new Map(clips.map((c) => [c.id, c.durationSec]));
+  const durationOf = (item: Beat) => beatTiming(item, clipDurationById.get(item.clipId)).timelineSec;
+  const beatStartSec = (beat && beatIndex >= 0) ? cut.beats.slice(0, beatIndex).reduce((sum, b) => sum + durationOf(b), 0) : 0;
+  // The Beat's length now comes from its footage and Speed (ADR-0020), so the
+  // playhead measures against that rather than the raw trim window.
+  const beatElapsed = timing ? pos * timing.timelineSec : 0;
   const elapsedCutSec = beatStartSec + beatElapsed;
-  const totalCutDuration = cut.beats.reduce((sum, item) => sum + (item.durationSec || Math.max(0.05, item.outSec - item.inSec)), 0);
+  const totalCutDuration = cut.beats.reduce((sum, item) => sum + Math.max(0.05, durationOf(item)), 0);
   useUserVoicePlayback(cut.userVoiceSegments, elapsedCutSec, mode === "beat" && playing && !previewAudioMuted);
 
   const recorder = useUserVoiceRecorder(({ file, durationSec }) => {
@@ -286,7 +362,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
       const slotClip = clips.find((c) => c.id === slot.clipId) ?? clip;
       if (slotClip?.kind === "still") return;
 
-      const targetTime = (slot.inSec ?? beat.inSec) + beatElapsed;
+      // Split slots follow the same Speed/Fill mapping as the primary picture,
+      // measured from each slot's own in-point.
+      const targetTime = (slot.inSec ?? beat.inSec) + (timing ? sourceOffsetAt(timing, beatElapsed).offsetSec : beatElapsed);
       if (Math.abs(el.currentTime - targetTime) > 0.15) {
         try { el.currentTime = targetTime; } catch {}
       }
@@ -316,7 +394,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     const splitActive = Boolean(beat.splitScreen && beat.splitScreen.layout !== "none");
     const media = activePreviewMedia(v, splitActive, slotVideoRefs.current);
     if (playing) { pausePreviewMedia(media); setPlaying(false); return; }
-    if (v.currentTime < beat.inSec || v.currentTime >= beat.outSec - 0.05) {
+    // Restart from the top when the playhead has run out — either off the end of
+    // the timeline, or past the window a Speed of 1 would have used.
+    if (pos >= 0.999 || v.currentTime < beat.inSec || v.currentTime >= beat.outSec - 0.05) {
       media.forEach((item) => { item.currentTime = beat.inSec; });
       setPosBoth(0);
     }
@@ -480,7 +560,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     const v = videoRef.current;
     if (!v) return;
     v.pause();
-    v.currentTime = beat.inSec + pct * (beat.outSec - beat.inSec);
+    v.currentTime = sourceTimeAt(pct);
     setPosBoth(pct);
   }
 
@@ -501,40 +581,19 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     }
   }
 
+  // A step is one *output* frame of the Cut, not one source frame. On a slowed
+  // Beat those differ, and the scrubber, Stickers and Titles are all positioned
+  // in timeline seconds — so the timeline is what a step must move.
   function stepFrame(frames: number) {
     if (!beat) return;
-    const frameTime = 1 / 30; // ~33.3ms 30fps frame stepping
     const span = Math.max(0.01, beat.outSec - beat.inSec);
-    if (isStill) {
-      // Every frame of a Still is the same frame; stepping still moves the
-      // playhead so the scrubber, Stickers and Title overlays track with it.
-      if (playing) setPlaying(false);
-      setPosBoth(Math.max(0, Math.min(1, pos + (frames * frameTime) / span)));
-      return;
-    }
-    const v = videoRef.current;
-    if (!v) return;
     if (playing) {
-      v.pause();
+      videoRef.current?.pause();
       setPlaying(false);
     }
-    const newTime = Math.max(beat.inSec, Math.min(beat.outSec, v.currentTime + frames * frameTime));
-    v.currentTime = newTime;
-    setPosBoth((newTime - beat.inSec) / span);
-  }
-
-  function onTimeUpdate() {
-    const v = videoRef.current;
-    if (!v || !beat) return;
-    const span = Math.max(0.01, beat.outSec - beat.inSec);
-    const newPos = Math.min(1, Math.max(0, (v.currentTime - beat.inSec) / span));
-    setPosBoth(newPos);
-    if (playing && v.currentTime >= beat.outSec - 0.02) {
-      v.pause();
-      v.currentTime = beat.outSec;
-      setPosBoth(1);
-      setPlaying(false);
-    }
+    // Every frame of a Still is the same frame; stepping still moves the
+    // playhead so the scrubber, Stickers and Title overlays track with it.
+    setPosBoth(Math.max(0, Math.min(1, pos + (frames / PROJECT_FPS) / span)));
   }
 
   if (mode === "cut") {
@@ -667,8 +726,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
                                 if (idx === 0) (videoRef as any).current = el;
                               }}
                               src={slotBlob ?? undefined}
-                              onTimeUpdate={idx === 0 ? onTimeUpdate : undefined}
-                              muted={previewAudioMuted || effectiveSplitScreenSlotVolume(slot, idx, beat, cut) === 0}
+                                                            muted={previewAudioMuted || effectiveSplitScreenSlotVolume(slot, idx, beat, cut) === 0}
                               playsInline
                               style={{ width: "100%", height: "100%", objectFit: "cover", ...tfStyle }}
                             />
@@ -696,7 +754,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
                 // Same wrappers, same grade — only the element differs (ADR-0012).
                 <img src={stillUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
               ) : (
-                <video ref={videoRef} onTimeUpdate={onTimeUpdate} muted={previewAudioMuted || effectiveBeatVolume(beat, cut) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
+                <video ref={videoRef} muted={previewAudioMuted || effectiveBeatVolume(beat, cut) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
               );
             })()}
           </div>
@@ -759,7 +817,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         >
           1f ›
         </ControlButton>
-        <span className="st-tc st-num">{fmtClock(beat.inSec + pos * (beat.outSec - beat.inSec))}</span>
+        {/* Where we are in the SOURCE, so it must follow Speed and Fill too —
+            on a slowed Beat this advances more slowly than the playhead. */}
+        <span className="st-tc st-num">{fmtClock(sourceTimeAt(pos))}</span>
         <div
           ref={scrubRef}
           onPointerDown={onPointerDown}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useTheme } from "../state/ThemeContext";
 import type { Aspect } from "../domain/types";
+import { PROJECT_FPS } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
 import { fmtClock, getFilterPreset } from "./util";
 import FilterPresetModal from "./FilterPresetModal";
@@ -122,7 +123,13 @@ export default function TopBar({
           {activeGlobalFilter ? activeGlobalFilter.name : "Color filter"}
         </Button>
       )}
-      {cut && <Badge>1080p</Badge>}
+      {/* What the Cut renders at, as opposed to what any one Clip was shot at —
+          the Clip panel badges show those. Both facts about the same output. */}
+      {cut && (
+        <Badge title={`Every Beat is exported at 1080p, ${PROJECT_FPS} fps, whatever its source was shot at`}>
+          1080p · {PROJECT_FPS} fps
+        </Badge>
+      )}
       {cut && (
         <Badge>
           {fmtClock(cutDuration(cut))} / {cut.beats.length} beats

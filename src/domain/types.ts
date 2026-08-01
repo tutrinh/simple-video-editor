@@ -17,6 +17,13 @@ export interface Clip {
    * Undefined means video — saved projects predate this field.
    */
   kind?: "video" | "still";
+  /**
+   * The source's own frame rate, measured on ingest. Undefined when it could not
+   * be measured — an older saved Project, a Still, or a browser without
+   * `requestVideoFrameCallback`. Distinct from PROJECT_FPS, which every Beat is
+   * encoded at: a 60fps source is what makes slowing one smooth (ADR-0020).
+   */
+  fps?: number;
   /** 1080p-normalized source (ADR-0002: 4K normalized on ingest). */
   normalized?: Blob;
   /** Poster thumbnail (data URL) generated on ingest. */
@@ -236,7 +243,54 @@ export interface Beat {
    * even at zoom 1×.
    */
   rotation?: number;
+  /**
+   * How fast this Beat's footage plays relative to its source — 1 is untouched,
+   * lower is slow motion, higher is fast motion (ADR-0019). It does NOT move
+   * `durationSec`: the Script still sets the Beat's length (ADR-0004), so
+   * slowing shows *less* of the trim window rather than making the Beat last
+   * longer, and speeding up spends the window early and leaves Fill to finish.
+   * Undefined means 1. Not applicable to a Still, whose picture is identical at
+   * any Speed.
+   */
+  speed?: number;
+  /**
+   * What the Beat shows once its footage is spent before the Beat ends — the
+   * last frame holds, or the trim window loops (ADR-0019). Undefined means
+   * "hold". Deliberately has no "slow" member: Speed owns how fast the footage
+   * plays, and a second owner would make both numbers unreadable (ADR-0015).
+   */
+  fill?: BeatFill;
 }
+
+export type BeatFill = "hold" | "loop";
+
+/** Speed of 1 — footage plays at source rate. */
+export const DEFAULT_BEAT_SPEED = 1;
+
+/**
+ * The Speeds the slider offers, slowest first. Discrete stops rather than a
+ * continuous range because these are the ratios that read as deliberate on a
+ * short reel; the domain itself allows any positive Speed (ADR-0019).
+ */
+export const BEAT_SPEED_STEPS = [0.5, 0.75, 1, 1.5, 2] as const;
+
+/** Index of the nearest offered Speed, for driving a stepped slider. */
+export function nearestBeatSpeedIndex(speed: number): number {
+  let best = 0;
+  for (let i = 1; i < BEAT_SPEED_STEPS.length; i++) {
+    if (Math.abs(BEAT_SPEED_STEPS[i] - speed) < Math.abs(BEAT_SPEED_STEPS[best] - speed)) best = i;
+  }
+  return best;
+}
+
+/**
+ * The Cut's frame rate — the rate every Segment is encoded at and the rate
+ * Ken Burns renders its move at. A single constant so the picture, the move and
+ * the encoder cannot disagree. Slowing a Beat conforms to this rate *after*
+ * `setpts`, so a 60fps source at 0.5× yields one distinct source frame per
+ * output frame rather than duplicated ones.
+ */
+export const PROJECT_FPS = 30;
 
 export interface ColorAdjustments {
   /** Exposure / Brightness offset (-100 to +100, default 0). */

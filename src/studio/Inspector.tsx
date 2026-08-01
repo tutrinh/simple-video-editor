@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
 import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType, SplitLayoutType } from "../domain/types";
+import { BEAT_SPEED_STEPS, nearestBeatSpeedIndex } from "../domain/types";
+import { beatTiming, beatFill, beatGapSec, beatDurationSec, beatSpeed } from "../domain/beatTiming";
 import { resizeBeat } from "../domain/beatDuration";
 import { hasAudioTags, stripAudioTags } from "../lib/audioTags";
 import type { VoFitController } from "./useVoFit";
@@ -374,6 +376,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const [titleOpen, setTitleOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [rotationOpen, setRotationOpen] = useState(false);
+  const [speedOpen, setSpeedOpen] = useState(false);
   const [splitScreenOpen, setSplitScreenOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [pickerSlotIndex, setPickerSlotIndex] = useState<number | null>(null);
@@ -1545,8 +1548,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   }
   // Beat duration is the trim window (footage only) — narration lives on the VO
   // track now, so captions no longer stretch a beat. (Params kept for callers.)
+  // A Beat is as long as its footage takes to play at its Speed (ADR-0020),
+  // snapped to whole frames.
   function durationFor(inSec: number, outSec: number, _captionText?: string, _durs?: number[]): number {
-    return footageLenOf(inSec, outSec);
+    return beatDurationSec(footageLenOf(inSec, outSec), b ? beatSpeed(b) : 1);
   }
 
   // Write lines (and, when timed, their aligned timers) back to the beat, keeping
@@ -1652,6 +1657,18 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     { value: "5", seconds: 5, label: "5" },
     { value: "10", seconds: 10, label: "10" },
   ] as const;
+
+  // Changing Speed changes how long the Beat runs (ADR-0020), so the stored
+  // duration is rewritten with it rather than left to drift from the model.
+  function setBeatSpeed(speed: number) {
+    if (!b) return;
+    update({
+      ...b,
+      speed,
+      durationSec: beatDurationSec(footageLenOf(b.inSec, b.outSec), speed),
+      durationPreset: "custom",
+    });
+  }
 
   function setBeatDuration(seconds: number, preset: Beat["durationPreset"]) {
     if (!b || !clip) return;
@@ -1958,7 +1975,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   <div className={overflow > 0.05 ? "st-capseqtotal over" : "st-capseqtotal"}>
                     Sequence total · {fmtSecs(seqTotal)}
                     {overflow > 0.05
-                      ? ` · ${fmtSecs(overflow)} past your ${fmtSecs(footageLen)} trim — last frame holds`
+                      ? ` · ${fmtSecs(overflow)} past your ${fmtSecs(footageLen)} trim — ${beatFill(b) === "loop" ? "trim loops" : "last frame holds"}`
                       : ` · fits your ${fmtSecs(footageLen)} trim`}
                   </div>
                   <div className="st-capseqbreak">
@@ -3032,6 +3049,133 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
             </div>
           </div>
         </div>
+
+        {/* Speed & Fill Collapsible Section (ADR-0020). Suppressed on a Still,
+            whose picture is identical at any Speed and whose motion is Ken Burns. */}
+        {clip && clip.kind !== "still" && (() => {
+          const timing = beatTiming(b, clip.durationSec);
+          const speed = timing.speed;
+          // Sub-frame only under ADR-0020 — a Beat is sized to its footage, so
+          // there is nothing left over to Fill. Kept as a guard, not a feature.
+          const gap = beatGapSec(timing);
+          return (
+            <div className="st-field" style={{ marginTop: 8 }}>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={speedOpen}
+                onClick={() => setSpeedOpen((open) => !open)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSpeedOpen((open) => !open);
+                  }
+                }}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <ChevronDownIcon
+                    size={14}
+                    style={{ transform: speedOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+                  />
+                  <label style={{ margin: 0, cursor: "pointer" }}>Speed &amp; Fill</label>
+                  {Math.abs(speed - 1) > 0.001 && (
+                    <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• {speed.toFixed(2)}×</span>
+                  )}
+                </div>
+                {Math.abs(speed - 1) > 0.001 && (
+                  <ControlButton
+                    style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
+                    onClick={(e) => { e.stopPropagation(); update({ ...b, speed: 1 }); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    title="Reset speed to 1×"
+                  >
+                    Reset speed
+                  </ControlButton>
+                )}
+              </div>
+
+              <div className={"st-color-collapsible" + (speedOpen ? " open" : "")}>
+                <div className="st-color-collapsible-inner">
+                  <div className="st-color-adjustments" style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
+                    {/* Stepped, not continuous: the slider walks BEAT_SPEED_STEPS
+                        by index so it can only land on an offered ratio. */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Speed</span>
+                      <InputControl
+                        type="range"
+                        min={0}
+                        max={BEAT_SPEED_STEPS.length - 1}
+                        step={1}
+                        value={nearestBeatSpeedIndex(speed)}
+                        aria-label="Beat speed"
+                        onChange={(e) => setBeatSpeed(BEAT_SPEED_STEPS[Number(e.target.value)])}
+                        onDoubleClick={() => setBeatSpeed(1)}
+                        style={sliderTrackStyle(nearestBeatSpeedIndex(speed), 0, BEAT_SPEED_STEPS.length - 1)}
+                      />
+                      <span style={{ fontSize: 10, width: 40, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{speed}×</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: 78, paddingRight: 48 }}>
+                      {BEAT_SPEED_STEPS.map((step) => (
+                        <span
+                          key={step}
+                          style={{
+                            fontSize: 9,
+                            color: Math.abs(step - speed) < 1e-6 ? "var(--accent)" : "var(--ink-3)",
+                            fontWeight: Math.abs(step - speed) < 1e-6 ? 600 : 400,
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {step}×
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Speed changes how long the Beat runs (ADR-0020), so the
+                        Cut gets longer or shorter with it. Stating the resulting
+                        length beats making the Author read it off the timeline. */}
+                    <div style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5 }}>
+                      {Math.abs(speed - 1) <= 0.001
+                        ? `Your ${fmtSecs(timing.windowSec)} trim runs for ${fmtSecs(timing.timelineSec)}.`
+                        : `Your ${fmtSecs(timing.windowSec)} trim runs for ${fmtSecs(timing.timelineSec)} at ${speed}× — the Beat gets ${speed < 1 ? "longer" : "shorter"}, and the Cut with it. This Beat's own audio is stretched to match.`}
+                    </div>
+
+                    {gap > 0.01 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Fill</span>
+                        <div style={{ display: "flex", gap: 6, flex: 1 }}>
+                          {(["hold", "loop"] as const).map((option) => (
+                            <ControlButton
+                              key={option}
+                              type="button"
+                              aria-pressed={beatFill(b) === option}
+                              onClick={(e) => { e.stopPropagation(); update({ ...b, fill: option }); }}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              title={option === "hold" ? "Hold the last frame" : "Loop the trim window"}
+                              style={{
+                                fontSize: 11,
+                                padding: "3px 10px",
+                                background: beatFill(b) === option ? "rgba(255, 179, 57, 0.25)" : "var(--panel-3)",
+                                border: beatFill(b) === option ? "1px solid var(--accent)" : "1px solid var(--line)",
+                                color: beatFill(b) === option ? "var(--accent)" : "var(--ink)",
+                                fontWeight: beatFill(b) === option ? 600 : 400,
+                                borderRadius: 6,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {option === "hold" ? "Hold last frame" : "Loop"}
+                            </ControlButton>
+                          ))}
+                        </div>
+                        <span style={{ fontSize: 10, color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{fmtSecs(gap)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Video Transition Collapsible Section */}
         <div className="st-field" style={{ marginTop: 8 }}>

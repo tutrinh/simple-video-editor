@@ -3,11 +3,14 @@
 // ingest poster thumbnails get their frames.
 
 import { EDITOR_DEFAULTS } from "../config/editorDefaults";
+import { measureVideoFps } from "./videoFps";
 
 export interface VideoMeta {
   durationSec: number;
   width: number;
   height: number;
+  /** The source's own frame rate; undefined when it could not be measured. */
+  fps?: number;
 }
 
 export interface SampledFrame {
@@ -34,7 +37,16 @@ function loadVideo(src: Blob): Promise<{ video: HTMLVideoElement; revoke: () => 
 
 export async function probeVideo(src: Blob): Promise<VideoMeta> {
   const { video, revoke } = await loadVideo(src);
-  const meta = { durationSec: video.duration || 0, width: video.videoWidth, height: video.videoHeight };
+  // Frame rate needs frames to actually go past, unlike the other three, so it
+  // is measured before the object URL is released. Best-effort and time-boxed —
+  // a file that will not report one still imports (see videoFps.ts).
+  const fps = await measureVideoFps(video).catch(() => undefined);
+  const meta = {
+    durationSec: video.duration || 0,
+    width: video.videoWidth,
+    height: video.videoHeight,
+    ...(fps ? { fps } : {}),
+  };
   revoke();
   return meta;
 }
