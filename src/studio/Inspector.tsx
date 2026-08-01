@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
 import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType, SplitLayoutType } from "../domain/types";
+import { resizeBeat } from "../domain/beatDuration";
+import type { VoFitController } from "./useVoFit";
 import { suggestCaptionAlternatives } from "../features/refine/refine";
 import BeatTrimmer from "../features/refine/BeatTrimmer";
 import { estimateSpokenSeconds, captionSchedule, scheduleDuration } from "../lib/pacing";
@@ -23,7 +25,6 @@ import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import ColorField from "./ColorField";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
 import { canvasDims } from "../features/export/export";
-import { synthesizeVoiceover } from "../lib/tts";
 import { sfxFileUrl } from "../lib/sfxLibrary";
 import Switch from "../design-system/Switch";
 import { beatPosterBg } from "../lib/beatPosterCache";
@@ -108,6 +109,8 @@ interface Props {
   onSelectSfx?: (id: string | null) => void;
   audioPreviewSuspended?: boolean;
   onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker", id: string, label: string) => void;
+  /** Shared with the timeline's `f` shortcut so both show one in-flight state. */
+  voFit: VoFitController;
 }
 
 
@@ -196,14 +199,13 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
   );
 }
 
-export default function Inspector({ beat, clip, clips, logline, index, total, onSelectBeat, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedUserVoiceId, onSelectUserVoice, selectedStickerId, onSelectSticker, audioPreviewSuspended = false, onRequestDeleteSegment }: Props) {
+export default function Inspector({ beat, clip, clips, logline, index, total, onSelectBeat, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedUserVoiceId, onSelectUserVoice, selectedStickerId, onSelectSticker, audioPreviewSuspended = false, onRequestDeleteSegment, voFit }: Props) {
   const { state, dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
   const { settings } = useSettings();
   const { settings: es } = useExportSettings();
-  const [fitting, setFitting] = useState(false);
-  const [fitErr, setFitErr] = useState<string | null>(null);
+  const { fitting, error: fitErr } = voFit;
   const cut = state.cut;
   const overlays = cut?.overlays ?? [];
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
@@ -538,23 +540,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
   // Synthesize this segment's narration and snap its length to the exact spoken
   // duration (from ElevenLabs timestamps / decoded audio) so the caption window fits.
-  async function fitVoLength() {
-    if (!selectedVo || !selectedVo.text.trim()) return;
-    setFitting(true); setFitErr(null);
-    try {
-      const seg = selectedVo;
-      const n = await synthesizeVoiceover(seg.text.trim(), {
-        engine: es.ttsEngine, voice: es.voice, elevenVoiceId: es.elevenVoiceId,
-        speed: es.voiceoverSpeed, elevenModel: es.elevenModel, elevenStability: es.elevenStability, elevenStyle: es.elevenStyle,
-      });
-      const dur = Math.max(0.3, Math.round((n.durationSec || 0) * 10) / 10);
-      if (dur > 0.3) dispatch({ type: "UPDATE_VO", segment: { ...seg, durationSec: dur } });
-      else setFitErr("Couldn't read a duration from the voice.");
-    } catch (e) {
-      setFitErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setFitting(false);
-    }
+  // Shared with the timeline's `f` shortcut via the voFit controller.
+  function fitVoLength() {
+    if (!selectedVo) return;
+    void voFit.fitVo(selectedVo);
   }
 
   const [voTextCopied, setVoTextCopied] = useState(false);
@@ -718,13 +707,13 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         style={{ marginTop: 8, fontSize: 10.5, padding: "5px 10px", width: "100%", justifyContent: "center" }}
         onClick={fitVoLength}
         disabled={fitting || !selectedVo.text.trim()}
-        title="Synthesize this narration and snap the segment length to its exact spoken duration"
+        title="Synthesize this narration and snap the segment length to its exact spoken duration (shortcut: F)"
       >
         {fitting ? "Fitting…" : "Fit length to voice"}
       </ControlButton>
       {fitErr && <div style={{ fontSize: 10, color: "var(--danger)", marginTop: 4 }}>⚠ {fitErr}</div>}
 
-      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>Drag the chip on the VO track to move; drag its edges to resize.</div>
+      <div style={{ fontSize: 10, color: "var(--ink-3)", marginTop: 4 }}>Drag the chip on the VO track to move; drag its edges to resize. Press <kbd>F</kbd> over the editor to fit its length to the voice.</div>
     </div>
   ) : null;
 
@@ -1647,13 +1636,8 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
   function setBeatDuration(seconds: number, preset: Beat["durationPreset"]) {
     if (!b || !clip) return;
-    if (!Number.isFinite(seconds)) return;
-    const durationSec = Math.max(0.1, Math.min(seconds, clip.durationSec));
-    let nextIn = Math.max(0, Math.min(b.inSec, clip.durationSec - durationSec));
-    let nextOut = nextIn + durationSec;
-    nextIn = Math.round(nextIn * 10) / 10;
-    nextOut = Math.round(nextOut * 10) / 10;
-    update({ ...b, inSec: nextIn, outSec: nextOut, durationSec, durationPreset: preset });
+    const next = resizeBeat(b, clip.durationSec, seconds, preset);
+    if (next) update(next);
   }
 
 

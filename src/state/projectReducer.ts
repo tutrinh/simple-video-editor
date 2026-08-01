@@ -56,6 +56,8 @@ export type Action =
   | { type: "DUPLICATE_OVERLAY"; id: string; newOverlayId?: string }
   | { type: "ADD_VO"; segment: VoSegment }
   | { type: "UPDATE_VO"; segment: VoSegment }
+  /** Replace several VO segments at once — one dispatch per group drag frame. */
+  | { type: "UPDATE_VOS"; segments: VoSegment[] }
   | { type: "REMOVE_VO"; id: string }
   | { type: "DUPLICATE_VO"; id: string; newVoId?: string }
   | { type: "ADD_SFX"; segment: SfxSegment }
@@ -315,6 +317,12 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     case "UPDATE_VO": {
       if (!state.cut) return state;
       const voSegments = (state.cut.voSegments ?? []).map((s) => (s.id === action.segment.id ? action.segment : s));
+      return { ...state, cut: { ...state.cut, voSegments } };
+    }
+    case "UPDATE_VOS": {
+      if (!state.cut || action.segments.length === 0) return state;
+      const byId = new Map(action.segments.map((segment) => [segment.id, segment]));
+      const voSegments = (state.cut.voSegments ?? []).map((s) => byId.get(s.id) ?? s);
       return { ...state, cut: { ...state.cut, voSegments } };
     }
     case "REMOVE_VO": {

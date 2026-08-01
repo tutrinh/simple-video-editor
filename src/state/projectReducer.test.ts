@@ -470,4 +470,44 @@ describe("projectReducer", () => {
     expect(state.productReview).toEqual({ brief, creatorNotes, plan });
     expect(projectReducer(state, { type: "CLEAR_PRODUCT_REVIEW" }).productReview).toBeUndefined();
   });
+
+  it("UPDATE_VOS replaces several segments in one dispatch, leaving the rest alone", () => {
+    const vo = (id: string, startTimeSec: number) => ({
+      id, text: id, startTimeSec, durationSec: 2, captionVisible: true,
+    });
+    const cut: Cut = {
+      beats: [beat("1", "a")],
+      aspect: "9:16",
+      voSegments: [vo("v1", 0), vo("v2", 3), vo("v3", 6)],
+    };
+    const state = { ...initialState, clips: [clip("a")], cut };
+
+    const next = projectReducer(state, {
+      type: "UPDATE_VOS",
+      segments: [
+        { ...vo("v1", 1.5), text: "moved" },
+        vo("v3", 7.5),
+      ],
+    });
+
+    expect(next.cut?.voSegments?.map((s) => [s.id, s.startTimeSec])).toEqual([
+      ["v1", 1.5], ["v2", 3], ["v3", 7.5],
+    ]);
+    expect(next.cut?.voSegments?.[0].text).toBe("moved");
+    // Untouched segments keep their identity, so React skips re-rendering them.
+    expect(next.cut?.voSegments?.[1]).toBe(cut.voSegments![1]);
+  });
+
+  it("UPDATE_VOS ignores unknown ids and empty batches", () => {
+    const vo = { id: "v1", text: "a", startTimeSec: 0, durationSec: 2, captionVisible: true };
+    const cut: Cut = { beats: [beat("1", "a")], aspect: "9:16", voSegments: [vo] };
+    const state = { ...initialState, clips: [clip("a")], cut };
+
+    expect(projectReducer(state, { type: "UPDATE_VOS", segments: [] })).toBe(state);
+    const next = projectReducer(state, {
+      type: "UPDATE_VOS",
+      segments: [{ ...vo, id: "ghost", startTimeSec: 9 }],
+    });
+    expect(next.cut?.voSegments).toEqual([vo]);
+  });
 });

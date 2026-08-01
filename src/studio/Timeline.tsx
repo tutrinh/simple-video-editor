@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useReducer, type PointerEvent as ReactPointerEvent } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useReducer, type PointerEvent as ReactPointerEvent } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, UserVoiceSegment, Sticker } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
@@ -14,6 +14,8 @@ import { beatSpans, resolveSticker, resolveSfx } from "../features/export/sticke
 
 import { sfxDuration } from "../lib/sfxLibrary";
 import { assignSubLanes } from "./subLanes";
+import { moveVoGroup } from "../domain/voGroupDrag";
+import type { SelectionModifiers } from "./timelineSelection";
 import { beatPosterBg } from "../lib/beatPosterCache";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import CopyIcon from "../design-system/icons/CopyIcon";
@@ -56,6 +58,14 @@ interface Props {
   onSelectOverlay?: (id: string | null) => void;
   selectedVoId?: string | null;
   onSelectVo?: (id: string | null) => void;
+  /** Every selected VO chip. Falls back to `selectedVoId` when the host doesn't multi-select. */
+  selectedVoIds?: string[];
+  /**
+   * Pointer-down on a VO chip, with the modifiers that decide replace / toggle / range.
+   * Returns the resulting selection so the drag that this same event starts can snapshot
+   * the right group — reading state back would give the pre-click selection.
+   */
+  onSelectVoMulti?: (id: string, modifiers: SelectionModifiers, orderedIds: string[]) => string[];
   selectedSfxId?: string | null;
   onSelectSfx?: (id: string | null) => void;
   selectedUserVoiceId?: string | null;
@@ -76,6 +86,8 @@ export default function Timeline({
   onSelectOverlay,
   selectedVoId,
   onSelectVo,
+  selectedVoIds,
+  onSelectVoMulti,
   selectedSfxId,
   onSelectSfx,
   selectedUserVoiceId,
@@ -103,6 +115,10 @@ export default function Timeline({
   const beats = cut.beats;
   const overlays = cut.overlays ?? [];
   const voSegments = cut.voSegments ?? [];
+  // Shift-click spans a range in timeline order, which is not the array order.
+  const voSegmentsInTimelineOrder = [...voSegments].sort(
+    (a, b) => a.startTimeSec - b.startTimeSec || a.id.localeCompare(b.id),
+  );
   const sfxSegments = cut.sfxSegments ?? [];
   const userVoiceSegments = cut.userVoiceSegments ?? [];
   const stickers = cut.stickers ?? [];
@@ -327,6 +343,25 @@ export default function Timeline({
   const voTrackRef = useRef<HTMLDivElement>(null);
   const [draggingVoId, setDraggingVoId] = useState<string | null>(null);
   const voDragStartRef = useRef<{ startX: number; initialStartSec: number; initialDurationSec: number; mode: "move" | "resize-left" | "resize-right" } | null>(null);
+  /** Every dragged chip's start when the drag began — the group move measures from these. */
+  const voGroupOriginsRef = useRef<Map<string, number> | null>(null);
+
+  // The selected set, with the single-select prop as the fallback so a host that
+  // doesn't multi-select keeps working.
+  const voSelectedIds = useMemo(
+    () => new Set(selectedVoIds ?? (selectedVoId ? [selectedVoId] : [])),
+    [selectedVoIds, selectedVoId],
+  );
+
+  // Exactly one element in the timeline is active. A selected segment owns that slot, so
+  // the beat renders inactive underneath it — the beat id is deliberately kept, because
+  // the stage preview and Inspector still need a current beat to show.
+  const segmentSelectionActive =
+    voSelectedIds.size > 0
+    || Boolean(selectedSfxId)
+    || Boolean(selectedUserVoiceId)
+    || Boolean(selectedStickerId)
+    || Boolean(selectedOverlayId);
   const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
   function addVoSegment() {
@@ -339,7 +374,6 @@ export default function Timeline({
     };
     dispatch({ type: "ADD_VO", segment: seg });
     onSelectVo?.(seg.id);
-    onSelectOverlay?.(null);
   }
 
   async function importUserVoiceFile(file: File) {
@@ -359,10 +393,6 @@ export default function Timeline({
       );
       dispatch({ type: "ADD_USER_VOICE", segment });
       onSelectUserVoice?.(segment.id);
-      onSelectSfx?.(null);
-      onSelectVo?.(null);
-      onSelectOverlay?.(null);
-      onSelectSticker?.(null);
     } catch (error) {
       alert(error instanceof Error ? error.message : "Could not import that voice recording.");
     }
@@ -380,16 +410,53 @@ export default function Timeline({
       acc += dur;
     }
     for (const s of segs) dispatch({ type: "ADD_VO", segment: s });
-    if (segs[0]) { onSelectVo?.(segs[0].id); onSelectOverlay?.(null); }
+    if (segs[0]) onSelectVo?.(segs[0].id);
+  }
+
+  /**
+   * Deselect every track segment. The five tracks already behave as one mutually
+   * exclusive selection — picking a chip on any of them clears the other four — so a
+   * background press clears all of them rather than leaving an odd track still lit.
+   * Beat selection is deliberately untouched: the preview and Inspector always need a
+   * current beat, and StudioApp re-selects the first one whenever it goes invalid.
+   */
+  function clearSegmentSelection() {
+    onSelectVo?.(null);
+    onSelectSfx?.(null);
+    onSelectUserVoice?.(null);
+    onSelectSticker?.(null);
+    onSelectOverlay?.(null);
   }
 
   function startVoDrag(e: React.PointerEvent, seg: VoSegment, mode: "move" | "resize-left" | "resize-right") {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    onSelectVo?.(seg.id);
-    onSelectOverlay?.(null);
+
+    let selectedAfterClick: string[] = [seg.id];
+    if (mode === "move" && onSelectVoMulti) {
+      const orderedIds = voSegmentsInTimelineOrder.map((s) => s.id);
+      selectedAfterClick = onSelectVoMulti(
+        seg.id,
+        { shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey },
+        orderedIds,
+      );
+    } else {
+      // Resizing is always single-segment, so an edge drag collapses the selection.
+      onSelectVo?.(seg.id);
+    }
     setDraggingVoId(seg.id);
     voDragStartRef.current = { startX: e.clientX, initialStartSec: seg.startTimeSec, initialDurationSec: seg.durationSec, mode };
+
+    // Snapshot the group's starts now: mid-drag the segments have already moved, so
+    // deltas must always be measured against where the drag began.
+    if (mode === "move") {
+      const groupIds = new Set(selectedAfterClick.includes(seg.id) ? selectedAfterClick : [seg.id]);
+      voGroupOriginsRef.current = new Map(
+        voSegments.filter((s) => groupIds.has(s.id)).map((s) => [s.id, s.startTimeSec]),
+      );
+    } else {
+      voGroupOriginsRef.current = null;
+    }
   }
 
   function handleVoPointerMove(e: React.PointerEvent, seg: VoSegment) {
@@ -400,6 +467,16 @@ export default function Timeline({
     const st = voDragStartRef.current;
 
     if (st.mode === "move") {
+      const origins = voGroupOriginsRef.current;
+      const group = origins ? voSegments.filter((s) => origins.has(s.id)) : [];
+
+      if (origins && group.length > 1) {
+        // Group move: one clamped delta for the whole set, so the gaps hold.
+        const moved = moveVoGroup(group, origins, deltaSec, totalDur);
+        if (moved.length > 0) dispatch({ type: "UPDATE_VOS", segments: moved });
+        return;
+      }
+
       const maxStart = Math.max(0, totalDur - 0.5);
       const newStartSec = Math.max(0, Math.min(maxStart, st.initialStartSec + deltaSec));
       const roundedStart = Math.round(newStartSec * 10) / 10;
@@ -428,6 +505,7 @@ export default function Timeline({
       try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
       setDraggingVoId(null);
       voDragStartRef.current = null;
+      voGroupOriginsRef.current = null;
     }
   }
 
@@ -451,9 +529,6 @@ export default function Timeline({
     };
     dispatch({ type: "ADD_SFX", segment: seg });
     onSelectSfx?.(seg.id);
-    onSelectVo?.(null);
-    onSelectOverlay?.(null);
-    onSelectSticker?.(null);
   }
 
   function startSfxDrag(e: React.PointerEvent, seg: SfxSegment, mode: "move" | "resize-right") {
@@ -461,9 +536,6 @@ export default function Timeline({
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     onSelectSfx?.(seg.id);
-    onSelectVo?.(null);
-    onSelectOverlay?.(null);
-    onSelectSticker?.(null);
     setDraggingSfxId(seg.id);
     sfxDragStartRef.current = { startX: e.clientX, initialStartSec: drawn.startTimeSec, initialDurationSec: drawn.durationSec, mode };
   }
@@ -526,10 +598,6 @@ export default function Timeline({
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     onSelectUserVoice?.(segment.id);
-    onSelectSfx?.(null);
-    onSelectVo?.(null);
-    onSelectOverlay?.(null);
-    onSelectSticker?.(null);
     setDraggingUserVoiceId(segment.id);
     userVoiceDragStartRef.current = {
       startX: e.clientX,
@@ -597,9 +665,6 @@ export default function Timeline({
     };
     dispatch({ type: "ADD_STICKER", sticker });
     onSelectSticker?.(sticker.id);
-    onSelectSfx?.(null);
-    onSelectVo?.(null);
-    onSelectOverlay?.(null);
   }
 
   function startStickerDrag(e: React.PointerEvent, st: Sticker, mode: "move" | "resize-right") {
@@ -611,9 +676,6 @@ export default function Timeline({
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     onSelectSticker?.(st.id);
-    onSelectSfx?.(null);
-    onSelectVo?.(null);
-    onSelectOverlay?.(null);
     setDraggingStickerId(st.id);
     stickerDragStartRef.current = { startX: e.clientX, initialStartSec: drawn.startTimeSec, initialDurationSec: drawn.durationSec, mode };
   }
@@ -870,6 +932,11 @@ export default function Timeline({
       >
         <TimelineCanvas
           style={timelineWidth > 0 ? { width: `${timelineWidth}px`, minWidth: "100%" } : { minWidth: "100%" }}
+          // Pressing anywhere on the timeline that is not a segment clears the track
+          // selection. Every chip's drag-start calls stopPropagation, so this only ever
+          // sees genuine background presses — a chip would otherwise select itself here
+          // and then be deselected by this handler on the way up.
+          onPointerDown={clearSegmentSelection}
         >
           {/* ── SHARED TIME RULER + BOTH TRACKS ── */}
           <div className="st-tl-ruler-area">
@@ -1097,7 +1164,14 @@ export default function Timeline({
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (
-                <TimelineLane label="Voiceover" hint="Drag to move or resize">
+                <TimelineLane
+                  label="Voiceover"
+                  hint={
+                    voSelectedIds.size > 1
+                      ? `${voSelectedIds.size} selected · drag to move them together`
+                      : "Drag to move or resize · ⇧ or ⌘ click to select several"
+                  }
+                >
                   <TimelineLaneCanvas canvasRef={voTrackRef} className="st-vo-canvas" style={{ height: canvasHeight }}>
                     {/* Beat dividers for alignment reference */}
                     {beats.map((b, i) => {
@@ -1108,17 +1182,19 @@ export default function Timeline({
                     {voWithLanes.map((seg) => {
                       const leftPct = (seg.startTimeSec / totalDur) * 100;
                       const widthPct = Math.max(1, (seg.durationSec / totalDur) * 100);
-                      const isSel = seg.id === selectedVoId;
+                      const isSel = voSelectedIds.has(seg.id);
+                      const isPrimary = seg.id === selectedVoId;
                       const snippet = seg.text.trim() || "Empty — type in Inspector";
                       return (
                         <TimelineSegment
                           key={seg.id}
                           tone="voice"
                           selected={isSel}
+                          aria-selected={isSel}
                           onPointerDown={(e) => startVoDrag(e, seg, "move")}
                           onPointerMove={(e) => handleVoPointerMove(e, seg)}
                           onPointerUp={endVoDrag}
-                          className={"st-vo-chip" + (isSel ? " sel" : "") + (seg.text.trim() ? "" : " empty")}
+                          className={"st-vo-chip" + (isSel ? " sel" : "") + (isPrimary && voSelectedIds.size > 1 ? " primary" : "") + (seg.text.trim() ? "" : " empty")}
                           style={{
                             left: `${leftPct}%`,
                             width: `${widthPct}%`,
@@ -1127,7 +1203,7 @@ export default function Timeline({
                             bottom: "auto",
                             zIndex: isSel ? 30 : 2 + seg.lane,
                           }}
-                          title={`${snippet} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · ${seg.captionVisible ? "caption visible" : "voiceover only"}`}
+                          title={`${snippet} · ${seg.startTimeSec.toFixed(1)}s–${(seg.startTimeSec + seg.durationSec).toFixed(1)}s · ${seg.captionVisible ? "caption visible" : "voiceover only"}${voSelectedIds.size > 1 && isSel ? ` · 1 of ${voSelectedIds.size} selected` : ""}`}
                         >
                           <TimelineResizeHandle edge="left" onPointerDown={(e) => startVoDrag(e, seg, "resize-left")} className="st-vo-resize-handle left" title="Drag to adjust start time" />
 
@@ -1324,12 +1400,12 @@ export default function Timeline({
                     return (
                       <div
                         key={b.id}
-                        className={"st-beat" + (b.id === selectedBeatId ? " sel" : "")}
+                        className={"st-beat" + (b.id === selectedBeatId && !segmentSelectionActive ? " sel" : "")}
                         style={{ flex: `0 0 ${widthPct}%`, minWidth: `${widthPct}%` }}
                         onClick={() => {
                           if (isPlaying) return;
+                          // onSelectBeat takes the active slot back from any segment.
                           onSelectBeat(b.id);
-                          onSelectOverlay?.(null);
                         }}
                       >
                         <div className="st-bt" style={{ background: beatPosterBg(b, clip, forceUpdate), position: "relative" }}>

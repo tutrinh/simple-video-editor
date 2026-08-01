@@ -1,6 +1,16 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import { makeBeat } from "../features/assemble/assemble";
+import { stepBeatDuration } from "../domain/beatDuration";
+import { isFromFormControl, resolveTimelineKeyAction } from "./timelineKeys";
+import {
+  intentFromModifiers,
+  nextSelection,
+  primarySelectedId,
+  pruneSelection,
+  type SelectionState,
+} from "./timelineSelection";
+import { useVoFit } from "./useVoFit";
 import { useSettings } from "../state/SettingsContext";
 import { useExportSettings } from "../state/ExportSettingsContext";
 import TopBar from "./TopBar";
@@ -33,10 +43,42 @@ export default function StudioApp() {
 
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
-  const [selectedVoId, setSelectedVoId] = useState<string | null>(null);
+  // The VO track selects a set, not one chip. `selectedVoId` stays the derived primary
+  // (the last clicked one) so the Inspector and every existing single-select caller work
+  // unchanged; only the timeline chips read the full set.
+  const [voSelection, setVoSelection] = useState<SelectionState>({ ids: [], anchorId: null });
+  const selectedVoId = primarySelectedId(voSelection);
+  const setSelectedVoId = useCallback((id: string | null) => {
+    setVoSelection(id ? { ids: [id], anchorId: id } : { ids: [], anchorId: null });
+  }, []);
+
   const [selectedSfxId, setSelectedSfxId] = useState<string | null>(null);
   const [selectedUserVoiceId, setSelectedUserVoiceId] = useState<string | null>(null);
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
+
+  /**
+   * The timeline holds exactly one active element. Every selection therefore starts by
+   * clearing all five segment tracks from one place — enforcing this at each call site
+   * is what previously let a sticker stay lit alongside a newly selected voiceover, and
+   * let an overlay select without clearing anything at all.
+   */
+  const clearSegmentSelections = useCallback(() => {
+    setVoSelection({ ids: [], anchorId: null });
+    setSelectedSfxId(null);
+    setSelectedUserVoiceId(null);
+    setSelectedStickerId(null);
+    setSelectedOverlayId(null);
+  }, []);
+
+  /**
+   * A beat picked by the user, as opposed to the beat that cut playback walks through.
+   * Only the former takes the active slot away from a segment — routing playback through
+   * here would wipe the selection on every beat boundary.
+   */
+  const selectBeatFromUser = useCallback((id: string | null) => {
+    setSelectedBeatId(id);
+    clearSegmentSelections();
+  }, [clearSegmentSelections]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [clipBinCollapsed, setClipBinCollapsed] = useState(false);
@@ -55,6 +97,8 @@ export default function StudioApp() {
   const [editorHovered, setEditorHovered] = useState(false);
   const [pendingTrackDeletion, setPendingTrackDeletion] = useState<{ kind: TrackSegmentKind; id: string; label: string } | null>(null);
   const { ingestFiles, statuses } = useClipIngest();
+  // One fit run for the whole editor, shared by the Inspector button and the `f` key.
+  const voFit = useVoFit();
 
   // Dev-only fixture (?seed) to exercise the populated workspace without footage/AI.
   useEffect(() => {
@@ -78,30 +122,45 @@ export default function StudioApp() {
     if (isPlaying || !editorHovered || beats.length === 0) return;
 
     function onKeyDown(event: KeyboardEvent) {
-      if (
-        event.repeat
-        || event.metaKey
-        || event.ctrlKey
-        || event.altKey
-        || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
-      ) return;
+      const action = resolveTimelineKeyAction({
+        key: event.key,
+        repeat: event.repeat,
+        metaKey: event.metaKey,
+        ctrlKey: event.ctrlKey,
+        altKey: event.altKey,
+        fromFormControl: isFromFormControl(event.target),
+      });
+      if (!action) return;
 
-      const target = event.target as HTMLElement | null;
-      if (
-        target?.isContentEditable
-        || target?.closest("input, textarea, select, [contenteditable='true']")
-      ) return;
+      if (action.kind === "fit-vo") {
+        const segment = (cut?.voSegments ?? []).find((candidate) => candidate.id === selectedVoId);
+        if (!segment || !segment.text.trim()) return;
+        event.preventDefault();
+        void voFit.fitVo(segment);
+        return;
+      }
+
+      if (action.kind === "resize") {
+        // Same step, clamp and "custom" preset as the Inspector's duration input.
+        const beat = beats.find((candidate) => candidate.id === selectedBeatId);
+        const clip = beat ? clipById.get(beat.clipId) : undefined;
+        if (!beat || !clip) return;
+
+        event.preventDefault();
+        const next = stepBeatDuration(beat, clip.durationSec, action.direction);
+        if (next) dispatch({ type: "UPDATE_BEAT", beat: next });
+        return;
+      }
 
       event.preventDefault();
       const currentIndex = Math.max(0, beats.findIndex((beat) => beat.id === selectedBeatId));
-      const direction = event.key === "ArrowRight" ? 1 : -1;
-      const nextIndex = (currentIndex + direction + beats.length) % beats.length;
-      setSelectedBeatId(beats[nextIndex].id);
+      const nextIndex = (currentIndex + action.direction + beats.length) % beats.length;
+      selectBeatFromUser(beats[nextIndex].id);
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [beats, editorHovered, selectedBeatId]);
+  }, [beats, clipById, cut?.voSegments, dispatch, editorHovered, selectBeatFromUser, selectedBeatId, selectedVoId, voFit]);
 
   function requestTrackSegmentDeletion(kind: TrackSegmentKind, id: string, label: string) {
     setPendingTrackDeletion({ kind, id, label });
@@ -157,11 +216,12 @@ export default function StudioApp() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [clipById, cut, selectedOverlayId, selectedVoId, selectedSfxId, selectedUserVoiceId, selectedStickerId]);
 
-  // Keep VO selection valid as segments change.
+  // Keep VO selection valid as segments change — drops deleted ids and hands the anchor
+  // on, rather than clearing the whole set because one chip went away.
   useEffect(() => {
-    const segs = cut?.voSegments ?? [];
-    if (selectedVoId && !segs.some((s) => s.id === selectedVoId)) setSelectedVoId(null);
-  }, [cut?.voSegments, selectedVoId]);
+    const ids = (cut?.voSegments ?? []).map((s) => s.id);
+    setVoSelection((current) => pruneSelection(current, ids));
+  }, [cut?.voSegments]);
 
   // Keep SFX selection valid as segments change.
   useEffect(() => {
@@ -183,7 +243,7 @@ export default function StudioApp() {
 
   function pickClip(clipId: string) {
     const beat = beats.find((b) => b.clipId === clipId);
-    if (beat) setSelectedBeatId(beat.id);
+    if (beat) selectBeatFromUser(beat.id);
   }
 
   // Add any not-yet-used clip to the end of the Cut and select it — this is how
@@ -194,11 +254,11 @@ export default function StudioApp() {
     const beat = makeBeat(clip, "");
     if (!cut) {
       dispatch({ type: "SET_CUT", cut: { beats: [beat], aspect: "16:9" } });
-      setSelectedBeatId(beat.id);
+      selectBeatFromUser(beat.id);
       return;
     }
     dispatch({ type: "ADD_BEAT", beat });
-    setSelectedBeatId(beat.id);
+    selectBeatFromUser(beat.id);
   }
 
   function acceptsClipDrag(event: React.DragEvent): boolean {
@@ -223,7 +283,7 @@ export default function StudioApp() {
     } else {
       for (const beat of newBeats) dispatch({ type: "ADD_BEAT", beat });
     }
-    setSelectedBeatId(newBeats[0].id);
+    selectBeatFromUser(newBeats[0].id);
   }
 
   function duplicateBeat(beatId: string) {
@@ -232,7 +292,7 @@ export default function StudioApp() {
     const newClipId = genId();
     const newBeatId = genId();
     dispatch({ type: "DUPLICATE_BEAT", id: beatId, newClipId, newBeatId });
-    setSelectedBeatId(newBeatId);
+    selectBeatFromUser(newBeatId);
   }
 
   // Build a Cut without the AI — every clip in order, empty captions to fill in.
@@ -241,7 +301,7 @@ export default function StudioApp() {
     if (clips.length === 0) return;
     const manualCut = { beats: clips.map((c) => makeBeat(c, "")), aspect: "16:9" as const };
     dispatch({ type: "SET_CUT", cut: manualCut });
-    setSelectedBeatId(manualCut.beats[0]?.id ?? null);
+    selectBeatFromUser(manualCut.beats[0]?.id ?? null);
   }
 
   function startOver() {
@@ -353,26 +413,25 @@ export default function StudioApp() {
                   clipById={clipById}
                   clips={clips}
                   selectedBeatId={selectedBeatId}
-                  onSelectBeat={setSelectedBeatId}
+                  onSelectBeat={selectBeatFromUser}
                   isPlaying={isPlaying}
                   selectedOverlayId={selectedOverlayId}
-                  onSelectOverlay={(id) => { setSelectedOverlayId(id); if (id) { setSelectedVoId(null); setSelectedSfxId(null); setSelectedUserVoiceId(null); } }}
+                  onSelectOverlay={(id) => { clearSegmentSelections(); setSelectedOverlayId(id); }}
                   selectedVoId={selectedVoId}
-                  onSelectVo={(id) => { setSelectedVoId(id); if (id) { setSelectedOverlayId(null); setSelectedSfxId(null); setSelectedUserVoiceId(null); } }}
-                  selectedSfxId={selectedSfxId}
-                  onSelectSfx={(id) => { setSelectedSfxId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedUserVoiceId(null); setSelectedStickerId(null); } }}
-                  selectedUserVoiceId={selectedUserVoiceId}
-                  onSelectUserVoice={(id) => {
-                    setSelectedUserVoiceId(id);
-                    if (id) {
-                      setSelectedOverlayId(null);
-                      setSelectedVoId(null);
-                      setSelectedSfxId(null);
-                      setSelectedStickerId(null);
-                    }
+                  onSelectVo={(id) => { clearSegmentSelections(); setSelectedVoId(id); }}
+                  selectedVoIds={voSelection.ids}
+                  onSelectVoMulti={(id, modifiers, orderedIds) => {
+                    const next = nextSelection(voSelection, id, intentFromModifiers(modifiers), orderedIds);
+                    clearSegmentSelections();
+                    setVoSelection(next);
+                    return next.ids;
                   }}
+                  selectedSfxId={selectedSfxId}
+                  onSelectSfx={(id) => { clearSegmentSelections(); setSelectedSfxId(id); }}
+                  selectedUserVoiceId={selectedUserVoiceId}
+                  onSelectUserVoice={(id) => { clearSegmentSelections(); setSelectedUserVoiceId(id); }}
                   selectedStickerId={selectedStickerId}
-                  onSelectSticker={(id) => { setSelectedStickerId(id); if (id) { setSelectedOverlayId(null); setSelectedVoId(null); setSelectedSfxId(null); setSelectedUserVoiceId(null); } }}
+                  onSelectSticker={(id) => { clearSegmentSelections(); setSelectedStickerId(id); }}
                   onRequestDeleteSegment={requestTrackSegmentDeletion}
                 />
               </>
@@ -402,7 +461,7 @@ export default function StudioApp() {
           logline={story?.logline ?? ""}
           index={selIndex}
           total={beats.length}
-          onSelectBeat={setSelectedBeatId}
+          onSelectBeat={selectBeatFromUser}
           onDuplicateBeat={duplicateBeat}
           selectedOverlayId={selectedOverlayId}
           onSelectOverlay={setSelectedOverlayId}
@@ -416,6 +475,7 @@ export default function StudioApp() {
           onSelectSticker={setSelectedStickerId}
           audioPreviewSuspended={exportOpen}
           onRequestDeleteSegment={requestTrackSegmentDeletion}
+          voFit={voFit}
         />
 
         {(aiStoryMounted || productReviewMounted || motivationalStoryMounted) && (
@@ -427,7 +487,7 @@ export default function StudioApp() {
                   open={productReviewOpen}
                   onClose={() => setProductReviewOpen(false)}
                   onApplied={(firstBeatId) => {
-                    setSelectedBeatId(firstBeatId);
+                    selectBeatFromUser(firstBeatId);
                     setProductReviewOpen(false);
                   }}
                 />
@@ -439,7 +499,7 @@ export default function StudioApp() {
                   open={motivationalStoryOpen}
                   onClose={() => setMotivationalStoryOpen(false)}
                   onApplied={(firstBeatId) => {
-                    setSelectedBeatId(firstBeatId);
+                    selectBeatFromUser(firstBeatId);
                     setMotivationalStoryOpen(false);
                   }}
                 />
