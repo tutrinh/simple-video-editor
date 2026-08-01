@@ -880,18 +880,22 @@ body {
 .st-preview-shortcuts {
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* The legend outgrew a single row, so entries wrap instead of overflowing the panel. */
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 4px;
   padding: 8px 0 4px;
   color: var(--ink-3);
   font-size: 8px;
   line-height: 1;
-  white-space: nowrap;
 }
 
 .st-preview-shortcuts>span {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  /* Each entry stays intact; only the gaps between them break. */
+  white-space: nowrap;
 }
 
 .st-preview-shortcuts kbd {

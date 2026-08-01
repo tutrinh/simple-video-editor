@@ -781,10 +781,28 @@ function ModeSwitch({ mode, setMode, disabled = false }: { mode: "beat" | "cut";
         ariaLabel="Preview scope"
         disabled={disabled}
       />
-      <div className="st-preview-shortcuts" aria-label="Editor keyboard shortcuts">
+      {/* All of these except Delete need the pointer over the editor panel — that gate is
+          shared by this component's handlers and StudioApp's, but the Delete effect in
+          StudioApp deliberately has none, so the caveat sits on the entries it is true of. */}
+      <div
+        className="st-preview-shortcuts"
+        aria-label="Editor keyboard shortcuts"
+        title="Most shortcuts work while the pointer is over the editor panel"
+      >
         <span><kbd>Space</kbd> Play/Pause</span>
-        <span><kbd>←</kbd><kbd>→</kbd> Beats</span>
         <span><kbd>B</kbd><kbd>C</kbd> View</span>
+        <span title="Step through whatever is active — the beats, or the selected segment's own track">
+          <kbd>←</kbd><kbd>→</kbd> Prev/Next
+        </span>
+        <span title="Grow or shrink whatever is active by 0.1s — the beat, or the selected segment">
+          <kbd>↑</kbd><kbd>↓</kbd> Length
+        </span>
+        <span title="Fit the selected voiceover segment to its spoken duration">
+          <kbd>F</kbd> Fit voice
+        </span>
+        <span title="Remove the selected segment, or the whole voiceover selection. Works anywhere outside a text field, not just over the editor.">
+          <kbd>Del</kbd> Remove
+        </span>
       </div>
     </div>
   );
