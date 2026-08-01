@@ -4378,6 +4378,50 @@ body {
   gap: 5px;
 }
 
+/* Alternative opening lines offered on the plan review step. */
+.st-product-review-hooks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.st-product-review-hook {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 11px 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.st-product-review-hook:hover:not([aria-disabled="true"]) {
+  border-color: var(--ink-2);
+}
+
+.st-product-review-hook[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.st-product-review-hook.is-chosen {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.st-product-review-hook>span {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+}
+
 /* Verified features / pros / cons recapped in full on the Generate step. */
 .st-product-review-evidence-group {
   display: flex;

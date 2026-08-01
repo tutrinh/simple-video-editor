@@ -42,6 +42,7 @@ describe("savedReviewPlans", () => {
       productTitle: "Test Headphones",
       targetDurationSec: 30,
       hook: "Best bass ever",
+      hookOptions: ["Best bass ever"],
       script: [
         {
           id: "s1",

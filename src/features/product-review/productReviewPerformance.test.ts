@@ -21,7 +21,7 @@ describe("Product Review performance regressions", () => {
         text: `Grounded product detail ${index}.`,
         purpose: index === 0 ? "hook" : "demo",
         approxDurationSec: 0.5,
-        evidence: [{ kind: "product-claim", claimId: `claim-${index}` }],
+        evidence: [],
         shotId,
       });
     }
@@ -30,6 +30,7 @@ describe("Product Review performance regressions", () => {
       productTitle: "Stress product",
       targetDurationSec: 60,
       hook: "Stress hook",
+      hookOptions: ["Stress hook"],
       shots,
       script,
       createdAt: 1,

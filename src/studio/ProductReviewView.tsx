@@ -28,8 +28,10 @@ import {
   type ProductSource,
 } from "../features/product-review/productSource";
 import {
+  buildAuthorPrompt,
   enrichProductDetails,
   generateReviewPlan,
+  type GenerateReviewPlanInput,
   type ReviewAuthorAdapter,
 } from "../features/product-review/reviewAuthor";
 import { synthesizeVoiceover } from "../lib/tts";
@@ -48,6 +50,7 @@ import Switch from "../design-system/Switch";
 import { SelectField, TextareaField, TextField } from "../design-system/Field";
 import { ProgressNotice } from "../design-system/Feedback";
 import Modal from "../design-system/Modal";
+import ChevronDownIcon from "../design-system/icons/ChevronDownIcon";
 
 type ReviewStep = "import" | "verify" | "generate" | "review";
 type DurationOption = "15" | "30" | "45" | "60";
@@ -272,6 +275,11 @@ export default function ProductReviewView({
   const [duration, setDuration] = useState<DurationOption>("30");
   const [includePrice, setIncludePrice] = useState(false);
   const [includeCta, setIncludeCta] = useState(true);
+  const [emphasizeFeaturesAndPros, setEmphasizeFeaturesAndPros] = useState(true);
+  const [promptOpen, setPromptOpen] = useState(false);
+  // null = never hand-edited, so the textarea keeps tracking the generated prompt.
+  // A string is the creator's own wording and is sent verbatim.
+  const [promptDraft, setPromptDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState<"import" | "generate" | "apply" | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [error, setError] = useState("");
@@ -359,6 +367,9 @@ export default function ProductReviewView({
     })),
     [state.clips],
   );
+  // Plans saved before hook options existed have no list; fall back to the one
+  // hook they do have so the section simply stays hidden for them.
+  const hookOptions = plan?.hookOptions?.length ? plan.hookOptions : (plan ? [plan.hook] : []);
   const missingShotCount = plan?.shots.filter((shot) => !shot.matchedClipId).length ?? 0;
   const duplicateClipMatches = useMemo(() => {
     const counts = new Map<string, number>();
@@ -511,6 +522,22 @@ export default function ProductReviewView({
     setStep("generate");
   }
 
+  /** The inputs the Author Prompt is built from — shared by its preview and the run. */
+  function authorInput(forBrief: ProductBrief): GenerateReviewPlanInput {
+    return {
+      brief: forBrief,
+      creatorNotes,
+      clips: clipSummaries,
+      targetDurationSec: Number(duration) as ReviewDurationSec,
+      tone: toneHint(settings.tone),
+      scriptType: scriptTypeHint(settings.scriptType),
+      includePrice: includePrice && Boolean(forBrief.priceText),
+      includeCta,
+      emphasizeFeaturesAndPros,
+      ...(promptDraft === null ? {} : { promptOverride: promptDraft }),
+    };
+  }
+
   async function generatePlan() {
     const nextBrief = saveVerifiedInputs();
     if (!nextBrief) return;
@@ -518,16 +545,7 @@ export default function ProductReviewView({
     setError("");
     setStatus("");
     try {
-      const nextPlan = await generateReviewPlan({
-        brief: nextBrief,
-        creatorNotes,
-        clips: clipSummaries,
-        targetDurationSec: Number(duration) as ReviewDurationSec,
-        tone: toneHint(settings.tone),
-        scriptType: scriptTypeHint(settings.scriptType),
-        includePrice: includePrice && Boolean(nextBrief.priceText),
-        includeCta,
-      }, currentAuthor());
+      const nextPlan = await generateReviewPlan(authorInput(nextBrief), currentAuthor());
       dispatch({ type: "SET_REVIEW_PLAN", plan: nextPlan });
       setStep("review");
     } catch (cause) {
@@ -550,14 +568,8 @@ export default function ProductReviewView({
     setError("");
     try {
       const regenerated = await generateReviewPlan({
-        brief,
-        creatorNotes,
-        clips: clipSummaries,
+        ...authorInput(brief),
         targetDurationSec: plan?.targetDurationSec ?? Number(duration) as ReviewDurationSec,
-        tone: toneHint(settings.tone),
-        scriptType: scriptTypeHint(settings.scriptType),
-        includePrice: includePrice && Boolean(brief.priceText),
-        includeCta,
       }, currentAuthor());
       const replacement = regenerated.script.find((candidate) => candidate.purpose === segment.purpose);
       if (!replacement) throw new Error(`AI did not return a grounded ${segment.purpose} line.`);
@@ -584,6 +596,24 @@ export default function ProductReviewView({
       ...plan,
       script: plan.script.map((segment) => segment.id === segmentId ? { ...segment, ...patch } : segment),
     });
+  }
+
+  /**
+   * The chosen hook is both the plan's headline (and later the Story logline)
+   * and the spoken opening line, so picking one rewrites the Hook Script line
+   * too — otherwise the choice would only relabel the plan.
+   */
+  function chooseHook(next: string) {
+    if (!plan || next === plan.hook) return;
+    const opening = plan.script.find((segment) => segment.purpose === "hook");
+    updatePlan({
+      ...plan,
+      hook: next,
+      script: opening
+        ? plan.script.map((segment) => segment.id === opening.id ? { ...segment, text: next } : segment)
+        : plan.script,
+    });
+    setStatus("Hook updated.");
   }
 
   function updateShot(shotId: string, patch: Partial<ReviewShot>) {
@@ -963,6 +993,12 @@ export default function ProductReviewView({
   }
 
   if (step === "generate") {
+    // Built through the same path the run uses, so the creator edits the real
+    // prompt rather than a paraphrase of it. Only costs anything once opened.
+    const generatedPrompt = promptOpen
+      ? buildAuthorPrompt(authorInput(briefFromForm(form, brief, sourceUrl)))
+      : "";
+
     return (
       <div className="st-product-review">
         {renderStepNav()}
@@ -1035,6 +1071,18 @@ export default function ProductReviewView({
             <div><strong>Include CTA</strong><span>End with your Creator Notes call to action.</span></div>
             <Switch checked={includeCta} onChange={setIncludeCta} label="Include call to action" disabled={busy !== null} />
           </div>
+          <div className="st-product-review-switch-row">
+            <div>
+              <strong>Emphasize product features and pros</strong>
+              <span>Spends the duration naming your verified claims and recorded pros instead of general praise.</span>
+            </div>
+            <Switch
+              checked={emphasizeFeaturesAndPros}
+              onChange={setEmphasizeFeaturesAndPros}
+              label="Emphasize product features and pros"
+              disabled={busy !== null}
+            />
+          </div>
           <div className="st-product-review-summary" style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {form.imageUrl && (
               <img
@@ -1063,6 +1111,55 @@ export default function ProductReviewView({
             </div>
           </div>
         </div>
+
+        <section className="st-product-review-section">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={promptOpen}
+            onClick={() => setPromptOpen((open) => !open)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setPromptOpen((open) => !open);
+              }
+            }}
+            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}
+          >
+            <ChevronDownIcon
+              size={14}
+              style={{ transform: promptOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+            />
+            <h3 style={{ margin: 0 }}>Author Prompt</h3>
+            {promptDraft !== null && <Badge tone="signal">Edited</Badge>}
+          </div>
+          {promptOpen && (
+            <>
+              <p style={{ marginTop: 8 }}>
+                Exactly what gets sent to the AI. Edit it to steer the script yourself — your wording is
+                sent verbatim and stops tracking the switches above. The result is still validated
+                against your Creator Notes either way.
+              </p>
+              <TextareaField
+                label="Prompt sent to the AI"
+                rows={16}
+                value={promptDraft ?? generatedPrompt}
+                onChange={(event) => setPromptDraft(event.target.value)}
+                disabled={busy !== null}
+              />
+              <div className="st-product-review-actions">
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => setPromptDraft(null)}
+                  disabled={promptDraft === null || busy !== null}
+                >
+                  Reset to generated prompt
+                </Button>
+              </div>
+            </>
+          )}
+        </section>
 
         <section className="st-product-review-section">
           <div className="st-product-review-section-head">
@@ -1160,6 +1257,44 @@ export default function ProductReviewView({
         </div>
       )}
       {busy === "generate" && <ProgressNotice title="Regenerating Script line" message="Checking grounding and duration…" />}
+      {hookOptions.length > 1 && (
+        <section className="st-product-review-section">
+          <div className="st-product-review-section-head">
+            <div>
+              <h3>Hook options</h3>
+              <p>The opening line decides whether the reel gets watched. Pick one — it replaces the Hook line in the Script below.</p>
+            </div>
+          </div>
+          <div className="st-product-review-hooks" role="radiogroup" aria-label="Hook options">
+            {hookOptions.map((option, index) => {
+              const chosen = option === plan?.hook;
+              const pick = () => { if (busy === null) chooseHook(option); };
+              return (
+                <div
+                  key={`${index}-${option}`}
+                  role="radio"
+                  tabIndex={0}
+                  aria-checked={chosen}
+                  aria-disabled={busy !== null}
+                  className={`st-product-review-hook${chosen ? " is-chosen" : ""}`}
+                  onClick={pick}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      pick();
+                    }
+                  }}
+                >
+                  <Badge tone={chosen ? "positive" : "neutral"}>
+                    {chosen ? "In use" : `Option ${index + 1}`}
+                  </Badge>
+                  <span>{option}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
       <div className="st-product-review-plan">
         {(plan?.script ?? []).map((segment, index) => {
           const shot = plan?.shots.find((item) => item.id === segment.shotId);
@@ -1187,9 +1322,11 @@ export default function ProductReviewView({
                 </>
               )}
               <div className="st-product-review-evidence">
-                {segment.evidence.map((entry, evidenceIndex) => (
+                {/* Plans saved before evidence narrowed to Creator Notes can still
+                    hold other kinds; drop them rather than render an empty badge. */}
+                {segment.evidence.filter((entry) => entry.kind === "creator-note").map((entry, evidenceIndex) => (
                   <Badge key={`${segment.id}-${evidenceIndex}`} tone="positive">
-                    {entry.kind === "product-claim" ? "Product claim" : `Creator · ${entry.field}`}
+                    {`Creator · ${entry.field}`}
                   </Badge>
                 ))}
               </div>

@@ -33,12 +33,17 @@ const source: ProductSource = {
 
 const aiJson = JSON.stringify({
   hook: "Hotel coffee is optional.",
+  hookOptions: [
+    "Hotel coffee is optional.",
+    "The hotel kettle never stood a chance.",
+    "Steel press, three train trips.",
+  ],
   script: [{
     id: "line-1",
     text: "This stainless steel press replaces weak hotel coffee.",
     purpose: "hook",
     approxDurationSec: 4,
-    evidence: [{ kind: "product-claim", claimId: "claim-1" }],
+    evidence: [],
     shotId: "shot-1",
   }, {
     id: "line-2",
@@ -106,7 +111,8 @@ describe("ProductReviewView", () => {
     await user.click(screen.getByRole("button", { name: "Continue to generation" }));
     await user.click(screen.getByRole("button", { name: "Generate Review Plan" }));
 
-    expect(await screen.findByText("Hotel coffee is optional.")).toBeTruthy();
+    // The chosen hook headlines the plan; it also appears as a Hook option below.
+    expect(await screen.findByRole("heading", { name: "Hotel coffee is optional." })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Apply to Project" }));
 
     await waitFor(() => expect(screen.getByLabelText("project state").textContent).toBe("2|9:16|2"));
@@ -242,5 +248,102 @@ describe("ProductReviewView", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("CLI unavailable");
     await user.click(screen.getByRole("button", { name: "Back to product details" }));
     expect((screen.getByLabelText("Your verdict") as HTMLInputElement).value).toBe("Useful for trips");
+  });
+
+  it("offers the alternative hooks and swaps the spoken Hook line when one is picked", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsProvider>
+        <ProjectProvider>
+          <ProductReviewView productSource={source} author={async () => aiJson} />
+        </ProjectProvider>
+      </SettingsProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
+    await user.click(screen.getByRole("button", { name: "Import details" }));
+    await screen.findByDisplayValue("Trail Press");
+    await user.click(screen.getByRole("button", { name: "Continue to generation" }));
+    await user.click(screen.getByRole("button", { name: "Generate Review Plan" }));
+
+    const options = await screen.findAllByRole("radio");
+    expect(options).toHaveLength(3);
+    expect(options[0].getAttribute("aria-checked")).toBe("true");
+    expect(options[1].getAttribute("aria-checked")).toBe("false");
+
+    // Role query with a loose name — `copyable` puts a copy button inside the
+    // label, so the computed accessible name is more than just "Script line".
+    const hookLine = () => screen.getAllByRole("textbox", { name: /Script line/ })[0] as HTMLTextAreaElement;
+    expect(hookLine().value).toBe("This stainless steel press replaces weak hotel coffee.");
+
+    await user.click(options[1]);
+
+    await waitFor(() => expect(hookLine().value).toBe("The hotel kettle never stood a chance."));
+    expect(screen.getAllByRole("radio")[1].getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("keeps the Author Prompt collapsed until asked, then shows the real prompt", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsProvider>
+        <ProjectProvider>
+          <ProductReviewView productSource={source} author={async () => aiJson} />
+        </ProjectProvider>
+      </SettingsProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
+    await user.click(screen.getByRole("button", { name: "Import details" }));
+    await screen.findByDisplayValue("Trail Press");
+    await user.click(screen.getByRole("button", { name: "Continue to generation" }));
+
+    const toggle = screen.getByRole("button", { name: /Author Prompt/i });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByLabelText(/Prompt sent to the AI/i)).toBeNull();
+
+    await user.click(toggle);
+    const box = await screen.findByLabelText(/Prompt sent to the AI/i) as HTMLTextAreaElement;
+    expect(box.value).toContain("Create a concise social-media product Review Plan as strict JSON.");
+    // The verified listing feature reaches the prompt the creator can see.
+    expect(box.value).toContain("Stainless steel body");
+  });
+
+  it("sends the creator's edited prompt to the AI and can reset it", async () => {
+    const user = userEvent.setup();
+    const prompts: string[] = [];
+    render(
+      <SettingsProvider>
+        <ProjectProvider>
+          <ProductReviewView
+            productSource={source}
+            author={async (prompt) => { prompts.push(prompt); return aiJson; }}
+          />
+        </ProjectProvider>
+      </SettingsProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/Product URL/i), "https://www.amazon.com/dp/B0ABC12345");
+    await user.click(screen.getByRole("button", { name: "Import details" }));
+    await screen.findByDisplayValue("Trail Press");
+    await user.click(screen.getByRole("button", { name: "Continue to generation" }));
+    await user.click(screen.getByRole("button", { name: /Author Prompt/i }));
+
+    const box = await screen.findByLabelText(/Prompt sent to the AI/i);
+    await user.clear(box);
+    await user.type(box, "My own instructions.");
+    expect(screen.getByText("Edited")).toBeTruthy();
+
+    // Product-detail enrichment shares this adapter, so only count from here.
+    prompts.length = 0;
+    await user.click(screen.getByRole("button", { name: "Generate Review Plan" }));
+    await waitFor(() => expect(prompts).toHaveLength(1));
+    expect(prompts[0]).toBe("My own instructions.");
+
+    // The section stays open across steps, so no second toggle click.
+    await user.click(screen.getByRole("button", { name: "Regenerate plan" }));
+    await user.click(screen.getByRole("button", { name: "Reset to generated prompt" }));
+    expect(screen.queryByText("Edited")).toBeNull();
+    expect((screen.getByLabelText(/Prompt sent to the AI/i) as HTMLTextAreaElement).value)
+      .toContain("Create a concise social-media product Review Plan as strict JSON.");
   });
 });
