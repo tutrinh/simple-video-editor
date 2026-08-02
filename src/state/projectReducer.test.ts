@@ -10,6 +10,38 @@ const beat = (id: string, clipId: string): Beat => ({
 });
 
 describe("projectReducer", () => {
+  it("sets, levels, and removes the project music track", () => {
+    const track = {
+      id: "music-1",
+      name: "song.wav",
+      file: new File([], "song.wav", { type: "audio/wav" }),
+      durationSec: 12,
+      waveform: [0.2, 0.8],
+      cueMarkers: [{ timeSec: 2, strength: 1 }],
+      volume: 0.5,
+      sourceKind: "audio" as const,
+    };
+    let state = projectReducer(initialState, { type: "SET_MUSIC_TRACK", track });
+    expect(state.musicTrack).toBe(track);
+    const replacement = {
+      ...track,
+      id: "music-2",
+      name: "replacement.wav",
+      file: new File([], "replacement.wav", { type: "audio/wav" }),
+      waveform: [0.9, 0.1, 0.6],
+      cueMarkers: [{ timeSec: 1.25, strength: 0.8 }],
+    };
+    state = projectReducer(state, { type: "SET_MUSIC_TRACK", track: replacement });
+    expect(state.musicTrack).toBe(replacement);
+    expect(state.musicTrack?.cueMarkers).toEqual([{ timeSec: 1.25, strength: 0.8 }]);
+    state = projectReducer(state, { type: "UPDATE_MUSIC_TRACK_VOLUME", volume: 2 });
+    expect(state.musicTrack?.volume).toBe(1);
+    state = projectReducer(state, { type: "SET_MUSIC_TRACK_MUTED", muted: true });
+    expect(state.musicTrack).toMatchObject({ volume: 1, muted: true });
+    state = projectReducer(state, { type: "REMOVE_MUSIC_TRACK" });
+    expect(state.musicTrack).toBeUndefined();
+  });
+
   it("adds and removes clips", () => {
     let s = projectReducer(initialState, { type: "ADD_CLIPS", clips: [clip("a"), clip("b")] });
     expect(s.clips.map((c) => c.id)).toEqual(["a", "b"]);

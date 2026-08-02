@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { importProjectFile } from "./projectPackager";
 import type { Clip } from "../domain/types";
 
@@ -8,6 +8,8 @@ import type { Clip } from "../domain/types";
 // clip and would hand ffmpeg an image under an .mp4 name.
 
 const dataUrl = (mime: string) => `data:${mime};base64,${btoa("pretend-bytes")}`;
+
+afterEach(() => vi.unstubAllGlobals());
 
 /** A serialized clip as it appears inside stateJson (no file/normalized). */
 type SerializedClip = Omit<Clip, "file" | "normalized">;
@@ -59,6 +61,67 @@ describe("importProjectFile — Stills", () => {
     const state = await importProjectFile(vidstr([legacy]));
     expect(state.clips[0].kind).toBeUndefined();
     expect(state.clips[0].normalized).toBeInstanceOf(Blob);
+  });
+});
+
+describe("importProjectFile — music track", () => {
+  it("rehydrates a reference-only track from the app Music library", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      blob: async () => new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" }),
+    })));
+    const metadata = {
+      id: "music-shared",
+      name: "shared.wav",
+      fileName: "shared.wav",
+      durationSec: 3,
+      waveform: [0.2],
+      cueMarkers: [],
+      volume: 0.5,
+      sourceKind: "audio",
+    };
+    const pkg = {
+      version: 1,
+      exportedAt: 0,
+      title: "shared music",
+      stateJson: JSON.stringify({ title: "shared music", clips: [], direction: "", musicTrack: metadata }),
+      media: [],
+    };
+
+    const state = await importProjectFile(new File([JSON.stringify(pkg)], "shared.vidstr", { type: "application/json" }));
+
+    expect(state.musicTrack).toMatchObject(metadata);
+    expect(state.musicTrack?.file).toMatchObject({ name: "shared.wav", type: "audio/wav", size: 3 });
+  });
+
+  it("rehydrates the audio-only file alongside waveform and cue analysis", async () => {
+    const metadata = {
+      id: "music-1",
+      name: "performance.wav",
+      durationSec: 8,
+      waveform: [0.1, 0.7, 0.2],
+      cueMarkers: [{ timeSec: 2.5, strength: 0.9 }],
+      volume: 0.6,
+      sourceKind: "video-audio",
+    };
+    const pkg = {
+      version: 1,
+      exportedAt: 0,
+      title: "music",
+      stateJson: JSON.stringify({ title: "music", clips: [], direction: "", musicTrack: metadata }),
+      media: [],
+      musicTrack: {
+        fileName: "performance.wav",
+        fileType: "audio/wav",
+        fileDataUrl: dataUrl("audio/wav"),
+      },
+    };
+
+    const state = await importProjectFile(new File([JSON.stringify(pkg)], "music.vidstr", { type: "application/json" }));
+    expect(state.musicTrack).toMatchObject(metadata);
+    expect(state.musicTrack?.file).toBeInstanceOf(File);
+    expect(state.musicTrack?.file.name).toBe("performance.wav");
+    expect(state.musicTrack?.file.type).toBe("audio/wav");
   });
 });
 

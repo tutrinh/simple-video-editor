@@ -44,7 +44,11 @@ import {
 } from "../design-system/EditorTimeline";
 import { activeBeatTitleCount } from "./beatTitleIndex";
 import { isSupportedUserVoiceFile, makeImportedUserVoiceSegment, readAudioFileDuration } from "./importUserVoice";
-import UserVoiceWaveform from "./UserVoiceWaveform";
+import UserVoiceWaveform, { downsampleWaveform } from "./UserVoiceWaveform";
+import Waveform from "../design-system/Waveform";
+import { prepareMusicTrack, snapBeatEndToMusicCue, type MusicImportProgress } from "../features/music-track/musicTrack";
+import { fetchMusicFile, uploadMusic } from "../lib/musicLibrary";
+import MusicPicker from "./MusicPicker";
 
 
 interface Props {
@@ -96,7 +100,7 @@ export default function Timeline({
   onSelectSticker,
   onRequestDeleteSegment,
 }: Props) {
-  const { dispatch } = useProject();
+  const { state, dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -105,6 +109,10 @@ export default function Timeline({
   const [assignPlaceholderBeatId, setAssignPlaceholderBeatId] = useState<string | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const userVoiceFileInputRef = useRef<HTMLInputElement>(null);
+  const [musicImport, setMusicImport] = useState<MusicImportProgress | null>(null);
+  const [musicError, setMusicError] = useState("");
+  const [selectedMusicCueSec, setSelectedMusicCueSec] = useState<number | null>(null);
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const timelineMinimapRef = useRef<HTMLDivElement>(null);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
   const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
@@ -122,6 +130,7 @@ export default function Timeline({
   const sfxSegments = cut.sfxSegments ?? [];
   const userVoiceSegments = cut.userVoiceSegments ?? [];
   const stickers = cut.stickers ?? [];
+  const musicTrack = state.musicTrack;
   const totalDur = cutDuration(cut) || 1;
   const selIndex = beats.findIndex((b) => b.id === selectedBeatId);
   const timelineWidth = timelineViewportWidth > 0
@@ -173,6 +182,37 @@ export default function Timeline({
         setTimelineScrollLeft(nextScrollLeft);
       }
     });
+  }
+
+  async function importMusicTrack(file: File) {
+    setMusicError("");
+    try {
+      const track = await prepareMusicTrack(file, setMusicImport);
+      const fileName = await uploadMusic(track.file);
+      setSelectedMusicCueSec(null);
+      dispatch({ type: "SET_MUSIC_TRACK", track: { ...track, fileName } });
+      setMusicPickerOpen(false);
+    } catch (error) {
+      setMusicError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setMusicImport(null);
+    }
+  }
+
+  async function selectMusicFromLibrary(fileName: string) {
+    setMusicError("");
+    try {
+      setMusicImport({ phase: "analyzing", progress: 0 });
+      const file = await fetchMusicFile(fileName);
+      const track = await prepareMusicTrack(file, setMusicImport);
+      setSelectedMusicCueSec(null);
+      dispatch({ type: "SET_MUSIC_TRACK", track: { ...track, fileName } });
+      setMusicPickerOpen(false);
+    } catch (error) {
+      setMusicError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setMusicImport(null);
+    }
   }
 
   function seekTimelineFromMinimap(event: ReactPointerEvent<HTMLDivElement>) {
@@ -732,6 +772,27 @@ export default function Timeline({
     acc += b.durationSec;
   }
 
+  function snapSelectedBeatToCue(cueTimeSec: number) {
+    if (selIndex < 0) {
+      setMusicError("Select a Beat first, then click a cue marker.");
+      return;
+    }
+    const beat = beats[selIndex];
+    const clip = clipById.get(beat.clipId);
+    if (cueTimeSec - beatStarts[selIndex] < 0.1) {
+      setMusicError("Choose a cue after the selected Beat's start.");
+      return;
+    }
+    const resized = snapBeatEndToMusicCue(beat, clip?.durationSec ?? beat.durationSec, beatStarts[selIndex], cueTimeSec);
+    if (!resized) {
+      setMusicError("That cue does not produce a different valid Beat duration.");
+      return;
+    }
+    setMusicError("");
+    dispatch({ type: "UPDATE_BEAT", beat: resized });
+    setSelectedMusicCueSec(null);
+  }
+
   // Playhead sits at the midpoint of the selected beat (as % of totalDur)
   const playheadLeft = selIndex >= 0
     ? `${((beatStarts[selIndex] + beats[selIndex].durationSec / 2) / totalDur) * 100}%`
@@ -767,8 +828,28 @@ export default function Timeline({
     <TimelineShell>
       <TimelineHeader
         title="The Cut"
-        meta={`${beats.length} beats / ${overlays.length} overlays / ${userVoiceSegments.length} User VO / ${voSegments.length} generated VO / ${sfxSegments.length} SFX / ${stickers.length} stickers / ${fmtSecs(totalDur)} / ${cut.aspect}`}
+        meta={`${beats.length} beats / ${overlays.length} overlays / ${userVoiceSegments.length} User VO / ${voSegments.length} generated VO / ${sfxSegments.length} SFX / ${stickers.length} stickers${musicTrack ? " / music analyzed" : ""} / ${fmtSecs(totalDur)} / ${cut.aspect}`}
         actions={<>
+          <div style={{ position: "relative" }}>
+            <TimelineAddButton
+              onClick={() => setMusicPickerOpen((open) => !open)}
+              disabled={musicImport !== null}
+              title="Choose from the app Music library or import audio from a file or video"
+              aria-pressed={musicPickerOpen}
+            >
+              {musicImport
+                ? `${musicImport.phase === "extracting" ? "Extracting" : "Analyzing"} ${Math.round(musicImport.progress * 100)}%`
+                : musicTrack ? "Replace music" : "Music"}
+            </TimelineAddButton>
+            {musicPickerOpen && (
+              <MusicPicker
+                busy={musicImport !== null}
+                onPick={(fileName) => { void selectMusicFromLibrary(fileName); }}
+                onImport={(file) => { void importMusicTrack(file); }}
+                onClose={() => setMusicPickerOpen(false)}
+              />
+            )}
+          </div>
           <InputControl
             ref={userVoiceFileInputRef}
             type="file"
@@ -851,6 +932,8 @@ export default function Timeline({
           </div>
         </>}
       />
+
+      {musicError && <div className="st-music-track-error" role="status">{musicError}</div>}
 
       <div className={"st-beat-audio-master" + (cut.beatAudioMuted ? " muted" : "")}>
         <strong>Beat audio</strong>
@@ -1068,6 +1151,88 @@ export default function Timeline({
                 </TimelineLane>
               );
             })()}
+
+            {musicTrack && (
+              <TimelineLane
+                className="st-music-lane"
+                label="Music"
+                hint={`${musicTrack.sourceKind === "video-audio" ? "Audio extracted from video" : "Audio track"} · click a cue to select it, then apply it to a Beat`}
+              >
+                <TimelineLaneCanvas className="st-music-canvas" style={{ height: 54 }}>
+                  {beats.map((beat, index) => index === 0 ? null : (
+                    <TimelineDivider key={beat.id} className="st-vo-divider" style={{ left: `${(beatStarts[index] / totalDur) * 100}%` }} />
+                  ))}
+                  <div
+                    className="st-music-waveform"
+                    style={{ width: `${Math.max(1, (musicTrack.durationSec / totalDur) * 100)}%` }}
+                    title={`${musicTrack.name} · ${fmtSecs(musicTrack.durationSec)} · ${musicTrack.cueMarkers.length} cues`}
+                  >
+                    <Waveform
+                      bars={downsampleWaveform(musicTrack.waveform, 36).map((amplitude) => ({ amplitude, tone: "safe" as const }))}
+                      variant="timeline"
+                      ariaLabel={`${musicTrack.name} waveform with ${musicTrack.cueMarkers.length} edit cues`}
+                      markers={musicTrack.cueMarkers.map((marker) => ({
+                        pct: (marker.timeSec / musicTrack.durationSec) * 100,
+                        strength: marker.strength,
+                        active: selectedMusicCueSec === marker.timeSec,
+                        label: `Cue at ${fmtSecs(marker.timeSec)}. Select this cue.`,
+                        onActivate: () => {
+                          setMusicError("");
+                          setSelectedMusicCueSec(marker.timeSec);
+                        },
+                      }))}
+                    />
+                  </div>
+                  <div className="st-music-track-controls">
+                    <span title={musicTrack.name}>{musicTrack.name}</span>
+                    <InputControl
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={musicTrack.volume}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onChange={(event) => dispatch({ type: "UPDATE_MUSIC_TRACK_VOLUME", volume: Number(event.target.value) })}
+                      aria-label="Music volume"
+                      style={sliderTrackStyle(musicTrack.volume, 0, 1)}
+                    />
+                    <output>{Math.round(musicTrack.volume * 100)}%</output>
+                    <ControlButton
+                      type="button"
+                      className="st-music-mute"
+                      aria-pressed={!!musicTrack.muted}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => dispatch({ type: "SET_MUSIC_TRACK_MUTED", muted: !musicTrack.muted })}
+                      title={musicTrack.muted ? "Unmute music in preview and export" : "Mute music in preview and export"}
+                    >
+                      {musicTrack.muted ? "Unmute" : "Mute"}
+                    </ControlButton>
+                    {selectedMusicCueSec !== null && (
+                      <ControlButton
+                        type="button"
+                        className="st-music-apply-cue"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={() => snapSelectedBeatToCue(selectedMusicCueSec)}
+                        title={`Resize the selected Beat so it ends at ${fmtSecs(selectedMusicCueSec)}`}
+                      >
+                        Set Beat end · {fmtSecs(selectedMusicCueSec)}
+                      </ControlButton>
+                    )}
+                    <ControlButton
+                      type="button"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => {
+                        setSelectedMusicCueSec(null);
+                        dispatch({ type: "REMOVE_MUSIC_TRACK" });
+                      }}
+                      title="Remove music track"
+                    >
+                      <CloseIcon size={10} />
+                    </ControlButton>
+                  </div>
+                </TimelineLaneCanvas>
+              </TimelineLane>
+            )}
 
             {/* User VO is always visible so the recording destination is clear before the first take. */}
             {(() => {

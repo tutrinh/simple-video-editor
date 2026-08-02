@@ -489,6 +489,31 @@ export interface UserVoiceSegment {
   voiceEffect?: UserVoiceEffect;
 }
 
+export interface MusicCueMarker {
+  timeSec: number;
+  /** Normalized onset confidence, 0..1. */
+  strength: number;
+}
+
+/** One project-owned music bed. Video imports are reduced to their audio stream. */
+export interface MusicTrack {
+  id: string;
+  name: string;
+  /** Audio-only file used by preview and export. Never retains imported video bytes. */
+  file: File;
+  /** Filename in the app-wide Music library; this is what saved projects own. */
+  fileName?: string;
+  durationSec: number;
+  /** Peak amplitudes reduced for timeline drawing. */
+  waveform: number[];
+  /** Detected rhythmic/onset changes used as optional edit cues. */
+  cueMarkers: MusicCueMarker[];
+  volume: number;
+  /** Silences the track in preview and export without losing its level. */
+  muted?: boolean;
+  sourceKind: "audio" | "video-audio";
+}
+
 
 /** The assembled, editable draft — the ordered sequence of Beats and Overlays. */
 export interface Cut {

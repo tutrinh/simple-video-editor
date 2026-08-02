@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments } from "../domain/types";
+import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments, MusicTrack } from "../domain/types";
 import type { CreatorNotes, ProductBrief, ProductReviewWorkspace, ReviewPlan } from "../domain/productReview";
 import type { MotivationalStoryWorkspace } from "../domain/motivationalStory";
 import type { AiDirectorWorkspace } from "../domain/aiDirector";
@@ -13,6 +13,8 @@ export interface ProjectState {
   direction: string;
   story?: Story;
   cut?: Cut;
+  /** Project-owned audio bed, including waveform and detected edit cues. */
+  musicTrack?: MusicTrack;
   /** Product-review planning workspace; optional for pre-Phase-2 projects. */
   productReview?: ProductReviewWorkspace;
   /** Motivational story workspace. */
@@ -47,6 +49,10 @@ export type Action =
   | { type: "SET_AI_DIRECTOR"; workspace: AiDirectorWorkspace }
   | { type: "SET_STORY"; story: Story }
   | { type: "SET_CUT"; cut: Cut }
+  | { type: "SET_MUSIC_TRACK"; track: MusicTrack }
+  | { type: "UPDATE_MUSIC_TRACK_VOLUME"; volume: number }
+  | { type: "SET_MUSIC_TRACK_MUTED"; muted: boolean }
+  | { type: "REMOVE_MUSIC_TRACK" }
   | { type: "APPLY_TEMPLATE"; cut: Cut; placeholderClips?: Clip[] }
   | { type: "UPDATE_BEAT"; beat: Beat }
   | { type: "FILL_TEMPLATE_SLOT"; beatId: string; clipId: string; newClipId?: string }
@@ -208,6 +214,18 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       return { ...state, story: action.story };
     case "SET_CUT":
       return { ...state, cut: action.cut };
+    case "SET_MUSIC_TRACK":
+      return { ...state, musicTrack: action.track };
+    case "UPDATE_MUSIC_TRACK_VOLUME":
+      return state.musicTrack
+        ? { ...state, musicTrack: { ...state.musicTrack, volume: Math.max(0, Math.min(1, action.volume)) } }
+        : state;
+    case "SET_MUSIC_TRACK_MUTED":
+      return state.musicTrack
+        ? { ...state, musicTrack: { ...state.musicTrack, muted: action.muted } }
+        : state;
+    case "REMOVE_MUSIC_TRACK":
+      return { ...state, musicTrack: undefined };
     case "APPLY_TEMPLATE":
       return {
         ...state,

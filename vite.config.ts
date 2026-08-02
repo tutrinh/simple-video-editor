@@ -367,8 +367,13 @@ function musicLibrary(dir: string): Plugin {
   return {
     name: "music-library",
     configureServer(server) {
-      server.middlewares.use("/api/music", (req, res) => {
+      server.middlewares.use("/api/music", async (req, res) => {
         const u = new URL(req.url ?? "/", "http://localhost");
+        const sendJson = (code: number, body: unknown) => {
+          res.statusCode = code;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(body));
+        };
         if (u.pathname === "/list") {
           res.setHeader("content-type", "application/json");
           try {
@@ -388,9 +393,22 @@ function musicLibrary(dir: string): Plugin {
             res.setHeader("content-type", "audio/mpeg");
             res.setHeader("content-length", String(data.length));
             res.setHeader("x-music-name", name);
+            res.setHeader("cache-control", "no-store");
             res.end(data);
           } catch {
             res.statusCode = 404; res.end();
+          }
+          return;
+        }
+        if (req.method === "POST" && u.pathname === "/upload") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !AUDIO_RE.test(name)) return sendJson(400, { error: "invalid or unsupported music filename" });
+          try {
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, name), await readBodyBuffer(req));
+            sendJson(200, { ok: true, name });
+          } catch (error) {
+            sendJson(500, { error: error instanceof Error ? error.message : String(error) });
           }
           return;
         }

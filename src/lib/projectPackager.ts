@@ -3,6 +3,7 @@ import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
 import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, promoteTitleFontsToAppLibrary } from "./titleFontPersist";
 import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles } from "./userVoicePersist";
+import { fetchMusicFile, uploadMusic } from "./musicLibrary";
 
 interface VidstrPackage {
   version: 1;
@@ -29,6 +30,11 @@ interface VidstrPackage {
     fileType: string;
     fileDataUrl: string;
   }>;
+  musicTrack?: {
+    fileName: string;
+    fileType: string;
+    fileDataUrl: string;
+  };
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -87,7 +93,17 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
 
   const stripped = stripUserVoiceFiles(stripTitleFonts(state));
   const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
-  const serializableState = { ...stripped, clips: serializableClips };
+  const serializableMusicTrack = stripped.musicTrack
+    ? (({ file: _file, ...track }) => track)(stripped.musicTrack)
+    : undefined;
+  const serializableState = { ...stripped, clips: serializableClips, musicTrack: serializableMusicTrack };
+  // New app-owned tracks travel as filename references. Only legacy
+  // project-owned tracks still need embedded bytes for migration.
+  const musicTrack = state.musicTrack?.file && !state.musicTrack.fileName ? {
+    fileName: state.musicTrack.file.name,
+    fileType: state.musicTrack.file.type || "audio/wav",
+    fileDataUrl: await blobToDataUrl(state.musicTrack.file),
+  } : undefined;
 
   const pkg: VidstrPackage = {
     version: 1,
@@ -97,6 +113,7 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
     media: mediaList,
     ...(titleFonts.length ? { titleFonts } : {}),
     ...(userVoice.length ? { userVoice } : {}),
+    ...(musicTrack ? { musicTrack } : {}),
   };
 
   const jsonString = JSON.stringify(pkg, null, 2);
@@ -155,10 +172,24 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
     voiceMap.set(voice.key, new File([blob], voice.fileName, { type: voice.fileType || blob.type }));
   }
 
+  let musicFile: File | undefined;
+  let musicFileName = parsedState.musicTrack?.fileName;
+  if (parsedState.musicTrack && musicFileName) {
+    try { musicFile = await fetchMusicFile(musicFileName); } catch { /* legacy package fallback below */ }
+  }
+  if (parsedState.musicTrack && !musicFile && pkg.musicTrack) {
+    const blob = dataUrlToBlob(pkg.musicTrack.fileDataUrl, pkg.musicTrack.fileType || "audio/wav");
+    musicFile = new File([blob], pkg.musicTrack.fileName, { type: pkg.musicTrack.fileType || blob.type });
+    try { musicFileName = await uploadMusic(musicFile); } catch { /* package remains usable in memory */ }
+  }
+
   const rehydrated = reinjectUserVoiceFiles(reinjectTitleFonts(
     {
       ...parsedState,
       clips: rehydratedClips,
+      musicTrack: parsedState.musicTrack && musicFile
+        ? { ...parsedState.musicTrack, file: musicFile, ...(musicFileName ? { fileName: musicFileName } : {}) }
+        : undefined,
     },
     fontMap,
   ), voiceMap);

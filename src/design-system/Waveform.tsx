@@ -12,6 +12,13 @@ interface Props {
   variant: "timeline" | "inspector";
   ariaLabel: string;
   playheadPct?: number;
+  markers?: readonly {
+    pct: number;
+    label: string;
+    strength?: number;
+    active?: boolean;
+    onActivate?: () => void;
+  }[];
   trim?: {
     startPct: number;
     endPct: number;
@@ -23,7 +30,7 @@ interface Props {
 }
 
 /** Visual-only waveform primitive. Audio decoding and gain semantics stay with the caller. */
-export default function Waveform({ bars, variant, ariaLabel, playheadPct = 0, trim }: Props) {
+export default function Waveform({ bars, variant, ariaLabel, playheadPct = 0, markers = [], trim }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const draggingEdgeRef = useRef<"in" | "out" | null>(null);
 
@@ -58,7 +65,7 @@ export default function Waveform({ bars, variant, ariaLabel, playheadPct = 0, tr
   return (
     <div
       ref={rootRef}
-      className={`st-user-vo-waveform ${variant}`}
+      className={`st-user-vo-waveform ${variant}${markers.length ? " has-markers" : ""}`}
       role={trim ? "group" : "img"}
       aria-label={ariaLabel}
       onPointerDown={(event) => {
@@ -84,6 +91,20 @@ export default function Waveform({ bars, variant, ariaLabel, playheadPct = 0, tr
           );
         })}
       </svg>
+      {markers.map((marker, index) => (
+        <button
+          key={`${marker.pct}-${index}`}
+          type="button"
+          className={`st-waveform-cue${marker.active ? " active" : ""}`}
+          style={{ left: `${Math.min(100, Math.max(0, marker.pct))}%`, opacity: 0.55 + (marker.strength ?? 1) * 0.45 }}
+          aria-label={marker.label}
+          title={marker.label}
+          disabled={!marker.onActivate}
+          aria-pressed={marker.active}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => { event.stopPropagation(); marker.onActivate?.(); }}
+        />
+      ))}
       {variant === "inspector" && (
         <span className="st-user-vo-waveform-playhead" style={{ left: `${playheadPct}%` }} aria-hidden="true" />
       )}

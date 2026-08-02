@@ -15,6 +15,7 @@ import { fmtSecs, sliderTrackStyle, cssFilterFor, getFilterPreset, rotationCover
 import { normalizeSplitConfig } from "../features/export/splitScreenCanvas";
 import { isIdentityGrade } from "../lib/grade";
 import { autoRec709Grade } from "../lib/autoRec709";
+import { saveCustomPreset } from "../lib/customPresets";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import SplitClipPickerModal from "./SplitClipPickerModal";
 
@@ -527,6 +528,9 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const [copiedColor, setCopiedColor] = useState<ColorAdjustments | null>(null);
   const [copiedUserVoiceAudio, setCopiedUserVoiceAudio] = useState<UserVoiceAudioSettings | null>(null);
   const [colorCopiedToast, setColorCopiedToast] = useState(false);
+  const [savingBeatColorPreset, setSavingBeatColorPreset] = useState(false);
+  const [beatColorPresetName, setBeatColorPresetName] = useState("");
+  const [beatColorPresetSaved, setBeatColorPresetSaved] = useState(false);
 
   function copyBeatColor() {
     if (!beat?.colorAdjustments) return;
@@ -550,10 +554,32 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
   }
 
+  function saveBeatColorPreset(event: React.FormEvent) {
+    event.preventDefault();
+    if (!beat?.colorAdjustments || !beatColorPresetName.trim()) return;
+    saveCustomPreset(
+      beatColorPresetName,
+      beat.colorAdjustments,
+      `Saved from Beat ${index + 1}`,
+    );
+    setSavingBeatColorPreset(false);
+    setBeatColorPresetName("");
+    setBeatColorPresetSaved(true);
+    setTimeout(() => setBeatColorPresetSaved(false), 2000);
+  }
+
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
   // Suggestions & modals belong to one beat — clear them when a different beat is selected.
-  useEffect(() => { setAlts([]); setAltErr(null); setConfirmRemoveOpen(false); setTrimHistory([]); }, [beat?.id]);
+  useEffect(() => {
+    setAlts([]);
+    setAltErr(null);
+    setConfirmRemoveOpen(false);
+    setTrimHistory([]);
+    setSavingBeatColorPreset(false);
+    setBeatColorPresetName("");
+    setBeatColorPresetSaved(false);
+  }, [beat?.id]);
 
   // Synthesize this segment's narration and snap its length to the exact spoken
   // duration (from ElevenLabs timestamps / decoded audio) so the caption window fits.
@@ -2676,6 +2702,49 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     📥 Paste Color
                   </ControlButton>
                 </div>
+
+                {!savingBeatColorPreset ? (
+                  <ControlButton
+                    type="button"
+                    className="st-btn ghost"
+                    style={{ fontSize: 10, padding: "4px 8px", alignSelf: "stretch", justifyContent: "center" }}
+                    onClick={() => {
+                      setBeatColorPresetName(`Beat ${index + 1} Grade`);
+                      setSavingBeatColorPreset(true);
+                    }}
+                    disabled={!hasColorAdjustments(b.colorAdjustments)}
+                    title="Save this Beat's color adjustments to the app-wide filter preset library"
+                  >
+                    {beatColorPresetSaved ? "Saved to filter presets" : "Save as filter preset"}
+                  </ControlButton>
+                ) : (
+                  <form onSubmit={saveBeatColorPreset} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <InputControl
+                      type="text"
+                      value={beatColorPresetName}
+                      onChange={(event) => setBeatColorPresetName(event.target.value)}
+                      placeholder="Preset name"
+                      aria-label="Color filter preset name"
+                      autoFocus
+                      required
+                      style={{ flex: 1, minWidth: 0, fontSize: 10, padding: "4px 7px" }}
+                    />
+                    <ControlButton type="submit" className="st-btn primary" style={{ fontSize: 10, padding: "4px 8px" }}>
+                      Save
+                    </ControlButton>
+                    <ControlButton
+                      type="button"
+                      className="st-btn ghost"
+                      style={{ fontSize: 10, padding: "4px 8px" }}
+                      onClick={() => {
+                        setSavingBeatColorPreset(false);
+                        setBeatColorPresetName("");
+                      }}
+                    >
+                      Cancel
+                    </ControlButton>
+                  </form>
+                )}
 
                 <ControlButton
                   type="button"

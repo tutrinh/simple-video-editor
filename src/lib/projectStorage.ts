@@ -5,9 +5,10 @@ import { migrateCutSpeeds } from "../domain/beatTiming";
 import { stripTitleFonts, reinjectTitleFonts, titleFontKeys, promoteTitleFontsToAppLibrary } from "./titleFontPersist";
 import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles, userVoiceKeys } from "./userVoicePersist";
 import { appFontFileName } from "./fontLibrary";
+import { fetchMusicFile, uploadMusic } from "./musicLibrary";
 
 const DB_NAME = "vidstr_projects_db";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const ACTIVE_PROJECT_KEY = "simple_editor_active_project_id";
 
 function openDB(): Promise<IDBDatabase> {
@@ -36,6 +37,10 @@ function openDB(): Promise<IDBDatabase> {
       // v4: microphone recordings used by User VO timeline segments.
       if (!db.objectStoreNames.contains("user_voice")) {
         db.createObjectStore("user_voice", { keyPath: "key" });
+      }
+      // v5: one analyzed, audio-only music track per project.
+      if (!db.objectStoreNames.contains("music_tracks")) {
+        db.createObjectStore("music_tracks", { keyPath: "projectId" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -72,6 +77,13 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
     }
   }
 
+  const musicTx = db.transaction("music_tracks", "readwrite");
+  const musicStore = musicTx.objectStore("music_tracks");
+  // New music assets live in MUSIC_DIR and the project keeps only fileName.
+  // The IndexedDB store remains a migration source for older saved projects.
+  if (state.musicTrack?.file && !state.musicTrack.fileName) musicStore.put({ projectId: id, fileBlob: state.musicTrack.file });
+  else musicStore.delete(id);
+
   // Custom fonts are app assets in public/fonts/. Projects retain only their
   // app-font:<filename> reference; the title_fonts store is legacy read-only.
   const userVoiceFiles = collectUserVoiceFiles(state);
@@ -87,9 +99,13 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
   //    Clip media remains out-of-band; app fonts are represented by filename.
   const stripped = stripUserVoiceFiles(stripTitleFonts(state));
   const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
+  const serializableMusicTrack = stripped.musicTrack
+    ? (({ file: _file, ...track }) => track)(stripped.musicTrack)
+    : undefined;
   const serializableState = {
     ...stripped,
     clips: serializableClips,
+    musicTrack: serializableMusicTrack,
   };
 
   const projectRecord = {
@@ -129,6 +145,29 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
   if (!projectRecord || !projectRecord.stateJson) return null;
 
   const parsedState: ProjectState = JSON.parse(projectRecord.stateJson);
+
+  let musicFile: File | undefined;
+  let musicFileName = parsedState.musicTrack?.fileName;
+  if (parsedState.musicTrack) {
+    if (musicFileName) {
+      try { musicFile = await fetchMusicFile(musicFileName); } catch { /* fall through to legacy project blob */ }
+    }
+    if (!musicFile) {
+      const musicTx = db.transaction("music_tracks", "readonly");
+      const musicRecord: any = await new Promise((resolve) => {
+        const req = musicTx.objectStore("music_tracks").get(id);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      });
+      const blob = musicRecord?.fileBlob as Blob | undefined;
+      if (blob) {
+        musicFile = blob instanceof File
+          ? blob
+          : new File([blob], parsedState.musicTrack.name, { type: blob.type || "audio/wav" });
+        try { musicFileName = await uploadMusic(musicFile); } catch { /* legacy project remains usable */ }
+      }
+    }
+  }
 
   // Rehydrate File and Blob objects from media_blobs object store
   const mediaTx = db.transaction("media_blobs", "readonly");
@@ -198,6 +237,9 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     {
       ...parsedState,
       clips: rehydratedClips,
+      musicTrack: parsedState.musicTrack && musicFile
+        ? { ...parsedState.musicTrack, file: musicFile, ...(musicFileName ? { fileName: musicFileName } : {}) }
+        : undefined,
       cut: migrateCutSpeeds(parsedState.cut, rehydratedClips),
     },
     fontMap,
@@ -283,6 +325,8 @@ export async function deleteProjectFromStorage(id: string): Promise<void> {
         const voiceStore = voiceTx.objectStore("user_voice");
         for (const key of voiceKeys) voiceStore.delete(`${id}:${key}`);
       }
+      const musicTx = db.transaction("music_tracks", "readwrite");
+      musicTx.objectStore("music_tracks").delete(id);
     } catch (e) {
       console.error("Error cleaning up media_blobs on project delete:", e);
     }

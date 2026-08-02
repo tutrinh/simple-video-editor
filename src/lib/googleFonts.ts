@@ -6,6 +6,8 @@ export interface GoogleFontOption {
   category: "sans-serif" | "serif" | "display" | "handwriting" | "monospace";
   googleFontName: string;
   fontsourceSlug?: string;
+  /** Known downloadable Fontsource weights; independent of browser-synthesized preview weights. */
+  fontsourceWeights?: string;
   cssFamily: string;
   weight?: string;
 }
@@ -105,7 +107,10 @@ export function syntheticGoogleFont(family: string): GoogleFontOption {
     googleFontName: name.replace(/\s+/g, "+"),
     fontsourceSlug: slugifyFamily(name),
     cssFamily: `'${name}', sans-serif`,
+    // The browser may synthesize the editor's weight ladder, but a typed family
+    // has not supplied downloadable axis metadata. Regular is the safe TTF.
     weight: "300;400;600;700;800",
+    fontsourceWeights: "400",
   };
 }
 
@@ -189,6 +194,16 @@ export function findFontById(id: string): (GoogleFontOption & { isGoogle?: boole
 
 /** Fetch TTF binary bytes for FFmpeg drawtext encoding. */
 export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400): Promise<Uint8Array> {
+  const declaredWeights = (font.fontsourceWeights ?? font.weight ?? "")
+    .split(";")
+    .map(Number)
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const resolvedWeight = declaredWeights.length
+    ? declaredWeights.reduce((closest, candidate) =>
+        Math.abs(candidate - weight) < Math.abs(closest - weight) ? candidate : closest,
+      declaredWeights[0])
+    : weight;
+
   // Tier 1: Try local bundled font file first (/fonts/<id>.ttf) for 0ms instant offline rendering
   try {
     const localUrl = `/fonts/${font.id}.ttf`;
@@ -204,10 +219,10 @@ export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400)
   // Tier 2: Fetch uncompressed TTF bytes directly from Fontsource CDN via jsDelivr
   try {
     const slug = font.fontsourceSlug || font.id;
-    const urls = [
-      `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-${weight}-normal.ttf`,
-      `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-400-normal.ttf`,
-    ];
+    const weights = [...new Set([resolvedWeight, ...(declaredWeights.includes(400) ? [400] : [])])];
+    const urls = weights.map(
+      (candidate) => `https://cdn.jsdelivr.net/fontsource/fonts/${slug}@latest/latin-${candidate}-normal.ttf`,
+    );
     for (const url of urls) {
       const fontRes = await fetch(url);
       const ct = fontRes.headers.get("content-type") || "";
@@ -223,7 +238,7 @@ export async function fetchGoogleFontBytes(font: GoogleFontOption, weight = 400)
 
   // Tier 3: Fetch uncompressed TTF bytes from Google Fonts API using legacy Firefox User-Agent
   try {
-    const cssUrl = `https://fonts.googleapis.com/css2?family=${font.googleFontName}:wght@${weight}&display=swap`;
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${font.googleFontName}:wght@${resolvedWeight}&display=swap`;
     const cssRes = await fetch(cssUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:27.0) Gecko/20100101 Firefox/27.0",

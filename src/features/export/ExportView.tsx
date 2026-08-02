@@ -7,6 +7,7 @@ import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
 import { ELEVEN_VOICES, ELEVEN_MODELS, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
 import type { TtsEngine } from "../../lib/tts";
 import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./FinalPreview";
+import { musicTrackGain } from "../music-track/musicTrack";
 import { ensureFontLoadedById, findFontById } from "../../lib/googleFonts";
 import { getTitleFontBytes } from "./titleFonts";
 import TitleTreatmentEditor from "./TitleTreatmentEditor";
@@ -71,6 +72,8 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   const {
     exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight, captionFontId,
   } = es;
+  const activeMusic = state.musicTrack?.file ?? music;
+  const activeMusicVolume = state.musicTrack ? musicTrackGain(state.musicTrack) : musicVolume;
 
   // Transient per-render state (fine to reset on navigation).
   const [progress, setProgress] = useState<number | null>(null);
@@ -393,7 +396,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight, captionFontId },
+        { exportQuality, music: activeMusic, musicVolume: activeMusicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight, captionFontId },
 
         (p, status) => {
           setProgress(p);
@@ -611,8 +614,8 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
               captionOpacity={captionOpacity}
               captionLineHeight={captionLineHeight}
               title={previewTitle}
-              music={music}
-              musicVolume={musicVolume}
+              music={activeMusic}
+              musicVolume={activeMusicVolume}
               voiceover={voiceover}
               ttsEngine={ttsEngine}
               voice={voice}
@@ -799,7 +802,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
               style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", marginBottom: 6 }}
             >
               <label style={{ cursor: "pointer", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-                Music bed {music ? <span className="st-chip" style={{ fontSize: 10, padding: "2px 6px" }}>Loaded</span> : <span style={{ opacity: 0.6, fontSize: 11, fontWeight: 400 }}>(Optional)</span>}
+                Music bed {activeMusic ? <span className="st-chip" style={{ fontSize: 10, padding: "2px 6px" }}>Loaded</span> : <span style={{ opacity: 0.6, fontSize: 11, fontWeight: 400 }}>(Optional)</span>}
               </label>
               <ChevronDownIcon
                 size={14}
@@ -814,6 +817,13 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
             <div className={`st-color-collapsible ${musicOpen ? "open" : ""}`}>
               <div className="st-color-collapsible-inner">
                 <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+                  {state.musicTrack ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 11, color: "var(--ink-2)" }}>
+                      <strong style={{ color: "var(--accent)" }}>{state.musicTrack.name}</strong>
+                      <span>{state.musicTrack.muted ? "Muted in preview and export." : `Playing at ${Math.round(state.musicTrack.volume * 100)}% volume.`} Replace, remove, mute, or level it directly on the timeline.</span>
+                    </div>
+                  ) : (
+                    <>
                   {musicLib.length > 0 && (
                     <div className="no-scrollbar" style={{ border: "1px solid var(--line)", borderRadius: 7, overflow: "hidden", maxHeight: 150, overflowY: "auto", background: "var(--panel-3)" }}>
                       {musicLib.map((name, i) => {
@@ -859,6 +869,8 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
                       <input type="range" min={0} max={1} step={0.05} value={musicVolume} onChange={(e) => update({ musicVolume: Number(e.target.value) })} style={sliderTrackStyle(musicVolume, 0, 1)} />
                       <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{Math.round(musicVolume * 100)}%</span>
                     </div>
+                  )}
+                    </>
                   )}
                 </div>
               </div>

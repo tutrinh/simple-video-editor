@@ -17,6 +17,7 @@ import PauseIcon from "../design-system/icons/PauseIcon";
 import ReplayIcon from "../design-system/icons/ReplayIcon";
 import { previewFileForClip } from "./previewSource";
 import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "./previewPlayback";
+import { musicTrackGain } from "../features/music-track/musicTrack";
 import { useProject } from "../state/ProjectContext";
 import { useUserVoiceRecorder } from "./useUserVoiceRecorder";
 import { useUserVoicePlayback } from "./useUserVoicePlayback";
@@ -70,7 +71,7 @@ interface Props {
  *  - "Cut": the whole edit played back sequentially (reuses the export FinalPreview).
  */
 export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated }: Props) {
-  const { dispatch } = useProject();
+  const { state, dispatch } = useProject();
   const { settings: es } = useExportSettings();
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -633,8 +634,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             voiceoverTrebleDb={es.voiceoverTrebleDb}
             voiceoverEffect={es.voiceoverEffect}
             title={null}
-            music={null}
-            musicVolume={0.5}
+            music={state.musicTrack?.file ?? null}
+            musicVolume={state.musicTrack ? musicTrackGain(state.musicTrack) : 0.5}
             voiceover={false}
             enableSpacebarPlayback={keyboardShortcutsActive}
             onActiveBeatChange={(beatId) => onSelectBeat?.(beatId)}
