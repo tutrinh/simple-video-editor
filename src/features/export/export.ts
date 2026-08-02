@@ -24,6 +24,7 @@ import { hasVoTone, voToneFilterChain } from "../../studio/voTone";
 import { captionVoiceDuckingFilterChain } from "../../studio/userVoicePriority";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
 import { exportedCaptionWindows } from "./captionWindows";
+import { userVoiceCaptionWindows } from "../../studio/userVoiceTranscript";
 
 
 
@@ -79,6 +80,14 @@ export type ExportQuality = ExportQualityProfile;
 export interface ExportOptions {
   /** Video export quality profile: "standard" (CRF 22), "high" (CRF 18), "max" (CRF 15). */
   exportQuality?: ExportQuality;
+  /** Output frame size. 720p is faster and smaller; 1080p preserves detail. */
+  exportResolution?: "720p" | "1080p";
+  /** Output frame rate. */
+  exportFps?: 24 | 30 | 60;
+  /** MP4 is the broadest-compatible default; WebM is an open web alternative. */
+  exportFormat?: "mp4" | "webm";
+  /** Cancels the active FFmpeg operation and the remaining export pipeline. */
+  signal?: AbortSignal;
   /** Optional music bed laid over the finished video (looped + trimmed). */
   music?: File | null;
   /** Music bed volume, 0–1 (default 0.5). Also the duck level under voiceover. */
@@ -154,8 +163,16 @@ export interface ExportResult {
 
 export function canvasDims(aspect: Aspect): [number, number] {
   if (aspect === "9:16") return [1080, 1920];
+  if (aspect === "4:5") return [1080, 1350];
   if (aspect === "1:1") return [1080, 1080];
   return [1920, 1080];
+}
+
+export function outputCanvasDims(aspect: Aspect, resolution: "720p" | "1080p" = "1080p"): [number, number] {
+  const [width, height] = canvasDims(aspect);
+  if (resolution === "1080p") return [width, height];
+  const scale = 720 / Math.min(width, height);
+  return [Math.round(width * scale / 2) * 2, Math.round(height * scale / 2) * 2];
 }
 
 /** What the Clip is called inside the engine's virtual FS. */
@@ -351,7 +368,13 @@ export async function exportCut(
 
   onProgress?.(0.01, "Initializing export pipeline…");
   const clipById = new Map(clips.map((c) => [c.id, c]));
-  const [w, h] = canvasDims(cut.aspect);
+  const [w, h] = outputCanvasDims(cut.aspect, opts.exportResolution);
+  const exportFps = opts.exportFps ?? PROJECT_FPS;
+  const signal = opts.signal;
+  const assertNotCancelled = () => {
+    if (signal?.aborted) throw new DOMException("Export cancelled", "AbortError");
+  };
+  assertNotCancelled();
   const fontsize = Math.round(Math.max(24, h * 0.045) * (opts.captionScale ?? 1));
   const bgOpacity = Math.min(1, Math.max(0, opts.captionBgOpacity ?? 0.5));
   const lineHeight = opts.captionLineHeight ?? 1.6;
@@ -514,11 +537,16 @@ export async function exportCut(
            "-c:v", "libx264", "-preset", "ultrafast", "-crf", String(crf), "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
           "ov.mp4",
+          undefined,
+          600_000,
+          undefined,
+          signal,
         );
         trimProgress++;
         onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
         preTrimmedOverlays.push({ data: out, o });
       } catch (err) {
+        assertNotCancelled();
         console.warn(`Overlay ${idx} pre-trim failed; skipping overlay.`, err);
         trimProgress++;
         onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
@@ -746,7 +774,11 @@ export async function exportCut(
     // VO-track captions: burn each visible segment that overlaps this beat's window
     // [bStart, bEnd], gated to the overlap in segment-local time. A caption spanning a
     // beat boundary is drawn in each segment it touches.
-    for (const window of exportedCaptionWindows(cut.voSegments, bStart, segDur)) {
+    const spokenCaptionWindows = userVoiceCaptionWindows(cut.userVoiceSegments, bStart, segDur);
+    const captionWindows = spokenCaptionWindows.length > 0
+      ? spokenCaptionWindows
+      : exportedCaptionWindows(cut.voSegments, bStart, segDur);
+    for (const window of captionWindows) {
       await addCaption(window.text, `between(t,${window.startSec.toFixed(3)},${window.endSec.toFixed(3)})`);
     }
 
@@ -1137,7 +1169,7 @@ export async function exportCut(
         "-filter_complex", `${vFilterString};${aFilterString}`,
         "-map", "[v]", "-map", "[a]",
         "-shortest",
-        "-r", String(PROJECT_FPS), "-c:v", "libx264", "-preset", segPreset, "-crf", String(crf), "-pix_fmt", "yuv420p",
+        "-r", String(exportFps), "-c:v", "libx264", "-preset", segPreset, "-crf", String(crf), "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "seg.mp4",
       ];
 
@@ -1170,7 +1202,8 @@ export async function exportCut(
           reportBeatStage(i, "Reusing cached render for beat");
           return cached;
         }
-        const rendered = await runIsolated(inputs, args, "seg.mp4", handleEngineProgress);
+        assertNotCancelled();
+        const rendered = await runIsolated(inputs, args, "seg.mp4", handleEngineProgress, 600_000, undefined, signal);
         if (key) cacheSegment(key, rendered);
         return rendered;
       };
@@ -1272,6 +1305,9 @@ export async function exportCut(
         const pct = Math.round(f * 100);
         onProgress?.(0.80 + f * 0.08, `Applying video transitions & concatenating (${pct}%)…`);
       },
+      600_000,
+      undefined,
+      signal,
     );
   } else {
     onProgress?.(0.86, transitionsBakedInSegments
@@ -1280,8 +1316,9 @@ export async function exportCut(
     const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
     try {
-      video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-fflags", "+genpts", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4");
+      video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-fflags", "+genpts", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4", undefined, 600_000, undefined, signal);
     } catch (err) {
+      assertNotCancelled();
       console.warn("Fast stream copy concat failed; falling back to filter concat...", err);
       const ffmpegArgs: string[] = [];
       segments.forEach((_, i) => ffmpegArgs.push("-i", `seg_${i}.mp4`));
@@ -1291,6 +1328,10 @@ export async function exportCut(
         concatInputs,
         [...ffmpegArgs, "-filter_complex", `${vConcat};${aConcat}`, "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", preset, "-crf", String(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2", "video.mp4"],
         "video.mp4",
+        undefined,
+        600_000,
+        undefined,
+        signal,
       );
     }
   }
@@ -1430,15 +1471,31 @@ export async function exportCut(
   const filter = `${mixChains.join(";")}${mixChains.length ? ";" : ""}${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[a]`;
   const muxArgs = [...inputArgs, "-filter_complex", filter, "-map", "0:v:0", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-shortest", "final.mp4"];
 
+  let finalVideo = video;
   try {
-    const finalOut = await runIsolated(finalInputs, muxArgs, "final.mp4", (f) => onProgress?.(0.95 + f * 0.05, "Muxing User VO, narration, SFX & music…"));
-    onProgress?.(1.0, "Export complete ✓");
-    return { blob: new Blob([new Uint8Array(finalOut)], { type: "video/mp4" }), timings };
+    finalVideo = await runIsolated(finalInputs, muxArgs, "final.mp4", (f) => onProgress?.(0.95 + f * 0.03, "Muxing User VO, narration, SFX & music…"), 600_000, undefined, signal);
   } catch (err) {
+    assertNotCancelled();
     console.warn("Final VO/music mux failed; returning the video without the mixed audio bed.", err);
-    onProgress?.(1.0, "Export complete ✓");
-    return { blob: new Blob([new Uint8Array(video)], { type: "video/mp4" }), timings };
   }
+
+  if (opts.exportFormat === "webm") {
+    onProgress?.(0.98, "Creating WebM delivery file…");
+    const webm = await runIsolated(
+      [{ name: "final.mp4", data: finalVideo }],
+      ["-i", "final.mp4", "-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-c:a", "libopus", "-b:a", "128k", "final.webm"],
+      "final.webm",
+      (fraction) => onProgress?.(0.98 + fraction * 0.02, "Creating WebM delivery file…"),
+      600_000,
+      undefined,
+      signal,
+    );
+    onProgress?.(1, "Export complete ✓");
+    return { blob: new Blob([new Uint8Array(webm)], { type: "video/webm" }), timings };
+  }
+
+  onProgress?.(1, "Export complete ✓");
+  return { blob: new Blob([new Uint8Array(finalVideo)], { type: "video/mp4" }), timings };
 }
 
 // --- Portable Script export (ADR-0003). ---

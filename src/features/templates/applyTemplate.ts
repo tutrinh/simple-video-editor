@@ -74,6 +74,8 @@ export function applyTemplate(
         : 5;
       const [width, height] = template.aspect === "9:16"
         ? [1080, 1920]
+        : template.aspect === "4:5"
+          ? [1080, 1350]
         : template.aspect === "1:1"
           ? [1080, 1080]
           : [1920, 1080];

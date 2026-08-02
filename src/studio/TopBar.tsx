@@ -19,8 +19,10 @@ import SaveIcon from "../design-system/icons/SaveIcon";
 import DownloadIcon from "../design-system/icons/DownloadIcon";
 import SunIcon from "../design-system/icons/SunIcon";
 import MoonIcon from "../design-system/icons/MoonIcon";
+import UndoIcon from "../design-system/icons/UndoIcon";
+import RedoIcon from "../design-system/icons/RedoIcon";
 
-const ASPECTS: Aspect[] = ["16:9", "9:16", "1:1"];
+const ASPECTS: Aspect[] = ["16:9", "9:16", "4:5", "1:1"];
 
 interface Props {
   onExport: () => void;
@@ -41,7 +43,7 @@ export default function TopBar({
   onOpenMotivationalStory,
   onOpenStoryPractice,
 }: Props) {
-  const { state, dispatch } = useProject();
+  const { state, dispatch, undo, redo, canUndo, canRedo } = useProject();
   const { theme, toggleTheme } = useTheme();
   const { clips, cut, title } = state;
   const titleSize = Math.min(
@@ -50,7 +52,7 @@ export default function TopBar({
   );
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [projectsModalOpen, setProjectsModalOpen] = useState(false);
-  const { saveStatus } = useAutoSaveProject();
+  const { saveStatus, lastSavedTime, saveError } = useAutoSaveProject();
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
 
   // Aspect is a Cut property that doesn't affect beat trims — switch it without
@@ -88,12 +90,15 @@ export default function TopBar({
 
         {/* Auto-Save Status Badge */}
         {clips.length > 0 && (
-          <Badge tone={saveStatus === "saving" ? "signal" : "positive"}>
+          <Badge
+            tone={saveStatus === "error" ? "critical" : saveStatus === "saving" ? "signal" : "positive"}
+            title={saveStatus === "error" ? `Autosave failed: ${saveError}` : lastSavedTime ? `Last saved ${new Date(lastSavedTime).toLocaleTimeString()}` : undefined}
+          >
             {saveStatus === "saving"
               ? "Saving..."
               : saveStatus === "saved"
                 ? "✓ Saved"
-                : ""}
+                : saveStatus === "error" ? "Save failed" : ""}
           </Badge>
         )}
       </div>
@@ -107,6 +112,8 @@ export default function TopBar({
       >
         Projects
       </Button>
+      <IconButton label="Undo last project edit" icon={<UndoIcon size={15} />} size="small" onClick={undo} disabled={!canUndo} title="Undo (⌘Z / Ctrl+Z)" />
+      <IconButton label="Redo last project edit" icon={<RedoIcon size={15} />} size="small" onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z / Ctrl+Shift+Z)" />
       {cut && (
         <SegmentedControl
           ariaLabel="Aspect ratio"

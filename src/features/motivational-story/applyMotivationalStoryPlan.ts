@@ -39,7 +39,7 @@ export function applyMotivationalStoryPlan(
         name: `Slot: ${shot.description}`,
         durationSec: shot.approxDurationSec,
         width: aspect === "9:16" ? 1080 : aspect === "1:1" ? 1080 : 1920,
-        height: aspect === "9:16" ? 1920 : aspect === "1:1" ? 1080 : 1080,
+        height: aspect === "9:16" ? 1920 : aspect === "4:5" ? 1350 : aspect === "1:1" ? 1080 : 1080,
         isTemplatePlaceholder: true,
         templateSlotDescription: shot.description,
       };

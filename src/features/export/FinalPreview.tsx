@@ -3,6 +3,7 @@ import type { Aspect, Clip, Cut, Sticker } from "../../domain/types";
 import type { TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { canvasDims, type TitleAnimation } from "./export";
 import { activeVoSegment, activeVoCaption } from "../../lib/pacing";
+import { activeUserVoiceCaption } from "../../studio/userVoiceTranscript";
 import { cssFilterFor, beatRotationStyle, beatZoomStyle, isBeatZoomActive, kenBurnsStyleAt } from "../../studio/util";
 import { activeStickers, renderStickersToCanvas, beatSpans, resolveStickers, resolveSfxSegments, stickerRenderKey } from "./stickerCanvas";
 
@@ -34,7 +35,7 @@ import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studi
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
 // timed title overlay, correct aspect — plus optional music/voiceover.
-const ASPECT_RATIO = { "16:9": 16 / 9, "9:16": 9 / 16, "1:1": 1 } as const;
+const ASPECT_RATIO = { "16:9": 16 / 9, "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1 } as const;
 const PREVIEW_H = 360;
 
 export interface PreviewTitleLayer {
@@ -522,7 +523,7 @@ export default function FinalPreview({
 
   // Captions come from the VO track by absolute cut time (only segments with the
   // caption toggle on), decoupled from beats.
-  const caption = activeVoCaption(cut.voSegments, elapsed);
+  const caption = activeUserVoiceCaption(cut.userVoiceSegments, elapsed) || activeVoCaption(cut.voSegments, elapsed);
 
   const [trAnimKey, setTrAnimKey] = useState(0);
 

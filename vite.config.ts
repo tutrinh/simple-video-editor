@@ -15,6 +15,21 @@ const isolation = {
   "Cross-Origin-Embedder-Policy": "require-corp",
 };
 
+/** Local library and AI routes must work from the built app too. Vite's preview
+ * server has the same Connect middleware surface, but does not invoke
+ * configureServer hooks by default. Mirroring the hook gives `npm run serve`
+ * feature parity with development without exposing these local routes publicly. */
+function availableInPreview(plugin: Plugin): Plugin {
+  if (!plugin.configureServer) return plugin;
+  const configure = plugin.configureServer;
+  return {
+    ...plugin,
+    configurePreviewServer(server) {
+      return (configure as (server: unknown) => void)(server);
+    },
+  };
+}
+
 function readBody(req: NodeJS.ReadableStream): Promise<string> {
   return new Promise((resolve, reject) => {
     let d = "";
@@ -692,16 +707,16 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      productImportProxy(),
-      claudeProxy(),
-      codexProxy(),
-      elevenProxy(env.ELEVENLABS_API_KEY ?? ""),
-      defaultMusic(defaultMusicPath),
-      musicLibrary(musicDir),
-      overlayLibrary(overlaysDir),
-      audioLibrary(audioDir),
-      fontLibrary(fontsDir),
-      stickerLibrary(stickersDir),
+      availableInPreview(productImportProxy()),
+      availableInPreview(claudeProxy()),
+      availableInPreview(codexProxy()),
+      availableInPreview(elevenProxy(env.ELEVENLABS_API_KEY ?? "")),
+      availableInPreview(defaultMusic(defaultMusicPath)),
+      availableInPreview(musicLibrary(musicDir)),
+      availableInPreview(overlayLibrary(overlaysDir)),
+      availableInPreview(audioLibrary(audioDir)),
+      availableInPreview(fontLibrary(fontsDir)),
+      availableInPreview(stickerLibrary(stickersDir)),
     ],
     server: { headers: isolation },
     preview: { headers: isolation },

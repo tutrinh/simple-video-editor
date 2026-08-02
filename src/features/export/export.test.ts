@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canvasDims, buildScriptText, buildSrt, wrapCaption, sourceName, beatInputArgs, beatAudioStrategy, splitScreenAudioFallbackPlans, splitScreenAudioPlan } from "./export";
+import { canvasDims, outputCanvasDims, buildScriptText, buildSrt, wrapCaption, sourceName, beatInputArgs, beatAudioStrategy, splitScreenAudioFallbackPlans, splitScreenAudioPlan } from "./export";
 import type { Cut } from "../../domain/types";
 
 const cut: Cut = {
@@ -14,7 +14,14 @@ describe("canvasDims", () => {
   it("maps each aspect to 1080p canvas dims", () => {
     expect(canvasDims("16:9")).toEqual([1920, 1080]);
     expect(canvasDims("9:16")).toEqual([1080, 1920]);
+    expect(canvasDims("4:5")).toEqual([1080, 1350]);
     expect(canvasDims("1:1")).toEqual([1080, 1080]);
+  });
+  it("keeps each 720p output even-sized and aspect-correct", () => {
+    expect(outputCanvasDims("16:9", "720p")).toEqual([1280, 720]);
+    expect(outputCanvasDims("9:16", "720p")).toEqual([720, 1280]);
+    expect(outputCanvasDims("4:5", "720p")).toEqual([720, 900]);
+    expect(outputCanvasDims("1:1", "720p")).toEqual([720, 720]);
   });
 });
 

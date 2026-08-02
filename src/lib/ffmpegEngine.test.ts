@@ -56,4 +56,12 @@ describe("runIsolated multithreaded fallback", () => {
     expect(loadCalls.some((url) => url.includes("/ffmpeg-mt/"))).toBe(true);
     expect(loadCalls.some((url) => url.includes("/ffmpeg-st/"))).toBe(true);
   });
+
+  it("rejects an already-cancelled operation before loading an encoder", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { runIsolated } = await import("./ffmpegEngine");
+    await expect(runIsolated([], [], "out.mp4", undefined, 10, undefined, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(loadCalls).toEqual([]);
+  });
 });

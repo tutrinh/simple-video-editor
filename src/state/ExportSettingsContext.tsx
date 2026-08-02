@@ -47,6 +47,9 @@ export interface TitleLayerSettings {
 
 export interface ExportSettings {
   exportQuality: ExportQuality;
+  exportResolution: "720p" | "1080p";
+  exportFps: 24 | 30 | 60;
+  exportFormat: "mp4" | "webm";
   captionScale: number;
   captionOpacity: number;
   captionLineHeight: number;
@@ -168,6 +171,9 @@ import { EDITOR_DEFAULTS } from "../config/editorDefaults";
 
 const DEFAULTS: ExportSettings = {
   exportQuality: EDITOR_DEFAULTS.DEFAULT_EXPORT_QUALITY,
+  exportResolution: "1080p",
+  exportFps: 30,
+  exportFormat: "mp4",
   captionScale: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_SCALE,
   captionOpacity: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_OPACITY,
   captionLineHeight: EDITOR_DEFAULTS.CAPTIONS.DEFAULT_LINE_HEIGHT,

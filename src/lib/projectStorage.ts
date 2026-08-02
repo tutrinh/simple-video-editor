@@ -56,11 +56,60 @@ export interface SavedProjectMeta {
   updatedAt: number;
 }
 
+export interface RecoverySnapshotMeta extends SavedProjectMeta {
+  recoveryOf: string;
+}
+
+function transactionDone(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Browser storage write failed."));
+    transaction.onabort = () => reject(transaction.error ?? new Error("Browser storage write was cancelled."));
+  });
+}
+
 export async function saveProjectToStorage(state: ProjectState, projectId?: string): Promise<string> {
   const db = await openDB();
   const id = projectId || state.clips[0]?.id || "active-project";
   const title = state.title || "Untitled project";
   const updatedAt = Date.now();
+
+  // Preserve the previous coherent project record before overwriting it. Media
+  // blobs are content-addressed by Clip id, so snapshots remain lightweight.
+  const existingRecord: any = await new Promise((resolve) => {
+    const req = db.transaction("projects", "readonly").objectStore("projects").get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+  if (existingRecord?.stateJson) {
+    const snapshotId = `recovery:${id}:${existingRecord.updatedAt ?? updatedAt}`;
+    const snapshotTx = db.transaction("projects", "readwrite");
+    snapshotTx.objectStore("projects").put({
+      ...existingRecord,
+      id: snapshotId,
+      recoveryOf: id,
+      isRecovery: true,
+    });
+    await new Promise<void>((resolve) => {
+      snapshotTx.oncomplete = () => resolve();
+      snapshotTx.onerror = () => resolve();
+      snapshotTx.onabort = () => resolve();
+    });
+
+    const snapshots: any[] = await new Promise((resolve) => {
+      const req = db.transaction("projects", "readonly").objectStore("projects").getAll();
+      req.onsuccess = () => resolve((req.result ?? [])
+        .filter((record: any) => record.isRecovery && record.recoveryOf === id)
+        .sort((a: any, b: any) => b.updatedAt - a.updatedAt));
+      req.onerror = () => resolve([]);
+    });
+    if (snapshots.length > 5) {
+      const pruneTx = db.transaction("projects", "readwrite");
+      const pruneStore = pruneTx.objectStore("projects");
+      snapshots.slice(5).forEach((record) => pruneStore.delete(record.id));
+      await transactionDone(pruneTx);
+    }
+  }
 
   // 1. Save media Blobs to media_blobs object store
   const mediaTx = db.transaction("media_blobs", "readwrite");
@@ -76,6 +125,7 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
       });
     }
   }
+  await transactionDone(mediaTx);
 
   const musicTx = db.transaction("music_tracks", "readwrite");
   const musicStore = musicTx.objectStore("music_tracks");
@@ -83,6 +133,7 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
   // The IndexedDB store remains a migration source for older saved projects.
   if (state.musicTrack?.file && !state.musicTrack.fileName) musicStore.put({ projectId: id, fileBlob: state.musicTrack.file });
   else musicStore.delete(id);
+  await transactionDone(musicTx);
 
   // Custom fonts are app assets in public/fonts/. Projects retain only their
   // app-font:<filename> reference; the title_fonts store is legacy read-only.
@@ -93,6 +144,7 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
     for (const { key, file } of userVoiceFiles) {
       voiceStore.put({ key: `${id}:${key}`, audioBlob: file });
     }
+    await transactionDone(voiceTx);
   }
 
   // 2. Prepare serializable state without non-serializable File/Blob objects.
@@ -120,6 +172,7 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
   const projTx = db.transaction("projects", "readwrite");
   const projStore = projTx.objectStore("projects");
   projStore.put(projectRecord);
+  await transactionDone(projTx);
 
   if (typeof localStorage !== "undefined") {
     localStorage.setItem(ACTIVE_PROJECT_KEY, id);
@@ -143,6 +196,7 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
   });
 
   if (!projectRecord || !projectRecord.stateJson) return null;
+  const assetOwnerId = projectRecord.recoveryOf || id;
 
   const parsedState: ProjectState = JSON.parse(projectRecord.stateJson);
 
@@ -155,7 +209,7 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     if (!musicFile) {
       const musicTx = db.transaction("music_tracks", "readonly");
       const musicRecord: any = await new Promise((resolve) => {
-        const req = musicTx.objectStore("music_tracks").get(id);
+        const req = musicTx.objectStore("music_tracks").get(assetOwnerId);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => resolve(null);
       });
@@ -225,7 +279,7 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     const voiceStore = voiceTx.objectStore("user_voice");
     const results = await Promise.all(
       voiceKeys.map((key) => new Promise<{ key: string; blob: Blob | null }>((resolve) => {
-        const req = voiceStore.get(`${id}:${key}`);
+        const req = voiceStore.get(`${assetOwnerId}:${key}`);
         req.onsuccess = () => resolve({ key, blob: (req.result as { audioBlob?: Blob } | undefined)?.audioBlob ?? null });
         req.onerror = () => resolve({ key, blob: null });
       })),
@@ -284,7 +338,7 @@ export async function listSavedProjects(): Promise<SavedProjectMeta[]> {
     const req = projStore.getAll();
     req.onsuccess = () => {
       const results: any[] = req.result || [];
-      const metas = results.map((r) => ({
+      const metas = results.filter((r) => !r.isRecovery).map((r) => ({
         id: r.id,
         title: r.title || "Untitled project",
         clipCount: r.clipCount || 0,
@@ -296,6 +350,27 @@ export async function listSavedProjects(): Promise<SavedProjectMeta[]> {
     };
     req.onerror = () => resolve([]);
   });
+}
+
+export async function listRecoverySnapshots(projectId: string): Promise<RecoverySnapshotMeta[]> {
+  const db = await openDB();
+  const records: any[] = await new Promise((resolve) => {
+    const req = db.transaction("projects", "readonly").objectStore("projects").getAll();
+    req.onsuccess = () => resolve(req.result ?? []);
+    req.onerror = () => resolve([]);
+  });
+  return records
+    .filter((record) => record.isRecovery && record.recoveryOf === projectId)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, 5)
+    .map((record) => ({
+      id: record.id,
+      recoveryOf: record.recoveryOf,
+      title: record.title || "Untitled project",
+      clipCount: record.clipCount || 0,
+      beatCount: record.beatCount || 0,
+      updatedAt: record.updatedAt || 0,
+    }));
 }
 
 export async function deleteProjectFromStorage(id: string): Promise<void> {
@@ -333,6 +408,16 @@ export async function deleteProjectFromStorage(id: string): Promise<void> {
   }
 
   projStore.delete(id);
+  const recoveryRecords: any[] = await new Promise((resolve) => {
+    const req = db.transaction("projects", "readonly").objectStore("projects").getAll();
+    req.onsuccess = () => resolve(req.result ?? []);
+    req.onerror = () => resolve([]);
+  });
+  if (recoveryRecords.some((record) => record.recoveryOf === id)) {
+    const cleanupTx = db.transaction("projects", "readwrite");
+    const cleanupStore = cleanupTx.objectStore("projects");
+    recoveryRecords.filter((record) => record.recoveryOf === id).forEach((record) => cleanupStore.delete(record.id));
+  }
 
   if (typeof localStorage !== "undefined" && localStorage.getItem(ACTIVE_PROJECT_KEY) === id) {
     localStorage.removeItem(ACTIVE_PROJECT_KEY);

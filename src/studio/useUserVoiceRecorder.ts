@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { prepareVoiceStream } from "./userVoiceNoiseCleanup";
+import { createLiveTranscriber } from "./userVoiceTranscript";
 
 export type UserVoiceRecorderStatus = "idle" | "requesting" | "recording" | "stopping";
 
 export interface RecordedUserVoice {
   file: File;
   durationSec: number;
+  transcript: string;
 }
 
 const MIME_CANDIDATES = [
@@ -100,6 +102,7 @@ export function useUserVoiceRecorder(
   const [error, setError] = useState<string | null>(null);
   const [noiseCleanupActive, setNoiseCleanupActive] = useState(false);
   const [noiseCleanupWarning, setNoiseCleanupWarning] = useState<string | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState("");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const noiseCleanupRef = useRef<(() => void) | null>(null);
@@ -109,6 +112,8 @@ export function useUserVoiceRecorder(
   const cancelledRef = useRef(false);
   const requestAttemptRef = useRef(0);
   const mountedRef = useRef(true);
+  const transcriberRef = useRef<ReturnType<typeof createLiveTranscriber>>(null);
+  const transcriptRef = useRef("");
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
@@ -131,6 +136,8 @@ export function useUserVoiceRecorder(
     setNoiseCleanupActive(false);
     setNoiseCleanupWarning(null);
     setElapsedSec(0);
+    setLiveTranscript("");
+    transcriptRef.current = "";
     setStatus("requesting");
     cancelledRef.current = false;
 
@@ -189,11 +196,16 @@ export function useUserVoiceRecorder(
         if (!cancelledRef.current && blob.size > 0) {
           const stamp = new Date().toISOString().replace(/[:.]/g, "-");
           const file = new File([blob], `user-voice-${stamp}.${recordingExtension(blobType)}`, { type: blobType });
-          onCompleteRef.current({ file, durationSec });
+          onCompleteRef.current({ file, durationSec, transcript: transcriptRef.current.trim() });
         }
       };
 
       recorder.start(250);
+      transcriberRef.current = createLiveTranscriber((text) => {
+        transcriptRef.current = text;
+        if (mountedRef.current) setLiveTranscript(text);
+      });
+      transcriberRef.current?.start();
       startedAtRef.current = performance.now();
       setStatus("recording");
       onStarted?.();
@@ -218,12 +230,16 @@ export function useUserVoiceRecorder(
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "inactive") return;
     setStatus("stopping");
+    transcriberRef.current?.stop();
+    transcriberRef.current = null;
     recorder.requestData();
     recorder.stop();
   }, []);
 
   const cancel = useCallback(() => {
     cancelledRef.current = true;
+    transcriberRef.current?.stop();
+    transcriberRef.current = null;
     requestAttemptRef.current += 1;
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") recorder.stop();
@@ -245,6 +261,8 @@ export function useUserVoiceRecorder(
       cancelledRef.current = true;
       const recorder = recorderRef.current;
       if (recorder && recorder.state !== "inactive") recorder.stop();
+      transcriberRef.current?.stop();
+      transcriberRef.current = null;
       releaseStream();
       clearTimer();
     };
@@ -256,6 +274,8 @@ export function useUserVoiceRecorder(
     error,
     noiseCleanupActive,
     noiseCleanupWarning,
+    liveTranscript,
+    transcriptionAvailable: Boolean((globalThis as any).SpeechRecognition || (globalThis as any).webkitSpeechRecognition),
     start,
     stop,
     cancel,

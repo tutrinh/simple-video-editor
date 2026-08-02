@@ -6,6 +6,7 @@ export function useAutoSaveProject() {
   const { state, dispatch } = useProject();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [lastSavedTime, setLastSavedTime] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState("");
   const isInitialMount = useRef(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -47,10 +48,12 @@ export function useAutoSaveProject() {
       try {
         await saveProjectToStorage(state);
         setSaveStatus("saved");
+        setSaveError("");
         setLastSavedTime(Date.now());
       } catch (err) {
         console.error("Auto-save failed:", err);
         setSaveStatus("error");
+        setSaveError(err instanceof Error ? err.message : "Browser storage could not save this project.");
       }
     }, 1500);
 
@@ -61,5 +64,5 @@ export function useAutoSaveProject() {
     };
   }, [state]);
 
-  return { saveStatus, lastSavedTime };
+  return { saveStatus, lastSavedTime, saveError };
 }

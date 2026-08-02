@@ -90,7 +90,7 @@ function ReferenceVideo({ file, aspect }: { file?: File; aspect: Aspect }) {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const aspectClass = aspect === "9:16" ? "portrait" : aspect === "1:1" ? "square" : "landscape";
+  const aspectClass = aspect === "9:16" || aspect === "4:5" ? "portrait" : aspect === "1:1" ? "square" : "landscape";
 
   return (
     <div className="st-template-reference">

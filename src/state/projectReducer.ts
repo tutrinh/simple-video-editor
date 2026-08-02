@@ -31,6 +31,7 @@ export type Action =
   | { type: "REMOVE_CLIP"; id: string }
   | { type: "DELETE_CLIP_FROM_PROJECT"; id: string; placeholderIds?: string[] }
   | { type: "RENAME_CLIP"; id: string; name: string }
+  | { type: "RELINK_CLIP"; id: string; clip: Clip }
   | { type: "SET_NORMALIZED"; id: string; normalized: Blob }
   | { type: "SET_POSTER"; id: string; poster: string }
   | { type: "SET_DESCRIPTION"; id: string; description: ClipDescription }
@@ -153,6 +154,8 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     }
     case "RENAME_CLIP":
       return { ...state, clips: patchClip(state.clips, action.id, { name: action.name }) };
+    case "RELINK_CLIP":
+      return { ...state, clips: state.clips.map((clip) => clip.id === action.id ? { ...action.clip, id: clip.id } : clip) };
     case "SET_NORMALIZED":
       return { ...state, clips: patchClip(state.clips, action.id, { normalized: action.normalized }) };
     case "SET_POSTER":

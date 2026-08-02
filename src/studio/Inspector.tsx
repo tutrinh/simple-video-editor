@@ -45,6 +45,7 @@ import UnlockIcon from "../design-system/icons/UnlockIcon";
 import CopyIcon from "../design-system/icons/CopyIcon";
 import PlayIcon from "../design-system/icons/PlayIcon";
 import PauseIcon from "../design-system/icons/PauseIcon";
+import { deliveryMetrics, timeTranscript } from "./userVoiceTranscript";
 import { collectBeatTitleEntries, updateBeatTitleText } from "./beatTitleIndex";
 import {
   createUserVoiceEqGraph,
@@ -891,6 +892,30 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         <span>In {(selectedUserVoice.sourceStartSec ?? 0).toFixed(2)}s</span>
         <span>Drag handles · click waveform to scrub</span>
         <span>Out {((selectedUserVoice.sourceStartSec ?? 0) + selectedUserVoice.durationSec).toFixed(2)}s</span>
+      </div>
+      <div className="st-user-vo-transcript">
+        <div>
+          <strong>Automatic transcript</strong>
+          <Switch
+            checked={Boolean(selectedUserVoice.captionVisible)}
+            onChange={(captionVisible) => dispatch({ type: "UPDATE_USER_VOICE", segment: { ...selectedUserVoice, captionVisible } })}
+            aria-label="Show User VO transcript as captions"
+          />
+        </div>
+        <TextareaControl
+          value={selectedUserVoice.transcript ?? ""}
+          rows={3}
+          placeholder="No automatic transcript was available. Type or paste the spoken words here."
+          aria-label="User VO transcript"
+          onChange={(event) => {
+            const transcript = event.target.value;
+            dispatch({ type: "UPDATE_USER_VOICE", segment: { ...selectedUserVoice, transcript, transcriptWords: timeTranscript(transcript, selectedUserVoice.sourceDurationSec) } });
+          }}
+        />
+        {selectedUserVoice.transcript && (() => {
+          const metrics = deliveryMetrics(selectedUserVoice.transcript, selectedUserVoice.durationSec);
+          return <small>{metrics.wordCount} words · {metrics.wordsPerMinute} WPM · {metrics.fillerCount} filler{metrics.fillerCount === 1 ? "" : "s"}</small>;
+        })()}
       </div>
       <div className="st-user-vo-control">
         <span>Character</span>

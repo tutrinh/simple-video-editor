@@ -22,6 +22,7 @@ import { useProject } from "../state/ProjectContext";
 import { useUserVoiceRecorder } from "./useUserVoiceRecorder";
 import { useUserVoicePlayback } from "./useUserVoicePlayback";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "./beatAudio";
+import { activeUserVoiceCaption, timeTranscript } from "./userVoiceTranscript";
 
 
 
@@ -84,6 +85,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const [pos, setPos] = useState(0); // 0..1 within the beat window
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [previewAudioMuted, setPreviewAudioMuted] = useState(false);
+  const [safeZonesVisible, setSafeZonesVisible] = useState(false);
   const [noiseCleanupEnabled, setNoiseCleanupEnabled] = useState(true);
   const [recordingPreflightOpen, setRecordingPreflightOpen] = useState(false);
   const [cutTransportCommand, setCutTransportCommand] = useState<{ id: number; action: "restart" | "pause" } | null>(null);
@@ -293,7 +295,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const totalCutDuration = cut.beats.reduce((sum, item) => sum + Math.max(0.05, durationOf(item)), 0);
   useUserVoicePlayback(cut.userVoiceSegments, elapsedCutSec, mode === "beat" && playing && !previewAudioMuted);
 
-  const recorder = useUserVoiceRecorder(({ file, durationSec }) => {
+  const recorder = useUserVoiceRecorder(({ file, durationSec, transcript }) => {
     const scope = recordScopeRef.current;
     if (!scope) return;
     const playedDuration = Math.max(0.1, Math.min(durationSec, scope.maxDurationSec));
@@ -308,6 +310,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         startTimeSec: scope.startTimeSec,
         durationSec: playedDuration,
         sourceDurationSec: durationSec,
+        transcript,
+        transcriptWords: timeTranscript(transcript, durationSec),
+        captionVisible: Boolean(transcript),
         sourceStartSec: 0,
         volume: 1,
         levelDb: 0,
@@ -513,17 +518,18 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     }
     if (recorder.status === "recording" || recorder.status === "stopping") {
       return (
-        <ControlButton
-          className="st-btn st-preview-record-button"
-          onClick={stopRecording}
-          disabled={recorder.status === "stopping"}
-          title="Stop recording and add it to the User VO track. Preview audio is muted while recording."
-          style={{ color: "#fff", background: "#d43a36", borderColor: "#d43a36" }}
-        >
-          ■ {recorder.status === "stopping"
-            ? "Saving…"
-            : `Stop ${fmtClock(recorder.elapsedSec)} 🔇${recorder.noiseCleanupActive ? " · Clean" : ""}`}
-        </ControlButton>
+        <div className="st-preview-record-control">
+          <ControlButton
+            className="st-btn st-preview-record-button"
+            onClick={stopRecording}
+            disabled={recorder.status === "stopping"}
+            title="Stop recording and add it to the User VO track. Preview audio is muted while recording."
+            style={{ color: "#fff", background: "#d43a36", borderColor: "#d43a36" }}
+          >
+            ■ {recorder.status === "stopping" ? "Saving…" : `Stop ${fmtClock(recorder.elapsedSec)} 🔇${recorder.noiseCleanupActive ? " · Clean" : ""}`}
+          </ControlButton>
+          {recorder.liveTranscript && <span className="st-preview-record-hint" role="status">{recorder.liveTranscript}</span>}
+        </div>
       );
     }
     return (
@@ -621,7 +627,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
           </>
         )}
       >
-        <div style={{ borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ borderRadius: 12, overflow: "hidden", position: "relative" }}>
           <FinalPreview
             cut={cut}
             clips={clips}
@@ -643,10 +649,12 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             transportCommand={cutTransportCommand}
             muteAllAudio={previewAudioMuted}
           />
+          {safeZonesVisible && <div className="st-safe-zones" aria-label="Platform safe zones"><span>Keep text inside this area</span></div>}
         </div>
         <div className="st-transport">
           <span className="st-tc">Playing the whole cut</span>
           <span className="st-spacer" />
+          <ControlButton type="button" className="st-btn ghost" aria-pressed={safeZonesVisible} onClick={() => setSafeZonesVisible((visible) => !visible)}>Safe zones</ControlButton>
           {recordingControl()}
           <ModeSwitch mode={mode} setMode={setMode} disabled={recorder.status !== "idle"} />
         </div>
@@ -670,9 +678,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const kbFrames = kbMove ? kenBurnsKeyframes(kbMove) : null;
   const kbAnimName = `kb-${beat.id.replace(/[^a-z0-9]/gi, "")}`;
 
-  const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
+  const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "4:5" ? "4 / 5" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
   // Captions now come from the VO track by absolute cut time (decoupled from beats).
-  const caption = activeVoCaption(cut.voSegments, elapsedCutSec);
+  const caption = activeUserVoiceCaption(cut.userVoiceSegments, elapsedCutSec) || activeVoCaption(cut.voSegments, elapsedCutSec);
   // The Beat preview draws its caption as DOM, so it needs a CSS family rather than the
   // canvas face the Cut preview and the export register.
   const captionFamily = captionCssFamily(es.captionFontId);
@@ -790,6 +798,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
           Beat {String(cut.beats.indexOf(beat) + 1).padStart(2, "0")} · {clip?.name ?? "—"}
         </div>
         <div className="cap" style={captionFamily ? { fontFamily: captionFamily } : undefined}><span>{caption}</span></div>
+        {safeZonesVisible && <div className="st-safe-zones" aria-label="Platform safe zones"><span>Keep text inside this area</span></div>}
       </div>
       <div className="st-transport">
         <ControlButton
@@ -835,6 +844,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         </div>
         <span className="st-tc st-num">{fmtClock(beat.outSec)}</span>
         <span className="st-tsep" />
+        <ControlButton type="button" className="st-btn ghost" aria-pressed={safeZonesVisible} onClick={() => setSafeZonesVisible((visible) => !visible)}>Safe zones</ControlButton>
         {recordingControl()}
         <ModeSwitch mode={mode} setMode={setMode} disabled={recorder.status !== "idle"} />
       </div>

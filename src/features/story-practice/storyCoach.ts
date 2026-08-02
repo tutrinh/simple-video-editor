@@ -40,6 +40,14 @@ export interface CoachReview {
   practiceChallenge: string;
 }
 
+export interface StoryDeliverySample {
+  transcript: string;
+  durationSec: number;
+  wordsPerMinute: number;
+  fillerCount: number;
+  fillerWords: string[];
+}
+
 export type StoryCoach = (prompt: string, config: ClaudeConfig) => Promise<string>;
 
 export function emptyPracticeStory(): PracticeStory {
@@ -55,7 +63,7 @@ export function practiceStoryWordCount(story: PracticeStory): number {
   return Object.values(story.steps).join(" ").trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function buildStoryCoachPrompt(story: PracticeStory): string {
+export function buildStoryCoachPrompt(story: PracticeStory, delivery?: StoryDeliverySample): string {
   return [
     "You are an encouraging, exacting social-media storytelling Coach.",
     "Your job is to build the Author's skill and confidence, not replace their voice.",
@@ -68,6 +76,11 @@ export function buildStoryCoachPrompt(story: PracticeStory): string {
     `Audience: ${story.audience.trim() || "Not specified"}`,
     `Author's objective: ${story.objective.trim() || "Build an engaging social story"}`,
     ...STORY_STEPS.map((step) => `${step.label.toUpperCase()}: ${story.steps[step.id].trim() || "[EMPTY]"}`),
+    ...(delivery ? [
+      `SPOKEN PRACTICE TRANSCRIPT: ${delivery.transcript}`,
+      `DELIVERY SIGNALS: ${delivery.durationSec.toFixed(1)} seconds, ${delivery.wordsPerMinute} words per minute, ${delivery.fillerCount} filler words${delivery.fillerWords.length ? ` (${delivery.fillerWords.join(", ")})` : ""}.`,
+      "Ground deliveryTips and confidenceMessage in these measured signals. Do not diagnose vocal qualities that these signals cannot prove.",
+    ] : []),
     "Return ONLY valid JSON with this exact shape:",
     JSON.stringify({
       overallScore: 0,
@@ -147,9 +160,10 @@ export async function reviewPracticeStory(
   story: PracticeStory,
   config: ClaudeConfig,
   coach: StoryCoach = callClaude,
+  delivery?: StoryDeliverySample,
 ): Promise<CoachReview> {
   if (practiceStoryWordCount(story) < 20) throw new Error("Write at least 20 words before asking the Coach for feedback.");
-  return parseCoachReview(await coach(buildStoryCoachPrompt(story), config));
+  return parseCoachReview(await coach(buildStoryCoachPrompt(story, delivery), config));
 }
 
 const STORAGE_KEY = "vidstr_story_practice";

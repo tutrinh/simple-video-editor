@@ -122,16 +122,19 @@ export async function runIsolated(
   /** Receives ffmpeg's own log lines on SUCCESS too — otherwise they are only
    *  summarised on failure, which hides "filter did nothing" style problems. */
   onLog?: (lines: string[]) => void,
+  signal?: AbortSignal,
 ): Promise<Uint8Array<ArrayBuffer>> {
+  if (signal?.aborted) throw new DOMException("Operation cancelled", "AbortError");
   if (multithreadReady()) {
     try {
       return await serializeMt(() => {
         if (!multithreadReady()) {
           throw new Error("multithreaded FFmpeg disabled after an earlier session failure");
         }
-        return runWithCore(inputs, args, outputName, true, onProgress, Math.min(timeoutMs, 180_000), onLog);
+        return runWithCore(inputs, args, outputName, true, onProgress, Math.min(timeoutMs, 180_000), onLog, signal);
       });
     } catch (error) {
+      if (signal?.aborted) throw new DOMException("Operation cancelled", "AbortError");
       // A normal non-zero ffmpeg exit means the argv/input failed, not the core.
       // Preserve that diagnostic rather than doing the same expensive work twice.
       if (isFfmpegCommandFailure(error)) throw error;
@@ -141,7 +144,7 @@ export async function runIsolated(
       onProgress?.(0, "fallback-st");
     }
   }
-  return runWithCore(inputs, args, outputName, false, onProgress, timeoutMs, onLog);
+  return runWithCore(inputs, args, outputName, false, onProgress, timeoutMs, onLog, signal);
 }
 
 async function runWithCore(
@@ -152,7 +155,9 @@ async function runWithCore(
   onProgress: ((fraction: number, phase?: EnginePhase) => void) | undefined,
   timeoutMs: number,
   onLog: ((lines: string[]) => void) | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<Uint8Array<ArrayBuffer>> {
+  if (signal?.aborted) throw new DOMException("Operation cancelled", "AbortError");
   const urls = await coreUrls(multithreaded);
   const ff = new FFmpeg();
   const logs: string[] = [];
@@ -164,6 +169,12 @@ async function runWithCore(
   const loadTimeoutSec = Math.round(loadTimeoutMs / 1000);
   let loadTimeoutTimer: NodeJS.Timeout | null = null;
   let timeoutTimer: NodeJS.Timeout | null = null;
+  const abortPromise = new Promise<never>((_, reject) => {
+    signal?.addEventListener("abort", () => {
+      try { ff.terminate(); } catch {}
+      reject(new DOMException("Operation cancelled", "AbortError"));
+    }, { once: true });
+  });
 
   try {
     onProgress?.(0, multithreaded ? "loading-mt" : "loading-st");
@@ -177,7 +188,7 @@ async function runWithCore(
         reject(new Error(`FFmpeg core load timed out after ${loadTimeoutSec}s for ${outputName}`));
       }, loadTimeoutMs);
     });
-    await Promise.race([ff.load(urls), loadTimeoutPromise]);
+    await Promise.race([ff.load(urls), loadTimeoutPromise, abortPromise]);
     if (loadTimeoutTimer) clearTimeout(loadTimeoutTimer);
 
     for (const input of inputs) await ff.writeFile(input.name, input.data.slice());
@@ -195,9 +206,10 @@ async function runWithCore(
     });
     let code: number;
     try {
-      code = await Promise.race([ff.exec(args), timeoutPromise]);
+      code = await Promise.race([ff.exec(args), timeoutPromise, abortPromise]);
     } catch (err) {
       if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (signal?.aborted) throw new DOMException("Operation cancelled", "AbortError");
       const rawMsg = err instanceof Error ? err.message : String(err);
       if (timedOut || rawMsg.includes("timed out")) {
         throw new Error(`FFmpeg processing timed out after ${timeoutSec}s for ${outputName}`);

@@ -6,13 +6,17 @@ import {
   deleteProjectFromStorage,
   loadAllTemplates,
   deleteTemplate,
+  listRecoverySnapshots,
   type SavedProjectMeta,
+  type RecoverySnapshotMeta,
 } from "../lib/projectStorage";
 import { exportProjectFile, importProjectFile } from "../lib/projectPackager";
 import InspirationUploadModal from "./InspirationUploadModal";
 import TemplateApplyModal from "./TemplateApplyModal";
 import TemplateDetails from "./TemplateDetails";
 import type { ProjectTemplate } from "../domain/types";
+import { CLIP_FILE_ACCEPT, createClip } from "../features/ingest/ingest";
+import { projectHealthIssues } from "../lib/projectHealth";
 import { useExportSettings } from "../state/ExportSettingsContext";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import { ModalScrim, ModalSurface } from "../design-system/ModalPrimitives";
@@ -34,6 +38,7 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<"projects" | "templates">("projects");
   const [projects, setProjects] = useState<SavedProjectMeta[]>([]);
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+  const [recoveries, setRecoveries] = useState<Record<string, RecoverySnapshotMeta[]>>({});
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -43,6 +48,16 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null);
   const [showInspirationModal, setShowInspirationModal] = useState(false);
   const availableTemplates = listAvailableTemplates(templates);
+  const healthIssues = projectHealthIssues(state);
+
+  const relinkClip = async (clipId: string, file: File) => {
+    try {
+      const clip = await createClip(file);
+      dispatch({ type: "RELINK_CLIP", id: clipId, clip });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "That file could not be opened.");
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -56,6 +71,8 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
     try {
       const list = await listSavedProjects();
       setProjects(list);
+      const recoveryEntries = await Promise.all(list.map(async (project) => [project.id, await listRecoverySnapshots(project.id)] as const));
+      setRecoveries(Object.fromEntries(recoveryEntries));
     } catch (err) {
       console.error("Failed to list saved projects:", err);
     } finally {
@@ -86,6 +103,11 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRecover = async (snapshot: RecoverySnapshotMeta) => {
+    if (!confirm(`Restore “${snapshot.title}” to its save from ${new Date(snapshot.updatedAt).toLocaleString()}?`)) return;
+    await handleLoad(snapshot.id);
   };
 
   const handleDeleteConfirm = async () => {
@@ -211,6 +233,31 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
         {/* ── PROJECTS TAB ── */}
         {activeTab === "projects" && (
           <>
+            {healthIssues.length > 0 && (
+              <div className="st-project-health" role="alert">
+                <strong>{healthIssues.length} project item{healthIssues.length === 1 ? " needs" : "s need"} attention</strong>
+                {healthIssues.map((issue, index) => (
+                  <div key={`${issue.code}-${issue.clipId ?? index}`}>
+                    <span>{issue.message}</span>
+                    {issue.code === "missing-clip-media" && issue.clipId && (
+                      <label className="ui-button secondary small">
+                        Relink file
+                        <InputControl
+                          type="file"
+                          accept={CLIP_FILE_ACCEPT}
+                          style={{ display: "none" }}
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0];
+                            event.currentTarget.value = "";
+                            if (file) void relinkClip(issue.clipId!, file);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             {/* Action Toolbar */}
             <div
               style={{
@@ -315,6 +362,16 @@ export default function ProjectManagerModal({ isOpen, onClose }: Props) {
                       </div>
 
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        {(recoveries[p.id]?.length ?? 0) > 0 && (
+                          <ControlButton
+                            className="st-btn ghost"
+                            style={{ fontSize: 11, padding: "4px 8px" }}
+                            onClick={() => { void handleRecover(recoveries[p.id][0]); }}
+                            title={`Restore the previous save from ${new Date(recoveries[p.id][0].updatedAt).toLocaleString()}`}
+                          >
+                            Restore previous
+                          </ControlButton>
+                        )}
                         {!isActive && (
                           <ControlButton
                             className="st-btn primary"

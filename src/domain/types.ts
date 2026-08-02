@@ -1,7 +1,13 @@
 // The domain model spine. Names come straight from CONTEXT.md — keep them in
 // sync. Clip and Cut/Beat are load-bearing; everything else hangs off them.
 
-export type Aspect = "16:9" | "9:16" | "1:1";
+export type Aspect = "16:9" | "9:16" | "1:1" | "4:5";
+
+export interface TranscriptWord {
+  text: string;
+  startSec: number;
+  endSec: number;
+}
 
 /** The editorial job a Beat performs in the Story Spine. */
 export type StoryPurpose = "hook" | "problem" | "proof" | "payoff" | "cta";
@@ -476,6 +482,12 @@ export interface UserVoiceSegment {
   startTimeSec: number;
   durationSec: number;
   sourceDurationSec: number;
+  /** Browser-generated transcript, editable by the Author. */
+  transcript?: string;
+  /** Approximate word timings used for readable burned-in captions. */
+  transcriptWords?: TranscriptWord[];
+  /** Burn the transcript as captions during this recording. */
+  captionVisible?: boolean;
   /** Non-destructive in-point within the original recording. Defaults to 0. */
   sourceStartSec?: number;
   /** 0..1.5 playback volume (up to 150%). */

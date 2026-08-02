@@ -20,6 +20,9 @@ import Button from "../design-system/Button";
 import Badge from "../design-system/Badge";
 import { InputControl, SelectControl, TextareaControl } from "../design-system/ControlPrimitives";
 import { randomStoryExample } from "../features/story-practice/storyExamples";
+import { useUserVoiceRecorder } from "./useUserVoiceRecorder";
+import { deliveryMetrics } from "./userVoiceTranscript";
+import { getClipBlobUrl } from "../lib/blobUrlCache";
 
 const PLATFORM_OPTIONS: PracticeStory["platform"][] = ["TikTok", "Instagram Reels", "YouTube Shorts", "LinkedIn", "Other"];
 
@@ -50,6 +53,14 @@ export default function StoryPracticeView({ coach }: { coach?: StoryCoach }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [example, setExample] = useState(() => randomStoryExample());
+  const [spokenFile, setSpokenFile] = useState<File | null>(null);
+  const [spokenDuration, setSpokenDuration] = useState(0);
+  const [spokenTranscript, setSpokenTranscript] = useState("");
+  const recorder = useUserVoiceRecorder(({ file, durationSec, transcript }) => {
+    setSpokenFile(file);
+    setSpokenDuration(durationSec);
+    setSpokenTranscript(transcript);
+  });
   const wordCount = practiceStoryWordCount(story);
   const availableModels = provider === "codex" ? CODEX_MODEL_OPTIONS : MODEL_OPTIONS;
 
@@ -76,8 +87,8 @@ export default function StoryPracticeView({ coach }: { coach?: StoryCoach }) {
         ...(provider === "codex" ? { codexModel: model } : { model }),
       };
       const nextReview = coach
-        ? await reviewPracticeStory(story, config, coach)
-        : await reviewPracticeStory(story, config);
+        ? await reviewPracticeStory(story, config, coach, spokenTranscript.trim() ? { transcript: spokenTranscript, durationSec: spokenDuration, ...deliveryMetrics(spokenTranscript, spokenDuration) } : undefined)
+        : await reviewPracticeStory(story, config, undefined, spokenTranscript.trim() ? { transcript: spokenTranscript, durationSec: spokenDuration, ...deliveryMetrics(spokenTranscript, spokenDuration) } : undefined);
       setReview(nextReview);
       savePracticeSession(story, nextReview);
     } catch (caught) {
@@ -209,6 +220,37 @@ export default function StoryPracticeView({ coach }: { coach?: StoryCoach }) {
           </Button>
         </div>
         {wordCount < 20 && <small className="st-story-practice-hint">Write at least 20 words to receive useful coaching.</small>}
+      </section>
+
+      <section className="st-story-practice-section st-story-spoken-practice">
+        <header><div><strong>Practice out loud</strong><span>Record a delivery sample for pace, filler-word, and spoken-rhythm coaching.</span></div></header>
+        <div className="st-story-spoken-actions">
+          {recorder.status === "recording" || recorder.status === "stopping" ? (
+            <Button variant="danger" onClick={recorder.stop} disabled={recorder.status === "stopping"}>{recorder.status === "stopping" ? "Saving take…" : `Stop · ${Math.round(recorder.elapsedSec)}s`}</Button>
+          ) : (
+            <Button variant="secondary" onClick={() => { void recorder.start(); }}>Record practice take</Button>
+          )}
+          {!recorder.transcriptionAvailable && <small>Live transcription is unavailable in this browser; you can paste the transcript below.</small>}
+        </div>
+        {(recorder.liveTranscript || spokenTranscript || spokenFile) && (
+          <>
+            {spokenFile && <audio controls src={getClipBlobUrl(spokenFile) ?? undefined} />}
+            <TextareaControl
+              value={recorder.status === "recording" ? recorder.liveTranscript : spokenTranscript}
+              onChange={(event) => setSpokenTranscript(event.target.value)}
+              readOnly={recorder.status === "recording"}
+              rows={4}
+              aria-label="Spoken practice transcript"
+              placeholder="Your spoken transcript will appear here."
+            />
+            {spokenTranscript && (() => {
+              const metrics = deliveryMetrics(spokenTranscript, spokenDuration);
+              return <div className="st-story-delivery-metrics"><Badge>{metrics.wordsPerMinute} WPM</Badge><Badge>{metrics.wordCount} words</Badge><Badge tone={metrics.fillerCount > 3 ? "signal" : "positive"}>{metrics.fillerCount} fillers</Badge></div>;
+            })()}
+            {spokenTranscript && <Button variant="primary" onClick={() => { void analyze(); }} disabled={busy || wordCount < 20}>{busy ? "Coach is reviewing…" : "Analyze story + delivery"}</Button>}
+          </>
+        )}
+        {recorder.error && <div className="st-product-review-alert" role="alert">{recorder.error}</div>}
       </section>
 
       {review && (

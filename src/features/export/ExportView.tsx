@@ -24,6 +24,7 @@ import ChevronDownIcon from "../../design-system/icons/ChevronDownIcon";
 import PauseIcon from "../../design-system/icons/PauseIcon";
 import PlayIcon from "../../design-system/icons/PlayIcon";
 import SaveIcon from "../../design-system/icons/SaveIcon";
+import { publishReadiness, type PublishTarget } from "./publishReadiness";
 
 function download(name: string, blobOrText: Blob | string, type = "text/plain") {
   const blob = typeof blobOrText === "string" ? new Blob([blobOrText], { type }) : blobOrText;
@@ -70,7 +71,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   // Two-step confirm before overwriting the selected preset with the current settings.
   const [confirmSaveMod, setConfirmSaveMod] = useState(false);
   const {
-    exportQuality, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight, captionFontId,
+    exportQuality, exportResolution, exportFps, exportFormat, music, musicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, captionScale, captionOpacity, captionLineHeight, captionFontId,
   } = es;
   const activeMusic = state.musicTrack?.file ?? music;
   const activeMusicVolume = state.musicTrack ? musicTrackGain(state.musicTrack) : musicVolume;
@@ -82,6 +83,10 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   const [lastExportSec, setLastExportSec] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [renderedDelivery, setRenderedDelivery] = useState<{ resolution: "720p" | "1080p"; fps: 24 | 30 | 60; format: "mp4" | "webm" } | null>(null);
+  const [publishTarget, setPublishTarget] = useState<PublishTarget>("Instagram Reels");
+  const exportAbortRef = useRef<AbortController | null>(null);
   const [modelMsg, setModelMsg] = useState("");
   const [musicLib, setMusicLib] = useState<string[]>([]);
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>(ELEVEN_VOICES);
@@ -336,11 +341,16 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       return;
     }
 
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
     setVideoUrl("");
+    setVideoBlob(null);
+    setRenderedDelivery(null);
     setProgress(0);
     setStatusText("Initializing export…");
     setLastExportSec(null);
     const exportStart = Date.now();
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
     try {
       // Convert a UI title layer into an export-ready layer, loading the SAME
       // cached font bytes the preview uses (identical registered FontFace → pixel
@@ -396,7 +406,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       const { blob, timings } = await exportCut(
         cut!,
         clips,
-        { exportQuality, music: activeMusic, musicVolume: activeMusicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight, captionFontId },
+        { exportQuality, exportResolution, exportFps, exportFormat, signal: controller.signal, music: activeMusic, musicVolume: activeMusicVolume, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverVolume, voiceoverSpeed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, voiceoverLeadSec, voiceoverGapSec, title, beatTitles, captionScale, captionBgOpacity: captionOpacity, captionLineHeight, captionFontId },
 
         (p, status) => {
           setProgress(p);
@@ -405,6 +415,8 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       );
       const totalSec = Math.max(1, Math.round((Date.now() - exportStart) / 1000));
       setLastExportSec(totalSec);
+      setVideoBlob(blob);
+      setRenderedDelivery({ resolution: exportResolution, fps: exportFps, format: exportFormat });
       setVideoUrl(URL.createObjectURL(blob));
 
 
@@ -416,14 +428,36 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (controller.signal.aborted) setStatusText("Export cancelled");
+      else setError(e instanceof Error ? e.message : String(e));
     } finally {
+      exportAbortRef.current = null;
       setProgress(null);
     }
   }
 
+  async function shareExport() {
+    if (!videoBlob) return;
+    const format = renderedDelivery?.format ?? exportFormat;
+    const mime = format === "webm" ? "video/webm" : "video/mp4";
+    const file = new File([videoBlob], `${fileBase}.${format}`, { type: mime });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      await navigator.share({ title: state.title || "My video", files: [file] });
+      return;
+    }
+    download(file.name, videoBlob);
+  }
+
   const busy = progress !== null;
   const fileBase = (state.title || "highlight").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "highlight";
+  const publishChecks = publishReadiness({
+    target: publishTarget,
+    aspect: cut.aspect,
+    durationSec: cutDuration(cut),
+    hasCaptions: (cut.voSegments ?? []).some((segment) => segment.captionVisible !== false && segment.text.trim())
+      || (cut.userVoiceSegments ?? []).some((segment) => segment.captionVisible !== false && segment.transcript?.trim()),
+    hasAudio: Boolean(activeMusic || voiceover || (cut.userVoiceSegments ?? []).length),
+  });
 
   const previewLayers: PreviewTitleLayer[] = titleLayers.map((l) => {
     const fontObj = findFontById(l.fontId);
@@ -470,7 +504,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
           <span className="st-chip">{cut.beats.length} beat{cut.beats.length === 1 ? "" : "s"}</span>
           <span className="st-chip st-num">{cutDuration(cut).toFixed(1)}s</span>
           <span className="st-chip">{cut.aspect}</span>
-          <span className="st-chip">1080p</span>
+          <span className="st-chip">{exportResolution} · {exportFps} fps · {exportFormat.toUpperCase()}</span>
           <span className="st-chip">Burned-in captions</span>
 
           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--ink-2)", marginLeft: 6 }}>
@@ -504,6 +538,24 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
               (Lower CRF = Higher Quality)
             </span>
           </label>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-2)" }}>
+            Size
+            <select value={exportResolution} onChange={(event) => update({ exportResolution: event.target.value as "720p" | "1080p" })}>
+              <option value="720p">720p (faster)</option><option value="1080p">1080p</option>
+            </select>
+          </label>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-2)" }}>
+            Format
+            <select value={exportFormat} onChange={(event) => update({ exportFormat: event.target.value as "mp4" | "webm" })}>
+              <option value="mp4">MP4 (recommended)</option><option value="webm">WebM</option>
+            </select>
+          </label>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-2)" }}>
+            FPS
+            <select value={exportFps} onChange={(event) => update({ exportFps: Number(event.target.value) as 24 | 30 | 60 })}>
+              <option value={24}>24</option><option value={30}>30</option><option value={60}>60</option>
+            </select>
+          </label>
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -522,6 +574,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
           <button className="st-btn primary" style={{ padding: "8px 20px", fontSize: 13, minWidth: 140, justifyContent: "center" }} onClick={runExport} disabled={busy}>
             {busy ? "Exporting…" : videoUrl ? "Re-export video" : "Export video"}
           </button>
+          {busy && <button className="st-btn danger" type="button" onClick={() => exportAbortRef.current?.abort()}>Cancel export</button>}
         </div>
       </div>
 
@@ -640,7 +693,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--good)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <span>Export Ready</span>
-                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(107, 203, 119, 0.15)", color: "var(--good)" }}>1080p MP4</span>
+                  <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, background: "rgba(107, 203, 119, 0.15)", color: "var(--good)" }}>{renderedDelivery?.resolution} · {renderedDelivery?.fps} fps · {renderedDelivery?.format.toUpperCase()}</span>
                   {lastExportSec !== null && (
                     <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: "var(--panel-3)", color: "var(--ink-2)", display: "inline-flex", alignItems: "center", gap: 3 }}>
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -649,16 +702,23 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
                   )}
                 </div>
 
-                <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{fileBase}.mp4</div>
+                <div style={{ fontSize: 11, color: "var(--ink-2)", marginTop: 2 }}>{fileBase}.{renderedDelivery?.format}</div>
+                <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+                  <select aria-label="Publishing destination" value={publishTarget} onChange={(event) => setPublishTarget(event.target.value as PublishTarget)}>
+                    <option>TikTok</option><option>Instagram Reels</option><option>YouTube Shorts</option><option>Instagram Feed</option>
+                  </select>
+                  {publishChecks.map((check) => <span key={check.label} title={check.detail} style={{ fontSize: 10, color: check.ready ? "var(--good)" : "var(--warning)" }}>{check.ready ? "✓" : "!"} {check.label}</span>)}
+                </div>
               </div>
               <button className="st-btn ghost" style={{ padding: "8px 14px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }} onClick={runExport} disabled={busy} title="Re-run video export pipeline">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                 Re-export
               </button>
-              <a className="st-btn primary" style={{ textDecoration: "none", padding: "10px 20px", fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 8 }} href={videoUrl} download={`${fileBase}.mp4`}>
+              <a className="st-btn primary" style={{ textDecoration: "none", padding: "10px 20px", fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 8 }} href={videoUrl} download={`${fileBase}.${renderedDelivery?.format}`}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Download MP4
+                Download {renderedDelivery?.format.toUpperCase()}
               </a>
+              <button className="st-btn ghost" type="button" onClick={() => void shareExport()} title="Open your device share sheet, or download when sharing is unavailable">Share / publish</button>
             </div>
           )}
         </div>
