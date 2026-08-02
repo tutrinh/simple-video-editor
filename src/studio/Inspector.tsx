@@ -2262,6 +2262,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   • {({
                     "v2-stacked": "Top / Bottom",
                     "v2-side": "Left / Right",
+                    "3-row": "3 Rows",
                     "3-col": "3 Columns",
                     "4-grid": "2×2 Grid",
                   } as Record<string, string>)[b.splitScreen.layout]}
@@ -2292,6 +2293,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <option value="none">Single clip (none)</option>
               <option value="v2-stacked">Top / bottom stack (2)</option>
               <option value="v2-side">Left / right side (2)</option>
+              <option value="3-row">3-row stack (3)</option>
               <option value="3-col">3-column split (3)</option>
               <option value="4-grid">2×2 grid (4)</option>
             </SelectControl>

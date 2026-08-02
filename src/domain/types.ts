@@ -152,6 +152,7 @@ export type SplitLayoutType =
   | "none"
   | "v2-stacked" // 2 rows (top / bottom)
   | "v2-side"    // 2 columns (left / right)
+  | "3-row"      // 3 rows (top / middle / bottom)
   | "3-col"      // 3 columns
   | "4-grid";    // 2x2 quad grid
 

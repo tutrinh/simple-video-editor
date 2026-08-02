@@ -6,6 +6,7 @@ describe("splitScreenCanvas", () => {
     expect(getSlotCountForLayout("none")).toBe(1);
     expect(getSlotCountForLayout("v2-stacked")).toBe(2);
     expect(getSlotCountForLayout("v2-side")).toBe(2);
+    expect(getSlotCountForLayout("3-row")).toBe(3);
     expect(getSlotCountForLayout("3-col")).toBe(3);
     expect(getSlotCountForLayout("4-grid")).toBe(4);
   });
@@ -43,5 +44,16 @@ describe("splitScreenCanvas", () => {
     expect(css.display).toBe("grid");
     expect(css.gridTemplateColumns).toBe("1fr 1fr");
     expect(css.gridTemplateRows).toBe("1fr 1fr");
+  });
+
+  it("renders and exports a three-row vertical stack", () => {
+    const css = getSplitLayoutCss("3-row");
+    expect(css.gridTemplateColumns).toBe("1fr");
+    expect(css.gridTemplateRows).toBe("1fr 1fr 1fr");
+
+    const slots = ["c1", "c2", "c3"].map((clipId) => ({ clipId, inSec: 0 }));
+    const fg = buildSplitScreenFilterGraph({ layout: "3-row", slots }, 1080, 1920);
+    expect(fg.filterGraph).toContain("scale=1080:640:force_original_aspect_ratio=increase:flags=fast_bilinear,crop=1080:640[split_slot_0]");
+    expect(fg.filterGraph).toContain("[split_slot_0][split_slot_1][split_slot_2]vstack=inputs=3[v_split]");
   });
 });

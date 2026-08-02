@@ -8,6 +8,7 @@ export function getSlotCountForLayout(layout: SplitLayoutType): number {
     case "v2-stacked":
     case "v2-side":
       return 2;
+    case "3-row":
     case "3-col":
       return 3;
     case "4-grid":
@@ -89,6 +90,8 @@ export function getSplitLayoutCss(layout: SplitLayoutType): React.CSSProperties 
       return { display: "grid", gridTemplateRows: "1fr 1fr", gridTemplateColumns: "1fr", width: "100%", height: "100%" };
     case "v2-side":
       return { display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr", width: "100%", height: "100%" };
+    case "3-row":
+      return { display: "grid", gridTemplateRows: "1fr 1fr 1fr", gridTemplateColumns: "1fr", width: "100%", height: "100%" };
     case "3-col":
       return { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gridTemplateRows: "1fr", width: "100%", height: "100%" };
     case "4-grid":
@@ -121,6 +124,7 @@ export function buildSplitScreenFilterGraph(
   let rows = 1;
   if (layout === "v2-stacked") { cols = 1; rows = 2; }
   else if (layout === "v2-side") { cols = 2; rows = 1; }
+  else if (layout === "3-row") { cols = 1; rows = 3; }
   else if (layout === "3-col") { cols = 3; rows = 1; }
   else if (layout === "4-grid") { cols = 2; rows = 2; }
 
@@ -156,6 +160,8 @@ export function buildSplitScreenFilterGraph(
     chains.push(`${inputLabels.join("")}vstack=inputs=2[v_split]`);
   } else if (layout === "v2-side") {
     chains.push(`${inputLabels.join("")}hstack=inputs=2[v_split]`);
+  } else if (layout === "3-row") {
+    chains.push(`${inputLabels.join("")}vstack=inputs=3[v_split]`);
   } else if (layout === "3-col") {
     chains.push(`${inputLabels.join("")}hstack=inputs=3[v_split]`);
   } else if (layout === "4-grid") {
@@ -168,4 +174,3 @@ export function buildSplitScreenFilterGraph(
     outputLabel: "[v_split]",
   };
 }
-
