@@ -55,6 +55,16 @@ beforeEach(installTimelineTestEnv);
 afterEach(cleanup);
 
 describe("music cue interaction", () => {
+  it("keeps the music menu in the lane header above the waveform", async () => {
+    const { container } = render(<ProjectProvider><Harness /></ProjectProvider>);
+    await waitFor(() => expect(container.querySelector(".st-music-track-controls")).not.toBeNull());
+
+    const controls = container.querySelector(".st-music-track-controls")!;
+    const musicLane = container.querySelector(".st-music-lane")!;
+    expect(controls.closest(".ui-timeline-lane-canvas")).toBeNull();
+    expect(controls.closest("header")).toBe(musicLane.querySelector(":scope > header"));
+  });
+
   it("selecting a cue stays non-destructive across remove and re-add", async () => {
     const { container } = render(<ProjectProvider><Harness /></ProjectProvider>);
     await waitFor(() => expect(container.querySelector(".st-waveform-cue")).not.toBeNull());
@@ -66,7 +76,7 @@ describe("music cue interaction", () => {
     expect(screen.getByLabelText("cut duration").textContent).toBe("4");
     expect(screen.getByRole("button", { name: /Set Beat end/ })).toBeTruthy();
 
-    fireEvent.click(screen.getByTitle("Remove music track"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete music" }));
     expect(screen.getByLabelText("cut duration").textContent).toBe("4");
 
     fireEvent.click(screen.getByRole("button", { name: "Re-add music" }));

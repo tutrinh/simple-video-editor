@@ -53,6 +53,31 @@ The coherent narrative arc the editor discovers across the Clips. Discovered
 from clip content by default; may be steered by an author-supplied Direction.
 _Avoid_: narrative, plot
 
+**Practice Story**:
+An Author-written or pasted story used for rehearsal and coaching, independent
+of the Project's generated Story and Cut. Reviewing one never changes the Cut
+unless the Author later copies material into it.
+_Avoid_: Story, Script, draft Cut, prompt
+
+**Coach**:
+The AI when it evaluates a Practice Story and teaches the Author how to improve
+it. Distinct from the Writer, which drafts a Script; the Coach diagnoses,
+explains, suggests, and assigns a next practice challenge.
+_Avoid_: Writer, generator, critic, grader
+
+**Story Step**:
+One structural job inside a Practice Story: Hook, Beginning, Problem, Journey,
+Resolution, or Ending. Problem + Journey + Resolution make the story's middle;
+the steps are coaching lenses, not Cut Beats and not a required formula.
+_Avoid_: Beat Purpose, Beat, chapter, scene
+
+**Coach Review**:
+The Coach's structured response to a Practice Story: overall and per-step
+scores, strengths, the highest-leverage improvement, concrete suggestions,
+example rewrites, and a next practice challenge. It builds skill rather than
+silently replacing the Author's voice.
+_Avoid_: analysis, grade, generated story, verdict
+
 **Direction**:
 An optional author-supplied, free-text steer for the Story's angle and emphasis
 ("build the tension, save the best for last"). The editor is a curator by

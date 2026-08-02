@@ -39,6 +39,7 @@ import { pendingDeletionForSelection, type PendingTrackDeletion, type TrackSegme
 
 const ProductReviewDrawer = lazy(() => import("./ProductReviewDrawer"));
 const MotivationalStoryDrawer = lazy(() => import("./MotivationalStoryDrawer"));
+const StoryPracticeDrawer = lazy(() => import("./StoryPracticeDrawer"));
 
 export default function StudioApp() {
   const { state, dispatch } = useProject();
@@ -96,6 +97,8 @@ export default function StudioApp() {
   const [productReviewMounted, setProductReviewMounted] = useState(false);
   const [motivationalStoryOpen, setMotivationalStoryOpen] = useState(false);
   const [motivationalStoryMounted, setMotivationalStoryMounted] = useState(false);
+  const [storyPracticeOpen, setStoryPracticeOpen] = useState(false);
+  const [storyPracticeMounted, setStoryPracticeMounted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [clipDragOver, setClipDragOver] = useState(false);
   const [editorHovered, setEditorHovered] = useState(false);
@@ -448,6 +451,10 @@ export default function StudioApp() {
     setAiStoryMounted(false);
     setProductReviewOpen(false);
     setProductReviewMounted(false);
+    setMotivationalStoryOpen(false);
+    setMotivationalStoryMounted(false);
+    setStoryPracticeOpen(false);
+    setStoryPracticeMounted(false);
   }
 
   return (
@@ -459,23 +466,34 @@ export default function StudioApp() {
         onOpenAiStory={() => {
           setAiStoryMounted(true);
           setProductReviewOpen(false);
+          setMotivationalStoryOpen(false);
+          setStoryPracticeOpen(false);
           setAiStoryOpen(true);
         }}
         onOpenProductReview={() => {
           setProductReviewMounted(true);
           setAiStoryOpen(false);
           setMotivationalStoryOpen(false);
+          setStoryPracticeOpen(false);
           setProductReviewOpen(true);
         }}
         onOpenMotivationalStory={() => {
           setMotivationalStoryMounted(true);
           setAiStoryOpen(false);
           setProductReviewOpen(false);
+          setStoryPracticeOpen(false);
           setMotivationalStoryOpen(true);
+        }}
+        onOpenStoryPractice={() => {
+          setStoryPracticeMounted(true);
+          setAiStoryOpen(false);
+          setProductReviewOpen(false);
+          setMotivationalStoryOpen(false);
+          setStoryPracticeOpen(true);
         }}
       />
 
-      <WorkspaceMain className={"st-main" + (clipBinCollapsed ? " clips-collapsed" : "") + (aiStoryOpen || productReviewOpen || motivationalStoryOpen ? " drawer-open" : "")}>
+      <WorkspaceMain className={"st-main" + (clipBinCollapsed ? " clips-collapsed" : "") + (aiStoryOpen || productReviewOpen || motivationalStoryOpen || storyPracticeOpen ? " drawer-open" : "")}>
         <ClipBin
           usedClipIds={usedClipIds}
           selectedClipId={selectedClip?.id ?? null}
@@ -610,7 +628,7 @@ export default function StudioApp() {
           voFit={voFit}
         />
 
-        {(aiStoryMounted || productReviewMounted || motivationalStoryMounted) && (
+        {(aiStoryMounted || productReviewMounted || motivationalStoryMounted || storyPracticeMounted) && (
           <div className="st-creation-drawer-stack">
             {aiStoryMounted && <AiStoryDrawer open={aiStoryOpen} onClose={() => setAiStoryOpen(false)} />}
             {productReviewMounted && (
@@ -634,6 +652,14 @@ export default function StudioApp() {
                     selectBeatFromUser(firstBeatId);
                     setMotivationalStoryOpen(false);
                   }}
+                />
+              </Suspense>
+            )}
+            {storyPracticeMounted && (
+              <Suspense fallback={<div className="st-creation-drawer-loading" role="status">Loading Story Practice…</div>}>
+                <StoryPracticeDrawer
+                  open={storyPracticeOpen}
+                  onClose={() => setStoryPracticeOpen(false)}
                 />
               </Suspense>
             )}

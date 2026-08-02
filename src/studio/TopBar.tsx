@@ -29,6 +29,7 @@ interface Props {
   onOpenAiStory: () => void;
   onOpenProductReview: () => void;
   onOpenMotivationalStory?: () => void;
+  onOpenStoryPractice?: () => void;
 }
 
 export default function TopBar({
@@ -38,6 +39,7 @@ export default function TopBar({
   onOpenAiStory,
   onOpenProductReview,
   onOpenMotivationalStory,
+  onOpenStoryPractice,
 }: Props) {
   const { state, dispatch } = useProject();
   const { theme, toggleTheme } = useTheme();
@@ -142,6 +144,17 @@ export default function TopBar({
       )}
 
       <div className="st-spacer" />
+
+      {onOpenStoryPractice && (
+        <Button
+          variant="quiet"
+          size="small"
+          onClick={onOpenStoryPractice}
+          title="Practice a social story and receive structured AI coaching"
+        >
+          Story Practice
+        </Button>
+      )}
 
       <Button
         variant="quiet"

@@ -25,6 +25,13 @@ export async function fetchMusicFile(fileName: string): Promise<File> {
   return new File([blob], fileName, { type: blob.type || "audio/mpeg" });
 }
 
+/** Permanently remove one audio file from the app-wide Music library. */
+export async function deleteMusic(fileName: string): Promise<void> {
+  const response = await fetch(musicFileUrl(fileName), { method: "DELETE" });
+  const data = (await response.json().catch(() => ({}))) as { error?: string };
+  if (!response.ok || data.error) throw new Error(data.error ?? `Music library delete failed (${response.status})`);
+}
+
 /** Persist audio-only bytes in MUSIC_DIR and return the safe stored filename. */
 export async function uploadMusic(file: File): Promise<string> {
   const response = await fetch(`/api/music/upload?name=${encodeURIComponent(file.name)}`, {

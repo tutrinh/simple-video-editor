@@ -20,6 +20,7 @@ import { beatPosterBg } from "../lib/beatPosterCache";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import CopyIcon from "../design-system/icons/CopyIcon";
 import CloseIcon from "../design-system/icons/CloseIcon";
+import DeleteIcon from "../design-system/icons/DeleteIcon";
 import SplitClipPickerModal from "./SplitClipPickerModal";
 import {
   anchoredScrollLeft,
@@ -846,6 +847,11 @@ export default function Timeline({
                 busy={musicImport !== null}
                 onPick={(fileName) => { void selectMusicFromLibrary(fileName); }}
                 onImport={(file) => { void importMusicTrack(file); }}
+                onDelete={(fileName) => {
+                  if (musicTrack?.fileName !== fileName) return;
+                  setSelectedMusicCueSec(null);
+                  dispatch({ type: "REMOVE_MUSIC_TRACK" });
+                }}
                 onClose={() => setMusicPickerOpen(false)}
               />
             )}
@@ -1157,32 +1163,7 @@ export default function Timeline({
                 className="st-music-lane"
                 label="Music"
                 hint={`${musicTrack.sourceKind === "video-audio" ? "Audio extracted from video" : "Audio track"} · click a cue to select it, then apply it to a Beat`}
-              >
-                <TimelineLaneCanvas className="st-music-canvas" style={{ height: 54 }}>
-                  {beats.map((beat, index) => index === 0 ? null : (
-                    <TimelineDivider key={beat.id} className="st-vo-divider" style={{ left: `${(beatStarts[index] / totalDur) * 100}%` }} />
-                  ))}
-                  <div
-                    className="st-music-waveform"
-                    style={{ width: `${Math.max(1, (musicTrack.durationSec / totalDur) * 100)}%` }}
-                    title={`${musicTrack.name} · ${fmtSecs(musicTrack.durationSec)} · ${musicTrack.cueMarkers.length} cues`}
-                  >
-                    <Waveform
-                      bars={downsampleWaveform(musicTrack.waveform, 36).map((amplitude) => ({ amplitude, tone: "safe" as const }))}
-                      variant="timeline"
-                      ariaLabel={`${musicTrack.name} waveform with ${musicTrack.cueMarkers.length} edit cues`}
-                      markers={musicTrack.cueMarkers.map((marker) => ({
-                        pct: (marker.timeSec / musicTrack.durationSec) * 100,
-                        strength: marker.strength,
-                        active: selectedMusicCueSec === marker.timeSec,
-                        label: `Cue at ${fmtSecs(marker.timeSec)}. Select this cue.`,
-                        onActivate: () => {
-                          setMusicError("");
-                          setSelectedMusicCueSec(marker.timeSec);
-                        },
-                      }))}
-                    />
-                  </div>
+                actions={(
                   <div className="st-music-track-controls">
                     <span title={musicTrack.name}>{musicTrack.name}</span>
                     <InputControl
@@ -1220,15 +1201,43 @@ export default function Timeline({
                     )}
                     <ControlButton
                       type="button"
+                      className="st-music-delete"
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={() => {
                         setSelectedMusicCueSec(null);
                         dispatch({ type: "REMOVE_MUSIC_TRACK" });
                       }}
-                      title="Remove music track"
+                      title="Delete music from this project"
                     >
-                      <CloseIcon size={10} />
+                      <DeleteIcon size={10} /> Delete music
                     </ControlButton>
+                  </div>
+                )}
+              >
+                <TimelineLaneCanvas className="st-music-canvas" style={{ height: 54 }}>
+                  {beats.map((beat, index) => index === 0 ? null : (
+                    <TimelineDivider key={beat.id} className="st-vo-divider" style={{ left: `${(beatStarts[index] / totalDur) * 100}%` }} />
+                  ))}
+                  <div
+                    className="st-music-waveform"
+                    style={{ width: `${Math.max(1, (musicTrack.durationSec / totalDur) * 100)}%` }}
+                    title={`${musicTrack.name} · ${fmtSecs(musicTrack.durationSec)} · ${musicTrack.cueMarkers.length} cues`}
+                  >
+                    <Waveform
+                      bars={downsampleWaveform(musicTrack.waveform, 36).map((amplitude) => ({ amplitude, tone: "safe" as const }))}
+                      variant="timeline"
+                      ariaLabel={`${musicTrack.name} waveform with ${musicTrack.cueMarkers.length} edit cues`}
+                      markers={musicTrack.cueMarkers.map((marker) => ({
+                        pct: (marker.timeSec / musicTrack.durationSec) * 100,
+                        strength: marker.strength,
+                        active: selectedMusicCueSec === marker.timeSec,
+                        label: `Cue at ${fmtSecs(marker.timeSec)}. Select this cue.`,
+                        onActivate: () => {
+                          setMusicError("");
+                          setSelectedMusicCueSec(marker.timeSec);
+                        },
+                      }))}
+                    />
                   </div>
                 </TimelineLaneCanvas>
               </TimelineLane>

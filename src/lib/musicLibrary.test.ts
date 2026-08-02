@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchMusicFile, fetchMusicList, musicFileUrl, uploadMusic } from "./musicLibrary";
+import { deleteMusic, fetchMusicFile, fetchMusicList, musicFileUrl, uploadMusic } from "./musicLibrary";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -9,6 +9,9 @@ describe("app-wide Music library", () => {
       const url = String(input);
       if (url === "/api/music/list") {
         return { ok: true, json: async () => ({ files: ["shared.wav"] }) };
+      }
+      if (url === "/api/music/file?name=shared.wav" && init?.method === "DELETE") {
+        return { ok: true, status: 200, json: async () => ({ ok: true, name: "shared.wav" }) };
       }
       if (url === "/api/music/file?name=shared.wav") {
         return { ok: true, blob: async () => new Blob([new Uint8Array([1, 2, 3])], { type: "audio/wav" }) };
@@ -27,5 +30,7 @@ describe("app-wide Music library", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/music/file?name=shared.wav", { cache: "no-store" });
     expect(await uploadMusic(file)).toBe("shared.wav");
     expect(fetchMock.mock.calls.at(-1)?.[1]).toMatchObject({ method: "POST", body: file });
+    await deleteMusic("shared.wav");
+    expect(fetchMock.mock.calls.at(-1)?.[1]).toMatchObject({ method: "DELETE" });
   });
 });

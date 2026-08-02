@@ -384,7 +384,18 @@ function musicLibrary(dir: string): Plugin {
           }
           return;
         }
-        if (u.pathname === "/file") {
+        if (req.method === "DELETE" && u.pathname === "/file") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !AUDIO_RE.test(name)) return sendJson(400, { error: "invalid or unsupported music filename" });
+          try {
+            rmSync(join(dir, name));
+            sendJson(200, { ok: true, name });
+          } catch {
+            sendJson(404, { error: "music file not found" });
+          }
+          return;
+        }
+        if (req.method === "GET" && u.pathname === "/file") {
           const name = basename(u.searchParams.get("name") ?? "");
           if (!dir || !name || !AUDIO_RE.test(name)) { res.statusCode = 400; res.end(); return; }
           try {

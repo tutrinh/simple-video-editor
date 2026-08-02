@@ -70,8 +70,8 @@ export function TimelineCanvas({ className, ...props }: HTMLAttributes<HTMLDivEl
   return <div className={classes("ui-timeline-canvas", className)} {...props} />;
 }
 
-export function TimelineLane({ label, hint, children, className }: { label: ReactNode; hint?: string; children: ReactNode; className?: string }) {
-  return <section className={classes("ui-timeline-lane", className)}><header><strong>{label}</strong>{hint && <span>{hint}</span>}</header>{children}</section>;
+export function TimelineLane({ label, hint, actions, children, className }: { label: ReactNode; hint?: string; actions?: ReactNode; children: ReactNode; className?: string }) {
+  return <section className={classes("ui-timeline-lane", className)}><header><strong>{label}</strong>{hint && <span>{hint}</span>}{actions && <div className="ui-timeline-lane-actions">{actions}</div>}</header>{children}</section>;
 }
 
 export function TimelineLaneCanvas({ canvasRef, className, ...props }: HTMLAttributes<HTMLDivElement> & { canvasRef?: Ref<HTMLDivElement> }) {
