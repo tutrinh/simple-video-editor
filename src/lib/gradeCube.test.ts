@@ -83,15 +83,20 @@ function sampleTable(table: number[], x: number): number {
 
 function evalSvgPath(filter: string, rgb: Rgb): Rgb {
   const svg = decode(filter);
-  const tables = ["feFuncR", "feFuncG", "feFuncB"].map((t) => tableOf(svg, t));
+  const transferBlocks = [...svg.matchAll(/<feComponentTransfer>(.*?)<\/feComponentTransfer>/g)].map((m) => m[1]);
+  const tablesFor = (block: string) => ["feFuncR", "feFuncG", "feFuncB"].map((t) => tableOf(block, t));
+  const firstTables = tablesFor(transferBlocks[0]);
   const m = svg.match(/<feColorMatrix type="matrix" values="([^"]+)"/)![1].split(" ").map(Number);
-  const c = rgb.map((v, i) => sampleTable(tables[i], v));
+  const c = rgb.map((v, i) => sampleTable(firstTables[i], v));
   const clamp = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n);
-  return [
+  const matrixOut: Rgb = [
     clamp(m[0] * c[0] + m[1] * c[1] + m[2] * c[2] + m[4]),
     clamp(m[5] * c[0] + m[6] * c[1] + m[7] * c[2] + m[9]),
     clamp(m[10] * c[0] + m[11] * c[1] + m[12] * c[2] + m[14]),
   ];
+  if (transferBlocks.length < 2) return matrixOut;
+  const finalTables = tablesFor(transferBlocks[1]);
+  return matrixOut.map((v, i) => sampleTable(finalTables[i], v)) as Rgb;
 }
 
 describe("preview/export drift guard", () => {
@@ -113,6 +118,7 @@ describe("preview/export drift guard", () => {
     ["shadows + highlights opposed", { shadows: 60, highlights: -60 }],
     ["teal/amber film look", { contrast: 22, saturation: 12, shadowWarmth: -55, highlightWarmth: 60, highlightTint: -12 }],
     ["full panel", { exposure: 12, contrast: 18, shadows: 40, highlights: -35, saturation: 20, warmth: 25, shadowWarmth: -30, highlightWarmth: 35 }],
+    ["cotton candy Colorize", { colorize: { shadowColor: "#75c9ff", highlightColor: "#ffabd8", intensity: 42 } }],
   ];
 
   // The tables quantise the curve to CURVE_SAMPLES steps, so the SVG path can

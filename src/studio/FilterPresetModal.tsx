@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { getAllFilterPresets, saveCustomPreset, deleteCustomPreset, type FilterPreset } from "../lib/customPresets";
 import type { ColorAdjustments } from "../domain/types";
+import type { ColorizeSettings } from "../domain/types";
 import { sliderTrackStyle } from "./util";
+import ColorizeControl from "./ColorizeControl";
 
 import { useSettings } from "../state/SettingsContext";
 import { useProject } from "../state/ProjectContext";
@@ -212,6 +214,12 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
     }
   };
 
+  const handleColorizeChange = (colorize: ColorizeSettings) => {
+    const nextAdj = { ...fineTuneAdj, colorize };
+    setFineTuneAdj(nextAdj);
+    if (activeFilterId) onSelectFilter(activeFilterId, intensity / 100, nextAdj);
+  };
+
   const handleSaveCustom = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPresetName.trim()) return;
@@ -407,6 +415,11 @@ export default function FilterPresetModal({ activeFilterId, activeIntensity = 1,
                   gap: 10,
                 }}
               >
+                <ColorizeControl
+                  value={fineTuneAdj.colorize}
+                  baseValue={activePreset?.colorAdjustments.colorize}
+                  onChange={handleColorizeChange}
+                />
                 <div className="st-color-adjustments" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", columnGap: 16, rowGap: 8 }}>
                   {([
                     ["Exposure", "exposure"],

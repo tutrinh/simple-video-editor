@@ -337,6 +337,20 @@ export interface ColorAdjustments {
   highlightWarmth?: number;
   /** Split-tone: highlights tint — green↔magenta (-100 to +100, default 0). */
   highlightTint?: number;
+  /**
+   * Creative colour wash applied after the corrective grade. Unlike warmth or
+   * tint, this introduces chosen colours into the shadows and highlights.
+   */
+  colorize?: ColorizeSettings;
+}
+
+export interface ColorizeSettings {
+  /** CSS hex colour introduced into the dark tonal range. */
+  shadowColor: string;
+  /** CSS hex colour introduced into the bright tonal range. */
+  highlightColor: string;
+  /** Overall mix amount (0..100). Zero disables Colorize. */
+  intensity: number;
 }
 
 export type OverlayBlendMode = "normal" | "screen" | "multiply" | "overlay";

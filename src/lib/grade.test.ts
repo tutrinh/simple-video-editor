@@ -25,6 +25,17 @@ describe("resolveGrade", () => {
   it("omits axes that resolve to zero", () => {
     expect(resolveGrade({ warmth: 20 }, { warmth: -20 }, 1)).toEqual({});
   });
+
+  it("composes Beat and Global Colorize strength and palettes", () => {
+    const result = resolveGrade(
+      { colorize: { shadowColor: "#0000ff", highlightColor: "#ff0000", intensity: 20 } },
+      { colorize: { shadowColor: "#00ffff", highlightColor: "#ffffff", intensity: 40 } },
+      0.5,
+    );
+    expect(result.colorize?.intensity).toBe(40);
+    expect(result.colorize?.shadowColor).toBe("#0080ff");
+    expect(result.colorize?.highlightColor).toBe("#ff8080");
+  });
 });
 
 describe("isIdentityGrade", () => {
@@ -36,6 +47,8 @@ describe("isIdentityGrade", () => {
 
   it("is false once any axis is set", () => {
     expect(isIdentityGrade({ shadowTint: 5 })).toBe(false);
+    expect(isIdentityGrade({ colorize: { shadowColor: "#75c9ff", highlightColor: "#ffabd8", intensity: 30 } })).toBe(false);
+    expect(isIdentityGrade({ colorize: { shadowColor: "#75c9ff", highlightColor: "#ffabd8", intensity: 0 } })).toBe(true);
   });
 });
 
@@ -159,6 +172,21 @@ describe("curveStep", () => {
     // shoulder here would dull whites for no reason.
     expect(curveStep({ saturation: 60 }, 0, 1)).toBe(1);
     expect(curveStep({ colorTone: 40 }, 0, 0.9)).toBeCloseTo(0.9, 6);
+  });
+});
+
+describe("Colorize", () => {
+  it("pulls dark pixels toward the shadow colour and bright pixels toward the highlight colour", () => {
+    const adj = { colorize: { shadowColor: "#0066ff", highlightColor: "#ff99cc", intensity: 60 } };
+    const dark = gradePixel(adj, [0.1, 0.1, 0.1]);
+    const bright = gradePixel(adj, [0.9, 0.9, 0.9]);
+    expect(dark[2]).toBeGreaterThan(dark[0]);
+    expect(bright[0]).toBeGreaterThan(bright[1]);
+  });
+
+  it("is a no-op at zero intensity", () => {
+    const adj = { colorize: { shadowColor: "#0066ff", highlightColor: "#ff99cc", intensity: 0 } };
+    expect(gradePixel(adj, MID)).toEqual(MID);
   });
 });
 

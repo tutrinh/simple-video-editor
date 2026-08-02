@@ -28,6 +28,12 @@ describe("gradeSvgFilter", () => {
     expect(svg.indexOf("feComponentTransfer")).toBeLessThan(svg.indexOf("feColorMatrix"));
   });
 
+  it("applies Colorize as a final component-transfer after the corrective matrix", () => {
+    const svg = decode(gradeSvgFilter({ colorize: { shadowColor: "#75c9ff", highlightColor: "#ffabd8", intensity: 40 } }));
+    expect(svg.match(/<feComponentTransfer>/g)).toHaveLength(2);
+    expect(svg.lastIndexOf("feComponentTransfer")).toBeGreaterThan(svg.indexOf("feColorMatrix"));
+  });
+
   it("pins filter interpolation to sRGB", () => {
     // Without this SVG filters run in linearRGB and would diverge from the
     // .cube bake, which is exactly the class of mismatch ADR-0010 removes.

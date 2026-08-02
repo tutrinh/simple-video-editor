@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useReducer } from "react";
 import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
-import type { Aspect, Beat, Clip, ColorAdjustments, KenBurns, VideoTransitionType, SplitLayoutType, StoryPurpose } from "../domain/types";
+import type { Aspect, Beat, Clip, ColorAdjustments, ColorizeSettings, KenBurns, VideoTransitionType, SplitLayoutType, StoryPurpose } from "../domain/types";
 import { BEAT_SPEED_STEPS, nearestBeatSpeedIndex, STORY_PURPOSES } from "../domain/types";
 import { beatTiming, beatFill, beatGapSec, beatDurationSec, beatSpeed } from "../domain/beatTiming";
 import { resizeBeat } from "../domain/beatDuration";
@@ -27,6 +27,7 @@ import { beatSpans, resolveSticker, resolveSfx } from "../features/export/sticke
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import ColorField from "./ColorField";
+import ColorizeControl from "./ColorizeControl";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
 import { canvasDims } from "../features/export/export";
 import { sfxFileUrl } from "../lib/sfxLibrary";
@@ -402,7 +403,8 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     (cut.globalFilterAdjustments.shadowWarmth ?? 0) !== (baseGlobalAdj.shadowWarmth ?? 0) ||
     (cut.globalFilterAdjustments.shadowTint ?? 0) !== (baseGlobalAdj.shadowTint ?? 0) ||
     (cut.globalFilterAdjustments.highlightWarmth ?? 0) !== (baseGlobalAdj.highlightWarmth ?? 0) ||
-    (cut.globalFilterAdjustments.highlightTint ?? 0) !== (baseGlobalAdj.highlightTint ?? 0)
+    (cut.globalFilterAdjustments.highlightTint ?? 0) !== (baseGlobalAdj.highlightTint ?? 0) ||
+    JSON.stringify(cut.globalFilterAdjustments.colorize ?? null) !== JSON.stringify(baseGlobalAdj.colorize ?? null)
   );
 
   function updateGlobalAdj(key: keyof ColorAdjustments, value: number) {
@@ -413,6 +415,16 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
       filterId: cut.globalFilterId,
       intensity: cut.globalFilterIntensity,
       adjustments: nextAdj,
+    });
+  }
+
+  function updateGlobalColorize(colorize: ColorizeSettings) {
+    if (!cut?.globalFilterId) return;
+    dispatch({
+      type: "SET_GLOBAL_FILTER",
+      filterId: cut.globalFilterId,
+      intensity: cut.globalFilterIntensity,
+      adjustments: { ...currentGlobalAdj, colorize },
     });
   }
 
@@ -1325,6 +1337,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   />
 
                   <div className="st-color-adjustments" style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <ColorizeControl
+                      value={currentGlobalAdj.colorize}
+                      baseValue={activeGlobalFilter?.colorAdjustments.colorize}
+                      onChange={updateGlobalColorize}
+                    />
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
                         🎛️ Fine-Tune Filter {isGlobalFilterModified ? <span style={{ fontSize: 10, fontStyle: "italic", fontWeight: 400, color: "var(--ink-3)" }}>(Modified)</span> : null}
@@ -1682,6 +1699,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     const current = b.colorAdjustments ?? {};
     const nextAdj = { ...current, [key]: value };
     update({ ...b, colorAdjustments: nextAdj });
+  }
+
+  function updateBeatColorize(colorize: ColorizeSettings) {
+    update({ ...b, colorAdjustments: { ...b.colorAdjustments, colorize } });
   }
 
   function resetColorAdjustments() {
@@ -2510,7 +2531,8 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
           <div className={"st-color-collapsible" + (colorOpen ? " open" : "")}>
             <div className="st-color-collapsible-inner">
-              <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+                  <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
+                <ColorizeControl value={b.colorAdjustments?.colorize} onChange={updateBeatColorize} />
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, paddingBottom: 8, borderBottom: "1px solid var(--line)" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ color: "var(--ink)", fontSize: 11, fontWeight: 650 }}>Flat footage?</div>
@@ -3472,6 +3494,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   />
 
                   <div className="st-color-adjustments" style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <ColorizeControl
+                      value={currentGlobalAdj.colorize}
+                      baseValue={activeGlobalFilter?.colorAdjustments.colorize}
+                      onChange={updateGlobalColorize}
+                    />
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--accent)" }}>
                         🎛️ Fine-Tune Filter {isGlobalFilterModified ? <span style={{ fontSize: 10, fontStyle: "italic", fontWeight: 400, color: "var(--ink-3)" }}>(Modified)</span> : null}

@@ -12,7 +12,7 @@ export interface FilmLook {
   colorAdjustments: ColorAdjustments;
 }
 
-const ADJ_KEYS: (keyof ColorAdjustments)[] = [
+const ADJ_KEYS: Exclude<keyof ColorAdjustments, "colorize">[] = [
   "exposure", "contrast", "shadows", "blackPoint", "highlights", "colorTone", "warmth",
   "saturation", "skinTone", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
 ];

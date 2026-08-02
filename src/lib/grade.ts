@@ -1,4 +1,5 @@
 import type { ColorAdjustments } from "../domain/types";
+import { DEFAULT_COLORIZE, colorizeRgb, normalizeColorize } from "./colorize";
 
 // The single source of truth for colour grading (ADR-0010). Every renderer —
 // the preview's SVG filter and the export's baked .cube — derives from the
@@ -27,7 +28,9 @@ export type ColorMatrix = number[];
 const clampAxis = (n: number): number => Math.max(-AXIS_LIMIT, Math.min(AXIS_LIMIT, n));
 const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n);
 
-const AXES: (keyof ColorAdjustments)[] = [
+type NumericColorAdjustmentKey = Exclude<keyof ColorAdjustments, "colorize">;
+
+const AXES: NumericColorAdjustmentKey[] = [
   "exposure", "contrast", "shadows", "blackPoint", "highlights", "colorTone", "warmth",
   "saturation", "skinTone", "tint", "shadowWarmth", "shadowTint", "highlightWarmth", "highlightTint",
 ];
@@ -50,13 +53,32 @@ export function resolveGrade(
     const v = (beatAdj?.[k] ?? 0) + (globalAdj?.[k] ?? 0) * globalIntensity;
     if (v !== 0) out[k] = clampAxis(v);
   }
+  const beatColorize = normalizeColorize(beatAdj?.colorize);
+  const globalColorize = normalizeColorize(globalAdj?.colorize);
+  const beatMix = beatColorize.intensity;
+  const globalMix = globalColorize.intensity * Math.max(0, globalIntensity);
+  const totalMix = Math.min(100, beatMix + globalMix);
+  if (totalMix > 0) {
+    const blendHex = (a: string, b: string): string => {
+      const ar = colorizeRgb(a, DEFAULT_COLORIZE.shadowColor);
+      const br = colorizeRgb(b, DEFAULT_COLORIZE.shadowColor);
+      const globalShare = globalMix / (beatMix + globalMix);
+      const channels = ar.map((v, i) => Math.round((v + (br[i] - v) * globalShare) * 255));
+      return `#${channels.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+    };
+    out.colorize = {
+      shadowColor: blendHex(beatColorize.shadowColor, globalColorize.shadowColor),
+      highlightColor: blendHex(beatColorize.highlightColor, globalColorize.highlightColor),
+      intensity: totalMix,
+    };
+  }
   return out;
 }
 
 /** True when a Grade would leave every pixel untouched. */
 export function isIdentityGrade(adj?: ColorAdjustments): boolean {
   if (!adj) return true;
-  return AXES.every((k) => !adj[k]);
+  return AXES.every((k) => !adj[k]) && !(adj.colorize?.intensity);
 }
 
 /**
@@ -336,7 +358,35 @@ export function gradePixel(adj: ColorAdjustments, rgb: Rgb): Rgb {
       }
     }
   }
-  return res;
+  return colorizePixel(adj, res);
+}
+
+/**
+ * Final creative wash. Each output channel is attracted toward the selected
+ * shadow/highlight colour according to its tonal position. Keeping this as a
+ * per-channel curve makes the transform exactly representable in both SVG and
+ * the exported 3D LUT.
+ */
+export function colorizeChannelStep(adj: ColorAdjustments, channel: 0 | 1 | 2, x: number): number {
+  const colorize = normalizeColorize(adj.colorize);
+  if (colorize.intensity <= 0) return clamp01(x);
+  const mix = colorize.intensity / 100;
+  const shadow = colorizeRgb(colorize.shadowColor, DEFAULT_COLORIZE.shadowColor)[channel];
+  const highlight = colorizeRgb(colorize.highlightColor, DEFAULT_COLORIZE.highlightColor)[channel];
+  const source = clamp01(x);
+  const shadowMix = mix * (1 - source) * (1 - source);
+  let value = source + (shadow - source) * shadowMix;
+  const highlightMix = mix * source * source;
+  value += (highlight - value) * highlightMix;
+  return clamp01(value);
+}
+
+export function colorizePixel(adj: ColorAdjustments, rgb: Rgb): Rgb {
+  return [
+    colorizeChannelStep(adj, 0, rgb[0]),
+    colorizeChannelStep(adj, 1, rgb[1]),
+    colorizeChannelStep(adj, 2, rgb[2]),
+  ];
 }
 
 const fmt = (n: number): string => Number(n.toFixed(5)).toString();
@@ -361,11 +411,20 @@ export function gradeSvgFilter(adj?: ColorAdjustments): string {
     .join("");
 
   const matrix = matrixStep(a).map(fmt).join(" ");
+  const colorizeRows = a.colorize?.intensity
+    ? ([0, 1, 2] as const).map((ch) => {
+      const tag = ["feFuncR", "feFuncG", "feFuncB"][ch];
+      const values = Array.from({ length: CURVE_SAMPLES }, (_, i) =>
+        colorizeChannelStep(a, ch, i / (CURVE_SAMPLES - 1)));
+      return `<${tag} type="table" tableValues="${values.map(fmt).join(" ")}"/>`;
+    }).join("")
+    : "";
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg">` +
     `<filter id="g" color-interpolation-filters="sRGB">` +
     `<feComponentTransfer>${rows}</feComponentTransfer>` +
     `<feColorMatrix type="matrix" values="${matrix}"/>` +
+    (colorizeRows ? `<feComponentTransfer>${colorizeRows}</feComponentTransfer>` : "") +
     `</filter></svg>`;
 
   return `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}#g')`;
