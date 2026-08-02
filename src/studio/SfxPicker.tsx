@@ -55,7 +55,7 @@ export default function SfxPicker({ onPick, onClose }: { onPick: (fileName: stri
         <CloseButton onClick={onClose} />
       </div>
 
-      <label className="st-sfx-upload" title="Copy a sound into the project's audio/ folder">
+      <label className="st-sfx-upload" title="Copy a sound into the app's audio/ library">
         <AddIcon size={13} />
         {busy ? "Uploading…" : "Upload sound"}
         <InputControl type="file" accept="audio/*" disabled={busy} style={{ display: "none" }}

@@ -1,7 +1,7 @@
 import type { ProjectState } from "../state/projectReducer";
 import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
-import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts } from "./titleFontPersist";
+import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, promoteTitleFontsToAppLibrary } from "./titleFontPersist";
 import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles } from "./userVoicePersist";
 
 interface VidstrPackage {
@@ -19,6 +19,7 @@ interface VidstrPackage {
   /** Uploaded per-beat title fonts, keyed `<beatId>:<layerId>`, as data URLs. */
   titleFonts?: Array<{
     key: string;
+    fileName?: string;
     fontType: string;
     fontDataUrl: string;
   }>;
@@ -72,7 +73,7 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
   // Uploaded per-beat title fonts → portable data URLs (parallel to clip media).
   const titleFonts: NonNullable<VidstrPackage["titleFonts"]> = [];
   for (const { key, file } of collectTitleFonts(state)) {
-    titleFonts.push({ key, fontType: file.type || "font/ttf", fontDataUrl: await blobToDataUrl(file) });
+    titleFonts.push({ key, fileName: file.name, fontType: file.type || "font/ttf", fontDataUrl: await blobToDataUrl(file) });
   }
   const userVoice: NonNullable<VidstrPackage["userVoice"]> = [];
   for (const { key, file } of collectUserVoiceFiles(state)) {
@@ -144,7 +145,9 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
 
   const fontMap = new Map<string, Blob>();
   for (const f of pkg.titleFonts ?? []) {
-    fontMap.set(f.key, dataUrlToBlob(f.fontDataUrl, f.fontType || "font/ttf"));
+    const blob = dataUrlToBlob(f.fontDataUrl, f.fontType || "font/ttf");
+    const fallbackExt = (f.fontType || "").includes("otf") ? ".otf" : ".ttf";
+    fontMap.set(f.key, new File([blob], f.fileName || `imported-font${fallbackExt}`, { type: f.fontType || blob.type }));
   }
   const voiceMap = new Map<string, Blob>();
   for (const voice of pkg.userVoice ?? []) {
@@ -152,11 +155,12 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
     voiceMap.set(voice.key, new File([blob], voice.fileName, { type: voice.fileType || blob.type }));
   }
 
-  return reinjectUserVoiceFiles(reinjectTitleFonts(
+  const rehydrated = reinjectUserVoiceFiles(reinjectTitleFonts(
     {
       ...parsedState,
       clips: rehydratedClips,
     },
     fontMap,
   ), voiceMap);
+  return promoteTitleFontsToAppLibrary(rehydrated);
 }

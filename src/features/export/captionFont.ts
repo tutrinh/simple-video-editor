@@ -1,4 +1,5 @@
 import { ensureFontLoadedById, fetchGoogleFontBytes, findFontById } from "../../lib/googleFonts";
+import { appFontFileName, fetchAppFontBytes } from "../../lib/fontLibrary";
 import { ensureTitleFontFace, titleFontKey } from "./titleCanvas";
 
 // Resolving a caption's font id to something `ctx.font` can use. Captions are drawn to a
@@ -30,6 +31,17 @@ export async function resolveCaptionFontFamily(fontId: string | undefined): Prom
   if (!font) return null;
 
   const cssFamily = font.cssFamily || "sans-serif";
+
+  const appFile = appFontFileName(id);
+  if (appFile) {
+    try {
+      const bytes = await fetchAppFontBytes(appFile);
+      return await ensureTitleFontFace(titleFontKey(cssFamily, CAPTION_FONT_WEIGHT, bytes.length), bytes, cssFamily);
+    } catch {
+      ensureFontLoadedById(id);
+      return cssFamily;
+    }
+  }
 
   // System faces are already installed; there is nothing to fetch or register.
   // `googleFontName` is what actually distinguishes the two shapes findFontById

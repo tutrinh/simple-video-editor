@@ -226,34 +226,8 @@ export default function TitleTreatmentEditor({
                   since browsers do not reliably honour font-family on <option>. */}
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 Font
-                <FontPicker value={curLayer.fontId} onChange={(fontId) => updateLayer(activeIdx, { fontId })} />
+                <FontPicker value={curLayer.fontId} onChange={(fontId) => updateLayer(activeIdx, { fontId, fontFile: null })} />
               </span>
-
-              {/* flexBasis 100% puts this on its own line in the wrapping row, so
-                  it reads as belonging to Font rather than trailing Weight. */}
-              {curLayer.fontId === "custom" && (
-                <div style={{ flexBasis: "100%", display: "flex", flexDirection: "column", gap: 4, padding: "8px 10px", background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 7 }}>
-                  <div style={{ fontSize: 11, color: "var(--ink-2)" }}>
-                    Upload a <strong>.ttf</strong> or <strong>.otf</strong> font file.
-                  </div>
-                  <div style={{ fontSize: 10.5, color: "var(--ink-3)", lineHeight: 1.5 }}>
-                    Web fonts (<code>.woff</code>, <code>.woff2</code>) will not work — the export
-                    draws text from the font's raw outlines, which those formats compress away.
-                    The file travels with the project, so it survives save and reload.
-                  </div>
-                  <input
-                    type="file"
-                    accept=".ttf,.otf,font/ttf,font/otf"
-                    onChange={(e) => updateLayer(activeIdx, { fontFile: e.target.files?.[0] ?? null })}
-                    style={{ fontSize: 11, marginTop: 2 }}
-                  />
-                  {curLayer.fontFile && (
-                    <div style={{ fontSize: 10.5, color: "var(--accent)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      ✓ {curLayer.fontFile.name}
-                    </div>
-                  )}
-                </div>
-              )}
 
               {/* Each square shows its own weight in the layer's own font, so
                   the row previews the choice instead of naming it. A <span>

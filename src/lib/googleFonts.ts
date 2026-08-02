@@ -1,3 +1,5 @@
+import { appFontCssFamily, appFontFileName, ensureAppFontLoaded } from "./fontLibrary";
+
 export interface GoogleFontOption {
   id: string;
   name: string;
@@ -163,6 +165,8 @@ export async function probeGoogleFamily(family: string): Promise<boolean> {
  * a `google:` family got no stylesheet and previewed in the fallback face.
  */
 export function ensureFontLoadedById(fontId: string): void {
+  const appFile = appFontFileName(fontId);
+  if (appFile) { ensureAppFontLoaded(appFile); return; }
   const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === fontId);
   if (gf) { ensureGoogleFontLoaded(gf); return; }
   const family = parseGoogleFamilyId(fontId);
@@ -171,6 +175,8 @@ export function ensureFontLoadedById(fontId: string): void {
 
 /** Find a font option by ID (Google Font or System Font). */
 export function findFontById(id: string): (GoogleFontOption & { isGoogle?: boolean }) | { id: string; name: string; cssFamily: string; isGoogle?: boolean } | undefined {
+  const appFile = appFontFileName(id);
+  if (appFile) return { id, name: appFile.replace(/\.[^.]+$/, ""), cssFamily: appFontCssFamily(appFile), isGoogle: false };
   const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === id);
   if (gf) return { ...gf, isGoogle: true };
   // A family typed by name (ADR-0014) — synthesised rather than listed.

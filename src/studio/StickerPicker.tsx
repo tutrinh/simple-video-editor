@@ -8,7 +8,7 @@ import { ControlButton, InputControl } from "../design-system/ControlPrimitives"
 import AddIcon from "../design-system/icons/AddIcon";
 
 /**
- * Popover for the Sticker track's "＋ Sticker" button: the images in the stickers/
+ * Popover for the Sticker track's "＋ Sticker" button: the images in the app-wide stickers/
  * directory as a thumbnail grid, each with a ★ favourite toggle, plus an Upload
  * that copies a new image into the folder. Picking calls onPick(fileName) and
  * closes the popover.
@@ -60,7 +60,7 @@ export default function StickerPicker({ onPick, onClose }: { onPick: (fileName: 
         <CloseButton onClick={onClose} />
       </div>
 
-      <label className="st-sfx-upload" title="Copy an image into the project's stickers/ folder">
+      <label className="st-sfx-upload" title="Copy an image into the app's stickers/ library">
         <AddIcon size={13} />
         {busy ? "Uploading…" : "Upload sticker"}
         <InputControl

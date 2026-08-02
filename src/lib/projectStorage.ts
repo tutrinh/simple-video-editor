@@ -2,8 +2,9 @@ import type { ProjectState } from "../state/projectReducer";
 import type { Clip, ProjectTemplate } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
 import { migrateCutSpeeds } from "../domain/beatTiming";
-import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, titleFontKeys } from "./titleFontPersist";
+import { stripTitleFonts, reinjectTitleFonts, titleFontKeys, promoteTitleFontsToAppLibrary } from "./titleFontPersist";
 import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles, userVoiceKeys } from "./userVoicePersist";
+import { appFontFileName } from "./fontLibrary";
 
 const DB_NAME = "vidstr_projects_db";
 const DB_VERSION = 4;
@@ -71,16 +72,8 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
     }
   }
 
-  // 1b. Save uploaded per-beat title fonts (structured clone keeps the File),
-  //     keyed per project so different projects can't collide or leak.
-  const titleFonts = collectTitleFonts(state);
-  if (titleFonts.length) {
-    const fontTx = db.transaction("title_fonts", "readwrite");
-    const fontStore = fontTx.objectStore("title_fonts");
-    for (const { key, file } of titleFonts) {
-      fontStore.put({ key: `${id}:${key}`, fontBlob: file });
-    }
-  }
+  // Custom fonts are app assets in public/fonts/. Projects retain only their
+  // app-font:<filename> reference; the title_fonts store is legacy read-only.
   const userVoiceFiles = collectUserVoiceFiles(state);
   if (userVoiceFiles.length) {
     const voiceTx = db.transaction("user_voice", "readwrite");
@@ -90,8 +83,8 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
     }
   }
 
-  // 2. Prepare serializable state without non-serializable File/Blob objects
-  //    (clip media and title-font Files are stored out-of-band above).
+  // 2. Prepare serializable state without non-serializable File/Blob objects.
+  //    Clip media remains out-of-band; app fonts are represented by filename.
   const stripped = stripUserVoiceFiles(stripTitleFonts(state));
   const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
   const serializableState = {
@@ -201,7 +194,7 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     for (const result of results) if (result.blob) voiceMap.set(result.key, result.blob);
   }
 
-  return reinjectUserVoiceFiles(reinjectTitleFonts(
+  const rehydrated = reinjectUserVoiceFiles(reinjectTitleFonts(
     {
       ...parsedState,
       clips: rehydratedClips,
@@ -209,6 +202,35 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     },
     fontMap,
   ), voiceMap);
+  const promoted = await promoteTitleFontsToAppLibrary(rehydrated);
+
+  // Once a legacy embedded face has reached public/fonts/, remove its old
+  // project-scoped duplicate from IndexedDB. Failed promotions remain intact.
+  const promotedFontKeys: string[] = [];
+  for (let beatIndex = 0; beatIndex < (rehydrated.cut?.beats.length ?? 0); beatIndex++) {
+    const beforeBeat = rehydrated.cut!.beats[beatIndex];
+    const afterBeat = promoted.cut!.beats[beatIndex];
+    for (let layerIndex = 0; layerIndex < (beforeBeat.titleLayers?.length ?? 0); layerIndex++) {
+      const before = beforeBeat.titleLayers![layerIndex];
+      const after = afterBeat.titleLayers?.[layerIndex];
+      if (before.fontFile instanceof File && after && appFontFileName(after.fontId)) {
+        promotedFontKeys.push(`${id}:${beforeBeat.id}:${before.id}`);
+      }
+    }
+  }
+  if (promotedFontKeys.length) {
+    try {
+      const cleanupTx = db.transaction("title_fonts", "readwrite");
+      const store = cleanupTx.objectStore("title_fonts");
+      promotedFontKeys.forEach((key) => store.delete(key));
+      await new Promise<void>((resolve) => {
+        cleanupTx.oncomplete = () => resolve();
+        cleanupTx.onerror = () => resolve();
+        cleanupTx.onabort = () => resolve();
+      });
+    } catch { /* legacy cleanup is best-effort */ }
+  }
+  return promoted;
 }
 
 export async function listSavedProjects(): Promise<SavedProjectMeta[]> {
@@ -253,12 +275,8 @@ export async function deleteProjectFromStorage(id: string): Promise<void> {
       for (const clip of parsed.clips) {
         mediaStore.delete(clip.id);
       }
-      const fontKeys = titleFontKeys(parsed);
-      if (fontKeys.length) {
-        const fontTx = db.transaction("title_fonts", "readwrite");
-        const fontStore = fontTx.objectStore("title_fonts");
-        for (const k of fontKeys) fontStore.delete(`${id}:${k}`);
-      }
+      // Fonts are app-wide assets and must survive project deletion. Legacy
+      // title_fonts records are intentionally not treated as project-owned.
       const voiceKeys = userVoiceKeys(parsed);
       if (voiceKeys.length) {
         const voiceTx = db.transaction("user_voice", "readwrite");

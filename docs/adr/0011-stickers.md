@@ -6,8 +6,8 @@ third. The library half copies the SFX track; the rendering half obeys ADR-0008.
 
 ## The library and track half: copy SFX
 
-A Sticker's asset lives in `stickers/` at the project root, listed, streamed and
-uploaded through `/api/stickers` — a dev-server plugin that mirrors
+A Sticker's asset lives in the app-wide `stickers/` library at the repository
+root, listed, streamed and uploaded through `/api/stickers` — a dev-server plugin that mirrors
 `audioLibrary` exactly (`basename()` before joining so a request cannot escape
 the folder, an extension allowlist, upload writing into the same folder so an
 uploaded asset joins the library). `src/lib/stickerLibrary.ts` mirrors
@@ -60,6 +60,8 @@ not of one edit.
 
 - `stickers/` is a real directory in the repo, like `audio/`, `music/` and
   `overlays/`. It ships with a README and no assets.
+- Projects persist only sticker filenames. Deleting a project removes its
+  timeline placements but never removes assets from the shared library.
 - SVG assets are rasterised through an `<img>` at export resolution before being
   drawn, so a large `scale` stays sharp — the one place a Sticker beats a
   pre-rendered PNG.

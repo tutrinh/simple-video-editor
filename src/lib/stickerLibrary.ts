@@ -1,4 +1,4 @@
-// Client for the Sticker asset library. Images live in the project's stickers/
+// Client for the app-wide Sticker asset library. Images live in the app's stickers/
 // directory, served by the dev proxy at /api/stickers (list / file / upload — see
 // vite.config.ts). Stickers reference an asset by filename; bytes are fetched on
 // demand. Mirrors sfxLibrary.ts, which does the same for the audio/ folder.
@@ -25,7 +25,7 @@ export async function fetchStickerBytes(fileName: string): Promise<ArrayBuffer> 
   return res.arrayBuffer();
 }
 
-/** Upload an image into the stickers/ directory; returns the stored filename. */
+/** Upload an image into the app's stickers/ directory; returns the stored filename. */
 export async function uploadSticker(file: File): Promise<string> {
   const res = await fetch(`/api/stickers/upload?name=${encodeURIComponent(file.name)}`, {
     method: "POST",

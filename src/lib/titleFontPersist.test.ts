@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { ProjectState } from "../state/projectReducer";
 import type { Beat, Cut } from "../domain/types";
-import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, titleFontKeys } from "./titleFontPersist";
+import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, titleFontKeys, promoteTitleFontsToAppLibrary } from "./titleFontPersist";
 
 function makeLayer(id: string, fontFile: File | null) {
   return {
@@ -64,6 +64,22 @@ describe("titleFontPersist", () => {
   it("lists font keys for all beat layers", () => {
     const state = makeState([makeBeat("b1", [makeLayer("l1", null), makeLayer("l2", null)])]);
     expect(titleFontKeys(state)).toEqual(["b1:l1", "b1:l2"]);
+  });
+
+  it("promotes a legacy embedded font into the app-wide library", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, name: "a.ttf" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const state = makeState([makeBeat("b1", [makeLayer("l1", fontA)])]);
+
+    const promoted = await promoteTitleFontsToAppLibrary(state);
+    const layer = promoted.cut!.beats[0].titleLayers![0];
+    expect(layer.fontId).toBe("app-font:a.ttf");
+    expect(layer.fontFile).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith("/api/fonts/upload?name=a.ttf", expect.objectContaining({ method: "POST", body: fontA }));
+    vi.unstubAllGlobals();
   });
 
   it("no-ops cleanly on a project with no cut or no titles", () => {

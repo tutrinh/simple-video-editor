@@ -3,8 +3,9 @@ import { createPortal } from "react-dom";
 import { ControlButton, InputControl } from "../design-system/ControlPrimitives";
 import {
   GOOGLE_TITLE_FONTS, SYSTEM_TITLE_FONTS, ensureGoogleFontLoaded,
-  googleFamilyId, parseGoogleFamilyId, syntheticGoogleFont, probeGoogleFamily,
+  googleFamilyId, parseGoogleFamilyId, syntheticGoogleFont, probeGoogleFamily, findFontById,
 } from "../lib/googleFonts";
+import { appFontCssFamily, appFontId, ensureAppFontLoaded, fetchFontList, uploadFont } from "../lib/fontLibrary";
 import { useSettings } from "../state/SettingsContext";
 
 // A font list that shows each face in its own typeface. A native select cannot
@@ -37,6 +38,9 @@ export default function FontPicker({ value, onChange }: Props) {
   const [query, setQuery] = useState("");
   const [probing, setProbing] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [appFonts, setAppFonts] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   // The list is rendered in a PORTAL with fixed coordinates rather than
   // absolutely inside the row. Both call sites live in `overflow: auto` panels
@@ -60,7 +64,14 @@ export default function FontPicker({ value, onChange }: Props) {
   // enabled layers actually use, and unloaded rows would all render identically
   // in the fallback — exactly the problem this component exists to solve.
   useEffect(() => {
-    if (open) [...GOOGLE_TITLE_FONTS, ...savedGoogleFonts].forEach(ensureGoogleFontLoaded);
+    if (open) {
+      [...GOOGLE_TITLE_FONTS, ...savedGoogleFonts].forEach(ensureGoogleFontLoaded);
+      appFonts.forEach(ensureAppFontLoaded);
+      void fetchFontList().then((files) => {
+        setAppFonts(files);
+        files.forEach(ensureAppFontLoaded);
+      });
+    }
   }, [open, settings.customGoogleFonts]);
 
   useEffect(() => {
@@ -83,10 +94,25 @@ export default function FontPicker({ value, onChange }: Props) {
   // A family typed by name (ADR-0014) is not in either list — synthesise it so
   // the trigger previews it and it shows as the checked row.
   const typedFamily = parseGoogleFamilyId(value);
-  const current = typedFamily
-    ? syntheticGoogleFont(typedFamily)
-    : [...GOOGLE_TITLE_FONTS, ...SYSTEM_TITLE_FONTS].find((f) => f.id === value);
-  const label = value === CUSTOM_ID ? "Custom upload…" : displayName(current?.name ?? "Select a font…");
+  const current = typedFamily ? syntheticGoogleFont(typedFamily) : findFontById(value);
+  const label = value === CUSTOM_ID ? "Legacy embedded font" : displayName(current?.name ?? "Select a font…");
+
+  const importFont = async (file: File | undefined) => {
+    if (!file || uploading) return;
+    setUploading(true);
+    setUploadError("");
+    try {
+      const name = await uploadFont(file);
+      setAppFonts((files) => [...new Set([...files, name])].sort());
+      ensureAppFontLoaded(name);
+      onChange(appFontId(name));
+      setOpen(false);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const commitFamily = async () => {
     const family = query.trim();
@@ -216,6 +242,12 @@ export default function FontPicker({ value, onChange }: Props) {
                   {savedGoogleFonts.map((f) => row(f.id, f.name, f.cssFamily))}
                 </>
               )}
+              {appFonts.length > 0 && (
+                <>
+                  {groupHeader("App fonts")}
+                  {appFonts.map((file) => row(appFontId(file), file.replace(/\.[^.]+$/, ""), appFontCssFamily(file)))}
+                </>
+              )}
               {groupHeader("Google Fonts")}
               {GOOGLE_TITLE_FONTS.map((f) => row(f.id, displayName(f.name), f.cssFamily))}
               {groupHeader("System Fonts")}
@@ -250,7 +282,21 @@ export default function FontPicker({ value, onChange }: Props) {
               </div>
 
               <div style={{ borderTop: "1px solid var(--line)", margin: "4px 0" }} />
-              {row(CUSTOM_ID, "Custom upload…")}
+              {groupHeader("App font library")}
+              <label style={{ display: "block", margin: "2px 10px 6px", padding: "6px 10px", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink-2)", fontSize: 11, textAlign: "center", cursor: uploading ? "default" : "pointer" }}>
+                {uploading ? "Importing…" : "Import .ttf or .otf"}
+                <InputControl
+                  type="file"
+                  accept=".ttf,.otf,font/ttf,font/otf"
+                  disabled={uploading}
+                  onChange={(e) => { void importFont(e.target.files?.[0]); e.currentTarget.value = ""; }}
+                  style={{ display: "none" }}
+                />
+              </label>
+              {uploadError && <div style={{ padding: "0 10px 6px", color: "var(--danger)", fontSize: 10 }}>{uploadError}</div>}
+              <div style={{ padding: "0 10px 7px", color: "var(--ink-3)", fontSize: 10, lineHeight: 1.4 }}>
+                Imported once into the app's fonts directory and available to every project.
+              </div>
             </div>
           );
         })(),

@@ -1,4 +1,5 @@
 import type { ProjectState } from "../state/projectReducer";
+import { appFontId, uploadFont } from "./fontLibrary";
 
 // Per-beat title layers may carry an uploaded custom-font File (fontId "custom").
 // A File can't survive JSON.stringify (it becomes `{}`), so — exactly like clip
@@ -71,4 +72,34 @@ export function titleFontKeys(state: ProjectState): string[] {
     for (const layer of beat.titleLayers ?? []) keys.push(titleFontKey(beat.id, layer.id));
   }
   return keys;
+}
+
+/** Move legacy project-embedded fonts into the app library when possible. */
+export async function promoteTitleFontsToAppLibrary(state: ProjectState): Promise<ProjectState> {
+  if (!state.cut?.beats.some((beat) => beat.titleLayers?.some((layer) => layer.fontFile instanceof File))) return state;
+
+  const promoted = new Map<File, string>();
+  for (const { file } of collectTitleFonts(state)) {
+    if (promoted.has(file)) continue;
+    try {
+      promoted.set(file, appFontId(await uploadFont(file)));
+    } catch {
+      // Keep the embedded legacy file usable when the app library is unavailable.
+    }
+  }
+  if (promoted.size === 0) return state;
+
+  return {
+    ...state,
+    cut: {
+      ...state.cut,
+      beats: state.cut.beats.map((beat) => ({
+        ...beat,
+        titleLayers: beat.titleLayers?.map((layer) => {
+          const id = layer.fontFile instanceof File ? promoted.get(layer.fontFile) : undefined;
+          return id ? { ...layer, fontId: id, fontFile: null } : layer;
+        }),
+      })),
+    },
+  };
 }

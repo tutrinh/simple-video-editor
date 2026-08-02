@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
-  stickerFileUrl, loadFavorites, toggleFavorite, isFavorite, sortByFavorite,
+  stickerFileUrl, uploadSticker, loadFavorites, toggleFavorite, isFavorite, sortByFavorite,
 } from "./stickerLibrary";
 
 // Minimal localStorage stand-in — the vitest env is "node" (see vite.config.ts),
@@ -36,6 +36,23 @@ describe("stickerFileUrl", () => {
 
   it("encodes a name that would otherwise traverse", () => {
     expect(stickerFileUrl("../secret.png")).toContain("..%2Fsecret.png");
+  });
+});
+
+describe("uploadSticker", () => {
+  it("writes to the app-wide sticker library and returns the stored filename", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "brand mark.png", { type: "image/png" });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, name: "brand mark.png" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(uploadSticker(file)).resolves.toBe("brand mark.png");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/stickers/upload?name=brand%20mark.png",
+      expect.objectContaining({ method: "POST", body: file }),
+    );
   });
 });
 

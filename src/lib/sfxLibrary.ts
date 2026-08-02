@@ -1,4 +1,4 @@
-// Client for the SFX sound library. Sounds live in the project's audio/ directory,
+// Client for the app-wide SFX sound library. Sounds live in the app's audio/ directory,
 // served by the dev proxy at /api/audio (list / file / upload — see vite.config.ts).
 // SFX segments reference a sound by filename; bytes are fetched on demand.
 

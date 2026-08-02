@@ -357,7 +357,7 @@ export type OverlayBlendMode = "normal" | "screen" | "multiply" | "overlay";
 
 /**
  * An image placed over the Cut on its own lane (ADR-0011). The asset lives in the
- * project's stickers/ folder; this is the *placement*, so one asset can be placed
+ * app's shared stickers/ folder; this is the *placement*, so one asset can be placed
  * many times. Shaped like SfxSegment/OverlayClip for the timeline half, plus the
  * spatial fields those have no need for.
  *

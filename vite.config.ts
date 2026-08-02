@@ -358,6 +358,7 @@ function defaultMusic(filePath: string): Plugin {
 // them, so Export can offer a pick-from-folder list with preview. Names are
 // basename()'d before joining, so a request can't escape the configured folder.
 const AUDIO_RE = /\.(mp3|m4a|aac|wav|ogg|flac)$/i;
+const FONT_RE = /\.(ttf|otf)$/i;
 const VIDEO_RE = /\.(mp4|mov|webm|m4v)$/i;
 const STICKER_RE = /\.(png|svg|webp)$/i;
 const STICKER_MIME: Record<string, string> = { png: "image/png", svg: "image/svg+xml", webp: "image/webp" };
@@ -541,9 +542,59 @@ function audioLibrary(dir: string): Plugin {
   };
 }
 
-// Dev-only sticker library: lists/streams images in STICKERS_DIR and accepts
-// uploads that are written into that folder (so an uploaded sticker joins the
-// library). Mirrors audioLibrary — names are basename()'d before joining, so a
+// App-wide custom font library. The folder defaults to public/fonts so the
+// faces remain normal app assets while this API provides safe listing/upload.
+function fontLibrary(dir: string): Plugin {
+  return {
+    name: "font-library",
+    configureServer(server) {
+      server.middlewares.use("/api/fonts", async (req, res) => {
+        const u = new URL(req.url ?? "/", "http://localhost");
+        const sendJson = (code: number, body: unknown) => {
+          res.statusCode = code;
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(body));
+        };
+        if (req.method === "GET" && u.pathname === "/list") {
+          try {
+            const files = dir ? readdirSync(dir).filter((n) => FONT_RE.test(n)).sort() : [];
+            sendJson(200, { files });
+          } catch { sendJson(200, { files: [] }); }
+          return;
+        }
+        if (req.method === "GET" && u.pathname === "/file") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !FONT_RE.test(name)) { res.statusCode = 400; res.end(); return; }
+          try {
+            const data = readFileSync(join(dir, name));
+            res.statusCode = 200;
+            res.setHeader("content-type", name.toLowerCase().endsWith(".otf") ? "font/otf" : "font/ttf");
+            res.setHeader("content-length", String(data.length));
+            res.end(data);
+          } catch { res.statusCode = 404; res.end(); }
+          return;
+        }
+        if (req.method === "POST" && u.pathname === "/upload") {
+          const name = basename(u.searchParams.get("name") ?? "");
+          if (!dir || !name || !FONT_RE.test(name)) return sendJson(400, { error: "only .ttf and .otf fonts are supported" });
+          try {
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, name), await readBodyBuffer(req));
+            sendJson(200, { ok: true, name });
+          } catch (e) {
+            sendJson(500, { error: e instanceof Error ? e.message : String(e) });
+          }
+          return;
+        }
+        res.statusCode = 404; res.end();
+      });
+    },
+  };
+}
+
+// Dev-only app-wide sticker library: lists/streams images in STICKERS_DIR and
+// accepts uploads that are written into that folder. Projects keep filename
+// references only. Mirrors audioLibrary — names are basename()'d before joining, so a
 // request can't escape the configured folder.
 function stickerLibrary(dir: string): Plugin {
   return {
@@ -606,6 +657,7 @@ export default defineConfig(({ mode }) => {
   const musicDir = abs(env.MUSIC_DIR ?? "", resolve(process.cwd(), "music"));
   const overlaysDir = abs(env.OVERLAYS_DIR ?? "", resolve(process.cwd(), "overlays"));
   const audioDir = abs(env.AUDIO_DIR ?? "", resolve(process.cwd(), "audio"));
+  const fontsDir = abs(env.FONTS_DIR ?? "", resolve(process.cwd(), "public/fonts"));
   const stickersDir = abs(env.STICKERS_DIR ?? "", resolve(process.cwd(), "stickers"));
   const defaultMusicPath = abs(env.DEFAULT_MUSIC ?? "", join(musicDir, "City Nights.mp3"));
   return {
@@ -619,6 +671,7 @@ export default defineConfig(({ mode }) => {
       musicLibrary(musicDir),
       overlayLibrary(overlaysDir),
       audioLibrary(audioDir),
+      fontLibrary(fontsDir),
       stickerLibrary(stickersDir),
     ],
     server: { headers: isolation },

@@ -4,6 +4,7 @@
 // often) fetches each font at most once.
 
 import { GOOGLE_TITLE_FONTS, fetchGoogleFontBytes, parseGoogleFamilyId, syntheticGoogleFont } from "../../lib/googleFonts";
+import { appFontFileName, fetchAppFontBytes } from "../../lib/fontLibrary";
 
 const cache = new Map<string, Promise<Uint8Array | undefined>>();
 
@@ -24,6 +25,8 @@ export function getTitleFontBytes(
       if (fontId === "custom") {
         return fontFile ? new Uint8Array(await fontFile.arrayBuffer()) : undefined;
       }
+      const appFile = appFontFileName(fontId);
+      if (appFile) return await fetchAppFontBytes(appFile);
       const gf = GOOGLE_TITLE_FONTS.find((f) => f.id === fontId);
       if (gf) return await fetchGoogleFontBytes(gf, weight);
       // A family typed by name (ADR-0014) takes the same path as a listed one —
