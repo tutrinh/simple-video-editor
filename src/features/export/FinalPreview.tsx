@@ -92,6 +92,8 @@ interface Props {
   music: File | null;
   musicVolume: number;
   voiceover: boolean;
+  /** Global narration gain used by export; per-segment volume and ducking stack on it. */
+  voiceoverVolume?: number;
   ttsEngine?: TtsEngine;
   voice?: Voice;
   elevenVoiceId?: string;
@@ -118,7 +120,7 @@ interface Props {
 export default function FinalPreview({
   active = true,
   cut, clips, captionScale, captionOpacity, captionLineHeight, captionFontId, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect, title, music, musicVolume,
-  voiceover,
+  voiceover, voiceoverVolume = 1,
   ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed,
   enableSpacebarPlayback = false,
   selectedBeatId,
@@ -411,7 +413,16 @@ export default function FinalPreview({
     if (!voiceover || !playing || muteAllAudio || !activeVo || !activeVo.text.trim()) return;
     const text = activeVo.text.trim();
     const startAt = activeVo.startTimeSec;
-    const key = `${text}_${ttsEngine ?? "kokoro"}_${voice ?? "af_heart"}_${elevenVoiceId ?? ""}_${voiceoverSpeed ?? 1}`;
+    const key = JSON.stringify({
+      text,
+      engine: ttsEngine ?? "kokoro",
+      voice: voice ?? "af_heart",
+      elevenVoiceId: elevenVoiceId ?? "",
+      elevenModel: elevenModel ?? "",
+      elevenStability: elevenStability ?? null,
+      elevenStyle: elevenStyle ?? null,
+      speed: voiceoverSpeed ?? 1,
+    });
     let cancelled = false;
     let audio: HTMLAudioElement | null = null;
 
@@ -432,7 +443,7 @@ export default function FinalPreview({
           attachVoTone(audio, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect);
         }
         audio.volume = Math.min(1, Math.max(0,
-          (activeVo.volume ?? 1) * captionVoiceGainAtTime(
+          voiceoverVolume * (activeVo.volume ?? 1) * captionVoiceGainAtTime(
             cut.userVoiceSegments ?? [],
             beatElapsedRef.current + beatStart,
           ),
@@ -459,7 +470,7 @@ export default function FinalPreview({
     };
     // Re-run when the active segment (or its text) changes, or play toggles.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeVo?.id, activeVo?.text, playing, muteAllAudio, voiceover, ttsEngine, voice, elevenVoiceId, voiceoverSpeed]);
+  }, [activeVo?.id, activeVo?.text, playing, muteAllAudio, voiceover, voiceoverVolume, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed]);
 
   useEffect(() => {
     const audio = generatedVoAudioRef.current;
@@ -469,9 +480,9 @@ export default function FinalPreview({
       attachVoTone(audio, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect);
     }
     audio.volume = Math.min(1, Math.max(0,
-      (activeVo.volume ?? 1) * captionVoiceGainAtTime(cut.userVoiceSegments ?? [], elapsed),
+      voiceoverVolume * (activeVo.volume ?? 1) * captionVoiceGainAtTime(cut.userVoiceSegments ?? [], elapsed),
     ));
-  }, [activeVo, cut.userVoiceSegments, elapsed, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect]);
+  }, [activeVo, cut.userVoiceSegments, elapsed, voiceoverVolume, voiceoverBassDb, voiceoverTrebleDb, voiceoverEffect]);
 
   // SFX track — one HTMLAudio "voice" per active segment (overlaps allowed), synced
   // to the global `elapsed` clock like the overlay/VO effects. Trim is enforced by

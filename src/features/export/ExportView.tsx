@@ -5,7 +5,8 @@ import { cutDuration } from "../assemble/assemble";
 import { exportCut, emptyTemplateSlotExportError, buildScriptText, buildSrt, type TitleOverlay, type TitleLayer } from "./export";
 import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
 import { ELEVEN_VOICES, ELEVEN_MODELS, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
-import type { TtsEngine } from "../../lib/tts";
+import { synthesizeVoiceover, type TtsEngine, type TtsOptions } from "../../lib/tts";
+import { narrationCacheKey, narrationCacheStatus } from "../../lib/narrationCache";
 import FinalPreview, { type PreviewTitle, type PreviewTitleLayer } from "./FinalPreview";
 import { musicTrackGain } from "../music-track/musicTrack";
 import { ensureFontLoadedById, findFontById } from "../../lib/googleFonts";
@@ -88,6 +89,10 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   const [publishTarget, setPublishTarget] = useState<PublishTarget>("Instagram Reels");
   const exportAbortRef = useRef<AbortController | null>(null);
   const [modelMsg, setModelMsg] = useState("");
+  const [narrationAssetStatus, setNarrationAssetStatus] = useState<{ ready: number; total: number } | null>(null);
+  const [narrationAssetBusy, setNarrationAssetBusy] = useState<"prepare" | "regenerate" | null>(null);
+  const [narrationAssetMsg, setNarrationAssetMsg] = useState("");
+  const [narrationCacheRevision, setNarrationCacheRevision] = useState(0);
   const [musicLib, setMusicLib] = useState<string[]>([]);
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>(ELEVEN_VOICES);
   const [captionsOpen, setCaptionsOpen] = useState(true);
@@ -120,6 +125,34 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
+
+  // Report whether every current Script/settings pair already has reusable
+  // narration bytes. Mix-only controls are deliberately absent from this list.
+  useEffect(() => {
+    let cancelled = false;
+    const segments = (cut?.voSegments ?? []).filter((segment) => segment.text.trim());
+    if (!voiceover || segments.length === 0) {
+      setNarrationAssetStatus({ ready: 0, total: segments.length });
+      return () => { cancelled = true; };
+    }
+    const opts: TtsOptions = {
+      engine: ttsEngine,
+      voice,
+      elevenVoiceId,
+      elevenModel,
+      elevenStability,
+      elevenStyle,
+      speed: voiceoverSpeed,
+    };
+    Promise.all(segments.map((segment) => narrationCacheStatus(segment.text, opts)))
+      .then((statuses) => {
+        if (!cancelled) setNarrationAssetStatus({ ready: statuses.filter((status) => status.cached).length, total: statuses.length });
+      })
+      .catch(() => {
+        if (!cancelled) setNarrationAssetStatus(null);
+      });
+    return () => { cancelled = true; };
+  }, [cut?.voSegments, voiceover, ttsEngine, voice, elevenVoiceId, elevenModel, elevenStability, elevenStyle, voiceoverSpeed, narrationCacheRevision]);
 
   // Load the full ElevenLabs voice library from the account (falls back to the
   // built-in list on error). Runs once; the proxy keeps the API key server-side.
@@ -244,6 +277,49 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
     update({ ttsEngine: engine });
     if (engine === "kokoro") preloadKokoro();
     else setModelMsg("");
+  }
+
+  function currentTtsOptions(): TtsOptions {
+    return {
+      engine: ttsEngine,
+      voice,
+      elevenVoiceId,
+      elevenModel,
+      elevenStability,
+      elevenStyle,
+      speed: voiceoverSpeed,
+    };
+  }
+
+  async function prepareNarrationAssets(forceRefresh = false) {
+    const segments = (cut?.voSegments ?? []).filter((segment) => segment.text.trim());
+    if (!segments.length) {
+      setNarrationAssetMsg("Add text to the generated VO track first.");
+      return;
+    }
+    setNarrationAssetBusy(forceRefresh ? "regenerate" : "prepare");
+    setNarrationAssetMsg("");
+    const opts = currentTtsOptions();
+    const refreshedKeys = new Set<string>();
+    try {
+      for (let index = 0; index < segments.length; index++) {
+        setNarrationAssetMsg(`${forceRefresh ? "Regenerating" : "Preparing"} narration ${index + 1} of ${segments.length}…`);
+        const text = segments[index].text.trim();
+        const { key } = await narrationCacheKey(text, opts);
+        const refreshThisAsset = forceRefresh && !refreshedKeys.has(key);
+        await synthesizeVoiceover(text, opts, { forceRefresh: refreshThisAsset });
+        refreshedKeys.add(key);
+      }
+      setNarrationAssetStatus({ ready: segments.length, total: segments.length });
+      setNarrationCacheRevision((revision) => revision + 1);
+      setNarrationAssetMsg(forceRefresh
+        ? "Narration replaced and saved. Future exports reuse these assets."
+        : "Narration ready. Future exports reuse these assets at no additional generation cost.");
+    } catch (error) {
+      setNarrationAssetMsg(error instanceof Error ? error.message : String(error));
+    } finally {
+      setNarrationAssetBusy(null);
+    }
   }
 
   // ── Voiceover presets ──────────────────────────────────────────────
@@ -418,6 +494,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       setVideoBlob(blob);
       setRenderedDelivery({ resolution: exportResolution, fps: exportFps, format: exportFormat });
       setVideoUrl(URL.createObjectURL(blob));
+      setNarrationCacheRevision((revision) => revision + 1);
 
 
       if (voiceover) {
@@ -670,6 +747,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
               music={activeMusic}
               musicVolume={activeMusicVolume}
               voiceover={voiceover}
+              voiceoverVolume={voiceoverVolume}
               ttsEngine={ttsEngine}
               voice={voice}
               elevenVoiceId={elevenVoiceId}
@@ -1022,6 +1100,60 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
                     )}
 
                     {modelMsg && <span style={{ fontSize: 11, color: "var(--accent)" }}>{modelMsg}</span>}
+
+                    <div style={{ display: "grid", gap: 8, padding: "10px", border: "1px solid var(--line)", borderRadius: 7, background: "var(--panel)" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 650, color: "var(--ink)" }}>Reusable narration assets</span>
+                        <span style={{ fontSize: 10, color: narrationAssetStatus && narrationAssetStatus.ready === narrationAssetStatus.total && narrationAssetStatus.total > 0 ? "var(--good)" : "var(--ink-3)" }}>
+                          {narrationAssetStatus
+                            ? `${narrationAssetStatus.ready}/${narrationAssetStatus.total} ready`
+                            : "Checking…"}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 10, lineHeight: 1.45, color: "var(--ink-3)" }}>
+                        Generated audio is saved in this browser and reused by previews and every later export. Text, voice, model, speed, stability, or style changes create only the missing assets.
+                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="st-btn"
+                          disabled={narrationAssetBusy !== null || narrationAssetStatus?.total === 0}
+                          onClick={() => void prepareNarrationAssets(false)}
+                          title="Generate only missing narration and save it for every future export"
+                        >
+                          {narrationAssetBusy === "prepare" ? "Preparing…" : "Prepare voiceover"}
+                        </button>
+                        <button
+                          type="button"
+                          className="st-btn ghost"
+                          disabled={narrationAssetBusy !== null || narrationAssetStatus?.total === 0}
+                          onClick={() => void prepareNarrationAssets(true)}
+                          title="Generate fresh audio for every VO segment. ElevenLabs will charge credits."
+                          style={{ color: "var(--danger)" }}
+                        >
+                          {narrationAssetBusy === "regenerate" ? "Regenerating…" : "Regenerate · uses credits"}
+                        </button>
+                        {ttsEngine === "elevenlabs" && elevenModel !== "eleven_flash_v2_5" && (
+                          <button
+                            type="button"
+                            className="st-btn ghost"
+                            disabled={narrationAssetBusy !== null}
+                            onClick={() => {
+                              update({ elevenModel: "eleven_flash_v2_5" });
+                              setNarrationAssetMsg("Flash v2.5 selected for a lower-cost draft. Prepare voiceover to generate it.");
+                            }}
+                            title="Switch to ElevenLabs Flash v2.5 for lower-cost draft narration"
+                          >
+                            Use Flash draft
+                          </button>
+                        )}
+                      </div>
+                      {narrationAssetMsg && (
+                        <span role="status" style={{ fontSize: 10, lineHeight: 1.4, color: narrationAssetMsg.includes("failed") || narrationAssetMsg.includes("timed out") ? "var(--danger)" : "var(--accent)" }}>
+                          {narrationAssetMsg}
+                        </span>
+                      )}
+                    </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }} title="Volume multiplier for narration audio.">
                       <span style={{ fontSize: 11, width: 110, color: "var(--ink-2)" }}>Voiceover volume</span>

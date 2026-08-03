@@ -2,7 +2,7 @@ import React, { Component, useEffect, useRef, useState, type ReactNode } from "r
 import type { Beat, Clip, Cut } from "../domain/types";
 import { PROJECT_FPS } from "../domain/types";
 import { beatTiming, sourceOffsetAt } from "../domain/beatTiming";
-import FinalPreview, { BeatTitleOverlay, StickerOverlay } from "../features/export/FinalPreview";
+import FinalPreview, { BeatTitleOverlay, StickerOverlay, type PreviewTitle } from "../features/export/FinalPreview";
 import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
 import { captionCssFamily } from "../features/export/captionFont";
@@ -23,6 +23,8 @@ import { useUserVoiceRecorder } from "./useUserVoiceRecorder";
 import { useUserVoicePlayback } from "./useUserVoicePlayback";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "./beatAudio";
 import { activeUserVoiceCaption, timeTranscript } from "./userVoiceTranscript";
+import { findFontById } from "../lib/googleFonts";
+import { useGeneratedVoicePlayback } from "./useGeneratedVoicePlayback";
 
 
 
@@ -109,6 +111,15 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     ? beatTiming(beat, isStill ? undefined : clip?.durationSec)
     : null;
   const previewSpeed = isStill ? 1 : (timing?.speed ?? 1);
+  const cutPreviewTitle: PreviewTitle | null = es.titleLayers.some((layer) => layer.enabled && layer.text.trim())
+    ? {
+        layers: es.titleLayers.map((layer) => ({
+          ...layer,
+          fontFamily: findFontById(layer.fontId)?.cssFamily,
+          fontWeight: layer.weight,
+        })),
+      }
+    : null;
   /** Absolute source time to show at a fraction `p` through the Beat. */
   const sourceTimeAt = (p: number): number => {
     if (!beat || !timing) return 0;
@@ -301,6 +312,27 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const elapsedCutSec = beatStartSec + beatElapsed;
   const totalCutDuration = cut.beats.reduce((sum, item) => sum + Math.max(0.05, durationOf(item)), 0);
   useUserVoicePlayback(cut.userVoiceSegments, elapsedCutSec, mode === "beat" && playing && !previewAudioMuted);
+  const generatedVoPlayback = useGeneratedVoicePlayback({
+    segments: cut.voSegments,
+    userVoiceSegments: cut.userVoiceSegments,
+    elapsedSec: elapsedCutSec,
+    playing: mode === "beat" && playing,
+    enabled: es.voiceover,
+    muted: previewAudioMuted,
+    synthesis: {
+      engine: es.ttsEngine,
+      voice: es.voice,
+      elevenVoiceId: es.elevenVoiceId,
+      elevenModel: es.elevenModel,
+      elevenStability: es.elevenStability,
+      elevenStyle: es.elevenStyle,
+      speed: es.voiceoverSpeed,
+    },
+    volume: es.voiceoverVolume,
+    bassDb: es.voiceoverBassDb,
+    trebleDb: es.voiceoverTrebleDb,
+    effect: es.voiceoverEffect,
+  });
 
   const recorder = useUserVoiceRecorder(({ file, durationSec, transcript }) => {
     const scope = recordScopeRef.current;
@@ -641,17 +673,26 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
             cut={cut}
             clips={clips}
             selectedBeatId={beat?.id}
-            captionScale={1}
-            captionOpacity={0.5}
-            captionLineHeight={1.6}
+            captionScale={es.captionScale}
+            captionOpacity={es.captionOpacity}
+            captionLineHeight={es.captionLineHeight}
             captionFontId={es.captionFontId}
             voiceoverBassDb={es.voiceoverBassDb}
             voiceoverTrebleDb={es.voiceoverTrebleDb}
             voiceoverEffect={es.voiceoverEffect}
-            title={null}
-            music={state.musicTrack?.file ?? null}
-            musicVolume={state.musicTrack ? musicTrackGain(state.musicTrack) : 0.5}
-            voiceover={false}
+            title={cutPreviewTitle}
+            music={state.musicTrack?.file ?? es.music}
+            musicVolume={state.musicTrack ? musicTrackGain(state.musicTrack) : es.musicVolume}
+            voiceover={es.voiceover}
+            voiceoverVolume={es.voiceoverVolume}
+            ttsEngine={es.ttsEngine}
+            voice={es.voice}
+            elevenVoiceId={es.elevenVoiceId}
+            elevenModel={es.elevenModel}
+            elevenStability={es.elevenStability}
+            elevenStyle={es.elevenStyle}
+            voiceoverSpeed={es.voiceoverSpeed}
+            voiceoverLeadSec={es.voiceoverLeadSec}
             enableSpacebarPlayback={keyboardShortcutsActive}
             onActiveBeatChange={(beatId) => onSelectBeat?.(beatId)}
             onPlayingChange={onPlayingChange}
@@ -853,6 +894,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         </div>
         <span className="st-tc st-num">{fmtClock(beat.outSec)}</span>
         <span className="st-tsep" />
+        {generatedVoPlayback.loading && <span className="st-tc">Loading saved VO…</span>}
+        {generatedVoPlayback.error && <span className="st-tc" title={generatedVoPlayback.error}>VO unavailable</span>}
         <ControlButton type="button" className="st-btn ghost" aria-pressed={safeZonesVisible} onClick={() => setSafeZonesVisible((visible) => !visible)}>Safe zones</ControlButton>
         {recordingControl()}
         <ModeSwitch mode={mode} setMode={setMode} disabled={recorder.status !== "idle"} />

@@ -1340,7 +1340,7 @@ export async function exportCut(
   // Synthesize the VO-track narration and mix it — plus any music bed — over the
   // assembled video's audio at absolute times. VO lives here now (it can span beat
   // boundaries), replacing per-beat voiceover.
-  onProgress?.(0.88, "Synthesizing VO track narration…");
+  onProgress?.(0.88, "Preparing VO track narration…");
   const ttsOpts = { engine: opts.ttsEngine ?? "kokoro", voice: opts.voice, elevenVoiceId: opts.elevenVoiceId, speed: opts.voiceoverSpeed, elevenModel: opts.elevenModel, elevenStability: opts.elevenStability, elevenStyle: opts.elevenStyle };
   const voSegs = opts.voiceover
     ? (cut.voSegments ?? []).filter((s) => s.text.trim())
@@ -1351,6 +1351,7 @@ export async function exportCut(
       const frac = 0.88 + ((k + 0.5) / Math.max(1, voSegs.length)) * 0.06;
       onProgress?.(frac, `Synthesizing VO narration ${k + 1} of ${voSegs.length}…`);
       const vo = await synthesizeVoiceover(voSegs[k].text.trim(), ttsOpts);
+      if (vo.cacheHit) onProgress?.(frac, `Reusing saved VO narration ${k + 1} of ${voSegs.length}…`);
       renderedVo.push({ startTimeSec: voSegs[k].startTimeSec, durationSec: voSegs[k].durationSec, volume: voSegs[k].volume ?? 1.0, name: `voseg_${k}.${vo.ext}`, data: vo.data });
     } catch (err) {
       console.warn(`VO segment ${k} synthesis failed; skipping its audio.`, err);
