@@ -20,7 +20,7 @@ import { createVoToneGraph, hasVoTone, type VoToneGraph } from "../../studio/voT
 import type { UserVoiceEffect } from "../../domain/types";
 import { findFontById } from "../../lib/googleFonts";
 import { previewFileForClip } from "../../studio/previewSource";
-import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "../../studio/previewPlayback";
+import { activePreviewMedia, applyPreviewSpeed, pausePreviewMedia, playPreviewMedia } from "../../studio/previewPlayback";
 import { ControlButton } from "../../design-system/ControlPrimitives";
 import ChevronLeftIcon from "../../design-system/icons/ChevronLeftIcon";
 import ChevronRightIcon from "../../design-system/icons/ChevronRightIcon";
@@ -31,6 +31,7 @@ import { titleVisibilityAt, type TitleScope } from "./titleTiming";
 import { useUserVoicePlayback } from "../../studio/useUserVoicePlayback";
 import { captionVoiceGainAtTime } from "../../studio/userVoicePriority";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
+import { beatTiming, sourceOffsetAt } from "../../domain/beatTiming";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -146,6 +147,9 @@ export default function FinalPreview({
   const clipById = useMemo(() => new Map(clips.map((c) => [c.id, c])), [clips]);
 
   const beat = cut.beats[index];
+  const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
+  const timing = beat ? beatTiming(beat, currentBeatClip?.durationSec) : null;
+  const previewSpeed = currentBeatClip?.kind === "still" ? 1 : (timing?.speed ?? 1);
   const [canvasW, canvasH] = canvasDims(cut.aspect);
 
   useEffect(() => { playingRef.current = playing; }, [playing]);
@@ -180,9 +184,12 @@ export default function FinalPreview({
   // Cumulative start time of the current beat (for title "first Ns" timing).
   const beatStart = useMemo(() => {
     let t = 0;
-    for (let i = 0; i < index && i < cut.beats.length; i++) t += cut.beats[i].durationSec;
+    for (let i = 0; i < index && i < cut.beats.length; i++) {
+      const item = cut.beats[i];
+      t += beatTiming(item, clipById.get(item.clipId)?.durationSec).timelineSec;
+    }
     return t;
-  }, [cut.beats, index]);
+  }, [clipById, cut.beats, index]);
   const elapsed = beatStart + beatElapsed;
   useUserVoicePlayback(cut.userVoiceSegments, elapsed, playing && !muteAllAudio);
 
@@ -208,11 +215,20 @@ export default function FinalPreview({
     }
   }, [elapsed, activeOverlay, playing, muteAllAudio]);
 
-  const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
   const mainBeatBlobUrl = getClipBlobUrl(currentBeatClip ? previewFileForClip(currentBeatClip) : undefined);
   const splitActive = Boolean(beat?.splitScreen && beat.splitScreen.layout !== "none");
 
   const activeVideos = () => activePreviewMedia(videoRef.current, splitActive, slotVideoRefs.current);
+
+  // Apply the Beat's authored Speed to every moving picture. Both fields are
+  // intentional: a source load may restore playbackRate from defaultPlaybackRate.
+  useEffect(() => {
+    const media = activeVideos();
+    const apply = () => applyPreviewSpeed(media, previewSpeed);
+    apply();
+    media.forEach((item) => item.addEventListener("loadedmetadata", apply));
+    return () => media.forEach((item) => item.removeEventListener("loadedmetadata", apply));
+  }, [index, previewSpeed, splitActive, beat?.splitScreen]);
 
   // The export drawer remains mounted to preserve its settings and generated
   // output. Closing it must still stop the transport and every media voice.
@@ -234,10 +250,12 @@ export default function FinalPreview({
     v.volume = muteAllAudio ? 0 : vol;
     v.muted = muteAllAudio || vol === 0;
     const onMeta = () => {
+      applyPreviewSpeed(activeVideos(), previewSpeed);
       v.currentTime = beat.inSec;
       if (playingRef.current) v.play().catch(() => {});
     };
     if (v.readyState >= 1) {
+      applyPreviewSpeed(activeVideos(), previewSpeed);
       v.currentTime = beat.inSec;
       if (playingRef.current) v.play().catch(() => {});
     } else {
@@ -246,7 +264,7 @@ export default function FinalPreview({
     return () => {
       v.removeEventListener("loadedmetadata", onMeta);
     };
-  }, [index, beat, cut.beatAudioMasterVolume, cut.beatAudioMuted, mainBeatBlobUrl, muteAllAudio]);
+  }, [index, beat, cut.beatAudioMasterVolume, cut.beatAudioMuted, mainBeatBlobUrl, muteAllAudio, previewSpeed]);
 
   // Play/pause the loaded video in step with the transport.
   useEffect(() => {
@@ -264,30 +282,29 @@ export default function FinalPreview({
       const el = slotVideoRefs.current[idx];
       const slotClip = clips.find((clip) => clip.id === slot.clipId) ?? currentBeatClip;
       if (!el || slotClip?.kind === "still") return;
-      const targetTime = slot.inSec + beatElapsed;
+      const sourceOffset = timing ? sourceOffsetAt(timing, beatElapsed).offsetSec : beatElapsed;
+      const targetTime = slot.inSec + sourceOffset;
       if (Math.abs(el.currentTime - targetTime) > 0.15) {
         try { el.currentTime = targetTime; } catch {}
       }
       const volume = effectiveSplitScreenSlotVolume(slot, idx, beat, cut);
       el.volume = muteAllAudio ? 0 : volume;
       el.muted = muteAllAudio || volume === 0;
+      applyPreviewSpeed([el], previewSpeed);
       if (playing && el.paused) el.play().catch(() => {});
       else if (!playing && !el.paused) el.pause();
     });
-  }, [beat, beatElapsed, clips, currentBeatClip, cut.beatAudioMasterVolume, cut.beatAudioMuted, playing, splitActive, muteAllAudio]);
+  }, [beat, beatElapsed, clips, currentBeatClip, cut.beatAudioMasterVolume, cut.beatAudioMuted, playing, previewSpeed, splitActive, timing, muteAllAudio]);
 
   // Keep DOM video element synchronized with beatElapsed when paused or loaded
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !beat || playing) return;
-    const srcSpan = Math.max(0.05, beat.outSec - beat.inSec);
-    const bDur = beat.durationSec || srcSpan;
-    const pct = Math.min(1, Math.max(0, beatElapsed / bDur));
-    const targetTime = beat.inSec + pct * srcSpan;
+    const targetTime = beat.inSec + (timing ? sourceOffsetAt(timing, beatElapsed).offsetSec : beatElapsed);
     if (Math.abs(v.currentTime - targetTime) > 0.05) {
       try { v.currentTime = targetTime; } catch {}
     }
-  }, [beat, beatElapsed, playing]);
+  }, [beat, beatElapsed, playing, timing]);
 
   // The beat clock: advance beatElapsed in real time, freeze the video once its
   // footage is spent, and move to the next beat when beatElapsed reaches the
@@ -302,10 +319,20 @@ export default function FinalPreview({
       const b = cut.beats[index];
       if (!b) { setPlaying(false); return; }
       const v = videoRef.current;
-      const footageDur = b.outSec - b.inSec;
       const e = beatElapsedRef.current + dt;
-      if (v && footageDur > 0 && e >= footageDur - 0.03 && !v.paused) v.pause(); // freeze last frame once footage window is spent
-      const total = Math.max(0.05, b.durationSec);
+      const bClip = clipById.get(b.clipId);
+      const bTiming = beatTiming(b, bClip?.durationSec);
+      const source = sourceOffsetAt(bTiming, e);
+      if (v) {
+        if (source.holding && !v.paused) v.pause();
+        else if (!source.holding) {
+          const target = b.inSec + source.offsetSec;
+          if (Math.abs(v.currentTime - target) > 0.15) v.currentTime = target;
+          applyPreviewSpeed([v], bClip?.kind === "still" ? 1 : bTiming.speed);
+          if (v.paused && bClip?.kind !== "still") void v.play().catch(() => {});
+        }
+      }
+      const total = Math.max(0.05, bTiming.timelineSec);
       if (e >= total) {
         if (index < cut.beats.length - 1) {
           beatElapsedRef.current = 0;
@@ -324,7 +351,7 @@ export default function FinalPreview({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, index, cut.beats]);
+  }, [playing, index, clipById, cut.beats]);
 
   // Music bed source + volume.
   useEffect(() => {
@@ -487,12 +514,15 @@ export default function FinalPreview({
   const play = () => {
     if (index >= cut.beats.length - 1) {
       const lastBeat = cut.beats[cut.beats.length - 1];
-      const lastDur = lastBeat ? (lastBeat.durationSec || Math.max(0.05, lastBeat.outSec - lastBeat.inSec)) : 0;
+      const lastDur = lastBeat
+        ? beatTiming(lastBeat, clipById.get(lastBeat.clipId)?.durationSec).timelineSec
+        : 0;
       if (beatElapsedRef.current >= lastDur - 0.05) {
         restart();
         return;
       }
     }
+    applyPreviewSpeed(activeVideos(), previewSpeed);
     playPreviewMedia(activeVideos()).then((started) => {
       if (started || activeVideos().length === 0) setPlaying(true);
     });
@@ -508,6 +538,12 @@ export default function FinalPreview({
     if (v && cut.beats[0]) v.currentTime = cut.beats[0].inSec;
     if (audioRef.current) audioRef.current.currentTime = 0;
     setIndex(0);
+    const firstBeat = cut.beats[0];
+    const firstClip = firstBeat ? clipById.get(firstBeat.clipId) : undefined;
+    const firstSpeed = firstClip?.kind === "still"
+      ? 1
+      : firstBeat ? beatTiming(firstBeat, firstClip?.durationSec).speed : 1;
+    applyPreviewSpeed(activeVideos(), firstSpeed);
     playPreviewMedia(activeVideos()).then((started) => {
       if (started || activeVideos().length === 0) setPlaying(true);
     });
@@ -537,7 +573,7 @@ export default function FinalPreview({
   const nextBeat = cut.beats[index + 1];
   const nextTr = nextBeat?.transition;
   const nextTrSec = nextBeat?.transitionSec ?? 0.5;
-  const currentBeatDur = beat ? (beat.durationSec || (beat.outSec - beat.inSec)) : 3;
+  const currentBeatDur = timing?.timelineSec ?? 3;
   const timeRemaining = Math.max(0, currentBeatDur - beatElapsed);
 
   const currentTrPos = beat?.transitionPosition ?? "start";
@@ -585,8 +621,11 @@ export default function FinalPreview({
 
   // Total duration of all beats combined in the Cut
   const totalCutDuration = useMemo(() => {
-    return cut.beats.reduce((acc, b) => acc + (b.durationSec || Math.max(0.05, b.outSec - b.inSec)), 0);
-  }, [cut.beats]);
+    return cut.beats.reduce(
+      (acc, b) => acc + beatTiming(b, clipById.get(b.clipId)?.durationSec).timelineSec,
+      0,
+    );
+  }, [clipById, cut.beats]);
 
   function seekTotalTime(targetSec: number) {
     const clamped = Math.max(0, Math.min(totalCutDuration, targetSec));
@@ -595,7 +634,8 @@ export default function FinalPreview({
     let offsetInBeat = 0;
 
     for (let i = 0; i < cut.beats.length; i++) {
-      const bDur = cut.beats[i].durationSec || Math.max(0.05, cut.beats[i].outSec - cut.beats[i].inSec);
+      const item = cut.beats[i];
+      const bDur = beatTiming(item, clipById.get(item.clipId)?.durationSec).timelineSec;
       if (clamped <= accum + bDur || i === cut.beats.length - 1) {
         targetIndex = i;
         offsetInBeat = Math.min(bDur, Math.max(0, clamped - accum));
@@ -613,10 +653,9 @@ export default function FinalPreview({
     const b = cut.beats[targetIndex];
     const v = videoRef.current;
     if (v && b) {
-      const srcSpan = Math.max(0.05, b.outSec - b.inSec);
-      const bDur = b.durationSec || srcSpan;
-      const pct = Math.min(1, Math.max(0, offsetInBeat / bDur));
-      v.currentTime = b.inSec + pct * srcSpan;
+      const bTiming = beatTiming(b, clipById.get(b.clipId)?.durationSec);
+      v.currentTime = b.inSec + sourceOffsetAt(bTiming, offsetInBeat).offsetSec;
+      applyPreviewSpeed([v], clipById.get(b.clipId)?.kind === "still" ? 1 : bTiming.speed);
     }
   }
 

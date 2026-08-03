@@ -3,6 +3,11 @@ export interface PreviewMedia {
   pause: () => void;
 }
 
+export interface RateControlledPreviewMedia {
+  playbackRate: number;
+  defaultPlaybackRate: number;
+}
+
 export function activePreviewMedia<T extends PreviewMedia>(
   primary: T | null,
   splitActive: boolean,
@@ -19,4 +24,17 @@ export async function playPreviewMedia(media: PreviewMedia[]) {
 
 export function pausePreviewMedia(media: PreviewMedia[]) {
   media.forEach((item) => item.pause());
+}
+
+/**
+ * Keep both rate fields aligned. Browsers may restore `playbackRate` from
+ * `defaultPlaybackRate` while a newly assigned source loads, so setting only
+ * the live value makes slow motion depend on metadata timing.
+ */
+export function applyPreviewSpeed(media: RateControlledPreviewMedia[], speed: number) {
+  const usableSpeed = Number.isFinite(speed) && speed > 0 ? speed : 1;
+  media.forEach((item) => {
+    item.defaultPlaybackRate = usableSpeed;
+    item.playbackRate = usableSpeed;
+  });
 }

@@ -16,7 +16,7 @@ import PlayIcon from "../design-system/icons/PlayIcon";
 import PauseIcon from "../design-system/icons/PauseIcon";
 import ReplayIcon from "../design-system/icons/ReplayIcon";
 import { previewFileForClip } from "./previewSource";
-import { activePreviewMedia, pausePreviewMedia, playPreviewMedia } from "./previewPlayback";
+import { activePreviewMedia, applyPreviewSpeed, pausePreviewMedia, playPreviewMedia } from "./previewPlayback";
 import { musicTrackGain } from "../features/music-track/musicTrack";
 import { useProject } from "../state/ProjectContext";
 import { useUserVoiceRecorder } from "./useUserVoiceRecorder";
@@ -180,6 +180,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     const targetSec = sourceTimeAt(posRef.current);
     const syncTime = () => {
       if (v.readyState >= 1) {
+        applyPreviewSpeed([v], previewSpeed);
         v.currentTime = Math.min(targetSec, Math.max(0, (v.duration || 0) - 0.05));
       }
     };
@@ -187,7 +188,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     syncTime();
     v.addEventListener("loadedmetadata", syncTime, { once: true });
     return () => { v.removeEventListener("loadedmetadata", syncTime); };
-  }, [clip?.id, beat?.id, beat?.inSec, beat?.outSec, mode]);
+  }, [clip?.id, beat?.id, beat?.inSec, beat?.outSec, beat?.speed, mode]);
 
   // Sync currentTime while paused or when dragging position / inSec
   useEffect(() => {
@@ -273,12 +274,18 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStill, playing, beat?.id, beat?.inSec, beat?.outSec, beat?.speed, beat?.fill]);
 
-  // Speed drives the element's own rate, so the picture moves correctly between
-  // the clock's nudges above.
+  // Speed drives every moving source, not just the primary video. Set both rate
+  // fields and re-apply after metadata: assigning a source can reset the live
+  // playbackRate in browsers, which previously made slow motion intermittent.
   useEffect(() => {
-    const v = videoRef.current;
-    if (v) v.playbackRate = previewSpeed;
-  }, [previewSpeed, clip?.id, beat?.id]);
+    if (mode !== "beat") return;
+    const splitActive = Boolean(beat?.splitScreen && beat.splitScreen.layout !== "none");
+    const media = activePreviewMedia(videoRef.current, splitActive, slotVideoRefs.current);
+    const apply = () => applyPreviewSpeed(media, previewSpeed);
+    apply();
+    media.forEach((item) => item.addEventListener("loadedmetadata", apply));
+    return () => media.forEach((item) => item.removeEventListener("loadedmetadata", apply));
+  }, [mode, previewSpeed, clip?.id, beat?.id, beat?.splitScreen]);
 
   // 3. Calculations for active beat & overlay
   const beatIndex = beat ? cut.beats.indexOf(beat) : -1;
@@ -400,6 +407,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     const splitActive = Boolean(beat.splitScreen && beat.splitScreen.layout !== "none");
     const media = activePreviewMedia(v, splitActive, slotVideoRefs.current);
     if (playing) { pausePreviewMedia(media); setPlaying(false); return; }
+    applyPreviewSpeed(media, previewSpeed);
     // Restart from the top when the playhead has run out — either off the end of
     // the timeline, or past the window a Speed of 1 would have used.
     if (pos >= 0.999 || v.currentTime < beat.inSec || v.currentTime >= beat.outSec - 0.05) {
@@ -422,6 +430,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     if (!v) return;
     const splitActive = Boolean(beat.splitScreen && beat.splitScreen.layout !== "none");
     const media = activePreviewMedia(v, splitActive, slotVideoRefs.current);
+    applyPreviewSpeed(media, previewSpeed);
     media.forEach((item) => {
       item.currentTime = beat.inSec;
       item.volume = 0;

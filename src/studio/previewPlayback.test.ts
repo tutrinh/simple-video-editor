@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activePreviewMedia, playPreviewMedia } from "./previewPlayback";
+import { activePreviewMedia, applyPreviewSpeed, playPreviewMedia } from "./previewPlayback";
 
 describe("split-screen preview playback", () => {
   it("starts both the top and bottom videos from the play gesture", async () => {
@@ -20,5 +20,15 @@ describe("split-screen preview playback", () => {
     await playPreviewMedia(media);
 
     expect(movingSlot.play).toHaveBeenCalledOnce();
+  });
+
+  it("applies slow motion to every moving source in Beat and Cut playback", () => {
+    const primary = { playbackRate: 1, defaultPlaybackRate: 1 };
+    const secondSlot = { playbackRate: 1, defaultPlaybackRate: 1 };
+
+    applyPreviewSpeed([primary, secondSlot], 0.5);
+
+    expect(primary).toMatchObject({ playbackRate: 0.5, defaultPlaybackRate: 0.5 });
+    expect(secondSlot).toMatchObject({ playbackRate: 0.5, defaultPlaybackRate: 0.5 });
   });
 });
