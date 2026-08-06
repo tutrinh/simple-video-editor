@@ -104,6 +104,60 @@ export function getSplitLayoutCss(layout: SplitLayoutType): React.CSSProperties 
 
 
 /**
+ * How far a slot's pan moves its picture, in output pixels.
+ *
+ * The preview applies `transform: scale(s) translate(panX%, panY%)` to media
+ * that fills the slot, so the percentage resolves against the SLOT's size — and
+ * because the scale sits outside the translate in the transform list, the
+ * displacement is multiplied by it. A slot at 2× therefore pans twice as far for
+ * the same slider position.
+ *
+ * Pure and exported so the export path and any future canvas path derive the
+ * displacement from one place rather than two (ARCHITECTURE_BACKLOG defect 3 is
+ * what the second one looks like).
+ */
+export function slotPanOffset(
+  slot: Pick<SplitScreenSlot, "panX" | "panY" | "scale">,
+  slotW: number,
+  slotH: number,
+): { dx: number; dy: number } {
+  const scale = slot.scale ?? 1;
+  return {
+    dx: Math.round(slotW * scale * ((slot.panX ?? 0) / 100)),
+    dy: Math.round(slotH * scale * ((slot.panY ?? 0) / 100)),
+  };
+}
+
+/**
+ * `crop` x/y expressions that shift the window opposite to the pan.
+ *
+ * Moving the picture right means taking the crop window from further LEFT, so
+ * the offset is subtracted from the centred default. Returned as expressions
+ * over `in_w`/`in_h` because the scaled size is not known until runtime —
+ * `force_original_aspect_ratio=increase` depends on the source's own dimensions.
+ *
+ * Returns null for an unpanned slot so the emitted filter stays byte-identical
+ * to what it was before pan was honoured. crop clips x/y into range itself, so a
+ * pan that would push past the edge holds there; the CSS preview would show the
+ * cell's black backing instead. They agree everywhere short of that limit.
+ *
+ * No commas: a filtergraph is comma-separated, and an expression containing one
+ * would need escaping that is easy to get subtly wrong.
+ */
+export function slotCropExpr(
+  slot: Pick<SplitScreenSlot, "panX" | "panY" | "scale">,
+  slotW: number,
+  slotH: number,
+): { x: string; y: string } | null {
+  const { dx, dy } = slotPanOffset(slot, slotW, slotH);
+  if (dx === 0 && dy === 0) return null;
+  return {
+    x: `(in_w-out_w)/2-(${dx})`,
+    y: `(in_h-out_h)/2-(${dy})`,
+  };
+}
+
+/**
  * Generates FFmpeg filtergraph strings for multi-slot split screen composition.
  */
 export function buildSplitScreenFilterGraph(
@@ -141,9 +195,10 @@ export function buildSplitScreenFilterGraph(
     const scaledW = Math.round(slotW * scale);
     const scaledH = Math.round(slotH * scale);
 
+    const crop = slotCropExpr(slot, slotW, slotH);
     const slotFilters: string[] = [
       `scale=${scaledW}:${scaledH}:force_original_aspect_ratio=increase:flags=fast_bilinear`,
-      `crop=${slotW}:${slotH}`,
+      crop ? `crop=${slotW}:${slotH}:${crop.x}:${crop.y}` : `crop=${slotW}:${slotH}`,
     ];
 
 
