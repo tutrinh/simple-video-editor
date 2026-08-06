@@ -14,7 +14,9 @@ across N callers (it was earning its keep)?
 
 ---
 
-## Defects — both addressed 2026-07-26
+## Defects
+
+Defects 1 and 2 were addressed 2026-07-26. Defect 3 was addressed 2026-08-06.
 
 ### 1. Ken Burns time base — NOT a live defect; claim corrected
 
@@ -44,6 +46,44 @@ previews now use `contain`.
 Overlay. Changing the export to fill instead would alter the output of existing
 projects, so the previews were moved to match the export rather than the reverse.
 Worth revisiting as a product decision.
+
+### 3. Split-screen slot pan is discarded by the export — FIXED
+
+`splitScreenCanvas.ts` normalizes `panX`/`panY` onto every slot (`:45–56`) and
+the CSS preview applies them as a `translate()` (`:70–76`).
+`buildSplitScreenFilterGraph` **never reads either field**: it emits
+`crop=${slotW}:${slotH}` with no `x`/`y` offset (`:146`), which is a centred
+crop. Panning a split-screen slot therefore moves the picture in `StagePreview`
+and `FinalPreview` and does nothing whatsoever in the exported video.
+
+Same class as defect 2, same root cause as Candidate B — the geometry is
+expressed twice and only one expression was ever finished. The layout is in fact
+expressed twice *within this one file*: as CSS grid templates at `:88–102`, and
+re-derived as a `cols`/`rows` if-chain at `:123–129`.
+
+Found while designing Covers ([ADR-0021](./docs/adr/0021-covers-are-canvas-rendered-leaf-artifacts.md)),
+which added a **third** encoding — a canvas compositor.
+
+**Fixed.** `crop` now takes x/y expressions derived from `slotPanOffset()`, a pure
+function giving the displacement the CSS transform applies: the pan percentage
+resolves against the SLOT, and the scale sits outside the translate, so a slot at
+2× pans twice as far. The offset is emitted **only** when a slot is actually
+panned, so an unpanned graph is byte-identical to what it was and no golden
+snapshot moved. The expressions are comma-free on purpose — a filtergraph is
+comma-separated, and escaping is easy to get subtly wrong; a test walks every
+emitted filter to prove none was split.
+
+Two residual notes. `crop` clips x/y into range itself, so a pan that would push
+past the source edge holds there while the CSS preview shows the cell's black
+backing — they agree everywhere short of that limit. And the chain still applies
+`rotate` after the crop while CSS rotates innermost, so rotation combined with
+pan composes differently; untouched here, and unrelated to this defect.
+
+The three encodings are now bound by test: `splitSlotRects` asserts its slot count
+against `getSlotCountForLayout` and its 4-grid order against `xstack`'s layout
+string, and the canvas renderer's effective displacement is asserted equal to
+`slotPanOffset` across four pan/scale combinations. Candidate B remains the real
+fix; this is one fact shared rather than three re-derived.
 
 ---
 

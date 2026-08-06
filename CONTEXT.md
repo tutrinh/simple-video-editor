@@ -284,6 +284,29 @@ it cannot outlast it. The term survives because Projects saved earlier still
 carry the choice.
 _Avoid_: stretch, padding, freeze, hold, loop
 
+**Cover**:
+A still image dressed to advertise the Project — carrying its own framing, Grade,
+Veil, Stickers and Title overlays, and exported at its own aspect. Its picture is
+either captured from a Beat or supplied by the Author from a file; once taken it
+keeps those pixels rather than pointing back at where they came from, so
+retrimming, reordering or deleting a Beat never disturbs a Cover made from it
+(ADR-0021). The origin survives only as a label, because nothing about a Cover
+behaves differently for one or the other. A Project holds many and none is
+preferred: nothing in the app reads a Cover, so there is no "chosen" one.
+Distinct from the Cut, which is the video itself; from a Beat's poster thumbnail,
+which is only a small UI preview; and from a Still, which is a Clip the Cut can
+build a Beat from — an uploaded Cover picture never enters the Cut.
+_Avoid_: thumbnail, poster, screenshot, cover image
+
+**Veil**:
+A solid or linear-gradient colour laid over a Cover's picture, beneath its
+Stickers and Title overlays. It exists so the photograph recedes and the text
+above it reads. A Cover has at most one. Distinct from Colorize, which moves the
+colours the picture already has in its own shadows and highlights; a Veil is a
+new colour laid on top of everything the Grade produced, and it dims the
+photograph without touching the Stickers or Titles above it.
+_Avoid_: scrim, wash, fill, tint, gradient, overlay
+
 ## Working docs & known issues
 
 Root-level living docs that track cross-cutting bugs, their fixes, and rules to
