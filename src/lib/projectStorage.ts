@@ -4,11 +4,12 @@ import { getClipBlobUrl } from "./blobUrlCache";
 import { migrateCutSpeeds } from "../domain/beatTiming";
 import { stripTitleFonts, reinjectTitleFonts, titleFontKeys, promoteTitleFontsToAppLibrary } from "./titleFontPersist";
 import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles, userVoiceKeys } from "./userVoicePersist";
+import { collectCoverFiles, coverKeys, reinjectCoverFiles, stripCoverFiles } from "./coverPersist";
 import { appFontFileName } from "./fontLibrary";
 import { fetchMusicFile, uploadMusic } from "./musicLibrary";
 
 const DB_NAME = "vidstr_projects_db";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const ACTIVE_PROJECT_KEY = "simple_editor_active_project_id";
 
 function openDB(): Promise<IDBDatabase> {
@@ -41,6 +42,11 @@ function openDB(): Promise<IDBDatabase> {
       // v5: one analyzed, audio-only music track per project.
       if (!db.objectStoreNames.contains("music_tracks")) {
         db.createObjectStore("music_tracks", { keyPath: "projectId" });
+      }
+      // v6: captured/uploaded Cover pictures (ADR-0021). Keyed `<projectId>:<coverId>`
+      // like user_voice, so a recovery snapshot reads its origin's assets.
+      if (!db.objectStoreNames.contains("covers")) {
+        db.createObjectStore("covers", { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -147,9 +153,19 @@ export async function saveProjectToStorage(state: ProjectState, projectId?: stri
     await transactionDone(voiceTx);
   }
 
+  const coverFiles = collectCoverFiles(state);
+  if (coverFiles.length) {
+    const coverTx = db.transaction("covers", "readwrite");
+    const coverStore = coverTx.objectStore("covers");
+    for (const { key, file } of coverFiles) {
+      coverStore.put({ key: `${id}:${key}`, frameBlob: file });
+    }
+    await transactionDone(coverTx);
+  }
+
   // 2. Prepare serializable state without non-serializable File/Blob objects.
   //    Clip media remains out-of-band; app fonts are represented by filename.
-  const stripped = stripUserVoiceFiles(stripTitleFonts(state));
+  const stripped = stripCoverFiles(stripUserVoiceFiles(stripTitleFonts(state)));
   const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
   const serializableMusicTrack = stripped.musicTrack
     ? (({ file: _file, ...track }) => track)(stripped.musicTrack)
@@ -287,7 +303,22 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
     for (const result of results) if (result.blob) voiceMap.set(result.key, result.blob);
   }
 
-  const rehydrated = reinjectUserVoiceFiles(reinjectTitleFonts(
+  const coverMap = new Map<string, Blob>();
+  const savedCoverKeys = coverKeys(parsedState);
+  if (savedCoverKeys.length) {
+    const coverTx = db.transaction("covers", "readonly");
+    const coverStore = coverTx.objectStore("covers");
+    const results = await Promise.all(
+      savedCoverKeys.map((key) => new Promise<{ key: string; blob: Blob | null }>((resolve) => {
+        const req = coverStore.get(`${assetOwnerId}:${key}`);
+        req.onsuccess = () => resolve({ key, blob: (req.result as { frameBlob?: Blob } | undefined)?.frameBlob ?? null });
+        req.onerror = () => resolve({ key, blob: null });
+      })),
+    );
+    for (const result of results) if (result.blob) coverMap.set(result.key, result.blob);
+  }
+
+  const rehydrated = reinjectCoverFiles(reinjectUserVoiceFiles(reinjectTitleFonts(
     {
       ...parsedState,
       clips: rehydratedClips,
@@ -297,7 +328,7 @@ export async function loadProjectFromStorage(projectId?: string): Promise<Projec
       cut: migrateCutSpeeds(parsedState.cut, rehydratedClips),
     },
     fontMap,
-  ), voiceMap);
+  ), voiceMap), coverMap);
   const promoted = await promoteTitleFontsToAppLibrary(rehydrated);
 
   // Once a legacy embedded face has reached public/fonts/, remove its old

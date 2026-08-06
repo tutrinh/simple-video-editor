@@ -3,6 +3,7 @@ import type { Clip } from "../domain/types";
 import { getClipBlobUrl } from "./blobUrlCache";
 import { collectTitleFonts, stripTitleFonts, reinjectTitleFonts, promoteTitleFontsToAppLibrary } from "./titleFontPersist";
 import { collectUserVoiceFiles, reinjectUserVoiceFiles, stripUserVoiceFiles } from "./userVoicePersist";
+import { collectCoverFiles, reinjectCoverFiles, stripCoverFiles } from "./coverPersist";
 import { fetchMusicFile, uploadMusic } from "./musicLibrary";
 
 interface VidstrPackage {
@@ -35,6 +36,13 @@ interface VidstrPackage {
     fileType: string;
     fileDataUrl: string;
   };
+  /** Cover pictures, keyed by Cover id (ADR-0021). */
+  covers?: Array<{
+    key: string;
+    fileName: string;
+    fileType: string;
+    fileDataUrl: string;
+  }>;
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -91,7 +99,17 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
     });
   }
 
-  const stripped = stripUserVoiceFiles(stripTitleFonts(state));
+  const covers: NonNullable<VidstrPackage["covers"]> = [];
+  for (const { key, file } of collectCoverFiles(state)) {
+    covers.push({
+      key,
+      fileName: file.name,
+      fileType: file.type || "image/jpeg",
+      fileDataUrl: await blobToDataUrl(file),
+    });
+  }
+
+  const stripped = stripCoverFiles(stripUserVoiceFiles(stripTitleFonts(state)));
   const serializableClips = stripped.clips.map(({ file, normalized, ...rest }) => rest);
   const serializableMusicTrack = stripped.musicTrack
     ? (({ file: _file, ...track }) => track)(stripped.musicTrack)
@@ -114,6 +132,7 @@ export async function exportProjectFile(state: ProjectState): Promise<void> {
     ...(titleFonts.length ? { titleFonts } : {}),
     ...(userVoice.length ? { userVoice } : {}),
     ...(musicTrack ? { musicTrack } : {}),
+    ...(covers.length ? { covers } : {}),
   };
 
   const jsonString = JSON.stringify(pkg, null, 2);
@@ -172,6 +191,12 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
     voiceMap.set(voice.key, new File([blob], voice.fileName, { type: voice.fileType || blob.type }));
   }
 
+  const coverMap = new Map<string, Blob>();
+  for (const cover of pkg.covers ?? []) {
+    const blob = dataUrlToBlob(cover.fileDataUrl, cover.fileType || "image/jpeg");
+    coverMap.set(cover.key, new File([blob], cover.fileName, { type: cover.fileType || blob.type }));
+  }
+
   let musicFile: File | undefined;
   let musicFileName = parsedState.musicTrack?.fileName;
   if (parsedState.musicTrack && musicFileName) {
@@ -183,7 +208,7 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
     try { musicFileName = await uploadMusic(musicFile); } catch { /* package remains usable in memory */ }
   }
 
-  const rehydrated = reinjectUserVoiceFiles(reinjectTitleFonts(
+  const rehydrated = reinjectCoverFiles(reinjectUserVoiceFiles(reinjectTitleFonts(
     {
       ...parsedState,
       clips: rehydratedClips,
@@ -192,6 +217,6 @@ export async function importProjectFile(file: File): Promise<ProjectState> {
         : undefined,
     },
     fontMap,
-  ), voiceMap);
+  ), voiceMap), coverMap);
   return promoteTitleFontsToAppLibrary(rehydrated);
 }

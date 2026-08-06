@@ -66,6 +66,12 @@ interface Props {
   onSelectBeat?: (beatId: string) => void;
   onPlayingChange?: (playing: boolean) => void;
   onRecordCreated?: (segmentId: string) => void;
+  /**
+   * Capture the frame on screen as a Cover (ADR-0021). Given the SOURCE time,
+   * because that is what a frame grab seeks to — the scrubber and frame-step
+   * already are the frame picker, so capture adds no selection UI of its own.
+   */
+  onCaptureCover?: (atSec: number) => void;
 }
 
 /**
@@ -73,7 +79,7 @@ interface Props {
  *  - "Beat": the selected Beat's trimmed window, scrubbable, caption burned in.
  *  - "Cut": the whole edit played back sequentially (reuses the export FinalPreview).
  */
-export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated }: Props) {
+export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated, onCaptureCover }: Props) {
   const { state, dispatch } = useProject();
   const { settings: es } = useExportSettings();
   const [mode, setMode] = useState<"beat" | "cut">("beat");
@@ -897,6 +903,18 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         {generatedVoPlayback.loading && <span className="st-tc">Loading saved VO…</span>}
         {generatedVoPlayback.error && <span className="st-tc" title={generatedVoPlayback.error}>VO unavailable</span>}
         <ControlButton type="button" className="st-btn ghost" aria-pressed={safeZonesVisible} onClick={() => setSafeZonesVisible((visible) => !visible)}>Safe zones</ControlButton>
+        {onCaptureCover && (
+          <ControlButton
+            type="button"
+            className="st-btn ghost"
+            aria-label="Capture this frame as a cover"
+            title={beat ? "Capture this frame as a cover" : "Select a beat to capture a cover from"}
+            disabled={!beat}
+            onClick={() => onCaptureCover(sourceTimeAt(pos))}
+          >
+            Capture cover
+          </ControlButton>
+        )}
         {recordingControl()}
         <ModeSwitch mode={mode} setMode={setMode} disabled={recorder.status !== "idle"} />
       </div>

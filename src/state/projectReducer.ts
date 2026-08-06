@@ -1,4 +1,4 @@
-import type { Clip, ClipDescription, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments, MusicTrack } from "../domain/types";
+import type { Clip, ClipDescription, Cover, Cut, Beat, Story, OverlayClip, VoSegment, SfxSegment, UserVoiceSegment, Sticker, ColorAdjustments, MusicTrack } from "../domain/types";
 import type { CreatorNotes, ProductBrief, ProductReviewWorkspace, ReviewPlan } from "../domain/productReview";
 import type { MotivationalStoryWorkspace } from "../domain/motivationalStory";
 import type { AiDirectorWorkspace } from "../domain/aiDirector";
@@ -21,6 +21,13 @@ export interface ProjectState {
   motivationalStory?: MotivationalStoryWorkspace;
   /** General-purpose creator brief and Hook Lab results. */
   aiDirector?: AiDirectorWorkspace;
+  /**
+   * Still images dressed to advertise the Project (ADR-0021). Project-level
+   * rather than part of the Cut: a Cover keeps its own pixels and nothing in the
+   * app reads one, so editing the Cut can never reach them. Optional, so
+   * projects saved before Covers existed load unchanged.
+   */
+  covers?: Cover[];
 }
 
 export const initialState: ProjectState = { title: "", clips: [], direction: "" };
@@ -85,6 +92,9 @@ export type Action =
   | { type: "ADD_STICKER"; sticker: Sticker }
   | { type: "UPDATE_STICKER"; sticker: Sticker }
   | { type: "REMOVE_STICKER"; id: string }
+  | { type: "ADD_COVER"; cover: Cover }
+  | { type: "UPDATE_COVER"; cover: Cover }
+  | { type: "REMOVE_COVER"; id: string }
   | { type: "DUPLICATE_STICKER"; id: string; newStickerId?: string }
   | { type: "SET_GLOBAL_FILTER"; filterId: string | null; intensity?: number; adjustments?: ColorAdjustments }
   | { type: "LOAD_PROJECT"; state: ProjectState }
@@ -468,6 +478,18 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
     }
     // The four Sticker cases mirror the SFX ones above, including the +0.5s
     // nudge on duplicate so the copy is visibly offset rather than hidden.
+    // Covers hang off the Project, not the Cut (ADR-0021) — so unlike the four
+    // families above these do not guard on `state.cut`. A Cover outlives the Cut
+    // that produced it, and an uploaded one never needed one.
+    case "ADD_COVER":
+      return { ...state, covers: [...(state.covers ?? []), action.cover] };
+    case "UPDATE_COVER":
+      return {
+        ...state,
+        covers: (state.covers ?? []).map((c) => (c.id === action.cover.id ? action.cover : c)),
+      };
+    case "REMOVE_COVER":
+      return { ...state, covers: (state.covers ?? []).filter((c) => c.id !== action.id) };
     case "ADD_STICKER": {
       if (!state.cut) return state;
       const stickers = [...(state.cut.stickers ?? []), action.sticker];

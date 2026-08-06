@@ -32,6 +32,7 @@ interface Props {
   onOpenProductReview: () => void;
   onOpenMotivationalStory?: () => void;
   onOpenStoryPractice?: () => void;
+  onOpenCovers: () => void;
 }
 
 export default function TopBar({
@@ -42,6 +43,7 @@ export default function TopBar({
   onOpenProductReview,
   onOpenMotivationalStory,
   onOpenStoryPractice,
+  onOpenCovers,
 }: Props) {
   const { state, dispatch, undo, redo, canUndo, canRedo } = useProject();
   const { theme, toggleTheme } = useTheme();
@@ -204,6 +206,16 @@ export default function TopBar({
           title="Open AI Director to brief, generate hooks, write the story, and refine each beat"
         >
           AI Director
+        </Button>
+      )}
+      {cut && (
+        <Button
+          variant="quiet"
+          size="small"
+          onClick={onOpenCovers}
+          title="Covers — stills dressed to advertise this project"
+        >
+          Covers
         </Button>
       )}
       {/* <Button variant="danger" size="small" onClick={onStartOver} title="Clear everything">Start over</Button> */}

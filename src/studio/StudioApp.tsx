@@ -20,6 +20,8 @@ import { useExportSettings } from "../state/ExportSettingsContext";
 import TopBar from "./TopBar";
 import ClipBin, { CLIP_DRAG_TYPE } from "./ClipBin";
 import StagePreview from "./StagePreview";
+import CoverDrawer from "./CoverDrawer";
+import { captureCover } from "../features/cover/coverSource";
 import Timeline from "./Timeline";
 import Inspector from "./Inspector";
 import ExportDrawer from "./ExportDrawer";
@@ -85,6 +87,8 @@ export default function StudioApp() {
     clearSegmentSelections();
   }, [clearSegmentSelections]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [coverMounted, setCoverMounted] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [clipBinCollapsed, setClipBinCollapsed] = useState(false);
   // Mount the export drawer lazily on first open, then keep it mounted so its
@@ -439,6 +443,24 @@ export default function StudioApp() {
     selectBeatFromUser(manualCut.beats[0]?.id ?? null);
   }
 
+  /**
+   * Capture the frame the preview is showing as a Cover, and open the drawer on
+   * it. `atSec` is the source time the transport is parked at — the scrubber and
+   * frame-step ARE the frame picker (ADR-0021).
+   */
+  async function captureCoverFromBeat(atSec: number) {
+    if (!cut || !selectedBeat || !selectedClip) return;
+    const beatIndex = cut.beats.findIndex((b) => b.id === selectedBeat.id);
+    try {
+      const cover = await captureCover({ beat: selectedBeat, clip: selectedClip, clips, cut, beatIndex, atSec });
+      dispatch({ type: "ADD_COVER", cover });
+      setCoverMounted(true);
+      setCoverOpen(true);
+    } catch (e) {
+      console.error("cover capture failed", e);
+    }
+  }
+
   function startOver() {
     if (!confirm("Start over? This clears all clips, the story, the cut, and every setting. This cannot be undone.")) return;
     dispatch({ type: "RESET" });
@@ -463,6 +485,7 @@ export default function StudioApp() {
         onExport={() => { setExportMounted(true); setExportOpen(true); }}
         onStartOver={startOver}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenCovers={() => { setCoverMounted(true); setCoverOpen(true); }}
         onOpenAiStory={() => {
           setAiStoryMounted(true);
           setProductReviewOpen(false);
@@ -549,6 +572,7 @@ export default function StudioApp() {
                     keyboardShortcutsActive={editorHovered}
                     onSelectBeat={setSelectedBeatId}
                     onPlayingChange={setIsPlaying}
+                    onCaptureCover={captureCoverFromBeat}
                     onRecordCreated={(id) => {
                       setSelectedUserVoiceId(id);
                       setSelectedOverlayId(null);
@@ -668,6 +692,7 @@ export default function StudioApp() {
       </WorkspaceMain>
 
       {exportMounted && <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)} />}
+      {coverMounted && <CoverDrawer open={coverOpen} onClose={() => setCoverOpen(false)} />}
       <SettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Modal
         open={Boolean(pendingTrackDeletion)}

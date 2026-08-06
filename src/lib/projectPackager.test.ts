@@ -226,3 +226,67 @@ describe("importProjectFile — Product Review workspace", () => {
     expect(state.productReview).toEqual(productReview);
   });
 });
+
+describe("importProjectFile — Covers", () => {
+  // A Cover keeps its own pixels (ADR-0021), so unlike everything else in a
+  // .vidstr its picture has to survive the trip or the Cover is gone.
+  const veil = { mode: "linear" as const, color: "#000000", opacity: 0, toColor: "#000000", toOpacity: 0.8, direction: "down" as const };
+
+  function coverPkg(covers: unknown[], carried: { key: string; missing?: boolean }[]) {
+    return new File([JSON.stringify({
+      version: 1,
+      exportedAt: 0,
+      title: "covers",
+      stateJson: JSON.stringify({ title: "covers", clips: [], direction: "", covers }),
+      media: [],
+      covers: carried.filter((c) => !c.missing).map((c) => ({
+        key: c.key,
+        fileName: `${c.key}.jpg`,
+        fileType: "image/jpeg",
+        fileDataUrl: dataUrl("image/jpeg"),
+      })),
+    })], "c.vidstr", { type: "application/json" });
+  }
+
+  const serialized = (id: string, over: Record<string, unknown> = {}) => ({
+    id, sourceLabel: "Beat 2 @ 1.4s", aspect: "9:16",
+    zoom: 1.4, zoomX: 10, zoomY: -5, grade: { exposure: 12 },
+    stickers: [], titles: [], ...over,
+  });
+
+  it("rehydrates the picture and every dressing decision", async () => {
+    const state = await importProjectFile(coverPkg(
+      [serialized("cv1", { veil, titles: [{ id: "t1", enabled: true, text: "NEVER AGAIN", fontId: "", fontFile: null, weight: 700, sizePx: 90, letterSpacing: 0, arcDeg: 0, shadow: true, color: "#ffffff", posX: 0, posY: 0 }] })],
+      [{ key: "cv1" }],
+    ));
+    const cover = state.covers![0];
+    expect(cover.frame).toBeInstanceOf(File);
+    expect(cover.frame.type).toBe("image/jpeg");
+    expect(cover.veil).toEqual(veil);
+    expect(cover.titles[0].text).toBe("NEVER AGAIN");
+    expect(cover.grade).toEqual({ exposure: 12 });
+    expect([cover.zoom, cover.zoomX, cover.zoomY]).toEqual([1.4, 10, -5]);
+    expect(cover.aspect).toBe("9:16");
+    expect(cover.sourceLabel).toBe("Beat 2 @ 1.4s");
+  });
+
+  it("carries a Cover's Stickers, which have no timeline of their own", async () => {
+    const stickers = [{ id: "sk1", fileName: "arrow.png", x: 0.5, y: 0.8, scale: 0.2, rotation: 12, opacity: 1 }];
+    const state = await importProjectFile(coverPkg([serialized("cv1", { stickers })], [{ key: "cv1" }]));
+    expect(state.covers![0].stickers).toEqual(stickers);
+    expect(state.covers![0].stickers[0]).not.toHaveProperty("startTimeSec");
+  });
+
+  it("drops a Cover whose picture did not travel", async () => {
+    const state = await importProjectFile(coverPkg(
+      [serialized("cv1"), serialized("cv2")],
+      [{ key: "cv1" }, { key: "cv2", missing: true }],
+    ));
+    expect(state.covers!.map((c) => c.id)).toEqual(["cv1"]);
+  });
+
+  it("loads a project saved before Covers existed", async () => {
+    const state = await importProjectFile(vidstr([video]));
+    expect(state.covers).toBeUndefined();
+  });
+});
