@@ -555,3 +555,106 @@ export interface Cut {
   /** Fine-tuned custom color adjustments overriding the preset defaults. */
   globalFilterAdjustments?: ColorAdjustments;
 }
+
+/** Which edge a Veil's gradient runs toward; "down" puts the from-stop on top. */
+export type VeilDirection = "down" | "up" | "right" | "left";
+
+/**
+ * A colour laid over a Cover's picture, beneath its Stickers and Titles, so the
+ * photograph recedes and the text above it reads.
+ *
+ * `color`/`opacity` is both the solid fill and the gradient's from-stop, and the
+ * to-stop is retained in either mode, so toggling `mode` never discards a value
+ * the author set.
+ */
+export interface Veil {
+  mode: "solid" | "linear";
+  /** Hex. The solid fill, and the gradient's from-stop. */
+  color: string;
+  /** 0..1. */
+  opacity: number;
+  /** Hex. The gradient's to-stop. Unused while `mode` is "solid". */
+  toColor: string;
+  /** 0..1. Unused while `mode` is "solid". */
+  toOpacity: number;
+  direction: VeilDirection;
+}
+
+/**
+ * The TitleLayerSettings fields a still has no use for — everything about time.
+ * A runtime constant rather than a bare Omit list so a test can assert it, and
+ * `satisfies` so a typo or a renamed field fails the build instead of silently
+ * omitting nothing.
+ */
+export const COVER_TITLE_OMITTED_FIELDS = [
+  "scope",
+  "introSec",
+  "startSec",
+  "durationSec",
+  "fadeOut",
+  "animation",
+  "animDurationSec",
+  "typewriterCursor",
+] as const satisfies readonly (keyof import("../state/ExportSettingsContext").TitleLayerSettings)[];
+
+/**
+ * A Cover's Title overlay. Derived from TitleLayerSettings rather than
+ * hand-copied, so a new appearance field there appears here for free. Type-only
+ * import — erased at runtime, so no state↔domain runtime cycle.
+ */
+export type CoverTitle = Omit<
+  import("../state/ExportSettingsContext").TitleLayerSettings,
+  (typeof COVER_TITLE_OMITTED_FIELDS)[number]
+>;
+
+/** The Sticker fields that place it on a timeline, which a Cover does not have. */
+export const COVER_STICKER_OMITTED_FIELDS = [
+  "startTimeSec",
+  "durationSec",
+  "fitToBeat",
+] as const satisfies readonly (keyof Sticker)[];
+
+/** A Sticker placed on a Cover: the same asset, position, scale, rotation and
+ *  tint, with the timeline fields removed. */
+export type CoverSticker = Omit<Sticker, (typeof COVER_STICKER_OMITTED_FIELDS)[number]>;
+
+/**
+ * A still image dressed to advertise the Project (ADR-0021). Its picture is
+ * either captured from a Beat or supplied from a file; either way the Cover
+ * keeps those pixels, so retrimming, reordering or deleting whatever it came
+ * from never disturbs it.
+ *
+ * Origin is deliberately not modelled. Nothing about a Cover branches on it
+ * after ingest — unlike `Clip.kind`, where duration, ffmpeg input and frame
+ * sampling all do — so it survives only as `sourceLabel` text.
+ */
+export interface Cover {
+  id: string;
+  /** The picture itself, long edge capped at COVER_MAX_EDGE on the way in. */
+  frame: File;
+  /** Provenance for the author's eye — "Beat 2 @ 1.4s" or "sunset.jpg". Never resolved. */
+  sourceLabel: string;
+  /** Output aspect. Seeded from the Cut's, then independent of it. */
+  aspect: Aspect;
+  /** Framing: the same scale-and-centre model a Beat's Zoom uses (ADR-0021). */
+  zoom: number;
+  /** Horizontal focus, -50..50 (0 = centred). */
+  zoomX: number;
+  /** Vertical focus, -50..50 (0 = centred). */
+  zoomY: number;
+  /**
+   * Fine rotation in degrees, -15..15, matching a Beat's straightening range.
+   * The picture is scaled to cover, so a rotation never shows the corners it
+   * exposes — a Beat leaves them visible, but wedges of background on a cover
+   * image just read as broken. Optional: covers authored before it default to 0.
+   */
+  rotation?: number;
+  /**
+   * Flattened once at capture via `resolveGrade`, so a Cover never follows a
+   * later re-grade of the Cut. An uploaded picture starts neutral.
+   */
+  grade: ColorAdjustments;
+  veil?: Veil;
+  stickers: CoverSticker[];
+  titles: CoverTitle[];
+}

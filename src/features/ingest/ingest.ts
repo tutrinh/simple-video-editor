@@ -21,12 +21,19 @@ export function isStillFile(file: Pick<File, "name" | "type">): boolean {
 }
 
 /**
- * `accept` for a file input that takes footage and Stills. Enumerated rather
- * than `image/*` so it cannot drift from STILL_EXT_RE — and so SVG stays out,
- * since ffmpeg has no decoder for it (an SVG belongs on the Sticker track).
+ * `accept` for a file input that takes a still picture. Enumerated rather than
+ * `image/*` so it cannot drift from STILL_EXT_RE — and so SVG stays out, since
+ * ffmpeg has no decoder for it (an SVG belongs on the Sticker track).
+ *
+ * A Cover's picture uses this directly (ADR-0021): SVG is excluded there for its
+ * own reason — an SVG has no intrinsic pixel size to cap and taints a canvas —
+ * but the answer is the same list, so there is one list.
  */
-export const CLIP_FILE_ACCEPT =
-  "video/*,image/jpeg,image/png,image/webp,image/avif,image/bmp,image/gif,.jpg,.jpeg,.png,.webp,.avif,.bmp,.gif";
+export const COVER_FILE_ACCEPT =
+  "image/jpeg,image/png,image/webp,image/avif,image/bmp,image/gif,.jpg,.jpeg,.png,.webp,.avif,.bmp,.gif";
+
+/** `accept` for a file input that takes footage and Stills. */
+export const CLIP_FILE_ACCEPT = `video/*,${COVER_FILE_ACCEPT}`;
 
 async function fileBytes(file: Blob): Promise<Uint8Array> {
   return new Uint8Array(await file.arrayBuffer());

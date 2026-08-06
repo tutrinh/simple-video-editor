@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useProject } from "../../state/ProjectContext";
 import { useExportSettings, type TitleLayerSettings } from "../../state/ExportSettingsContext";
 import { cutDuration } from "../assemble/assemble";
-import { exportCut, emptyTemplateSlotExportError, buildScriptText, buildSrt, type TitleOverlay, type TitleLayer } from "./export";
+import { exportCut, emptyTemplateSlotExportError, buildScriptText, buildSrt, projectFileBase, type TitleOverlay, type TitleLayer } from "./export";
 import { loadVoiceModel, VOICES, type Voice } from "../../lib/kokoroTts";
 import { ELEVEN_VOICES, ELEVEN_MODELS, fetchElevenVoices, type ElevenVoice } from "../../lib/elevenLabs";
 import { synthesizeVoiceover, type TtsEngine, type TtsOptions } from "../../lib/tts";
@@ -212,6 +212,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
         sizePx: pl.sizePx,
         letterSpacing: pl.letterSpacing ?? 0,
         arcDeg: pl.arcDeg ?? 0,
+        rotation: pl.rotation ?? 0,
         shadow: pl.shadow !== false,
         color: pl.color,
         posX: pl.posX,
@@ -446,6 +447,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
           sizePx: l.sizePx,
           letterSpacing: l.letterSpacing,
           arcDeg: l.arcDeg,
+          rotation: l.rotation,
           shadow: l.shadow,
           color: l.color,
           posX: l.posX,
@@ -526,7 +528,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
   }
 
   const busy = progress !== null;
-  const fileBase = (state.title || "highlight").trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || "highlight";
+  const fileBase = projectFileBase(state.title);
   const publishChecks = publishReadiness({
     target: publishTarget,
     aspect: cut.aspect,
@@ -545,6 +547,7 @@ export default function ExportView({ active = true, onClose }: { active?: boolea
       sizePx: l.sizePx,
       letterSpacing: l.letterSpacing,
       arcDeg: l.arcDeg,
+      rotation: l.rotation,
       shadow: l.shadow,
       color: l.color,
       posX: l.posX,

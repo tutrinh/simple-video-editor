@@ -185,6 +185,66 @@ export async function sampleFrames(src: Blob, count: number, maxEdge = 768): Pro
   }
 }
 
+function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("canvas encode failed"))),
+      "image/jpeg",
+      quality,
+    );
+  });
+}
+
+function drawTo(source: CanvasImageSource, w: number, h: number): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(w));
+  canvas.height = Math.max(1, Math.round(h));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no 2d canvas context");
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+/**
+ * One video frame at exact dimensions, as high-quality JPEG bytes.
+ *
+ * Deliberately separate from `sampleFrameAt`, which encodes at quality 0.7 and
+ * caps at 768px because it feeds Claude's vision and smaller frames are cheaper
+ * tokens. A Cover is a deliverable the author uploads to a platform (ADR-0021),
+ * so it needs the pixels, not the token budget.
+ */
+export async function videoFrameBlob(
+  src: Blob,
+  timeSec: number,
+  w: number,
+  h: number,
+  quality = 0.95,
+): Promise<Blob> {
+  const { video, revoke } = await loadVideo(src);
+  try {
+    await seek(video, Math.max(0, Math.min(video.duration || 0, timeSec)));
+    return await toBlob(drawTo(video, w, h), quality);
+  } finally {
+    revoke();
+  }
+}
+
+/** An image redrawn at exact dimensions, as high-quality JPEG bytes. The Still
+ *  and upload counterpart of `videoFrameBlob`. */
+export async function imageFrameBlob(
+  src: Blob,
+  w: number,
+  h: number,
+  quality = 0.95,
+): Promise<Blob> {
+  const { img, revoke } = await loadImage(src);
+  try {
+    return await toBlob(drawTo(img, w, h), quality);
+  } finally {
+    revoke();
+  }
+}
+
 /** Grab one frame at a specific time (seconds) — used to represent a beat for AI grading. */
 export async function sampleFrameAt(src: Blob, timeSec: number, maxEdge = 768): Promise<SampledFrame> {
   const { video, revoke } = await loadVideo(src);

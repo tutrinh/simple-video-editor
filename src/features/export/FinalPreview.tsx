@@ -46,6 +46,7 @@ export interface PreviewTitleLayer {
   sizePx: number;
   letterSpacing?: number;
   arcDeg?: number;
+  rotation?: number;
   shadow?: boolean;
   color: string;
   posX: number;
@@ -1117,6 +1118,7 @@ function TitleLayerCanvas({
           sizePx: layer.sizePx,
           letterSpacing: layer.letterSpacing,
           arcDeg: layer.arcDeg,
+          rotation: layer.rotation,
           shadow: layer.shadow,
           color: layer.color,
           posX: layer.posX,
@@ -1136,7 +1138,7 @@ function TitleLayerCanvas({
     };
   }, [
     layer.text, layer.fontId, layer.fontFile, layer.fontFamily, layer.fontWeight,
-    layer.sizePx, layer.letterSpacing, layer.arcDeg, layer.shadow, layer.color,
+    layer.sizePx, layer.letterSpacing, layer.arcDeg, layer.rotation, layer.shadow, layer.color,
     layer.posX, layer.posY, layer.boxWidthPct, layer.lineHeight, layer.typewriterCursor,
     layer.maskMode, layer.maskColor,
     typewriterProgress, cw, ch,
@@ -1259,7 +1261,7 @@ export function BeatTitleOverlay({
 
         const layer: PreviewTitleLayer = {
           id: l.id, enabled: l.enabled, text: l.text, sizePx: l.sizePx,
-          letterSpacing: l.letterSpacing, arcDeg: l.arcDeg, shadow: l.shadow, color: l.color,
+          letterSpacing: l.letterSpacing, arcDeg: l.arcDeg, rotation: l.rotation, shadow: l.shadow, color: l.color,
           posX: l.posX, posY: l.posY, scope: l.scope, introSec: l.introSec,
           startSec: l.startSec, durationSec: l.durationSec,
           fadeOut: l.fadeOut,

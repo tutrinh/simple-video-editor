@@ -50,6 +50,7 @@ export interface TitleLayer {
   sizePx: number;
   letterSpacing?: number;
   arcDeg?: number;
+  rotation?: number;
   shadow?: boolean;
   color: string;
   posX: number; // -50 .. +50 (% horizontal offset from center)
@@ -159,6 +160,18 @@ export interface ExportResult {
   blob: Blob;
   /** Real per-beat timings; differ from the word-count estimate when voiceover is on. */
   timings: BeatTiming[];
+}
+
+/**
+ * The Project's Title as a filename stem, shared by everything it names.
+ *
+ * Hyphenated and case-preserving, so a Project's video and its Covers sit
+ * together in a downloads folder under one recognisable name. Deliberately not
+ * the `.vidstr` package's rule (`projectPackager.ts`), which lowercases and uses
+ * underscores — that one names an archive, not a deliverable.
+ */
+export function projectFileBase(title: string, fallback = "highlight"): string {
+  return (title || fallback).trim().replace(/[^\w\- ]+/g, "").replace(/\s+/g, "-") || fallback;
 }
 
 export function canvasDims(aspect: Aspect): [number, number] {
@@ -419,6 +432,7 @@ export async function exportCut(
           sizePx: l.sizePx,
           letterSpacing: l.letterSpacing,
           arcDeg: l.arcDeg,
+          rotation: l.rotation,
           shadow: l.shadow,
           color: l.color,
           posX: l.posX,
@@ -465,6 +479,7 @@ export async function exportCut(
           sizePx: l.sizePx,
           letterSpacing: l.letterSpacing,
           arcDeg: l.arcDeg,
+          rotation: l.rotation,
           shadow: l.shadow,
           color: l.color,
           posX: l.posX,
@@ -836,6 +851,7 @@ export async function exportCut(
                 sizePx: layer.sizePx,
                 letterSpacing: layer.letterSpacing,
                 arcDeg: layer.arcDeg,
+                rotation: layer.rotation,
                 shadow: layer.shadow,
                 color: layer.color,
                 posX: layer.posX,

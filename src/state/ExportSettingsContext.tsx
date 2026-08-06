@@ -21,6 +21,9 @@ export interface TitleLayerSettings {
   sizePx: number;
   letterSpacing: number;
   arcDeg: number;
+  /** Tilt of the whole block in degrees. Distinct from arcDeg, which curves the
+   *  baseline; undefined means none. */
+  rotation?: number;
   shadow: boolean;
   color: string;
   posX: number;

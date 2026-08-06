@@ -22,12 +22,11 @@ import SplitClipPickerModal from "./SplitClipPickerModal";
 
 
 
-import { stickerFileUrl } from "../lib/stickerLibrary";
 import { beatSpans, resolveSticker, resolveSfx } from "../features/export/stickerCanvas";
 
 import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
-import ColorField from "./ColorField";
+import StickerAppearance from "./StickerCard";
 import ColorizeControl from "./ColorizeControl";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
 import { canvasDims } from "../features/export/export";
@@ -1212,19 +1211,6 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
 
   // Sticker card — mirrors the SFX card's shell; the sliders reuse the same row
   // shape as the colour panel's adjRow.
-  const stickerRow = (label: string, value: number, min: number, max: number, step: number, fmt: (v: number) => string, onChange: (v: number) => void, reset: number) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-      <span style={{ fontSize: 11, width: 62, color: "var(--ink-2)" }}>{label}</span>
-      <InputControl
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        onDoubleClick={() => onChange(reset)}
-        style={sliderTrackStyle(value, min, max)}
-      />
-      <span style={{ fontSize: 10, width: 42, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{fmt(value)}</span>
-    </div>
-  );
-
   const stickerCard = selectedSticker ? (
     <div className="st-sec" style={{ background: "var(--panel-2)", padding: 12, borderRadius: 8, border: "1px solid rgb(167,139,250)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -1256,42 +1242,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-        <img
-          src={stickerFileUrl(selectedSticker.fileName)}
-          alt=""
-          style={{ width: 40, height: 40, objectFit: "contain", background: "var(--panel-3)", borderRadius: 6, padding: 3, flexShrink: 0 }}
-        />
-        <div style={{ fontSize: 12, fontFamily: "var(--mono)", color: "var(--ink)", wordBreak: "break-all", minWidth: 0 }}>{selectedSticker.fileName}</div>
-      </div>
-
-      {stickerRow("X", selectedSticker.x, 0, 1, 0.005, (v) => `${Math.round(v * 100)}%`,
-        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, x: v } }), 0.5)}
-      {stickerRow("Y", selectedSticker.y, 0, 1, 0.005, (v) => `${Math.round(v * 100)}%`,
-        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, y: v } }), 0.5)}
-      {stickerRow("Scale", selectedSticker.scale, 0.02, 1.5, 0.005, (v) => `${Math.round(v * 100)}%`,
-        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, scale: v } }), 0.25)}
-      {stickerRow("Rotation", selectedSticker.rotation, -180, 180, 1, (v) => `${v > 0 ? "+" : ""}${v.toFixed(0)}°`,
-        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, rotation: v } }), 0)}
-      {stickerRow("Opacity", selectedSticker.opacity, 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`,
-        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, opacity: v } }), 1)}
-
-      {/* Tint — strength slider plus the same swatch + picker idiom the Title
-          treatment uses. A hue rotation would be useless here: most sticker
-          assets are monochrome icons, and rotating the hue of near-black does
-          nothing. This lays a colour over the asset clipped to its alpha. */}
-      {stickerRow("Tint", selectedSticker.tintStrength ?? 0, 0, 1, 0.01, (v) => `${Math.round(v * 100)}%`,
-        (v) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintStrength: v } }), 0)}
-      {/* The shared palette (ADR-0013) — same swatches the Title row shows.
-          Picking a colour still turns the tint on when it was off. */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, marginLeft: 70 }}>
-        <ColorField
-          value={selectedSticker.tintColor ?? "#ffffff"}
-          onChange={(hex) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, tintColor: hex, tintStrength: selectedSticker.tintStrength || 1 } })}
-          label=""
-          noun="tint"
-        />
-      </div>
+      <StickerAppearance
+        sticker={selectedSticker}
+        onChange={(patch) => dispatch({ type: "UPDATE_STICKER", sticker: { ...selectedSticker, ...patch } })}
+      />
 
       {/* Fit to beat — the Sticker follows its Beat's trim instead of its own
           timing. Resolved at read time, so retrimming the Beat can never leave a

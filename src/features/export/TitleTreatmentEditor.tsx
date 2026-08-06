@@ -38,6 +38,12 @@ interface Props {
   /** Scope options — cut-level titles read "Entire video"; per-beat read "Entire beat". */
   scopeEntireLabel?: string;
   introScopeLabel?: string;
+  /**
+   * Whether to offer the timing controls — scope, intro/range seconds, fade and
+   * entry animation. False for a Cover, which is a still and has no timeline for
+   * any of them to mean anything on (ADR-0021).
+   */
+  showTiming?: boolean;
 }
 
 /**
@@ -51,6 +57,7 @@ export default function TitleTreatmentEditor({
   layerLabels = ["(Main)", "(Sub)", "(Tag)"],
   scopeEntireLabel = "Entire video",
   introScopeLabel = "Intro (fade out)",
+  showTiming = true,
 }: Props) {
   const [activeLayerIndex, setActiveLayerIndex] = useState(0);
   const activeIdx = Math.min(activeLayerIndex, layers.length - 1);
@@ -326,6 +333,7 @@ export default function TitleTreatmentEditor({
                 Drop shadow
               </label>
 
+              {showTiming && (
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 Show
                 <select value={curLayer.scope} onChange={(e) => updateLayer(activeIdx, { scope: e.target.value as TitleScope })} style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", fontSize: 12, padding: "4px 8px", outline: "none" }}>
@@ -334,8 +342,9 @@ export default function TitleTreatmentEditor({
                   <option value="range">Timed range</option>
                 </select>
               </label>
+              )}
 
-              {curLayer.scope === "intro" && (
+              {showTiming && curLayer.scope === "intro" && (
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   Duration
                   <input
@@ -351,7 +360,7 @@ export default function TitleTreatmentEditor({
                 </label>
               )}
 
-              {curLayer.scope === "range" && (
+              {showTiming && curLayer.scope === "range" && (
                 <>
                   <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     Start
@@ -382,7 +391,7 @@ export default function TitleTreatmentEditor({
                 </>
               )}
 
-              {curLayer.scope !== "entire" && (
+              {showTiming && curLayer.scope !== "entire" && (
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                   <input
                     type="checkbox"
@@ -394,6 +403,7 @@ export default function TitleTreatmentEditor({
                 </label>
               )}
 
+              {showTiming && (
               <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 Motion
                 <select
@@ -411,8 +421,9 @@ export default function TitleTreatmentEditor({
                   <option value="typewriter">⌨️ Typewriter</option>
                 </select>
               </label>
+              )}
 
-              {curLayer.animation === "typewriter" && (
+              {showTiming && curLayer.animation === "typewriter" && (
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
                   <input
                     type="checkbox"
@@ -424,7 +435,7 @@ export default function TitleTreatmentEditor({
                 </label>
               )}
 
-              {curLayer.animation && curLayer.animation !== "none" && (
+              {showTiming && curLayer.animation && curLayer.animation !== "none" && (
                 <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   In Speed
                   <select
@@ -555,6 +566,28 @@ export default function TitleTreatmentEditor({
                 />
                 <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
                   {(curLayer.arcDeg ?? 0) > 0 ? `+${curLayer.arcDeg}°` : `${curLayer.arcDeg ?? 0}°`}
+                </span>
+              </div>
+
+              {/* Rotation tilts the whole block; Arc above curves the baseline
+                  within it. They compose. Stepped at 15° because a title reads as
+                  deliberate at a clean angle and as a mistake at 7°. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, width: 130, color: "var(--ink-2)" }}>Rotation</span>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  step={15}
+                  value={curLayer.rotation ?? 0}
+                  aria-label="Title rotation"
+                  onChange={(e) => updateLayer(activeIdx, { rotation: Number(e.target.value) })}
+                  onDoubleClick={() => updateLayer(activeIdx, { rotation: 0 })}
+                  style={sliderTrackStyle(curLayer.rotation ?? 0, -180, 180)}
+                  title="Double-click to reset rotation to 0°"
+                />
+                <span style={{ fontSize: 10, width: 34, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
+                  {(curLayer.rotation ?? 0) > 0 ? `+${curLayer.rotation}°` : `${curLayer.rotation ?? 0}°`}
                 </span>
               </div>
             </div>

@@ -31,6 +31,9 @@ export interface TitleRenderLayer {
   arcDeg?: number;
   shadow?: boolean;
   color: string;
+  /** Degrees, about the layer's own anchor. Not the arc — that curves the
+   *  baseline; this tilts the whole block. */
+  rotation?: number;
   posX: number; // -50..+50 (% horizontal offset from frame center)
   posY: number; // -50..+50 (% vertical offset from frame center)
   boxWidthPct?: number; // 10..100 (% of frame width for text wrapping)
@@ -215,7 +218,40 @@ import { createOffscreenOrDomCanvas, canvasToPngBuffer } from "../../lib/offscre
 /** Draw one title layer's STATIC or TYPEWRITER glyphs onto a full-frame canvas context.
  *  Animation and scope-fade are applied on top (CSS in preview, ffmpeg overlay
  *  expressions in export) — never baked into the bitmap. */
+/**
+ * Tilt the whole title block, about its own anchor rather than the frame's
+ * centre — rotating an off-centre title about the frame would swing it across
+ * the picture instead of turning it in place.
+ *
+ * Wraps the draw rather than living inside it so it covers the arc branch too:
+ * an arced title still tilts as one piece.
+ *
+ * Every surface reaches the title through here — the Cover canvas, the preview's
+ * drawTitleLayerAsset, and the export's renderTitleLayerToPng (ADR-0008) — so
+ * this lands on all three at once and cannot drift between them.
+ */
 export async function drawTitleLayer(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  layer: TitleRenderLayer,
+  w: number,
+  h: number,
+): Promise<void> {
+  const deg = layer.rotation ?? 0;
+  if (deg === 0) {
+    await drawTitleLayerFlat(ctx, layer, w, h);
+    return;
+  }
+  const cx = w / 2 + w * (layer.posX / 100);
+  const cy = h / 2 + h * (layer.posY / 100);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((deg * Math.PI) / 180);
+  ctx.translate(-cx, -cy);
+  await drawTitleLayerFlat(ctx, layer, w, h);
+  ctx.restore();
+}
+
+async function drawTitleLayerFlat(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
   layer: TitleRenderLayer,
   w: number,

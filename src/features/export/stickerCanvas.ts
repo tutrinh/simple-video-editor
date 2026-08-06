@@ -116,9 +116,19 @@ function tintedSource(
 }
 
 /** Draw one Sticker onto a full-frame context. Translate to the centre, rotate, draw centred. */
+/**
+ * Everything `drawSticker` reads. Timing is deliberately absent — it does not
+ * change pixels, which is what lets a Cover's Sticker, which has no timeline at
+ * all (ADR-0021), go through this same renderer rather than a second one.
+ */
+export type DrawableSticker = Pick<
+  Sticker,
+  "x" | "y" | "scale" | "rotation" | "opacity" | "tintColor" | "tintStrength"
+>;
+
 export function drawSticker(
   ctx: CanvasRenderingContext2D,
-  sticker: Sticker,
+  sticker: DrawableSticker,
   img: CanvasImageSource,
   frameW: number,
   frameH: number,
