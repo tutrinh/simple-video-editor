@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e7490"/>
+      <stop offset="100%" stop-color="#0b1120"/>
+    </linearGradient>
+    <linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#a5f3fc"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="8"/>
+
+  <!-- filmstrip perforations -->
+  <g fill="#67e8f9" fill-opacity="0.45">
+    <rect x="150" y="286" width="58" height="58" rx="16"/>
+    <rect x="150" y="404" width="58" height="58" rx="16"/>
+    <rect x="150" y="522" width="58" height="58" rx="16"/>
+    <rect x="150" y="640" width="58" height="58" rx="16"/>
+    <rect x="816" y="286" width="58" height="58" rx="16"/>
+    <rect x="816" y="404" width="58" height="58" rx="16"/>
+    <rect x="816" y="522" width="58" height="58" rx="16"/>
+    <rect x="816" y="640" width="58" height="58" rx="16"/>
+  </g>
+
+  <!-- viewport -->
+  <rect x="264" y="264" width="496" height="440" rx="48" fill="#ffffff" fill-opacity="0.08" stroke="#a5f3fc" stroke-opacity="0.4" stroke-width="10"/>
+
+  <!-- play head -->
+  <path d="M452 380 L640 484 L452 588 Z" fill="url(#fg)" stroke="url(#fg)" stroke-width="40" stroke-linejoin="round"/>
+
+  <!-- timeline lanes -->
+  <g fill="#a5f3fc">
+    <rect x="264" y="768" width="330" height="34" rx="17" fill-opacity="0.95"/>
+    <rect x="618" y="768" width="142" height="34" rx="17" fill-opacity="0.55"/>
+    <rect x="264" y="838" width="180" height="34" rx="17" fill-opacity="0.55"/>
+    <rect x="468" y="838" width="292" height="34" rx="17" fill-opacity="0.3"/>
+  </g>
+</svg>

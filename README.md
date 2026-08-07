@@ -103,6 +103,38 @@ StudioApp (React 18 + TypeScript + Vite)
    ```
    Open your browser at `http://localhost:5173`.
 
+### 🖥️ Desktop Launcher (macOS)
+
+If you would rather not keep a terminal open, build a pair of double-clickable
+apps on your Desktop:
+
+```bash
+./scripts/launcher/make-launcher.sh              # → ~/Desktop
+./scripts/launcher/make-launcher.sh /Applications # or anywhere else
+```
+
+This produces **VIDSTR Video Editor.app** (starts the dev server, waits for it
+to answer, then opens the browser) and **Stop VIDSTR.app** (shuts it down).
+Double-clicking the launcher while the server is already running just reopens
+the browser tab instead of restarting anything.
+
+Notes:
+
+- The absolute project path is baked into the bundles — **re-run the script
+  after moving or renaming the project folder**.
+- The launcher resolves `node`/`npm` itself (Homebrew and nvm), because apps
+  opened from Finder do not inherit your shell `PATH`. It runs `npm install`
+  first if `node_modules` is missing.
+- Startup output is appended to `.launcher/launcher.log` (gitignored). If
+  startup fails, the error dialog has a **Show Log** button.
+- The dev-server pid handoff between the two apps lives in
+  `~/Library/Application Support/VIDSTR Launcher/`, not in the project. A
+  Finder-launched app has no TCC grant to read `~/Documents`, so the Stop app
+  cannot rely on files inside the project folder.
+- Both apps are `LSUIElement` (no dock icon) and ad-hoc codesigned. Icons come
+  from `scripts/launcher/*.svg` and need `rsvg-convert`, `magick`, or
+  `cairosvg` to render; without one, the apps still work with a generic icon.
+
 ---
 
 ## 🛠️ Usage Workflow
@@ -144,6 +176,7 @@ StudioApp (React 18 + TypeScript + Vite)
 | `npm run test:watch` | Runs Vitest in watch mode |
 | `npm run build` | Runs TypeScript checks (`tsc --noEmit`) and builds static assets into `dist/` |
 | `npm run preview` | Previews the built production app locally |
+| `./scripts/launcher/make-launcher.sh` | Builds the macOS desktop launcher / stop apps (see [Desktop Launcher](#️-desktop-launcher-macos)) |
 
 ---
 

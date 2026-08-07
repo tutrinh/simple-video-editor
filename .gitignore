@@ -26,6 +26,9 @@ yarn-error.log*
 .vite/
 coverage/
 
+# Desktop launcher runtime state (logs, dev-server pid)
+.launcher/
+
 # Local music-bed library (dev-only; large binaries)
 /music/
 
