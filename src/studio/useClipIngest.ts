@@ -8,6 +8,7 @@ import { createClip, needsNormalize, normalizeTo1080p, isStillFile } from "../fe
 
 export type IngestPhase = "pending" | "normalizing" | "ready" | "error";
 export interface IngestStatus { phase: IngestPhase; progress: number; error?: string }
+export interface ImportProgress { completed: number; total: number; fileName: string }
 
 function normalizeConcurrency(): number {
   if (multithreadReady()) return 1;
@@ -19,6 +20,7 @@ function normalizeConcurrency(): number {
 export function useClipIngest() {
   const { dispatch } = useProject();
   const [statuses, setStatuses] = useState<Record<string, IngestStatus>>({});
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const setStatus = (id: string, status: IngestStatus) =>
     setStatuses((previous) => ({ ...previous, [id]: status }));
 
@@ -28,8 +30,15 @@ export function useClipIngest() {
     if (usable.length === 0) return [];
 
     const created: Clip[] = [];
-    for (const file of usable) {
-      try { created.push(await createClip(file)); } catch { /* unreadable — skip */ }
+    setImportProgress({ completed: 0, total: usable.length, fileName: usable[0].name });
+    try {
+      for (let index = 0; index < usable.length; index++) {
+        const file = usable[index];
+        setImportProgress({ completed: index, total: usable.length, fileName: file.name });
+        try { created.push(await createClip(file)); } catch { /* unreadable — skip */ }
+      }
+    } finally {
+      setImportProgress(null);
     }
     if (created.length) dispatch({ type: "ADD_CLIPS", clips: created });
 
@@ -64,5 +73,5 @@ export function useClipIngest() {
     return created;
   }
 
-  return { ingestFiles, statuses };
+  return { ingestFiles, statuses, importProgress };
 }

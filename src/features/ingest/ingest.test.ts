@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { needsNormalize, isStillFile } from "./ingest";
+import { describe, it, expect, vi } from "vitest";
+import { needsNormalize, isHeicFile, isStillFile, prepareStillFile, COVER_FILE_ACCEPT } from "./ingest";
+
+const { heicToMock } = vi.hoisted(() => ({ heicToMock: vi.fn() }));
+vi.mock("heic-to", () => ({ heicTo: heicToMock }));
 
 describe("needsNormalize", () => {
   it("never normalizes 4K or high-resolution video clips on import", () => {
@@ -21,7 +24,7 @@ const f = (name: string, type = "") => ({ name, type });
 
 describe("isStillFile", () => {
   it("accepts image MIME types", () => {
-    for (const t of ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif", "image/bmp"]) {
+    for (const t of ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif", "image/bmp", "image/heic", "image/heif"]) {
       expect(isStillFile(f("upload", t)), t).toBe(true);
     }
   });
@@ -33,7 +36,7 @@ describe("isStillFile", () => {
   });
 
   it("falls back to the extension when the browser gave no type", () => {
-    for (const n of ["a.jpg", "a.jpeg", "a.png", "a.webp", "a.avif", "a.bmp", "a.gif"]) {
+    for (const n of ["a.jpg", "a.jpeg", "a.png", "a.webp", "a.avif", "a.bmp", "a.gif", "a.heic", "a.heif"]) {
       expect(isStillFile(f(n)), n).toBe(true);
     }
     for (const n of ["a.mp4", "a.mov", "a.webm", "a.m4v", "a.avi"]) {
@@ -68,5 +71,40 @@ describe("isStillFile", () => {
   it("only matches the extension at the end of the name", () => {
     expect(isStillFile(f("my.png.mov"))).toBe(false);
     expect(isStillFile(f("my.mov.png"))).toBe(true);
+  });
+});
+
+describe("HEIC imports", () => {
+  it("recognizes both Apple extensions and MIME types", () => {
+    expect(isHeicFile(f("IMG_0001.HEIC"))).toBe(true);
+    expect(isHeicFile(f("upload", "image/heic"))).toBe(true);
+    expect(isHeicFile(f("upload", "image/heif"))).toBe(true);
+  });
+
+  it("does not let a misleading HEIC extension override a video MIME", () => {
+    expect(isHeicFile(f("clip.heic", "video/mp4"))).toBe(false);
+  });
+
+  it("advertises HEIC and HEIF in still-image file pickers", () => {
+    expect(COVER_FILE_ACCEPT).toContain("image/heic");
+    expect(COVER_FILE_ACCEPT).toContain(".heic");
+    expect(COVER_FILE_ACCEPT).toContain(".heif");
+  });
+
+  it("converts HEIC bytes to a JPEG File at the import boundary", async () => {
+    heicToMock.mockResolvedValueOnce(new Blob(["jpeg"], { type: "image/jpeg" }));
+    const source = new File(["heic"], "IMG_0001.HEIC", { type: "image/heic", lastModified: 123 });
+
+    const prepared = await prepareStillFile(source);
+
+    expect(heicToMock).toHaveBeenCalledWith({ blob: source, type: "image/jpeg", quality: 0.95 });
+    expect(prepared.name).toBe("IMG_0001.jpg");
+    expect(prepared.type).toBe("image/jpeg");
+    expect(prepared.lastModified).toBe(123);
+  });
+
+  it("leaves ordinary still files untouched", async () => {
+    const source = new File(["jpeg"], "photo.jpg", { type: "image/jpeg" });
+    await expect(prepareStillFile(source)).resolves.toBe(source);
   });
 });

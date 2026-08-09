@@ -236,7 +236,7 @@ export default function CoverDrawer({ open, onClose }: { open: boolean; onClose:
           <div style={{ flex: "0 0 auto", width: 190 }}>
             <FileDropzone
               title="Upload a picture"
-              description="JPG, PNG, WebP, AVIF"
+              description="JPG, PNG, WebP, AVIF, HEIC"
               accept={COVER_FILE_ACCEPT}
               disabled={busy || !state.cut}
               onFiles={onUpload}

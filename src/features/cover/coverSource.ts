@@ -2,7 +2,7 @@ import type { Aspect, Beat, ColorAdjustments, Clip, Cover, CoverTitle, Cut } fro
 import { makeBeatTitleLayers } from "../../state/ExportSettingsContext";
 import { resolveGrade } from "../../lib/grade";
 import { imageFrameBlob, probeStill, probeVideo, videoFrameBlob } from "../../lib/frameSampler";
-import { isStillFile } from "../ingest/ingest";
+import { isStillFile, prepareStillFile } from "../ingest/ingest";
 import { kenBurnsAt } from "../../studio/util";
 import { canvasDims } from "../export/export";
 import { drawSplitScreenToCanvas, slotSourceTime } from "./splitScreenFrame";
@@ -222,6 +222,7 @@ export async function captureCover(args: {
 export async function uploadCover(args: { file: File; cut: Cut }): Promise<Cover> {
   const { file, cut } = args;
   if (!isStillFile(file)) throw new Error(`${file.name} is not an image`);
-  const frame = await cappedFrame(file, true, 0, file.name);
+  const source = await prepareStillFile(file);
+  const frame = await cappedFrame(source, true, 0, source.name);
   return seedUploadedCover({ frame, fileName: file.name, cut });
 }

@@ -485,9 +485,50 @@ body {
   background: var(--accent-subtle);
 }
 
+.st-import-progress {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin-top: 7px;
+  color: var(--ink-2);
+  font-size: 10px;
+}
+
+.st-import-progress span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-import-spinner {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: st-import-spin 0.7s linear infinite;
+}
+
+@keyframes st-import-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-import-spinner { animation: none; }
+}
+
 .st-cliplist {
   overflow: auto;
   padding: 0 8px 12px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.st-cliplist::-webkit-scrollbar {
+  display: none;
 }
 
 .st-clip {

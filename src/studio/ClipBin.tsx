@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
 import type { Clip, Beat, OverlayBlendMode } from "../domain/types";
 import { CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
-import type { IngestStatus } from "./useClipIngest";
+import type { ImportProgress, IngestStatus } from "./useClipIngest";
 import { fmtClock, posterBg } from "./util";
 import { formatFps } from "../lib/videoFps";
 import { PROJECT_FPS } from "../domain/types";
@@ -48,6 +48,7 @@ interface Props {
   onDuplicateBeat: (beatId: string) => void;
   onFiles: (files: File[]) => Promise<Clip[]>;
   statuses: Record<string, IngestStatus>;
+  importProgress: ImportProgress | null;
   collapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
 }
@@ -64,6 +65,7 @@ export default function ClipBin({
   onDuplicateBeat,
   onFiles,
   statuses,
+  importProgress,
   collapsed = false,
   onCollapsedChange,
 }: Props) {
@@ -365,6 +367,15 @@ export default function ClipBin({
           multiple
           onFiles={onFiles}
         />
+        {importProgress && (
+          <div className="st-import-progress" role="status" aria-live="polite">
+            <span className="st-import-spinner" aria-hidden="true" />
+            <span>
+              Importing <strong>{importProgress.fileName}</strong>
+              {importProgress.total > 1 && ` · ${importProgress.completed + 1} of ${importProgress.total}`}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="st-cliplist">

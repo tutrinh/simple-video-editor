@@ -526,8 +526,10 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
     dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
   }
   const [copiedColor, setCopiedColor] = useState<ColorAdjustments | null>(null);
+  const [copiedKenBurns, setCopiedKenBurns] = useState<KenBurns | null>(null);
   const [copiedUserVoiceAudio, setCopiedUserVoiceAudio] = useState<UserVoiceAudioSettings | null>(null);
   const [colorCopiedToast, setColorCopiedToast] = useState(false);
+  const [kenBurnsCopiedToast, setKenBurnsCopiedToast] = useState(false);
   const [savingBeatColorPreset, setSavingBeatColorPreset] = useState(false);
   const [beatColorPresetName, setBeatColorPresetName] = useState("");
   const [beatColorPresetSaved, setBeatColorPresetSaved] = useState(false);
@@ -542,6 +544,38 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   function pasteBeatColor() {
     if (!copiedColor || !beat) return;
     update({ ...beat, colorAdjustments: { ...copiedColor } });
+  }
+
+  function copyBeatKenBurns() {
+    if (!beat || beat.framing !== "kenBurns") return;
+    setCopiedKenBurns({ ...(beat.kenBurns ?? KEN_BURNS_DEFAULT) });
+    setKenBurnsCopiedToast(true);
+    setTimeout(() => setKenBurnsCopiedToast(false), 2000);
+  }
+
+  function pasteBeatKenBurns() {
+    if (!copiedKenBurns || !beat) return;
+    update({
+      ...beat,
+      framing: "kenBurns",
+      kenBurns: { ...copiedKenBurns },
+      zoom: 1,
+      zoomX: 0,
+      zoomY: 0,
+    });
+  }
+
+  function pasteKenBurnsToAllBeats() {
+    if (!copiedKenBurns || !cut) return;
+    const updatedBeats = cut.beats.map((item) => ({
+      ...item,
+      framing: "kenBurns" as const,
+      kenBurns: { ...copiedKenBurns },
+      zoom: 1,
+      zoomX: 0,
+      zoomY: 0,
+    }));
+    dispatch({ type: "SET_CUT", cut: { ...cut, beats: updatedBeats } });
   }
 
   function applyColorToAllBeats() {
@@ -2891,6 +2925,39 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       );
                     })}
                   </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 6 }}>
+                  <ControlButton
+                    type="button"
+                    className="st-btn ghost"
+                    style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+                    onClick={copyBeatKenBurns}
+                    disabled={b.framing !== "kenBurns"}
+                    title={b.framing === "kenBurns" ? "Copy this Beat's Ken Burns move" : "Switch this Beat to Ken Burns before copying"}
+                  >
+                    {kenBurnsCopiedToast ? "✓ Copied!" : "📋 Copy Move"}
+                  </ControlButton>
+                  <ControlButton
+                    type="button"
+                    className="st-btn ghost"
+                    style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+                    onClick={pasteBeatKenBurns}
+                    disabled={!copiedKenBurns}
+                    title={copiedKenBurns ? "Paste the copied Ken Burns move onto this Beat" : "Copy a Ken Burns move first"}
+                  >
+                    📥 Paste Move
+                  </ControlButton>
+                  <ControlButton
+                    type="button"
+                    className="st-btn ghost"
+                    style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+                    onClick={pasteKenBurnsToAllBeats}
+                    disabled={!copiedKenBurns || !cut?.beats.length}
+                    title={copiedKenBurns ? "Paste the copied Ken Burns move onto every Beat" : "Copy a Ken Burns move first"}
+                  >
+                    Paste to All
+                  </ControlButton>
                 </div>
 
                 {b.framing === "kenBurns" && clip ? (

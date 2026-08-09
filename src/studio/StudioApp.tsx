@@ -109,7 +109,7 @@ export default function StudioApp() {
   // Carries a list, not one id: the voiceover track multi-selects, so Delete has to be
   // able to remove the whole set rather than just the chip the Inspector happens to edit.
   const [pendingTrackDeletion, setPendingTrackDeletion] = useState<PendingTrackDeletion | null>(null);
-  const { ingestFiles, statuses } = useClipIngest();
+  const { ingestFiles, statuses, importProgress } = useClipIngest();
   // One fit run for the whole editor, shared by the Inspector button and the `f` key.
   const voFit = useVoFit();
 
@@ -527,6 +527,7 @@ export default function StudioApp() {
           onDuplicateBeat={duplicateBeat}
           onFiles={ingestFiles}
           statuses={statuses}
+          importProgress={importProgress}
           collapsed={clipBinCollapsed}
           onCollapsedChange={setClipBinCollapsed}
         />
