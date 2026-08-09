@@ -178,6 +178,49 @@ describe("golden master — the base chain variants", () => {
   });
 });
 
+describe("Beat audio boundaries", () => {
+  it("ramps source audio to zero at both edges before Beats are concatenated", async () => {
+    const args = await segmentArgs(
+      {
+        aspect: "16:9",
+        beats: [
+          beat({ id: "b1", clipId: "c1", inSec: 0, outSec: 4 }),
+          beat({ id: "b2", clipId: "c2", inSec: 0, outSec: 4, volume: 0.8 }),
+        ],
+      },
+      [clip("c1"), clip("c2")],
+    );
+
+    expect(args).toHaveLength(2);
+    for (const segment of args) {
+      const graph = segment.join(" ");
+      expect(graph).toContain("afade=t=in:st=0:d=0.015");
+      expect(graph).toContain("afade=t=out:st=3.985:d=0.015");
+    }
+  });
+
+  it("re-encodes one continuous Cut audio stream instead of copying per-Beat AAC joins", async () => {
+    await segmentArgs(
+      {
+        aspect: "16:9",
+        beats: [
+          beat({ id: "b1", clipId: "c1", inSec: 0, outSec: 4 }),
+          beat({ id: "b2", clipId: "c2", inSec: 0, outSec: 4, volume: 0.8 }),
+        ],
+      },
+      [clip("c1"), clip("c2")],
+      { music: new File([new Uint8Array(16)], "bed.mp3", { type: "audio/mpeg" }) },
+    );
+
+    const concat = calls.find((call) => call.outputName === "video.mp4");
+    expect(concat).toBeDefined();
+    const concatArgs = concat?.args.join(" ") ?? "";
+    expect(concatArgs).toContain("-c:v copy");
+    expect(concatArgs).toContain("-c:a aac");
+    expect(concatArgs).not.toContain("-c copy");
+  });
+});
+
 describe("first-pass fades", () => {
   it("applies a fade after an RGB blend Overlay has composited", async () => {
     const first = beat({ id: "b1", clipId: "c1", inSec: 0, outSec: 4, durationSec: 4 });
@@ -289,7 +332,7 @@ describe("timed title ranges", () => {
     );
     const graph = args[args.indexOf("-filter_complex") + 1];
 
-    expect(graph).not.toContain("fade=t=out");
+    expect(graph).not.toContain("alpha=1");
     expect(graph).toContain("enable='between(t+0.000,1.000,2.500)'");
   });
 });

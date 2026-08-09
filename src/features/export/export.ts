@@ -1150,11 +1150,22 @@ export async function exportCut(
           aChains.push(`[${inputIdx}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${delayMs}|${delayMs}${lbl}`);
           mixLabels.push(lbl);
         });
-        aChains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[a]`);
+        aChains.push(`${mixLabels.join("")}amix=inputs=${mixLabels.length}:duration=first:normalize=0[asegment]`);
       } else {
         const baseChainIndex = aChains.findIndex((chain) => chain.includes("[abase]"));
-        aChains[baseChainIndex] = aChains[baseChainIndex].replace("[abase]", "[a]");
+        aChains[baseChainIndex] = aChains[baseChainIndex].replace("[abase]", "[asegment]");
       }
+
+      // Every Beat is encoded as its own audio segment. A hard join can jump
+      // directly between two non-zero waveform samples, which is heard as a
+      // click/pop. Ramp the final per-Beat mix—not just source audio—through
+      // zero over 15ms so source and audible-overlay boundaries are both safe.
+      const edgeFadeSec = Math.min(0.015, segDur / 2);
+      const fadeOutStartSec = Math.max(0, segDur - edgeFadeSec);
+      aChains.push(
+        `[asegment]afade=t=in:st=0:d=${edgeFadeSec.toFixed(3)},` +
+        `afade=t=out:st=${fadeOutStartSec.toFixed(3)}:d=${edgeFadeSec.toFixed(3)}[a]`,
+      );
 
       const segChains = [...chains, ...sgResult.chains];
       if (needsPostCompositeTransition) {
@@ -1332,7 +1343,26 @@ export async function exportCut(
     const concatInputs: EngineInput[] = segments.map((data, i) => ({ name: `seg_${i}.mp4`, data }));
     concatInputs.push({ name: "concat.txt", data: new TextEncoder().encode(segments.map((_, i) => `file 'seg_${i}.mp4'`).join("\n")) });
     try {
-      video = await runIsolated(concatInputs, ["-f", "concat", "-safe", "0", "-fflags", "+genpts", "-i", "concat.txt", "-c", "copy", "video.mp4"], "video.mp4", undefined, 600_000, undefined, signal);
+      // Keep picture concatenation lossless, but decode the independently encoded
+      // Beat audio and encode it once as a continuous Cut-level stream. Copying
+      // each Beat's AAC packets also copies encoder priming/padding at every join,
+      // which can sound like a pop even when the PCM edges were faded. Music is
+      // still added afterward as its own uninterrupted layer.
+      video = await runIsolated(
+        concatInputs,
+        [
+          "-f", "concat", "-safe", "0", "-fflags", "+genpts", "-i", "concat.txt",
+          "-map", "0:v:0", "-map", "0:a:0", "-c:v", "copy",
+          "-af", "aresample=48000:async=1:first_pts=0",
+          "-c:a", "aac", "-b:a", audioBitrate, "-ar", "48000", "-ac", "2",
+          "video.mp4",
+        ],
+        "video.mp4",
+        undefined,
+        600_000,
+        undefined,
+        signal,
+      );
     } catch (err) {
       assertNotCancelled();
       console.warn("Fast stream copy concat failed; falling back to filter concat...", err);

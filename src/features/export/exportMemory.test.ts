@@ -101,7 +101,7 @@ describe("export source memory", () => {
     expect(state.engineOutputs.filter((name) => name === "seg.mp4")).toHaveLength(1);
   });
 
-  it("bakes fade transitions into Beat renders and stream-copies the join", async () => {
+  it("bakes fade transitions into Beat renders and continuously re-encodes the joined audio", async () => {
     const clips: Clip[] = ["a", "b"].map((id) => ({
       id,
       file: new File([new Uint8Array(16)], `${id}.mp4`, { type: "video/mp4" }),
@@ -124,7 +124,9 @@ describe("export source memory", () => {
 
     await exportCut(cut, clips, { voiceover: false });
 
-    expect(state.engineArgs.some((args) => args.includes("-c") && args.includes("copy"))).toBe(true);
+    const joinArgs = state.engineArgs.find((args) => args.includes("concat.txt"));
+    expect(joinArgs).toEqual(expect.arrayContaining(["-c:v", "copy", "-c:a", "aac"]));
+    expect(joinArgs).not.toContain("-c");
     expect(state.engineArgs.some((args) => args.some((arg) => arg.includes("xfade=")))).toBe(false);
   });
 

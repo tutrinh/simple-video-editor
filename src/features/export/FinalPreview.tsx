@@ -30,7 +30,7 @@ import ReplayIcon from "../../design-system/icons/ReplayIcon";
 import { titleVisibilityAt, type TitleScope } from "./titleTiming";
 import { useUserVoicePlayback } from "../../studio/useUserVoicePlayback";
 import { captionVoiceGainAtTime } from "../../studio/userVoicePriority";
-import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
+import { beatBoundaryGain, effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
 import { beatTiming, sourceOffsetAt } from "../../domain/beatTiming";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
@@ -38,6 +38,9 @@ import { beatTiming, sourceOffsetAt } from "../../domain/beatTiming";
 // timed title overlay, correct aspect — plus optional music/voiceover.
 const ASPECT_RATIO = { "16:9": 16 / 9, "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1 } as const;
 const PREVIEW_H = 360;
+// Long enough to span several browser animation frames. Export can use the
+// tighter PCM fade; HTMLMediaElement volume changes need a coarser envelope.
+const PREVIEW_BEAT_AUDIO_EDGE_FADE_SEC = 0.05;
 
 export interface PreviewTitleLayer {
   id: string;
@@ -249,7 +252,12 @@ export default function FinalPreview({
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !beat || !mainBeatBlobUrl) return;
-    const vol = effectiveBeatVolume(beat, cut);
+    const edgeGain = beatBoundaryGain(
+      beatElapsedRef.current,
+      timing?.timelineSec ?? 0,
+      PREVIEW_BEAT_AUDIO_EDGE_FADE_SEC,
+    );
+    const vol = effectiveBeatVolume(beat, cut) * edgeGain;
     v.volume = muteAllAudio ? 0 : vol;
     v.muted = muteAllAudio || vol === 0;
     const onMeta = () => {
@@ -267,7 +275,7 @@ export default function FinalPreview({
     return () => {
       v.removeEventListener("loadedmetadata", onMeta);
     };
-  }, [index, beat, cut.beatAudioMasterVolume, cut.beatAudioMuted, mainBeatBlobUrl, muteAllAudio, previewSpeed]);
+  }, [index, beat, cut.beatAudioMasterVolume, cut.beatAudioMuted, mainBeatBlobUrl, muteAllAudio, previewSpeed, timing?.timelineSec]);
 
   // Play/pause the loaded video in step with the transport.
   useEffect(() => {
@@ -290,7 +298,12 @@ export default function FinalPreview({
       if (Math.abs(el.currentTime - targetTime) > 0.15) {
         try { el.currentTime = targetTime; } catch {}
       }
-      const volume = effectiveSplitScreenSlotVolume(slot, idx, beat, cut);
+      const edgeGain = beatBoundaryGain(
+        beatElapsed,
+        timing?.timelineSec ?? 0,
+        PREVIEW_BEAT_AUDIO_EDGE_FADE_SEC,
+      );
+      const volume = effectiveSplitScreenSlotVolume(slot, idx, beat, cut) * edgeGain;
       el.volume = muteAllAudio ? 0 : volume;
       el.muted = muteAllAudio || volume === 0;
       applyPreviewSpeed([el], previewSpeed);
@@ -336,6 +349,16 @@ export default function FinalPreview({
         }
       }
       const total = Math.max(0.05, bTiming.timelineSec);
+      if (v) {
+        const edgeGain = beatBoundaryGain(
+          Math.min(e, total),
+          total,
+          PREVIEW_BEAT_AUDIO_EDGE_FADE_SEC,
+        );
+        const volume = effectiveBeatVolume(b, cut) * edgeGain;
+        v.volume = muteAllAudio ? 0 : volume;
+        v.muted = muteAllAudio || effectiveBeatVolume(b, cut) === 0;
+      }
       if (e >= total) {
         if (index < cut.beats.length - 1) {
           beatElapsedRef.current = 0;
@@ -354,7 +377,7 @@ export default function FinalPreview({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, index, clipById, cut.beats]);
+  }, [playing, index, clipById, cut.beats, cut.beatAudioMasterVolume, cut.beatAudioMuted, muteAllAudio]);
 
   // Music bed source + volume.
   useEffect(() => {

@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "./beatAudio";
+import { beatBoundaryGain, effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "./beatAudio";
+
+describe("Beat audio boundary envelope", () => {
+  it("ramps through zero over 15ms at both Beat edges", () => {
+    expect(beatBoundaryGain(0, 4)).toBe(0);
+    expect(beatBoundaryGain(0.0075, 4)).toBeCloseTo(0.5);
+    expect(beatBoundaryGain(0.015, 4)).toBe(1);
+    expect(beatBoundaryGain(2, 4)).toBe(1);
+    expect(beatBoundaryGain(3.9925, 4)).toBeCloseTo(0.5);
+    expect(beatBoundaryGain(4, 4)).toBe(0);
+  });
+
+  it("scales the ramps to fit very short Beats", () => {
+    expect(beatBoundaryGain(0, 0.01)).toBe(0);
+    expect(beatBoundaryGain(0.005, 0.01)).toBe(1);
+    expect(beatBoundaryGain(0.01, 0.01)).toBe(0);
+  });
+
+  it("supports a wider browser-preview envelope", () => {
+    expect(beatBoundaryGain(0.025, 4, 0.05)).toBeCloseTo(0.5);
+    expect(beatBoundaryGain(3.975, 4, 0.05)).toBeCloseTo(0.5);
+  });
+});
 
 describe("Beat audio master", () => {
   it("multiplies per-Beat volume by the Cut master", () => {
