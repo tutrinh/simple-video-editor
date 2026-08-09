@@ -32,6 +32,9 @@ import { useUserVoicePlayback } from "../../studio/useUserVoicePlayback";
 import { captionVoiceGainAtTime } from "../../studio/userVoicePriority";
 import { beatBoundaryGain, effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
 import { beatTiming, sourceOffsetAt } from "../../domain/beatTiming";
+import LedMatrixOverlay from "../effects/LedMatrixOverlay";
+import { effectiveLedMatrixEffect } from "../effects/ledMatrix";
+import PixelatePreview from "../effects/PixelatePreview";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -157,6 +160,7 @@ export default function FinalPreview({
   const timing = beat ? beatTiming(beat, currentBeatClip?.durationSec) : null;
   const previewSpeed = currentBeatClip?.kind === "still" ? 1 : (timing?.speed ?? 1);
   const [canvasW, canvasH] = canvasDims(cut.aspect);
+  const ledMatrixEffect = effectiveLedMatrixEffect(beat?.ledMatrixEffect, cut.ledMatrixEffect);
 
   useEffect(() => { playingRef.current = playing; }, [playing]);
 
@@ -795,6 +799,7 @@ export default function FinalPreview({
               transition animation (ADR-0012). The beat clock above runs on rAF
               from b.durationSec, not from this element, so nothing else in the
               transport needs to know which one is mounted. */}
+          <PixelatePreview effect={ledMatrixEffect} exportWidth={canvasW} exportHeight={canvasH}>
           {(() => {
             const splitCfg = beat?.splitScreen;
             const filterStyle = cssFilterFor(beat?.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments);
@@ -840,7 +845,7 @@ export default function FinalPreview({
                 style={{
                   width: "100%",
                   height: "100%",
-                  objectFit: "contain",
+                  objectFit: "cover",
                   filter: filterStyle,
                   animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
                 }}
@@ -854,16 +859,21 @@ export default function FinalPreview({
                 style={{
                   width: "100%",
                   height: "100%",
-                  objectFit: "contain",
+                  objectFit: "cover",
                   filter: filterStyle,
                   animation: videoAnimStyle ? `${videoAnimStyle}` : undefined,
                 }}
               />
             );
           })()}
+          </PixelatePreview>
 
         </div>
         </div>
+
+        {ledMatrixEffect?.shape === "pixelate-circle" && (
+          <LedMatrixOverlay effect={ledMatrixEffect} width={canvasW} height={canvasH} />
+        )}
 
         {transitionOverlayOpacity > 0 && (
           <div

@@ -58,7 +58,7 @@ export default function TopBar({
   const activeGlobalFilter = getFilterPreset(cut?.globalFilterId);
 
   // Aspect is a Cut property that doesn't affect beat trims — switch it without
-  // rebuilding, preserving manual edits (export letterboxes/pads to the choice).
+  // rebuilding, preserving manual edits (preview and export crop to fill it).
   function setAspect(a: Aspect) {
     if (cut && cut.aspect !== a)
       dispatch({ type: "SET_CUT", cut: { ...cut, aspect: a } });

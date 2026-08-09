@@ -71,6 +71,14 @@ import {
   generateTemplateSlotSuggestions,
   templateSlotSuggestionMode,
 } from "../features/templates/slotSuggestions";
+import {
+  effectiveLedMatrixEffect,
+  LED_MATRIX_DEFAULT,
+  LED_MATRIX_MAX_CELL_PX,
+  LED_MATRIX_MIN_CELL_PX,
+  LED_MATRIX_SHAPES,
+  normalizeLedMatrixEffect,
+} from "../features/effects/ledMatrix";
 
 
 /** Short label for a model id, e.g. "claude-opus-4-8" → "opus-4-8". */
@@ -481,6 +489,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const [transitionOpen, setTransitionOpen] = useState(false);
   const [beatAudioOpen, setBeatAudioOpen] = useState(false);
   const [globalFilterOpen, setGlobalFilterOpen] = useState(false);
+  const [ledMatrixOpen, setLedMatrixOpen] = useState(false);
   const [voHintsOpen, setVoHintsOpen] = useState(false);
   const voTextRef = useRef<HTMLTextAreaElement>(null);
 
@@ -2771,6 +2780,173 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                 >
                   Apply color to all beats
                 </ControlButton>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Compression-safe pixel effects. The Cut setting is inherited;
+            a Beat can override it or explicitly opt out. */}
+        <div className="st-field" style={{ marginTop: 8 }}>
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={ledMatrixOpen}
+            onClick={() => setLedMatrixOpen((open) => !open)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setLedMatrixOpen((open) => !open);
+              }
+            }}
+            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", userSelect: "none", padding: "2px 0" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <ChevronDownIcon
+                size={14}
+                style={{ transform: ledMatrixOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
+              />
+              <label style={{ margin: 0, cursor: "pointer" }}>Pixel Effects</label>
+              {effectiveLedMatrixEffect(b.ledMatrixEffect, cut?.ledMatrixEffect) && (
+                <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• Large pixels</span>
+              )}
+            </div>
+            <div
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <Switch
+                checked={Boolean(
+                  (cut?.ledMatrixEffect && cut.ledMatrixEffect.enabled !== false)
+                  || cut?.beats.some((item) => item.ledMatrixEffect && item.ledMatrixEffect.enabled !== false),
+                )}
+                label="Toggle all Pixel Effects for this Cut"
+                onChange={(enabled) => {
+                  if (!cut) return;
+                  dispatch({
+                    type: "SET_CUT",
+                    cut: {
+                      ...cut,
+                      beats: cut.beats.map(({ ledMatrixEffect: _drop, ...item }) => item as Beat),
+                      ledMatrixEffect: enabled
+                        ? { ...LED_MATRIX_DEFAULT, ...cut.ledMatrixEffect, enabled: true }
+                        : undefined,
+                    },
+                  });
+                }}
+              />
+            </div>
+          </div>
+
+          <div className={"st-color-collapsible" + (ledMatrixOpen ? " open" : "")}>
+            <div className="st-color-collapsible-inner">
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6 }}>
+                <div style={{ fontSize: 9.5, lineHeight: 1.4, color: "var(--ink-3)" }}>
+                  Choose a full-frame Mosaic or sampled-color Circles. Large pixels survive social compression; titles and captions stay sharp.
+                </div>
+
+                <div style={{ fontSize: 9, color: "var(--ink-3)" }}>
+                  Off by default. When enabled, the Cut setting is inherited by every Beat.
+                </div>
+
+                {cut?.ledMatrixEffect?.enabled !== false && cut?.ledMatrixEffect && (() => {
+                  const effect = normalizeLedMatrixEffect(cut.ledMatrixEffect);
+                  const updateCutEffect = (next: Partial<typeof effect>) => dispatch({
+                    type: "SET_CUT",
+                    cut: { ...cut, ledMatrixEffect: { ...effect, ...next, enabled: true } },
+                  });
+                  return (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10, width: 58, color: "var(--ink-2)" }}>Pixel size</span>
+                        <InputControl type="range" min={LED_MATRIX_MIN_CELL_PX} max={LED_MATRIX_MAX_CELL_PX} step={2} value={effect.cellSizePx} onChange={(event) => updateCutEffect({ cellSizePx: Number(event.target.value) })} style={sliderTrackStyle(effect.cellSizePx, LED_MATRIX_MIN_CELL_PX, LED_MATRIX_MAX_CELL_PX)} />
+                        <span style={{ width: 34, textAlign: "right", fontSize: 10, color: "var(--ink-3)" }}>{effect.cellSizePx}px</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10, width: 58, color: "var(--ink-2)" }}>Style</span>
+                        <SelectControl
+                          value={effect.shape}
+                          onChange={(event) => updateCutEffect({ shape: event.target.value as typeof effect.shape })}
+                          style={{ flex: 1, fontSize: 10 }}
+                        >
+                          {LED_MATRIX_SHAPES.map((shape) => <option key={shape.value} value={shape.value}>{shape.label}</option>)}
+                        </SelectControl>
+                      </div>
+                      {effect.shape === "pixelate-circle" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, width: 58, color: "var(--ink-2)" }}>Background</span>
+                          <InputControl
+                            type="color"
+                            value={effect.backgroundColor}
+                            onChange={(event) => updateCutEffect({ backgroundColor: event.target.value })}
+                            aria-label="Cut Circles background color"
+                            style={{ width: 44, minWidth: 44, height: 28, padding: 2 }}
+                          />
+                          <span style={{ fontSize: 10, color: "var(--ink-3)", fontFamily: "monospace", textTransform: "uppercase" }}>{effect.backgroundColor}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                <div style={{ borderTop: "1px solid var(--line)", paddingTop: 9, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ flex: 1, fontSize: 10, color: "var(--ink-2)" }}>This Beat</span>
+                  <SelectControl
+                    value={b.ledMatrixEffect === undefined ? "inherit" : b.ledMatrixEffect.enabled === false ? "off" : "on"}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (value === "inherit") {
+                        const { ledMatrixEffect: _drop, ...rest } = b;
+                        update(rest as Beat);
+                      } else if (value === "off") {
+                        update({ ...b, ledMatrixEffect: { enabled: false } });
+                      } else {
+                        update({ ...b, ledMatrixEffect: { ...LED_MATRIX_DEFAULT, enabled: true } });
+                      }
+                    }}
+                    style={{ fontSize: 10, minWidth: 112 }}
+                  >
+                    <option value="inherit">Use Cut setting</option>
+                    <option value="on">Custom on</option>
+                    <option value="off">Off for Beat</option>
+                  </SelectControl>
+                </div>
+
+                {b.ledMatrixEffect?.enabled !== false && b.ledMatrixEffect && (() => {
+                  const effect = normalizeLedMatrixEffect(b.ledMatrixEffect);
+                  return (
+                    <>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10, width: 58, color: "var(--ink-2)" }}>Pixel size</span>
+                        <InputControl type="range" min={LED_MATRIX_MIN_CELL_PX} max={LED_MATRIX_MAX_CELL_PX} step={2} value={effect.cellSizePx} onChange={(event) => update({ ...b, ledMatrixEffect: { ...effect, cellSizePx: Number(event.target.value) } })} style={sliderTrackStyle(effect.cellSizePx, LED_MATRIX_MIN_CELL_PX, LED_MATRIX_MAX_CELL_PX)} />
+                        <span style={{ width: 34, textAlign: "right", fontSize: 10, color: "var(--ink-3)" }}>{effect.cellSizePx}px</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10, width: 58, color: "var(--ink-2)" }}>Style</span>
+                        <SelectControl
+                          value={effect.shape}
+                          onChange={(event) => update({ ...b, ledMatrixEffect: { ...effect, shape: event.target.value as typeof effect.shape } })}
+                          style={{ flex: 1, fontSize: 10 }}
+                        >
+                          {LED_MATRIX_SHAPES.map((shape) => <option key={shape.value} value={shape.value}>{shape.label}</option>)}
+                        </SelectControl>
+                      </div>
+                      {effect.shape === "pixelate-circle" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 10, width: 58, color: "var(--ink-2)" }}>Background</span>
+                          <InputControl
+                            type="color"
+                            value={effect.backgroundColor}
+                            onChange={(event) => update({ ...b, ledMatrixEffect: { ...effect, backgroundColor: event.target.value } })}
+                            aria-label="Beat Circles background color"
+                            style={{ width: 44, minWidth: 44, height: 28, padding: 2 }}
+                          />
+                          <span style={{ fontSize: 10, color: "var(--ink-3)", fontFamily: "monospace", textTransform: "uppercase" }}>{effect.backgroundColor}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>

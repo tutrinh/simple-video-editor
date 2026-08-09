@@ -22,6 +22,9 @@ import { useProject } from "../state/ProjectContext";
 import { useUserVoiceRecorder } from "./useUserVoiceRecorder";
 import { useUserVoicePlayback } from "./useUserVoicePlayback";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "./beatAudio";
+import LedMatrixOverlay from "../features/effects/LedMatrixOverlay";
+import { effectiveLedMatrixEffect } from "../features/effects/ledMatrix";
+import PixelatePreview from "../features/effects/PixelatePreview";
 import { activeUserVoiceCaption, timeTranscript } from "./userVoiceTranscript";
 import { findFontById } from "../lib/googleFonts";
 import { useGeneratedVoicePlayback } from "./useGeneratedVoicePlayback";
@@ -735,6 +738,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const kbAnimName = `kb-${beat.id.replace(/[^a-z0-9]/gi, "")}`;
 
   const aspectRatio = cut.aspect === "9:16" ? "9 / 16" : cut.aspect === "4:5" ? "4 / 5" : cut.aspect === "1:1" ? "1 / 1" : "16 / 9";
+  const [effectWidth, effectHeight] = canvasDims(cut.aspect);
+  const ledMatrixEffect = effectiveLedMatrixEffect(beat.ledMatrixEffect, cut.ledMatrixEffect);
   // Captions now come from the VO track by absolute cut time (decoupled from beats).
   const caption = activeUserVoiceCaption(cut.userVoiceSegments, elapsedCutSec) || activeVoCaption(cut.voSegments, elapsedCutSec);
   // The Beat preview draws its caption as DOM, so it needs a CSS family rather than the
@@ -767,6 +772,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
               : kenBurnsStyleAt(kbMove, pos))
           : beatZoomStyle(beat.zoom, beat.zoomX, beat.zoomY, isBeatZoomActive(beat.zoom, beat.zoomScope, beat.zoomSec, beatElapsed))) }}>
           <div style={{ position: "absolute", inset: 0, ...(clip?.isTemplatePlaceholder ? {} : beatRotationStyle(...canvasDims(cut.aspect), beat.rotation)) }}>
+            <PixelatePreview effect={ledMatrixEffect} exportWidth={effectWidth} exportHeight={effectHeight}>
             {(() => {
               const splitCfg = beat.splitScreen;
               const filterStyle = cssFilterFor(beat.colorAdjustments, cut.globalFilterId, cut.globalFilterIntensity, cut.globalFilterAdjustments);
@@ -817,13 +823,18 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
 
               return isStill ? (
                 // Same wrappers, same grade — only the element differs (ADR-0012).
-                <img src={stillUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
+                <img src={stillUrl ?? undefined} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", filter: filterStyle }} />
               ) : (
-                <video ref={videoRef} muted={previewAudioMuted || effectiveBeatVolume(beat, cut) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "contain", filter: filterStyle }} />
+                <video ref={videoRef} muted={previewAudioMuted || effectiveBeatVolume(beat, cut) === 0} playsInline style={{ width: "100%", height: "100%", objectFit: "cover", filter: filterStyle }} />
               );
             })()}
+            </PixelatePreview>
           </div>
         </div>
+
+        {ledMatrixEffect?.shape === "pixelate-circle" && (
+          <LedMatrixOverlay effect={ledMatrixEffect} width={effectWidth} height={effectHeight} />
+        )}
 
         {activeOverlay && activeOverlayClip && overlayBlobUrl && (
           <video

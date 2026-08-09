@@ -53,6 +53,11 @@ vi.mock("../../lib/frameSampler", async (orig) => ({
   renderStillContained: async () => PNG,
 }));
 
+vi.mock("../effects/ledMatrix", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  renderLedMatrixToPng: async () => PNG,
+}));
+
 const { exportCut } = await import("./export");
 const { clearSegmentCache } = await import("./segmentCache");
 
@@ -143,6 +148,13 @@ describe("golden master — Layer presence matrix", () => {
 describe("golden master — the base chain variants", () => {
   const base = { aspect: "16:9" as const };
 
+  it("crops ordinary Beat footage to fill the selected aspect", async () => {
+    const [args] = await segmentArgs({ ...base, beats: [beat()] }, [clip("c1")]);
+    const graph = args[args.indexOf("-filter_complex") + 1];
+    expect(graph).toContain("scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080");
+    expect(graph).not.toContain("force_original_aspect_ratio=decrease,pad=1920:1080");
+  });
+
   it("static Zoom", async () => {
     const [args] = await segmentArgs({ ...base, beats: [beat({ zoom: 1.5, zoomX: 20, zoomY: -10 })] }, [clip("c1")]);
     expect(args.join(" ")).toMatchSnapshot();
@@ -175,6 +187,31 @@ describe("golden master — the base chain variants", () => {
     const [args] = await segmentArgs(
       { ...base, beats: [beat({ colorAdjustments: { exposure: 20, contrast: -10 } })] }, [clip("c1")]);
     expect(args.join(" ")).toMatchSnapshot();
+  });
+
+  it("pixelates footage with compression-safe mosaic blocks before authored layers", async () => {
+    const [args] = await segmentArgs(
+      { ...base, beats: [beat({ ledMatrixEffect: { enabled: true, shape: "pixelate", cellSizePx: 24 } })] },
+      [clip("c1")],
+    );
+    const graph = args[args.indexOf("-filter_complex") + 1];
+
+    expect(args.join(" ")).not.toContain("led_matrix_");
+    expect(graph).toContain("scale=80:45:flags=area,scale=1920:1080:flags=neighbor");
+  });
+
+  it("masks sampled mosaic colors into large circles", async () => {
+    const [args] = await segmentArgs(
+      { ...base, beats: [beat({ ledMatrixEffect: { enabled: true, shape: "pixelate-circle" } })] },
+      [clip("c1")],
+    );
+    const graph = args[args.indexOf("-filter_complex") + 1];
+
+    expect(args.join(" ")).toContain("pixel_circle_24_000000.png");
+    expect(graph).toContain("scale=80:45:flags=area,scale=1920:1080:flags=neighbor");
+    expect(graph).toContain("format=rgba[led_texture_0]");
+    expect(graph).toContain("overlay=x=0:y=0:eof_action=pass[v]");
+    expect(graph).not.toContain("blend=all_mode=");
   });
 });
 

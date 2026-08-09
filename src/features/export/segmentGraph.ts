@@ -94,7 +94,13 @@ export interface StickerLayerSpec {
   enable: string;
 }
 
-export type LayerSpec = CaptionLayerSpec | TitleLayerSpec | OverlayLayerSpec | StickerLayerSpec;
+export interface LedMatrixLayerSpec {
+  kind: "ledMatrix";
+  pngName: string;
+  png: Uint8Array;
+}
+
+export type LayerSpec = CaptionLayerSpec | TitleLayerSpec | OverlayLayerSpec | StickerLayerSpec | LedMatrixLayerSpec;
 
 // ---------------------------------------------------------------------------
 // Options & Result
@@ -165,12 +171,25 @@ export function buildSegmentGraph(
   let titleIdx = 0;
   let overlayIdx = 0;
   let stickerIdx = 0;
+  let ledMatrixIdx = 0;
 
   const totalStickers = layers.filter((l) => l.kind === "sticker").length;
 
   for (let i = 0; i < layers.length; i++) {
     const layer = layers[i];
     const isLast = i === layers.length - 1;
+
+    if (layer.kind === "ledMatrix") {
+      const k = ledMatrixIdx++;
+      const out = isLast ? (terminal ? "[v]" : `[vled_${k}]`) : `[vled_${k}]`;
+      const texture = `[led_texture_${k}]`;
+      inputs.push({ name: layer.pngName, data: layer.png });
+      inputArgs.push("-loop", "1", "-t", segDurStr, "-r", "30", "-i", layer.pngName);
+      chains.push(`[${nextIdx}:v]format=rgba${texture}`);
+      chains.push(`${prev}${texture}overlay=x=0:y=0:eof_action=pass${out}`);
+      nextIdx++;
+      prev = out;
+    }
 
     if (layer.kind === "caption") {
       const k = capIdx++;

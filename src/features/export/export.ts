@@ -16,7 +16,7 @@ import { findFontById } from "../../lib/googleFonts";
 import { renderCaptionToPng } from "./captionCanvas";
 import { renderStickersToPng, stickerWindowInSegment, beatSpans, resolveStickers, resolveSfxSegments } from "./stickerCanvas";
 import { normalizeSplitConfig, buildSplitScreenFilterGraph } from "./splitScreenCanvas";
-import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LayerSpec } from "./segmentGraph";
+import { buildSegmentGraph, type StickerLayerSpec, type CaptionLayerSpec, type TitleLayerSpec, type OverlayLayerSpec, type LedMatrixLayerSpec, type LayerSpec } from "./segmentGraph";
 import { cacheSegment, getCachedSegment, segmentCacheKey } from "./segmentCache";
 import { titleWindow, type TitleScope } from "./titleTiming";
 import { clampUserVoiceLevelDb, clampUserVoiceVolume, dbToLinear, userVoiceEqFilterChain } from "../../studio/userVoiceEq";
@@ -25,6 +25,7 @@ import { captionVoiceDuckingFilterChain } from "../../studio/userVoicePriority";
 import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
 import { exportedCaptionWindows } from "./captionWindows";
 import { userVoiceCaptionWindows } from "../../studio/userVoiceTranscript";
+import { effectiveLedMatrixEffect, renderLedMatrixToPng } from "../effects/ledMatrix";
 
 
 
@@ -611,6 +612,7 @@ export async function exportCut(
   const segSlots: (Uint8Array | null)[] = new Array(n).fill(null);
   const timingSlots: (BeatTiming | null)[] = new Array(n).fill(null);
   const prog = new Array<number>(n).fill(0);
+  const ledMatrixTextures = new Map<string, Promise<Uint8Array | null>>();
   let completedBeats = 0;
   let reusedBeatSegments = 0;
 
@@ -642,6 +644,9 @@ export async function exportCut(
     const bStart = beatStartSecs[i];
     const bEnd = bStart + segDur;
     reportBeatStage(i, "Loading source for beat");
+
+    const ledMatrixEffect = effectiveLedMatrixEffect(b.ledMatrixEffect, cut.ledMatrixEffect);
+    let ledMatrixLayer: LedMatrixLayerSpec | null = null;
 
     // Ken Burns is a Still's moving framing (ADR-0015). Its source is
     // pre-scaled ONCE here, on the GPU, rather than by a `scale` in the filter
@@ -682,6 +687,26 @@ export async function exportCut(
       inputs.push({ name: srcName, data });
     }
     const numVideoInputs = inputs.length;
+
+    if (ledMatrixEffect?.shape === "pixelate-circle") {
+      const textureKey = `${w}x${h}:${ledMatrixEffect.cellSizePx}:${ledMatrixEffect.backgroundColor}`;
+      let texture = ledMatrixTextures.get(textureKey);
+      if (!texture) {
+        texture = renderLedMatrixToPng(ledMatrixEffect, w, h);
+        ledMatrixTextures.set(textureKey, texture);
+      }
+      const png = await texture;
+      if (png) {
+        const colorKey = ledMatrixEffect.backgroundColor.slice(1).toLowerCase();
+        const pngName = `pixel_circle_${ledMatrixEffect.cellSizePx}_${colorKey}.png`;
+        inputs.push({ name: pngName, data: png });
+        ledMatrixLayer = {
+          kind: "ledMatrix",
+          pngName,
+          png,
+        };
+      }
+    }
 
 
     // Captions (Task 3: now collected as CaptionLayerSpec[], compositing handled
@@ -769,12 +794,18 @@ export async function exportCut(
             "setpts=PTS-STARTPTS",
           ]
         : [
-            `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
-            `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
+            `scale=${w}:${h}:force_original_aspect_ratio=increase`,
+            `crop=${w}:${h}`,
           ]),
       "setsar=1",
       ...frame.base,
       ...(colorLut ? [colorLut.filter] : []),
+      ...(ledMatrixEffect?.shape === "pixelate" || ledMatrixEffect?.shape === "pixelate-circle"
+        ? [
+            `scale=${Math.max(1, Math.ceil(w / ledMatrixEffect.cellSizePx))}:${Math.max(1, Math.ceil(h / ledMatrixEffect.cellSizePx))}:flags=area`,
+            `scale=${w}:${h}:flags=neighbor`,
+          ]
+        : []),
     ];
 
     // Fill "hold". A looping Beat has no shortfall left to pad.
@@ -1054,6 +1085,7 @@ export async function exportCut(
     const maskTitleLayers = titleLayers.filter((layer) => layer.maskMode === "video");
     const regularTitleLayers = titleLayers.filter((layer) => layer.maskMode !== "video");
     const allLayers: LayerSpec[] = [
+      ...(ledMatrixLayer ? [ledMatrixLayer] : []),
       ...overlayLayers,
       ...stickerLayers,
       ...maskTitleLayers,

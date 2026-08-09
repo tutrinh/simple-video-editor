@@ -185,6 +185,15 @@ export interface SplitScreenConfig {
   slots: SplitScreenSlot[];
 }
 
+/** Compression-safe mosaic treatment. Pixel size is authored at 1080p/export pixels. */
+export interface LedMatrixEffect {
+  enabled?: boolean;
+  cellSizePx?: number;
+  shape?: "pixelate" | "pixelate-circle";
+  /** Solid field visible between circular pixels. */
+  backgroundColor?: string;
+}
+
 
 /**
  * One entry in the Cut: a trimmed Clip plus the Script segment shown as a
@@ -207,6 +216,8 @@ export interface Beat {
   templateSlotSuggestion?: string;
   captionDurations?: number[];
   colorAdjustments?: ColorAdjustments;
+  /** Optional Beat override for the Cut-level pixel treatment. */
+  ledMatrixEffect?: LedMatrixEffect;
   /** Per-beat stacked title layers, shown during this beat (parallel to the
    *  cut-level title in ExportSettings). Type-only import — erased at runtime,
    *  so no state↔domain runtime cycle. */
@@ -554,6 +565,8 @@ export interface Cut {
   globalFilterIntensity?: number;
   /** Fine-tuned custom color adjustments overriding the preset defaults. */
   globalFilterAdjustments?: ColorAdjustments;
+  /** Pixel treatment inherited by Beats without an override. */
+  ledMatrixEffect?: LedMatrixEffect;
 }
 
 /** Which edge a Veil's gradient runs toward; "down" puts the from-stop on top. */
