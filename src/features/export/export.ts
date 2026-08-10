@@ -3,6 +3,7 @@ import { PROJECT_FPS } from "../../domain/types";
 // Aliased: this module already has an unrelated local `BeatTiming` for timing slots.
 import { atempoChain, beatFill, beatTiming, speedPlan, type BeatTiming as SpeedTiming } from "../../domain/beatTiming";
 import { speedRampSetpts } from "../../domain/speedRamp";
+import { resolveOverlayClip } from "../../domain/overlayClip";
 import { multithreadReady, runIsolated, type EngineInput, type EnginePhase } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -162,6 +163,10 @@ export interface ExportResult {
   blob: Blob;
   /** Real per-beat timings; differ from the word-count estimate when voiceover is on. */
   timings: BeatTiming[];
+}
+
+export function overlayColorLutForExport(overlay: OverlayClip, index: number) {
+  return ffmpegColorLut(`overlay_grade_${index}.cube`, overlay.colorAdjustments);
 }
 
 /**
@@ -532,13 +537,16 @@ export async function exportCut(
   }
 
   // Pre-trim active B-roll overlays concurrently before segment rendering
-  const activeOverlays = (cut.overlays ?? []).filter((o) => clips.some((c) => c.id === o.clipId));
+  const clipDurationById = new Map(clips.map((item) => [item.id, item.durationSec]));
+  const activeOverlays = (cut.overlays ?? [])
+    .map((overlay) => resolveOverlayClip(overlay, cut.beats, clipDurationById))
+    .filter((overlay) => clips.some((item) => item.id === overlay.clipId));
 
   interface PreTrimmedOverlay {
     data: Uint8Array<ArrayBuffer>;
     o: OverlayClip;
   }
-  const preTrimmedOverlays: PreTrimmedOverlay[] = [];
+  const preTrimmedOverlaySlots: Array<PreTrimmedOverlay | null> = Array.from({ length: activeOverlays.length }, () => null);
   if (activeOverlays.length > 0) {
     onProgress?.(0.05, "Preparing B-roll overlays…");
     let trimProgress = 0;
@@ -548,9 +556,11 @@ export async function exportCut(
       try {
         const srcData = await bytesOf(clip.normalized ?? clip.file);
         const srcName = sourceName(clip);
+        const overlayColorLut = overlayColorLutForExport(o, idx);
         const out = await runIsolated(
-          [{ name: srcName, data: srcData }],
-          ["-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", srcName,
+          [{ name: srcName, data: srcData }, ...(overlayColorLut ? [overlayColorLut.input] : [])],
+          [...(o.fitToBeat ? ["-stream_loop", "-1"] : []), "-ss", o.inSec.toFixed(3), "-t", o.durationSec.toFixed(3), "-i", srcName,
+           ...(overlayColorLut ? ["-vf", overlayColorLut.filter] : []),
            "-c:v", "libx264", "-preset", "ultrafast", "-crf", String(crf), "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", "ov.mp4"],
           "ov.mp4",
@@ -561,7 +571,8 @@ export async function exportCut(
         );
         trimProgress++;
         onProgress?.(0.05 + (trimProgress / activeOverlays.length) * 0.05, `Preparing B-roll overlay ${trimProgress} of ${activeOverlays.length}…`);
-        preTrimmedOverlays.push({ data: out, o });
+        // Preserve the Cut's bottom-to-top layer order even though trims finish concurrently.
+        preTrimmedOverlaySlots[idx] = { data: out, o };
       } catch (err) {
         assertNotCancelled();
         console.warn(`Overlay ${idx} pre-trim failed; skipping overlay.`, err);
@@ -570,6 +581,7 @@ export async function exportCut(
       }
     });
   }
+  const preTrimmedOverlays = preTrimmedOverlaySlots.filter((item): item is PreTrimmedOverlay => item !== null);
 
   // Load source bytes inside the active render worker instead of retaining every
   // Clip in one global cache. With 25 normalized Clips the eager cache could hold

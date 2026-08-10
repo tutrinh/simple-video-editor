@@ -265,6 +265,9 @@ describe("projectReducer", () => {
     expect(s.cut?.overlays?.[1].id).toBe("ov1-dup");
     expect(s.cut?.overlays?.[1].blendMode).toBe("screen");
 
+    s = projectReducer(s, { type: "MOVE_OVERLAY_LAYER", id: "ov1", direction: 1 });
+    expect(s.cut?.overlays?.map((item) => item.id)).toEqual(["ov1-dup", "ov1"]);
+
     s = projectReducer(s, { type: "REMOVE_OVERLAY", id: "ov1" });
     expect(s.cut?.overlays).toHaveLength(1);
   });

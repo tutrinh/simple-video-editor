@@ -21,6 +21,7 @@
 
 import type { EngineInput } from "../../lib/ffmpegEngine";
 import type { OverlayClip } from "../../domain/types";
+import { overlayVisual } from "../../domain/overlayClip";
 
 // ---------------------------------------------------------------------------
 // Layer Specs
@@ -227,11 +228,28 @@ export function buildSegmentGraph(
         : `[voverlay_${k}]`;
 
       const { overlayClip, stLocalSec, durLocalSec, bStart, segDur, w, h } = layer;
-      const mode = overlayClip.blendMode ?? "normal";
+      const visual = overlayVisual(overlayClip);
+      const isPip = visual.layoutMode === "pip";
+      const mode = isPip ? "normal" : (overlayClip.blendMode ?? "normal");
       const op = (overlayClip.opacity ?? 1).toFixed(3);
       const stSec = stLocalSec;
       const dur = durLocalSec;
-      const scaleF = `scale=${w}:${h}:force_original_aspect_ratio=decrease`;
+      const boxW = isPip ? Math.max(2, Math.round(w * visual.width / 2) * 2) : w;
+      const boxH = isPip ? Math.max(2, Math.round(h * visual.height / 2) * 2) : h;
+      const overlayX = isPip ? Math.round((visual.x - visual.width / 2) * w) : 0;
+      const overlayY = isPip ? Math.round((visual.y - visual.height / 2) * h) : 0;
+      const scaleF = visual.fit === "cover" && isPip
+        ? `scale=${boxW}:${boxH}:force_original_aspect_ratio=increase,crop=${boxW}:${boxH}`
+        : `scale=${boxW}:${boxH}:force_original_aspect_ratio=decrease`;
+      const padF = visual.fit === "cover" && isPip
+        ? ""
+        : isPip
+          ? `,format=rgba,pad=${boxW}:${boxH}:(ow-iw)/2:(oh-ih)/2:color=black@0.0`
+          : `,pad=${boxW}:${boxH}:(ow-iw)/2:(oh-ih)/2:color=black@0.0`;
+      const radiusPx = isPip ? Math.round(Math.min(boxW, boxH) * visual.cornerRadius) : 0;
+      const roundedF = radiusPx > 0
+        ? `,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(max(0,${radiusPx}-min(X,W-1-X)),max(0,${radiusPx}-min(Y,H-1-Y))),${radiusPx}),alpha(X,Y),0)'`
+        : "";
 
       const beatIntoOverlay = Math.max(0, bStart - overlayClip.startTimeSec);
       const seekStart = beatIntoOverlay.toFixed(3);
@@ -248,21 +266,21 @@ export function buildSegmentGraph(
 
         if (stSec > 0.001) {
           const lbl = `[ov_lead_${k}]`;
-          chains.push(`color=c=black@0.0:s=${w}x${h}:r=30:d=${stStr},format=rgba${lbl}`);
+          chains.push(`color=c=black@0.0:s=${boxW}x${boxH}:r=30:d=${stStr},format=rgba${lbl}`);
           concatParts.push(lbl);
         }
 
         const contLbl = `[ov_cont_${k}]`;
         chains.push(
           `[${nextIdx}:v]trim=start=${seekStart}:end=${seekEnd},setpts=PTS-STARTPTS,` +
-          `${scaleF},pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black@0.0,setsar=1,` +
-          `format=rgba,colorchannelmixer=aa=${op}${contLbl}`
+          `${scaleF}${padF},setsar=1,` +
+          `format=rgba,colorchannelmixer=aa=${op}${roundedF}${contLbl}`
         );
         concatParts.push(contLbl);
 
         if (trailDur > 0.001) {
           const lbl = `[ov_trail_${k}]`;
-          chains.push(`color=c=black@0.0:s=${w}x${h}:r=30:d=${trailStr},format=rgba${lbl}`);
+          chains.push(`color=c=black@0.0:s=${boxW}x${boxH}:r=30:d=${trailStr},format=rgba${lbl}`);
           concatParts.push(lbl);
         }
 
@@ -274,7 +292,7 @@ export function buildSegmentGraph(
           ovFull = concatParts[0];
         }
 
-        chains.push(`${prev}${ovFull}overlay=x=0:y=0:eof_action=pass${out}`);
+        chains.push(`${prev}${ovFull}overlay=x=${overlayX}:y=${overlayY}:eof_action=pass${out}`);
 
       } else {
         const neutralColor = mode === "multiply" ? "white" : mode === "overlay" ? "0x808080" : "black";

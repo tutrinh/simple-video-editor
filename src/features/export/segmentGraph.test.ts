@@ -537,6 +537,37 @@ describe("buildSegmentGraph — single normal overlay (terminal)", () => {
   });
 });
 
+describe("buildSegmentGraph — picture-in-picture overlay", () => {
+  const layer = overlay(0, {
+    overlayClip: {
+      id: "pip",
+      clipId: "c_0",
+      startTimeSec: 0,
+      durationSec: 4,
+      inSec: 0,
+      outSec: 4,
+      blendMode: "normal",
+      opacity: 1,
+      volume: 0,
+      layoutMode: "pip",
+      x: 0.8,
+      y: 0.2,
+      width: 0.3,
+      height: 0.25,
+      fit: "cover",
+      cornerRadius: 0.1,
+    },
+  });
+
+  it("scales and crops into the PiP box, rounds it, and overlays at its authored position", () => {
+    const chain = buildSegmentGraph([layer], BASE_OPTS).chains.join(";");
+    expect(chain).toContain("scale=576:270:force_original_aspect_ratio=increase,crop=576:270");
+    expect(chain).toContain("colorchannelmixer=aa=1.000");
+    expect(chain).toContain("geq=");
+    expect(chain).toContain("overlay=x=1248:y=81");
+  });
+});
+
 describe("buildSegmentGraph — blend mode overlay with rgbFormat", () => {
   const layer = overlay(0, {
     overlayClip: {

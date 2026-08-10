@@ -26,6 +26,7 @@ import { saveCustomPreset } from "../lib/customPresets";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import SplitClipPickerModal from "./SplitClipPickerModal";
 import SpeedRampGraph, { SpeedRampBand, formatRampFrame, rampBoundaryAtTargetFrame, rampFrameAtProgress, snapRampProgressToFrame } from "../features/speed-ramp/SpeedRampGraph";
+import { attachOverlayToBeat, overlayVisual, resolveOverlayClip } from "../domain/overlayClip";
 
 
 
@@ -36,6 +37,7 @@ import FilterPresetModal from "./FilterPresetModal";
 import TitleTreatmentEditor from "../features/export/TitleTreatmentEditor";
 import StickerAppearance from "./StickerCard";
 import ColorizeControl from "./ColorizeControl";
+import ColorAdjustmentsControl from "./ColorAdjustmentsControl";
 import { makeBeatTitleLayers, useExportSettings, type TitleLayerSettings } from "../state/ExportSettingsContext";
 import { canvasDims } from "../features/export/export";
 import { sfxFileUrl } from "../lib/sfxLibrary";
@@ -233,6 +235,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const cut = state.cut;
   const overlays = cut?.overlays ?? [];
   const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId);
+  const overlayClipDurations = new Map(clips.map((item) => [item.id, item.durationSec]));
+  const selectedOverlayVisual = selectedOverlay ? overlayVisual(selectedOverlay) : null;
+  const resolvedSelectedOverlay = selectedOverlay && cut
+    ? resolveOverlayClip(selectedOverlay, cut.beats, overlayClipDurations)
+    : selectedOverlay;
   const selectedVo = (cut?.voSegments ?? []).find((s) => s.id === selectedVoId);
   const selectedSfx = (cut?.sfxSegments ?? []).find((s) => s.id === selectedSfxId);
   const selectedUserVoice = (cut?.userVoiceSegments ?? []).find((segment) => segment.id === selectedUserVoiceId);
@@ -394,6 +401,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   }
   const [trimOpen, setTrimOpen] = useState(true);
   const [colorOpen, setColorOpen] = useState(false);
+  const [overlayColorOpen, setOverlayColorOpen] = useState(false);
   const [titleOpen, setTitleOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [rotationOpen, setRotationOpen] = useState(false);
@@ -1782,16 +1790,6 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   }
 
 
-  function updateColorAdjustment(key: keyof ColorAdjustments, value: number) {
-    const current = b.colorAdjustments ?? {};
-    const nextAdj = { ...current, [key]: value };
-    update({ ...b, colorAdjustments: nextAdj });
-  }
-
-  function updateBeatColorize(colorize: ColorizeSettings) {
-    update({ ...b, colorAdjustments: { ...b.colorAdjustments, colorize } });
-  }
-
   function resetColorAdjustments() {
     const { colorAdjustments: _drop, ...rest } = b;
     update(rest);
@@ -2621,126 +2619,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
           <div className={"st-color-collapsible" + (colorOpen ? " open" : "")}>
             <div className="st-color-collapsible-inner">
                   <div className="st-color-adjustments" style={{ display: "flex", flexDirection: "column", gap: 8, background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
-                <ColorizeControl value={b.colorAdjustments?.colorize} onChange={updateBeatColorize} />
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, paddingBottom: 8, borderBottom: "1px solid var(--line)" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ color: "var(--ink)", fontSize: 11, fontWeight: 650 }}>Flat footage?</div>
-                    <div style={{ color: "var(--ink-3)", fontSize: 9, lineHeight: 1.4, marginTop: 2 }}>Add a neutral Rec.709-style look without choosing a camera profile.</div>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="small"
-                    onClick={applyAutoRec709}
-                    title="Replace this beat's color adjustments with a camera-agnostic Rec.709-style normalization"
-                    style={{ flex: "none" }}
-                  >
-                    Auto Rec.709
-                  </Button>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Exposure</span>
-                  <InputControl
-                    type="range"
-                    min="-100"
-                    max="100"
-                    value={b.colorAdjustments?.exposure ?? 0}
-                    onChange={(e) => updateColorAdjustment("exposure", Number(e.target.value))}
-                    onDoubleClick={() => updateColorAdjustment("exposure", 0)}
-                    title="Drag to adjust, double-click to reset to 0"
-                    style={sliderTrackStyle(b.colorAdjustments?.exposure ?? 0)}
-                  />
-                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                    {(b.colorAdjustments?.exposure ?? 0) > 0 ? `+${b.colorAdjustments?.exposure}` : (b.colorAdjustments?.exposure ?? 0)}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Contrast</span>
-                  <InputControl
-                    type="range"
-                    min="-100"
-                    max="100"
-                    value={b.colorAdjustments?.contrast ?? 0}
-                    onChange={(e) => updateColorAdjustment("contrast", Number(e.target.value))}
-                    onDoubleClick={() => updateColorAdjustment("contrast", 0)}
-                    title="Drag to adjust, double-click to reset to 0"
-                    style={sliderTrackStyle(b.colorAdjustments?.contrast ?? 0)}
-                  />
-                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                    {(b.colorAdjustments?.contrast ?? 0) > 0 ? `+${b.colorAdjustments?.contrast}` : (b.colorAdjustments?.contrast ?? 0)}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Hue</span>
-                  <InputControl
-                    type="range"
-                    min="-100"
-                    max="100"
-                    value={b.colorAdjustments?.colorTone ?? 0}
-                    onChange={(e) => updateColorAdjustment("colorTone", Number(e.target.value))}
-                    onDoubleClick={() => updateColorAdjustment("colorTone", 0)}
-                    title="Drag to adjust, double-click to reset to 0"
-                    style={sliderTrackStyle(b.colorAdjustments?.colorTone ?? 0)}
-                  />
-                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                    {(b.colorAdjustments?.colorTone ?? 0) > 0 ? `+${b.colorAdjustments?.colorTone}` : (b.colorAdjustments?.colorTone ?? 0)}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Warmth</span>
-                  <InputControl
-                    type="range"
-                    min="-100"
-                    max="100"
-                    value={b.colorAdjustments?.warmth ?? 0}
-                    onChange={(e) => updateColorAdjustment("warmth", Number(e.target.value))}
-                    onDoubleClick={() => updateColorAdjustment("warmth", 0)}
-                    title="Drag to adjust, double-click to reset to 0"
-                    style={sliderTrackStyle(b.colorAdjustments?.warmth ?? 0)}
-                  />
-                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                    {(b.colorAdjustments?.warmth ?? 0) > 0 ? `+${b.colorAdjustments?.warmth}` : (b.colorAdjustments?.warmth ?? 0)}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Orange / Skin</span>
-                  <InputControl
-                    type="range"
-                    min="-100"
-                    max="100"
-                    value={b.colorAdjustments?.skinTone ?? 0}
-                    onChange={(e) => updateColorAdjustment("skinTone", Number(e.target.value))}
-                    onDoubleClick={() => updateColorAdjustment("skinTone", 0)}
-                    title="Drag to adjust, double-click to reset to 0"
-                    style={sliderTrackStyle(b.colorAdjustments?.skinTone ?? 0)}
-                  />
-                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                    {(b.colorAdjustments?.skinTone ?? 0) > 0 ? `+${b.colorAdjustments?.skinTone}` : (b.colorAdjustments?.skinTone ?? 0)}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Saturation</span>
-                  <InputControl
-                    type="range"
-                    min="-100"
-                    max="100"
-                    value={b.colorAdjustments?.saturation ?? 0}
-                    onChange={(e) => updateColorAdjustment("saturation", Number(e.target.value))}
-                    onDoubleClick={() => updateColorAdjustment("saturation", 0)}
-                    title="Drag to adjust, double-click to reset to 0"
-                    style={sliderTrackStyle(b.colorAdjustments?.saturation ?? 0)}
-                  />
-                  <span style={{ fontSize: 10, width: 32, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>
-                    {(b.colorAdjustments?.saturation ?? 0) > 0 ? `+${b.colorAdjustments?.saturation}` : (b.colorAdjustments?.saturation ?? 0)}
-                  </span>
-                </div>
-
-                {splitToneRows(b.colorAdjustments ?? {}, updateColorAdjustment)}
+                <ColorAdjustmentsControl
+                  value={b.colorAdjustments}
+                  onChange={(colorAdjustments) => update({ ...b, colorAdjustments })}
+                  onAutoRec709={applyAutoRec709}
+                />
 
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   <ControlButton
@@ -4243,6 +4126,26 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     <ControlButton
                       type="button"
                       className="st-btn ghost"
+                      style={{ padding: "2px 6px", fontSize: 10 }}
+                      disabled={overlays.findIndex((item) => item.id === selectedOverlay.id) <= 0}
+                      onClick={() => dispatch({ type: "MOVE_OVERLAY_LAYER", id: selectedOverlay.id, direction: -1 })}
+                      title="Send overlay backward"
+                    >
+                      ↓
+                    </ControlButton>
+                    <ControlButton
+                      type="button"
+                      className="st-btn ghost"
+                      style={{ padding: "2px 6px", fontSize: 10 }}
+                      disabled={overlays.findIndex((item) => item.id === selectedOverlay.id) >= overlays.length - 1}
+                      onClick={() => dispatch({ type: "MOVE_OVERLAY_LAYER", id: selectedOverlay.id, direction: 1 })}
+                      title="Bring overlay forward"
+                    >
+                      ↑
+                    </ControlButton>
+                    <ControlButton
+                      type="button"
+                      className="st-btn ghost"
                       style={{ padding: "2px 8px", fontSize: 11 }}
                       onClick={() => {
                         const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
@@ -4279,8 +4182,114 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   </SelectControl>
                 </div>
 
+                {selectedOverlayVisual && (
+                  <div className="st-overlay-layout-controls">
+                    <div className="st-overlay-mode-tabs">
+                      <ControlButton
+                        type="button"
+                        aria-pressed={selectedOverlayVisual.layoutMode === "full"}
+                        className={selectedOverlayVisual.layoutMode === "full" ? "active" : ""}
+                        onClick={() => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, layoutMode: "full" } })}
+                      >
+                        Full frame
+                      </ControlButton>
+                      <ControlButton
+                        type="button"
+                        aria-pressed={selectedOverlayVisual.layoutMode === "pip"}
+                        className={selectedOverlayVisual.layoutMode === "pip" ? "active" : ""}
+                        onClick={() => dispatch({
+                          type: "UPDATE_OVERLAY",
+                          overlay: {
+                            ...selectedOverlay,
+                            layoutMode: "pip",
+                            blendMode: "normal",
+                            opacity: 1,
+                            opacityAuthored: false,
+                            x: selectedOverlayVisual.x,
+                            y: selectedOverlayVisual.y,
+                            width: selectedOverlayVisual.width,
+                            height: selectedOverlayVisual.height,
+                            fit: selectedOverlayVisual.fit,
+                            cornerRadius: selectedOverlayVisual.cornerRadius,
+                          },
+                        })}
+                      >
+                        Picture in picture
+                      </ControlButton>
+                    </div>
+
+                    {selectedOverlayVisual.layoutMode === "pip" && (
+                      <>
+                        <div className="st-overlay-position-row">
+                          <span>Position</span>
+                          {[
+                            ["↖", 0.2, 0.2, "Top left"],
+                            ["↗", 0.8, 0.2, "Top right"],
+                            ["↙", 0.2, 0.8, "Bottom left"],
+                            ["↘", 0.8, 0.8, "Bottom right"],
+                          ].map(([label, x, y, title]) => (
+                            <ControlButton
+                              key={String(title)}
+                              type="button"
+                              title={String(title)}
+                              aria-label={String(title)}
+                              onClick={() => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, x: Number(x), y: Number(y) } })}
+                            >
+                              {label}
+                            </ControlButton>
+                          ))}
+                        </div>
+                        <div className="st-overlay-control-row">
+                          <span>Width</span>
+                          <InputControl
+                            type="range" min={10} max={100} step={1}
+                            value={Math.round(selectedOverlayVisual.width * 100)}
+                            onChange={(event) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, width: Number(event.target.value) / 100 } })}
+                            style={sliderTrackStyle(selectedOverlayVisual.width * 100, 10, 100)}
+                          />
+                          <output>{Math.round(selectedOverlayVisual.width * 100)}%</output>
+                        </div>
+                        <div className="st-overlay-control-row">
+                          <span>Height</span>
+                          <InputControl
+                            type="range" min={10} max={100} step={1}
+                            value={Math.round(selectedOverlayVisual.height * 100)}
+                            onChange={(event) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, height: Number(event.target.value) / 100 } })}
+                            style={sliderTrackStyle(selectedOverlayVisual.height * 100, 10, 100)}
+                          />
+                          <output>{Math.round(selectedOverlayVisual.height * 100)}%</output>
+                        </div>
+                        <div className="st-overlay-control-row">
+                          <span>Corners</span>
+                          <InputControl
+                            type="range" min={0} max={50} step={1}
+                            value={Math.round(selectedOverlayVisual.cornerRadius * 100)}
+                            onChange={(event) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, cornerRadius: Number(event.target.value) / 100 } })}
+                            style={sliderTrackStyle(selectedOverlayVisual.cornerRadius * 100, 0, 50)}
+                          />
+                          <output>{Math.round(selectedOverlayVisual.cornerRadius * 100)}%</output>
+                        </div>
+                        <div className="st-overlay-fit-row">
+                          <span>Fit</span>
+                          <ControlButton
+                            type="button"
+                            className={selectedOverlayVisual.fit === "contain" ? "active" : ""}
+                            onClick={() => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, fit: "contain" } })}
+                          >Contain</ControlButton>
+                          <ControlButton
+                            type="button"
+                            className={selectedOverlayVisual.fit === "cover" ? "active" : ""}
+                            onClick={() => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, fit: "cover" } })}
+                          >Fill</ControlButton>
+                        </div>
+                        <p className="st-overlay-direct-hint">Drag the video in the preview to position it. Drag its lower-right handle to resize.</p>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* Blend Mode Selector */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+                {selectedOverlayVisual?.layoutMode !== "pip" && <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
                   <label style={{ fontSize: 11, color: "var(--ink-2)" }}>Visual Blend Mode</label>
                   <SelectControl
                     value={selectedOverlay.blendMode}
@@ -4292,23 +4301,94 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     <option value="multiply">Multiply (Darken Blend)</option>
                     <option value="overlay">Overlay (Contrast Blend)</option>
                   </SelectControl>
-                </div>
+                </div>}
 
                 {/* Opacity Slider */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
                     <span>Opacity</span>
-                    <span>{Math.round(selectedOverlay.opacity * 100)}%</span>
+                    <span>{Math.round((resolvedSelectedOverlay?.opacity ?? selectedOverlay.opacity) * 100)}%</span>
                   </div>
                   <InputControl
                     type="range"
                     min="0"
                     max="1"
                     step="0.05"
-                    value={selectedOverlay.opacity}
-                    onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, opacity: Number(e.target.value) } })}
-                    style={sliderTrackStyle(selectedOverlay.opacity, 0, 1)}
+                    value={resolvedSelectedOverlay?.opacity ?? selectedOverlay.opacity}
+                    onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, opacity: Number(e.target.value), opacityAuthored: true } })}
+                    style={sliderTrackStyle(resolvedSelectedOverlay?.opacity ?? selectedOverlay.opacity, 0, 1)}
                   />
+                </div>
+
+                {/* Overlay color uses the same editor and clipboard as Beat color. */}
+                <div className="st-field" style={{ margin: "4px 0 10px" }}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={overlayColorOpen}
+                    onClick={() => setOverlayColorOpen((open) => !open)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, cursor: "pointer", padding: "5px 0" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <ChevronDownIcon size={12} style={{ transform: overlayColorOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+                      <span style={{ fontSize: 11, color: "var(--ink)", fontWeight: 650 }}>Color Adjustments</span>
+                      {hasColorAdjustments(selectedOverlay.colorAdjustments) && <span style={{ fontSize: 9, color: "var(--accent)" }}>• Adjusted</span>}
+                    </div>
+                    {hasColorAdjustments(selectedOverlay.colorAdjustments) && (
+                      <ControlButton
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          const { colorAdjustments: _drop, ...rest } = selectedOverlay;
+                          dispatch({ type: "UPDATE_OVERLAY", overlay: rest });
+                        }}
+                        style={{ border: 0, background: "none", padding: 0, color: "var(--accent)", fontSize: 9 }}
+                      >
+                        Reset color
+                      </ControlButton>
+                    )}
+                  </div>
+                  <div className={"st-color-collapsible" + (overlayColorOpen ? " open" : "")}>
+                    <div className="st-color-collapsible-inner">
+                      <div style={{ padding: "10px 12px", border: "1px solid var(--line)", borderRadius: 7, background: "var(--panel-3)" }}>
+                        <ColorAdjustmentsControl
+                          value={selectedOverlay.colorAdjustments}
+                          onChange={(colorAdjustments) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, colorAdjustments } })}
+                          onAutoRec709={() => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, colorAdjustments: autoRec709Grade() } })}
+                        />
+                        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                          <ControlButton
+                            type="button"
+                            className="st-btn ghost"
+                            style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+                            disabled={!hasColorAdjustments(selectedOverlay.colorAdjustments)}
+                            onClick={() => {
+                              if (!selectedOverlay.colorAdjustments) return;
+                              setCopiedColor({ ...selectedOverlay.colorAdjustments });
+                              setColorCopiedToast(true);
+                              setTimeout(() => setColorCopiedToast(false), 2000);
+                            }}
+                            title="Copy this overlay's color settings"
+                          >
+                            {colorCopiedToast ? "✓ Copied!" : "📋 Copy Color"}
+                          </ControlButton>
+                          <ControlButton
+                            type="button"
+                            className="st-btn ghost"
+                            style={{ flex: 1, fontSize: 10, padding: "4px 6px", justifyContent: "center" }}
+                            disabled={!copiedColor}
+                            onClick={() => {
+                              if (!copiedColor) return;
+                              dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, colorAdjustments: { ...copiedColor } } });
+                            }}
+                            title={copiedColor ? "Paste copied Beat or overlay color settings" : "Copy color settings first"}
+                          >
+                            📥 Paste Color
+                          </ControlButton>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Audio Volume Slider */}
@@ -4328,6 +4408,25 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                   />
                 </div>
 
+                {beat && cut && (
+                  <div className="st-overlay-follow-row">
+                    <div>
+                      <strong>Follow Beat {index + 1}</strong>
+                      <span>Moves and resizes with this Beat when its timing changes.</span>
+                    </div>
+                    <Switch
+                      checked={Boolean(selectedOverlay.fitToBeat && selectedOverlay.attachedBeatId === beat.id)}
+                      label={`Follow Beat ${index + 1}`}
+                      onChange={(next) => {
+                        const overlay = next
+                          ? attachOverlayToBeat(selectedOverlay, beat, cut.beats, overlayClipDurations)
+                          : { ...selectedOverlay, ...resolveOverlayClip(selectedOverlay, cut.beats, overlayClipDurations), fitToBeat: false, attachedBeatId: undefined };
+                        dispatch({ type: "UPDATE_OVERLAY", overlay });
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* Timing Inputs */}
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
@@ -4336,8 +4435,9 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       type="number"
                       step="0.1"
                       min="0"
-                      value={selectedOverlay.startTimeSec}
-                      onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: Number(e.target.value) } })}
+                      value={resolvedSelectedOverlay?.startTimeSec ?? selectedOverlay.startTimeSec}
+                      disabled={selectedOverlay.fitToBeat}
+                      onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: Number(e.target.value), fitToBeat: false, attachedBeatId: undefined } })}
                       style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 11 }}
                     />
                   </div>
@@ -4348,8 +4448,9 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       type="number"
                       step="0.1"
                       min="0.5"
-                      value={selectedOverlay.durationSec}
-                      onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, durationSec: Number(e.target.value) } })}
+                      value={resolvedSelectedOverlay?.durationSec ?? selectedOverlay.durationSec}
+                      disabled={selectedOverlay.fitToBeat}
+                      onChange={(e) => dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, durationSec: Number(e.target.value), fitToBeat: false, attachedBeatId: undefined } })}
                       style={{ background: "var(--panel-3)", border: "1px solid var(--line)", borderRadius: 6, color: "var(--ink)", padding: "4px 8px", fontSize: 11 }}
                     />
                   </div>
@@ -4364,7 +4465,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       style={{ flex: 1, fontSize: 10, padding: "3px 6px" }}
                       onClick={() => {
                         const totalDur = cutDuration(cut);
-                        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: 0, durationSec: totalDur } });
+                        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: 0, durationSec: totalDur, fitToBeat: false, attachedBeatId: undefined } });
                       }}
                       title="Set overlay duration to cover the full assembled video timeline"
                     >
@@ -4377,12 +4478,11 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                       className="st-btn ghost"
                       style={{ flex: 1, fontSize: 10, padding: "3px 6px" }}
                       onClick={() => {
-                        const beatStart = cut.beats.slice(0, Math.max(0, index)).reduce((sum, b) => sum + b.durationSec, 0);
-                        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...selectedOverlay, startTimeSec: beatStart, durationSec: beat.durationSec } });
+                        dispatch({ type: "UPDATE_OVERLAY", overlay: attachOverlayToBeat(selectedOverlay, beat, cut.beats, overlayClipDurations) });
                       }}
                       title={`Align overlay to match Beat ${index + 1}`}
                     >
-                      🎯 Align to Beat {index + 1}
+                      🎯 Follow Beat {index + 1}
                     </ControlButton>
                   )}
                 </div>

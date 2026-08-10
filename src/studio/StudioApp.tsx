@@ -3,6 +3,7 @@ import { useProject } from "../state/ProjectContext";
 import { cutDuration, makeBeat } from "../features/assemble/assemble";
 import { stepBeatDuration } from "../domain/beatDuration";
 import { stepSegmentDuration } from "../domain/segmentDuration";
+import { resolveOverlayClip } from "../domain/overlayClip";
 import { isFromFormControl, resolveTimelineKeyAction } from "./timelineKeys";
 import {
   activeTimelineTrack,
@@ -235,9 +236,14 @@ export default function StudioApp() {
           }
           case "overlay": {
             const overlay = cut?.overlays?.find((s) => s.id === selectedOverlayId);
-            if (!overlay) break;
-            const next = step(overlay.durationSec, { minSec: 0.5, maxSec: room(overlay.startTimeSec) });
-            if (next !== null) dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, durationSec: next } });
+            if (!overlay || !cut) break;
+            const durations = new Map(Array.from(clipById, ([id, item]) => [id, item.durationSec]));
+            const resolved = resolveOverlayClip(overlay, cut.beats, durations);
+            const next = step(resolved.durationSec, { minSec: 0.5, maxSec: room(resolved.startTimeSec) });
+            if (next !== null) dispatch({
+              type: "UPDATE_OVERLAY",
+              overlay: { ...resolved, durationSec: next, fitToBeat: false, attachedBeatId: undefined },
+            });
             break;
           }
         }
@@ -580,6 +586,8 @@ export default function StudioApp() {
                     onSelectBeat={setSelectedBeatId}
                     onPlayingChange={setIsPlaying}
                     onBeatPositionChange={handleBeatPositionChange}
+                    selectedOverlayId={selectedOverlayId}
+                    onSelectOverlay={(id) => { clearSegmentSelections(); setSelectedOverlayId(id); }}
                     onCaptureCover={captureCoverFromBeat}
                     onRecordCreated={(id) => {
                       setSelectedUserVoiceId(id);

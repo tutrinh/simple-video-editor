@@ -35,6 +35,8 @@ import { beatTiming, sourceOffsetAt, speedAtElapsed } from "../../domain/beatTim
 import LedMatrixOverlay from "../effects/LedMatrixOverlay";
 import { effectiveLedMatrixEffect } from "../effects/ledMatrix";
 import PixelatePreview from "../effects/PixelatePreview";
+import OverlayVideoLayer from "../overlay/OverlayVideoLayer";
+import { activeOverlayClips } from "../../domain/overlayClip";
 
 // WYSIWYG preview of the finished reel: plays each beat's trimmed footage in
 // order and composes the SAME layers the export burns in — styled captions, the
@@ -138,7 +140,6 @@ export default function FinalPreview({
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const slotVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
-  const overlayVideoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const voCacheRef = useRef<Map<string, string>>(new Map());
   const generatedVoAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -154,6 +155,7 @@ export default function FinalPreview({
   const playingRef = useRef(false);
 
   const clipById = useMemo(() => new Map(clips.map((c) => [c.id, c])), [clips]);
+  const clipDurationById = useMemo(() => new Map(clips.map((c) => [c.id, c.durationSec])), [clips]);
 
   const beat = cut.beats[index];
   const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
@@ -205,26 +207,7 @@ export default function FinalPreview({
   useUserVoicePlayback(cut.userVoiceSegments, elapsed, playing && !muteAllAudio);
 
 
-  const activeOverlay = cut?.overlays?.find((o) => elapsed >= o.startTimeSec && elapsed < o.startTimeSec + o.durationSec) ?? null;
-  const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-  const overlayBlobUrl = getClipBlobUrl(activeOverlayClip ? previewFileForClip(activeOverlayClip) : undefined);
-
-  useEffect(() => {
-    const el = overlayVideoRef.current;
-    if (!el || !activeOverlay) return;
-    const targetTime = (elapsed - activeOverlay.startTimeSec) + activeOverlay.inSec;
-    if (Math.abs(el.currentTime - targetTime) > 0.15) {
-      try { el.currentTime = targetTime; } catch {}
-    }
-    const volume = activeOverlay.volume ?? 0;
-    el.volume = muteAllAudio ? 0 : volume;
-    el.muted = muteAllAudio || volume === 0;
-    if (playing && el.paused) {
-      el.play().catch(() => {});
-    } else if (!playing && !el.paused) {
-      el.pause();
-    }
-  }, [elapsed, activeOverlay, playing, muteAllAudio]);
+  const activeOverlays = activeOverlayClips(cut.overlays, cut.beats, elapsed, clipDurationById);
 
   const mainBeatBlobUrl = getClipBlobUrl(currentBeatClip ? previewFileForClip(currentBeatClip) : undefined);
   const splitActive = Boolean(beat?.splitScreen && beat.splitScreen.layout !== "none");
@@ -248,7 +231,6 @@ export default function FinalPreview({
     playingRef.current = false;
     setPlaying(false);
     pausePreviewMedia(activeVideos());
-    overlayVideoRef.current?.pause();
     audioRef.current?.pause();
     sfxVoicesRef.current.forEach((voice) => voice.pause());
   }, [active]);
@@ -891,30 +873,22 @@ export default function FinalPreview({
           />
         )}
 
-        {activeOverlay && activeOverlayClip && overlayBlobUrl && (
-          <video
-            key={activeOverlay.id}
-            ref={overlayVideoRef}
-            src={overlayBlobUrl}
-            muted={muteAllAudio || (activeOverlay.volume ?? 0) === 0}
-            playsInline
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              // `contain`, not `cover`: the export fits a B-roll Overlay with
-              // `force_original_aspect_ratio=decrease` and pads it with
-              // `black@0.0` — fully transparent — so a mismatched aspect shows
-              // the Beat's own footage around it rather than being cropped.
-              objectFit: "contain",
-              pointerEvents: "none",
-              opacity: activeOverlay.opacity,
-              mixBlendMode: activeOverlay.blendMode as any,
-              zIndex: 5,
-            }}
-          />
-        )}
+        {activeOverlays.map((overlay) => {
+          const overlayClip = clipById.get(overlay.clipId);
+          const overlayBlobUrl = getClipBlobUrl(overlayClip ? previewFileForClip(overlayClip) : undefined);
+          if (!overlayClip || !overlayBlobUrl) return null;
+          return (
+            <OverlayVideoLayer
+              key={overlay.id}
+              overlay={overlay}
+              src={overlayBlobUrl}
+              elapsedSec={elapsed}
+              playing={playing}
+              muted={muteAllAudio}
+              zIndex={5}
+            />
+          );
+        })}
 
         <StickerOverlay stickers={cut.stickers} beats={cut.beats} aspect={cut.aspect} cutSec={elapsed} />
 

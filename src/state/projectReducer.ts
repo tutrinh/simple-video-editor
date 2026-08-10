@@ -73,6 +73,7 @@ export type Action =
   | { type: "UPDATE_OVERLAY"; overlay: OverlayClip }
   | { type: "REMOVE_OVERLAY"; id: string }
   | { type: "DUPLICATE_OVERLAY"; id: string; newOverlayId?: string }
+  | { type: "MOVE_OVERLAY_LAYER"; id: string; direction: -1 | 1 }
   | { type: "ADD_VO"; segment: VoSegment }
   | { type: "UPDATE_VO"; segment: VoSegment }
   /** Replace several VO segments at once — one dispatch per group drag frame. */
@@ -353,6 +354,15 @@ export function projectReducer(state: ProjectState, action: Action): ProjectStat
       };
 
       const overlays = [...(state.cut.overlays ?? []), duplicated];
+      return { ...state, cut: { ...state.cut, overlays } };
+    }
+    case "MOVE_OVERLAY_LAYER": {
+      if (!state.cut) return state;
+      const overlays = [...(state.cut.overlays ?? [])];
+      const index = overlays.findIndex((overlay) => overlay.id === action.id);
+      const target = index + action.direction;
+      if (index < 0 || target < 0 || target >= overlays.length) return state;
+      [overlays[index], overlays[target]] = [overlays[target], overlays[index]];
       return { ...state, cut: { ...state.cut, overlays } };
     }
     case "ADD_VO": {

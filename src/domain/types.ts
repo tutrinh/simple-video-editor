@@ -397,6 +397,8 @@ export interface ColorizeSettings {
 }
 
 export type OverlayBlendMode = "normal" | "screen" | "multiply" | "overlay";
+export type OverlayLayoutMode = "full" | "pip";
+export type OverlayFitMode = "contain" | "cover";
 
 /**
  * An image placed over the Cut on its own lane (ADR-0011). The asset lives in the
@@ -454,7 +456,26 @@ export interface OverlayClip {
   outSec: number;
   blendMode: OverlayBlendMode;
   opacity: number; // 0..1
+  /** Distinguishes a user-selected level from early PiP builds that defaulted to 0.85. */
+  opacityAuthored?: boolean;
   volume: number; // 0..1
+  /** Full-frame B-roll/effect or a positioned picture-in-picture video. */
+  layoutMode?: OverlayLayoutMode;
+  /** Centre position as frame-relative coordinates. Used by PiP only. */
+  x?: number;
+  y?: number;
+  /** Destination box dimensions as fractions of the output frame. */
+  width?: number;
+  height?: number;
+  /** How the source is fitted inside the PiP destination box. */
+  fit?: OverlayFitMode;
+  /** Corner radius from 0 (square) to 0.5 (pill/circle where geometry allows). */
+  cornerRadius?: number;
+  /** When enabled, timing is derived from the attached Beat instead of stored seconds. */
+  fitToBeat?: boolean;
+  attachedBeatId?: string;
+  /** Independent grade applied to this overlay before it is composited. */
+  colorAdjustments?: ColorAdjustments;
 }
 
 /**

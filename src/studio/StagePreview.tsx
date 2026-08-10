@@ -25,6 +25,8 @@ import { effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "./beatAudio
 import LedMatrixOverlay from "../features/effects/LedMatrixOverlay";
 import { effectiveLedMatrixEffect } from "../features/effects/ledMatrix";
 import PixelatePreview from "../features/effects/PixelatePreview";
+import OverlayVideoLayer from "../features/overlay/OverlayVideoLayer";
+import { activeOverlayClips } from "../domain/overlayClip";
 import { activeUserVoiceCaption, timeTranscript } from "./userVoiceTranscript";
 import { findFontById } from "../lib/googleFonts";
 import { useGeneratedVoicePlayback } from "./useGeneratedVoicePlayback";
@@ -77,6 +79,8 @@ interface Props {
   onCaptureCover?: (atSec: number) => void;
   /** Selected Beat transport position, used by frame-accurate Inspector controls. */
   onBeatPositionChange?: (beatId: string, progress: number) => void;
+  selectedOverlayId?: string | null;
+  onSelectOverlay?: (overlayId: string | null) => void;
 }
 
 /**
@@ -84,12 +88,11 @@ interface Props {
  *  - "Beat": the selected Beat's trimmed window, scrubbable, caption burned in.
  *  - "Cut": the whole edit played back sequentially (reuses the export FinalPreview).
  */
-export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated, onCaptureCover, onBeatPositionChange }: Props) {
+export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated, onCaptureCover, onBeatPositionChange, selectedOverlayId, onSelectOverlay }: Props) {
   const { state, dispatch } = useProject();
   const { settings: es } = useExportSettings();
   const [mode, setMode] = useState<"beat" | "cut">("beat");
   const videoRef = useRef<HTMLVideoElement>(null);
-  const overlayVideoRef = useRef<HTMLVideoElement>(null);
   const slotVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const scrubRef = useRef<HTMLDivElement>(null);
 
@@ -397,27 +400,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     }
   }, [recorder.elapsedSec, recorder.error, recorder.status]);
 
-  const activeOverlay = cut?.overlays?.find((o) => elapsedCutSec >= o.startTimeSec && elapsedCutSec < o.startTimeSec + o.durationSec) ?? null;
-  const activeOverlayClip = activeOverlay ? clips.find((c) => c.id === activeOverlay.clipId) : null;
-  const overlayBlobUrl = getClipBlobUrl(activeOverlayClip?.normalized ?? activeOverlayClip?.file);
-
-  // 5. Active overlay sync effect
-  useEffect(() => {
-    const el = overlayVideoRef.current;
-    if (!el || !activeOverlay) return;
-    const targetTime = (elapsedCutSec - activeOverlay.startTimeSec) + activeOverlay.inSec;
-    if (Math.abs(el.currentTime - targetTime) > 0.15) {
-      try { el.currentTime = targetTime; } catch {}
-    }
-    const volume = activeOverlay.volume ?? 0;
-    el.volume = previewAudioMuted ? 0 : volume;
-    el.muted = previewAudioMuted || volume === 0;
-    if (playing && el.paused) {
-      el.play().catch(() => {});
-    } else if (!playing && !el.paused) {
-      el.pause();
-    }
-  }, [elapsedCutSec, activeOverlay, playing, previewAudioMuted]);
+  const activeOverlays = activeOverlayClips(cut.overlays, cut.beats, elapsedCutSec, clipDurationById);
 
   // 6. Split screen slot sync effect
   useEffect(() => {
@@ -851,29 +834,26 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
           <LedMatrixOverlay effect={ledMatrixEffect} width={effectWidth} height={effectHeight} />
         )}
 
-        {activeOverlay && activeOverlayClip && overlayBlobUrl && (
-          <video
-            key={activeOverlay.id}
-            ref={overlayVideoRef}
-            src={overlayBlobUrl}
-            muted={previewAudioMuted || (activeOverlay.volume ?? 0) === 0}
-            playsInline
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              // `contain` to match the export, which fits with
-              // `force_original_aspect_ratio=decrease` and pads transparently.
-              objectFit: "contain",
-              pointerEvents: "none",
-              opacity: activeOverlay.opacity,
-              mixBlendMode: activeOverlay.blendMode as any,
-              zIndex: 5,
-
-            }}
-          />
-        )}
+        {activeOverlays.map((overlay) => {
+          const overlayClip = clips.find((item) => item.id === overlay.clipId);
+          const overlayBlobUrl = getClipBlobUrl(overlayClip?.normalized ?? overlayClip?.file);
+          if (!overlayClip || !overlayBlobUrl) return null;
+          return (
+            <OverlayVideoLayer
+              key={overlay.id}
+              overlay={overlay}
+              src={overlayBlobUrl}
+              elapsedSec={elapsedCutSec}
+              playing={playing}
+              muted={previewAudioMuted}
+              editable={mode === "beat"}
+              selected={overlay.id === selectedOverlayId}
+              zIndex={5}
+              onSelect={() => onSelectOverlay?.(overlay.id)}
+              onChange={(next) => dispatch({ type: "UPDATE_OVERLAY", overlay: next })}
+            />
+          );
+        })}
         <StickerOverlay stickers={cut.stickers} beats={cut.beats} aspect={cut.aspect} cutSec={elapsedCutSec} />
         <BeatTitleOverlay layers={beat.titleLayers} aspect={cut.aspect} elapsed={beatElapsed} />
         <div className="st-badgeTL st-num">

@@ -53,6 +53,7 @@ import { fetchMusicFile, uploadMusic } from "../lib/musicLibrary";
 import MusicPicker from "./MusicPicker";
 import { activeSpeedRamp } from "../domain/speedRamp";
 import { SpeedRampBand, rampFrameAtProgress } from "../features/speed-ramp/SpeedRampGraph";
+import { overlayCreationVisual, resolveOverlayClip } from "../domain/overlayClip";
 
 
 interface Props {
@@ -125,7 +126,8 @@ export default function Timeline({
     return clampTimelineZoom(Number(localStorage.getItem("vidstr_timeline_zoom") ?? TIMELINE_ZOOM_MIN));
   });
   const beats = cut.beats;
-  const overlays = cut.overlays ?? [];
+  const clipDurationById = useMemo(() => new Map(clips.map((clip) => [clip.id, clip.durationSec])), [clips]);
+  const overlays = (cut.overlays ?? []).map((overlay) => resolveOverlayClip(overlay, cut.beats, clipDurationById));
   const voSegments = cut.voSegments ?? [];
   // Shift-click spans a range in timeline order, which is not the array order.
   const voSegmentsInTimelineOrder = [...voSegments].sort(
@@ -242,19 +244,27 @@ export default function Timeline({
 
   function addOverlayWithClip(targetClip: Clip, blendMode?: OverlayBlendMode) {
     const genId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-    const nameLower = targetClip.name.toLowerCase();
-    const defaultBlend = (nameLower.includes("overlay") || nameLower.includes("leak") || nameLower.includes("grain") || nameLower.includes("glitch")) ? "screen" : "normal";
+    const visualDefaults = overlayCreationVisual(targetClip.name, blendMode);
+    const isEffectOverlay = visualDefaults.layoutMode === "full";
+    const targetBeat = selIndex >= 0 ? beats[selIndex] : undefined;
+    const beatDuration = targetBeat ? beatTiming(targetBeat, clipDurationById.get(targetBeat.clipId)).timelineSec : 0;
+    const beatStart = targetBeat
+      ? beats.slice(0, selIndex).reduce((sum, item) => sum + beatTiming(item, clipDurationById.get(item.clipId)).timelineSec, 0)
+      : 0;
+    const placementDuration = !isEffectOverlay && targetBeat
+      ? beatDuration
+      : Math.min(5.0, targetClip.durationSec || 3.0);
 
-    const newOverlay = {
+    const newOverlay: OverlayClip = {
       id: `overlay-${genId()}`,
       clipId: targetClip.id,
-      startTimeSec: 1.0,
-      durationSec: Math.min(5.0, targetClip.durationSec || 3.0),
+      startTimeSec: !isEffectOverlay && targetBeat ? beatStart : 1.0,
+      durationSec: placementDuration,
       inSec: 0,
-      outSec: Math.min(5.0, targetClip.durationSec || 3.0),
-      blendMode: blendMode ?? (defaultBlend as OverlayBlendMode),
-      opacity: 0.85,
-      volume: 0.5,
+      outSec: Math.min(placementDuration, targetClip.durationSec || placementDuration),
+      ...visualDefaults,
+      fitToBeat: !isEffectOverlay && Boolean(targetBeat),
+      attachedBeatId: !isEffectOverlay ? targetBeat?.id : undefined,
     };
     dispatch({ type: "ADD_OVERLAY", overlay: newOverlay });
     onSelectOverlay?.(newOverlay.id);
@@ -356,13 +366,13 @@ export default function Timeline({
       const maxDur = Math.max(0.5, totalDur - roundedStart);
       const roundedDur = Math.round(Math.min(overlay.durationSec, maxDur) * 10) / 10;
       if (roundedStart !== overlay.startTimeSec || roundedDur !== overlay.durationSec) {
-        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: roundedStart, durationSec: roundedDur } });
+        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: roundedStart, durationSec: roundedDur, fitToBeat: false, attachedBeatId: undefined } });
       }
     } else if (dragStartRef.current.mode === "resize-right") {
       const newDur = Math.max(0.5, Math.min(totalDur - overlay.startTimeSec, dragStartRef.current.initialDurationSec + deltaSec));
       const roundedDur = Math.round(newDur * 10) / 10;
       if (roundedDur !== overlay.durationSec) {
-        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, durationSec: roundedDur } });
+        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, durationSec: roundedDur, fitToBeat: false, attachedBeatId: undefined } });
       }
     } else if (dragStartRef.current.mode === "resize-left") {
       const maxDelta = dragStartRef.current.initialDurationSec - 0.5;
@@ -370,7 +380,7 @@ export default function Timeline({
       const newStartSec = Math.round((dragStartRef.current.initialStartSec + actualDelta) * 10) / 10;
       const newDur = Math.round((dragStartRef.current.initialDurationSec - actualDelta) * 10) / 10;
       if (newStartSec !== overlay.startTimeSec || newDur !== overlay.durationSec) {
-        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: newStartSec, durationSec: newDur } });
+        dispatch({ type: "UPDATE_OVERLAY", overlay: { ...overlay, startTimeSec: newStartSec, durationSec: newDur, fitToBeat: false, attachedBeatId: undefined } });
       }
     }
   }
@@ -935,7 +945,7 @@ export default function Timeline({
               }}
               aria-pressed={pickerOpen}
             >
-              Overlay
+              Video overlay
             </TimelineAddButton>
             <OverlayPickerModal isOpen={pickerOpen} onClose={() => setPickerOpen(false)} cut={cut} clips={clips} onSelectClip={(clip, blend) => addOverlayWithClip(clip, blend)} onImportStockOverlay={(category, file, blend) => importAndAddStockOverlay(category, file, blend)} onImportFiles={importUploadedFiles} />
           </div>
@@ -1040,7 +1050,7 @@ export default function Timeline({
               const canvasHeight = Math.max(34, (maxLane + 1) * 28 + 4);
 
               return (
-                <TimelineLane label="Overlay" hint="Drag to move or resize">
+                <TimelineLane label="Video Overlay" hint="Independent video layer · drag to move or trim">
                   <TimelineLaneCanvas
                     canvasRef={overlayTrackRef}
                     className="st-ov-canvas"
@@ -1108,7 +1118,7 @@ export default function Timeline({
                             title="Drag left edge to adjust start time"
                           />
 
-                          <span className="st-ov-chip-mode">{ov.blendMode.toUpperCase()}</span>
+                          <span className="st-ov-chip-mode">{ov.layoutMode === "pip" ? "PIP" : ov.blendMode.toUpperCase()}</span>
                           <span className="st-ov-chip-dot">·</span>
                           <span className="st-ov-chip-name">
                             {ovClip?.name ?? "Overlay"}

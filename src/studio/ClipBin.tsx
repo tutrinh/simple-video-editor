@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useProject } from "../state/ProjectContext";
-import type { Clip, Beat, OverlayBlendMode } from "../domain/types";
+import type { Clip, Beat } from "../domain/types";
 import { CLIP_FILE_ACCEPT } from "../features/ingest/ingest";
 import type { ImportProgress, IngestStatus } from "./useClipIngest";
 import { fmtClock, posterBg } from "./util";
 import { formatFps } from "../lib/videoFps";
 import { PROJECT_FPS } from "../domain/types";
+import { overlayCreationVisual } from "../domain/overlayClip";
 import { getTagStyle } from "../lib/tagPresets";
 import { useClipFpsBackfill } from "./useClipFpsBackfill";
 import FileDropzone from "../design-system/FileDropzone";
@@ -231,12 +232,7 @@ export default function ClipBin({
                         typeof crypto !== "undefined" && crypto.randomUUID
                           ? crypto.randomUUID()
                           : Math.random().toString(36).slice(2);
-                      const nameLower = clip.name.toLowerCase();
-                      const isBlend =
-                        nameLower.includes("overlay") ||
-                        nameLower.includes("leak") ||
-                        nameLower.includes("grain") ||
-                        nameLower.includes("glitch");
+                      const visualDefaults = overlayCreationVisual(clip.name);
                       dispatch({
                         type: "ADD_OVERLAY",
                         overlay: {
@@ -246,11 +242,7 @@ export default function ClipBin({
                           durationSec: Math.min(5.0, clip.durationSec || 3.0),
                           inSec: 0,
                           outSec: Math.min(5.0, clip.durationSec || 3.0),
-                          blendMode: (isBlend
-                            ? "screen"
-                            : "normal") as OverlayBlendMode,
-                          opacity: 0.85,
-                          volume: 0,
+                          ...visualDefaults,
                         },
                       });
                     }}
