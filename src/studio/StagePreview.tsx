@@ -1,7 +1,7 @@
 import React, { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Beat, Clip, Cut } from "../domain/types";
 import { PROJECT_FPS } from "../domain/types";
-import { beatTiming, sourceOffsetAt } from "../domain/beatTiming";
+import { beatTiming, sourceOffsetAt, speedAtElapsed } from "../domain/beatTiming";
 import FinalPreview, { BeatTitleOverlay, StickerOverlay, type PreviewTitle } from "../features/export/FinalPreview";
 import { canvasDims } from "../features/export/export";
 import { activeVoCaption } from "../lib/pacing";
@@ -75,6 +75,8 @@ interface Props {
    * already are the frame picker, so capture adds no selection UI of its own.
    */
   onCaptureCover?: (atSec: number) => void;
+  /** Selected Beat transport position, used by frame-accurate Inspector controls. */
+  onBeatPositionChange?: (beatId: string, progress: number) => void;
 }
 
 /**
@@ -82,7 +84,7 @@ interface Props {
  *  - "Beat": the selected Beat's trimmed window, scrubbable, caption burned in.
  *  - "Cut": the whole edit played back sequentially (reuses the export FinalPreview).
  */
-export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated, onCaptureCover }: Props) {
+export default function StagePreview({ cut, clips, beat, clip, keyboardShortcutsActive = false, onSelectBeat, onPlayingChange, onRecordCreated, onCaptureCover, onBeatPositionChange }: Props) {
   const { state, dispatch } = useProject();
   const { settings: es } = useExportSettings();
   const [mode, setMode] = useState<"beat" | "cut">("beat");
@@ -119,7 +121,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   const timing = beat
     ? beatTiming(beat, isStill ? undefined : clip?.durationSec)
     : null;
-  const previewSpeed = isStill ? 1 : (timing?.speed ?? 1);
+  const previewSpeed = isStill || !timing ? 1 : speedAtElapsed(timing, pos * timing.timelineSec);
+  const rampAudioMuted = Boolean(timing?.ramp);
   const cutPreviewTitle: PreviewTitle | null = es.titleLayers.some((layer) => layer.enabled && layer.text.trim())
     ? {
         layers: es.titleLayers.map((layer) => ({
@@ -134,6 +137,16 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     if (!beat || !timing) return 0;
     return beat.inSec + sourceOffsetAt(timing, p * timing.timelineSec).offsetSec;
   };
+
+  useEffect(() => {
+    // A non-ramped Beat only needs to publish its parked position (scrub/frame
+    // step/pause) so "Add ramp at playhead" knows where to work without making
+    // the whole Studio rerender on every playback frame. An active ramp keeps
+    // publishing while it plays so the graph's live playhead stays in sync.
+    if (mode === "beat" && beat && (!playing || (beat.speedRamp && beat.speedRamp.enabled !== false))) {
+      onBeatPositionChange?.(beat.id, pos);
+    }
+  }, [beat, mode, onBeatPositionChange, playing, pos]);
 
   useEffect(() => {
     if (mode === "beat") {
@@ -208,7 +221,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     syncTime();
     v.addEventListener("loadedmetadata", syncTime, { once: true });
     return () => { v.removeEventListener("loadedmetadata", syncTime); };
-  }, [clip?.id, beat?.id, beat?.inSec, beat?.outSec, beat?.speed, mode]);
+  }, [clip?.id, beat?.id, beat?.inSec, beat?.outSec, beat?.speed, beat?.speedRamp, mode]);
 
   // Sync currentTime while paused or when dragging position / inSec
   useEffect(() => {
@@ -217,7 +230,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     if (!v || !beat || v.readyState < 1) return;
     const targetSec = sourceTimeAt(pos);
     v.currentTime = Math.min(targetSec, Math.max(0, (v.duration || 0) - 0.05));
-  }, [mode, playing, pos, beat?.inSec, beat?.outSec, beat?.speed, beat?.fill]);
+  }, [mode, playing, pos, beat?.inSec, beat?.outSec, beat?.speed, beat?.speedRamp, beat?.fill]);
 
 
   // 2. Update beat video volume and muted state dynamically
@@ -225,9 +238,9 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     const v = videoRef.current;
     if (!v || !beat) return;
     const volume = effectiveBeatVolume(beat, cut);
-    v.volume = previewAudioMuted ? 0 : volume;
-    v.muted = previewAudioMuted || volume === 0;
-  }, [beat?.muted, beat?.volume, cut.beatAudioMasterVolume, cut.beatAudioMuted, previewAudioMuted]);
+    v.volume = previewAudioMuted || rampAudioMuted ? 0 : volume;
+    v.muted = previewAudioMuted || rampAudioMuted || volume === 0;
+  }, [beat?.muted, beat?.volume, cut.beatAudioMasterVolume, cut.beatAudioMuted, previewAudioMuted, rampAudioMuted]);
 
   // 2b. The Still transport: advance `pos` in real time over the Beat's window
   // and stop at the out-point, the way the video path stops at `outSec`.
@@ -280,6 +293,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
       setPosBoth(elapsed / timing.timelineSec);
 
       const { offsetSec, holding } = sourceOffsetAt(timing, elapsed);
+      const liveSpeed = speedAtElapsed(timing, elapsed);
+      applyPreviewSpeed(activePreviewMedia(v, Boolean(beat.splitScreen && beat.splitScreen.layout !== "none"), slotVideoRefs.current), liveSpeed);
       if (holding) {
         if (!v.paused) v.pause();
       } else {
@@ -292,7 +307,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isStill, playing, beat?.id, beat?.inSec, beat?.outSec, beat?.speed, beat?.fill]);
+  }, [isStill, playing, beat?.id, beat?.inSec, beat?.outSec, beat?.speed, beat?.speedRamp, beat?.fill]);
 
   // Speed drives every moving source, not just the primary video. Set both rate
   // fields and re-apply after metadata: assigning a source can reset the live
@@ -423,8 +438,8 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         try { el.currentTime = targetTime; } catch {}
       }
       const vol = effectiveSplitScreenSlotVolume(slot, idx, beat, cut);
-      el.volume = previewAudioMuted ? 0 : vol;
-      el.muted = previewAudioMuted || vol === 0;
+      el.volume = previewAudioMuted || rampAudioMuted ? 0 : vol;
+      el.muted = previewAudioMuted || rampAudioMuted || vol === 0;
 
       if (playing && el.paused) {
         el.play().catch(() => {});
@@ -432,7 +447,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
         el.pause();
       }
     });
-  }, [beatElapsed, beat?.muted, beat?.splitScreen, playing, clip, clips, beat?.inSec, beat?.volume, cut.beatAudioMasterVolume, cut.beatAudioMuted, previewAudioMuted]);
+  }, [beatElapsed, beat?.muted, beat?.splitScreen, playing, clip, clips, beat?.inSec, beat?.volume, cut.beatAudioMasterVolume, cut.beatAudioMuted, previewAudioMuted, rampAudioMuted]);
 
 
   function togglePlay() {
@@ -643,7 +658,7 @@ export default function StagePreview({ cut, clips, beat, clip, keyboardShortcuts
   // in timeline seconds — so the timeline is what a step must move.
   function stepFrame(frames: number) {
     if (!beat) return;
-    const span = Math.max(0.01, beat.outSec - beat.inSec);
+    const span = Math.max(0.01, timing?.timelineSec ?? beat.outSec - beat.inSec);
     if (playing) {
       videoRef.current?.pause();
       setPlaying(false);

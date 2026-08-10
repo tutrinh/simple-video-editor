@@ -230,3 +230,48 @@ describe("the emitted graph matches the plan the preview is built from", () => {
     }
   });
 });
+
+describe("Speed Ramp export", () => {
+  const rampedBeat = () => beat({
+    speedRamp: {
+      enabled: true,
+      startSpeed: 1,
+      middleSpeed: 3,
+      endSpeed: 1,
+      firstPoint: 0.25,
+      secondPoint: 0.75,
+      preset: "montage",
+    },
+  });
+
+  it("emits a piecewise source-time curve and trims to the shared ramp duration", async () => {
+    const authoredBeat = rampedBeat();
+    const graph = await videoChain({ aspect: "16:9", beats: [authoredBeat] }, [clip("c1", 10)]);
+    const duration = beatTiming(authoredBeat, 10).timelineSec;
+
+    expect(graph).toContain("setpts='(if(lt(T,");
+    expect(graph).toContain(`trim=duration=${duration.toFixed(3)}`);
+    expect(graph).not.toMatch(/setpts=[0-9.]+\*PTS/);
+  });
+
+  it("uses silence for the Beat source instead of exporting out-of-sync ramp audio", async () => {
+    const graph = await videoChain({ aspect: "16:9", beats: [rampedBeat()] }, [clip("c1", 10)]);
+
+    expect(graph).not.toContain("atempo=");
+    expect(graph).not.toContain("[0:a]aformat");
+    expect(graph).toContain("[1:a]aformat");
+  });
+
+  it("changes the emitted time curve when easing is applied", async () => {
+    const linear = rampedBeat();
+    const smooth = {
+      ...linear,
+      speedRamp: { ...linear.speedRamp!, curve: "smooth" as const, curveStrength: 1 },
+    };
+    const linearGraph = await videoChain({ aspect: "16:9", beats: [linear] }, [clip("c1", 10)]);
+    const smoothGraph = await videoChain({ aspect: "16:9", beats: [smooth] }, [clip("c1", 10)]);
+
+    expect(smoothGraph).not.toBe(linearGraph);
+    expect(smoothGraph).toContain("setpts='(if(lt(T,");
+  });
+});

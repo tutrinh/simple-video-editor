@@ -78,6 +78,22 @@ function beatEls(): HTMLElement[] {
 }
 
 describe("timeline background deselect", () => {
+  it("overlays a speed curve only on ramp-enabled Beats", () => {
+    renderTimeline({
+      cut: {
+        ...cut,
+        beats: [
+          { ...cut.beats[0], speedRamp: { enabled: true, startSpeed: 1, middleSpeed: 3, endSpeed: 1 } },
+          cut.beats[1],
+        ],
+      },
+    });
+
+    expect(document.querySelectorAll(".st-beat-speed-ramp")).toHaveLength(1);
+    expect(document.querySelectorAll(".st-beat-speed-ramp .st-speed-ramp-band")).toHaveLength(1);
+    expect(document.querySelectorAll(".st-beat-speed-ramp .st-speed-ramp-band-handle")).toHaveLength(2);
+  });
+
   it("clears every track selection when the canvas background is pressed", () => {
     const handlers = renderTimeline();
 

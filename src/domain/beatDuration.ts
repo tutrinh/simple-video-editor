@@ -1,5 +1,6 @@
 import type { Beat } from "./types";
-import { beatDurationSec, beatSpeed } from "./beatTiming";
+import { beatTiming, beatSpeed } from "./beatTiming";
+import { activeSpeedRamp, averageRampSpeed } from "./speedRamp";
 
 // Beat resizing, shared by the Inspector's custom-duration number input and the
 // timeline's Up/Down arrow shortcut so both step identically. The Inspector control
@@ -30,12 +31,13 @@ export function resizeBeat(
   // `seconds` is a length on the timeline, but the trim window is measured in
   // source seconds — and at a Speed other than 1 those differ (ADR-0020). A 3s
   // Beat at 0.5× needs only 1.5s of footage behind it.
-  const speed = beatSpeed(beat);
+  const ramp = activeSpeedRamp(beat);
+  const speed = ramp ? averageRampSpeed(ramp) : beatSpeed(beat);
   const requested = Math.max(MIN_BEAT_DURATION_SEC, seconds);
   const windowSec = round1(Math.min(requested * speed, clipDurationSec));
   const inSec = round1(Math.max(0, Math.min(beat.inSec, clipDurationSec - windowSec)));
   const outSec = round1(inSec + windowSec);
-  const durationSec = beatDurationSec(windowSec, speed);
+  const durationSec = beatTiming({ ...beat, inSec, outSec }, clipDurationSec).timelineSec;
 
   const unchanged =
     durationSec === round1(beat.durationSec)

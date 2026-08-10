@@ -104,6 +104,12 @@ export default function StudioApp() {
   const [storyPracticeOpen, setStoryPracticeOpen] = useState(false);
   const [storyPracticeMounted, setStoryPracticeMounted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [beatPreviewPosition, setBeatPreviewPosition] = useState<{ beatId: string; progress: number } | null>(null);
+  const handleBeatPositionChange = useCallback((beatId: string, progress: number) => {
+    setBeatPreviewPosition((current) => current?.beatId === beatId && Math.abs(current.progress - progress) < 1e-6
+      ? current
+      : { beatId, progress });
+  }, []);
   const [clipDragOver, setClipDragOver] = useState(false);
   const [editorHovered, setEditorHovered] = useState(false);
   // Carries a list, not one id: the voiceover track multi-selects, so Delete has to be
@@ -573,6 +579,7 @@ export default function StudioApp() {
                     keyboardShortcutsActive={editorHovered}
                     onSelectBeat={setSelectedBeatId}
                     onPlayingChange={setIsPlaying}
+                    onBeatPositionChange={handleBeatPositionChange}
                     onCaptureCover={captureCoverFromBeat}
                     onRecordCreated={(id) => {
                       setSelectedUserVoiceId(id);
@@ -651,6 +658,7 @@ export default function StudioApp() {
           audioPreviewSuspended={exportOpen}
           onRequestDeleteSegment={requestTrackSegmentDeletion}
           voFit={voFit}
+          beatPreviewProgress={beatPreviewPosition && beatPreviewPosition.beatId === selectedBeat?.id ? beatPreviewPosition.progress : 0}
         />
 
         {(aiStoryMounted || productReviewMounted || motivationalStoryMounted || storyPracticeMounted) && (

@@ -194,6 +194,29 @@ export interface LedMatrixEffect {
   backgroundColor?: string;
 }
 
+export interface SpeedRamp {
+  enabled?: boolean;
+  startSpeed?: number;
+  middleSpeed?: number;
+  endSpeed?: number;
+  /** End of the start→middle transition, as Beat progress (0..1). */
+  firstPoint?: number;
+  /** Start of the middle→end transition, as Beat progress (0..1). */
+  secondPoint?: number;
+  preset?: "custom" | "montage" | "impact" | "slow-reveal";
+  curve?: "linear" | "ease-in" | "ease-out" | "smooth" | "custom" | "instant";
+  /** 0..1 blend from linear toward the selected easing shape. */
+  curveStrength?: number;
+  /** Custom cubic Bézier Y controls. */
+  curveIn?: number;
+  curveOut?: number;
+  /** Custom cubic Bézier X controls, enabling tight or broad shoulders. */
+  curveInX?: number;
+  curveOutX?: number;
+  /** 0..1 extra tension beyond cubic Bézier, for near-instant shoulders. */
+  curveSharpness?: number;
+}
+
 
 /**
  * One entry in the Cut: a trimmed Clip plus the Script segment shown as a
@@ -277,6 +300,8 @@ export interface Beat {
    * any Speed.
    */
   speed?: number;
+  /** Optional time-varying playback speed. When enabled it replaces `speed`. */
+  speedRamp?: SpeedRamp;
   /**
    * What the Beat shows once its footage is spent before the Beat ends — the
    * last frame holds, or the trim window loops (ADR-0019). Undefined means

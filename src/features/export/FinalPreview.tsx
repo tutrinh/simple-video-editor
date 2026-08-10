@@ -31,7 +31,7 @@ import { titleVisibilityAt, type TitleScope } from "./titleTiming";
 import { useUserVoicePlayback } from "../../studio/useUserVoicePlayback";
 import { captionVoiceGainAtTime } from "../../studio/userVoicePriority";
 import { beatBoundaryGain, effectiveBeatVolume, effectiveSplitScreenSlotVolume } from "../../studio/beatAudio";
-import { beatTiming, sourceOffsetAt } from "../../domain/beatTiming";
+import { beatTiming, sourceOffsetAt, speedAtElapsed } from "../../domain/beatTiming";
 import LedMatrixOverlay from "../effects/LedMatrixOverlay";
 import { effectiveLedMatrixEffect } from "../effects/ledMatrix";
 import PixelatePreview from "../effects/PixelatePreview";
@@ -158,7 +158,8 @@ export default function FinalPreview({
   const beat = cut.beats[index];
   const currentBeatClip = beat ? clipById.get(beat.clipId) : null;
   const timing = beat ? beatTiming(beat, currentBeatClip?.durationSec) : null;
-  const previewSpeed = currentBeatClip?.kind === "still" ? 1 : (timing?.speed ?? 1);
+  const previewSpeed = currentBeatClip?.kind === "still" || !timing ? 1 : speedAtElapsed(timing, beatElapsed);
+  const rampAudioMuted = Boolean(timing?.ramp);
   const [canvasW, canvasH] = canvasDims(cut.aspect);
   const ledMatrixEffect = effectiveLedMatrixEffect(beat?.ledMatrixEffect, cut.ledMatrixEffect);
 
@@ -262,8 +263,8 @@ export default function FinalPreview({
       PREVIEW_BEAT_AUDIO_EDGE_FADE_SEC,
     );
     const vol = effectiveBeatVolume(beat, cut) * edgeGain;
-    v.volume = muteAllAudio ? 0 : vol;
-    v.muted = muteAllAudio || vol === 0;
+    v.volume = muteAllAudio || rampAudioMuted ? 0 : vol;
+    v.muted = muteAllAudio || rampAudioMuted || vol === 0;
     const onMeta = () => {
       applyPreviewSpeed(activeVideos(), previewSpeed);
       v.currentTime = beat.inSec;
@@ -279,7 +280,7 @@ export default function FinalPreview({
     return () => {
       v.removeEventListener("loadedmetadata", onMeta);
     };
-  }, [index, beat, cut.beatAudioMasterVolume, cut.beatAudioMuted, mainBeatBlobUrl, muteAllAudio, previewSpeed, timing?.timelineSec]);
+  }, [index, beat, cut.beatAudioMasterVolume, cut.beatAudioMuted, mainBeatBlobUrl, muteAllAudio, previewSpeed, timing?.timelineSec, rampAudioMuted]);
 
   // Play/pause the loaded video in step with the transport.
   useEffect(() => {
@@ -308,13 +309,13 @@ export default function FinalPreview({
         PREVIEW_BEAT_AUDIO_EDGE_FADE_SEC,
       );
       const volume = effectiveSplitScreenSlotVolume(slot, idx, beat, cut) * edgeGain;
-      el.volume = muteAllAudio ? 0 : volume;
-      el.muted = muteAllAudio || volume === 0;
+      el.volume = muteAllAudio || rampAudioMuted ? 0 : volume;
+      el.muted = muteAllAudio || rampAudioMuted || volume === 0;
       applyPreviewSpeed([el], previewSpeed);
       if (playing && el.paused) el.play().catch(() => {});
       else if (!playing && !el.paused) el.pause();
     });
-  }, [beat, beatElapsed, clips, currentBeatClip, cut.beatAudioMasterVolume, cut.beatAudioMuted, playing, previewSpeed, splitActive, timing, muteAllAudio]);
+  }, [beat, beatElapsed, clips, currentBeatClip, cut.beatAudioMasterVolume, cut.beatAudioMuted, playing, previewSpeed, splitActive, timing, muteAllAudio, rampAudioMuted]);
 
   // Keep DOM video element synchronized with beatElapsed when paused or loaded
   useEffect(() => {
@@ -348,7 +349,7 @@ export default function FinalPreview({
         else if (!source.holding) {
           const target = b.inSec + source.offsetSec;
           if (Math.abs(v.currentTime - target) > 0.15) v.currentTime = target;
-          applyPreviewSpeed([v], bClip?.kind === "still" ? 1 : bTiming.speed);
+          applyPreviewSpeed([v], bClip?.kind === "still" ? 1 : speedAtElapsed(bTiming, e));
           if (v.paused && bClip?.kind !== "still") void v.play().catch(() => {});
         }
       }
@@ -360,8 +361,9 @@ export default function FinalPreview({
           PREVIEW_BEAT_AUDIO_EDGE_FADE_SEC,
         );
         const volume = effectiveBeatVolume(b, cut) * edgeGain;
-        v.volume = muteAllAudio ? 0 : volume;
-        v.muted = muteAllAudio || effectiveBeatVolume(b, cut) === 0;
+        const rampMuted = Boolean(bTiming.ramp);
+        v.volume = muteAllAudio || rampMuted ? 0 : volume;
+        v.muted = muteAllAudio || rampMuted || effectiveBeatVolume(b, cut) === 0;
       }
       if (e >= total) {
         if (index < cut.beats.length - 1) {
@@ -581,7 +583,7 @@ export default function FinalPreview({
     const firstClip = firstBeat ? clipById.get(firstBeat.clipId) : undefined;
     const firstSpeed = firstClip?.kind === "still"
       ? 1
-      : firstBeat ? beatTiming(firstBeat, firstClip?.durationSec).speed : 1;
+      : firstBeat ? speedAtElapsed(beatTiming(firstBeat, firstClip?.durationSec), 0) : 1;
     applyPreviewSpeed(activeVideos(), firstSpeed);
     playPreviewMedia(activeVideos()).then((started) => {
       if (started || activeVideos().length === 0) setPlaying(true);
@@ -694,7 +696,7 @@ export default function FinalPreview({
     if (v && b) {
       const bTiming = beatTiming(b, clipById.get(b.clipId)?.durationSec);
       v.currentTime = b.inSec + sourceOffsetAt(bTiming, offsetInBeat).offsetSec;
-      applyPreviewSpeed([v], clipById.get(b.clipId)?.kind === "still" ? 1 : bTiming.speed);
+      applyPreviewSpeed([v], clipById.get(b.clipId)?.kind === "still" ? 1 : speedAtElapsed(bTiming, offsetInBeat));
     }
   }
 

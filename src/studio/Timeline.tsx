@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useMemo, useRef, useReducer, type
 import { useProject } from "../state/ProjectContext";
 import type { Cut, Clip, OverlayClip, OverlayBlendMode, VoSegment, SfxSegment, UserVoiceSegment, Sticker } from "../domain/types";
 import { cutDuration } from "../features/assemble/assemble";
+import { beatTiming } from "../domain/beatTiming";
 import { createClip } from "../features/ingest/ingest";
 import { fmtSecs, sliderTrackStyle } from "./util";
 
@@ -50,6 +51,8 @@ import Waveform from "../design-system/Waveform";
 import { prepareMusicTrack, snapBeatEndToMusicCue, type MusicImportProgress } from "../features/music-track/musicTrack";
 import { fetchMusicFile, uploadMusic } from "../lib/musicLibrary";
 import MusicPicker from "./MusicPicker";
+import { activeSpeedRamp } from "../domain/speedRamp";
+import { SpeedRampBand, rampFrameAtProgress } from "../features/speed-ramp/SpeedRampGraph";
 
 
 interface Props {
@@ -1569,6 +1572,7 @@ export default function Timeline({
                   {beats.map((b, i) => {
                     const clip = clipById.get(b.clipId);
                     const activeTitleCount = activeBeatTitleCount(b);
+                    const speedRamp = activeSpeedRamp(b);
                     // Width proportional to beat duration
                     const widthPct = (b.durationSec / totalDur) * 100;
                     return (
@@ -1583,6 +1587,24 @@ export default function Timeline({
                         }}
                       >
                         <div className="st-bt" style={{ background: beatPosterBg(b, clip, forceUpdate), position: "relative" }}>
+                          {speedRamp && (
+                            <div className="st-beat-speed-ramp" title={`Speed ramp · middle from F${rampFrameAtProgress(speedRamp.firstPoint, b.durationSec)} to F${rampFrameAtProgress(speedRamp.secondPoint, b.durationSec)}`}>
+                              <SpeedRampBand
+                                ramp={speedRamp}
+                                compact
+                                interactive={b.id === selectedBeatId && !isPlaying}
+                                durationSec={beatTiming(b, clip?.durationSec).timelineSec}
+                                sourceWindowSec={beatTiming(b, clip?.durationSec).windowSec}
+                                onChange={(nextRamp) => {
+                                  const next = { ...b, speedRamp: nextRamp };
+                                  dispatch({
+                                    type: "UPDATE_BEAT",
+                                    beat: { ...next, durationSec: beatTiming(next, clip?.durationSec).timelineSec, durationPreset: "custom" },
+                                  });
+                                }}
+                              />
+                            </div>
+                          )}
                           {clip?.isTemplatePlaceholder && (
                             <div style={{ position: "absolute", inset: 0, zIndex: 4, display: "grid", placeContent: "center", justifyItems: "center", gap: 5, padding: 6, background: "repeating-linear-gradient(135deg, var(--panel-3) 0 8px, var(--panel-2) 8px 16px)", color: "var(--accent)", fontSize: 9, fontWeight: 800, letterSpacing: ".08em", textAlign: "center" }}>
                               <span>EMPTY SLOT</span>

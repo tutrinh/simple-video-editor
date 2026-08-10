@@ -1,7 +1,8 @@
 import type { Beat, Clip, Cut, Aspect, OverlayClip, SplitScreenConfig, Sticker, UserVoiceEffect, VideoTransitionType } from "../../domain/types";
 import { PROJECT_FPS } from "../../domain/types";
 // Aliased: this module already has an unrelated local `BeatTiming` for timing slots.
-import { atempoChain, beatDurationSec, beatFill, beatSpeed, speedPlan, type BeatTiming as SpeedTiming } from "../../domain/beatTiming";
+import { atempoChain, beatFill, beatTiming, speedPlan, type BeatTiming as SpeedTiming } from "../../domain/beatTiming";
+import { speedRampSetpts } from "../../domain/speedRamp";
 import { multithreadReady, runIsolated, type EngineInput, type EnginePhase } from "../../lib/ffmpegEngine";
 import { runPool } from "../../lib/pool";
 import { synthesizeVoiceover, type TtsEngine } from "../../lib/tts";
@@ -595,7 +596,7 @@ export async function exportCut(
     // frames. A Still has no source rate, so its synthetic window stands.
     const segDur = clip.kind === "still"
       ? targetDur
-      : Math.max(0.1, beatDurationSec(footageLen, beatSpeed(b)));
+      : Math.max(0.1, beatTiming({ ...b, inSec, outSec: inSec + footageLen }, clipDur).timelineSec);
     return { clip, inSec, footageLen, segDur };
   });
 
@@ -770,15 +771,10 @@ export async function exportCut(
     // 60fps source slowed to 0.5× spreads its own frames across the longer
     // window and lands one distinct source frame per output frame. Conforming
     // first would throw half those frames away and then duplicate what remained.
-    const timing: SpeedTiming = {
-      timelineSec: segDur,
-      // The whole available window is played, however long that takes. Clamping
-      // this to segDur would halve it under fast motion, where segDur is the
-      // shorter of the two, and invent a shortfall that is not there.
-      windowSec: footageLen,
-      speed: clip.kind === "still" ? 1 : beatSpeed(b),
-      fill: beatFill(b),
-    };
+    const authoredTiming = beatTiming({ ...b, inSec, outSec: inSec + footageLen }, clip.durationSec);
+    const timing: SpeedTiming = clip.kind === "still"
+      ? { timelineSec: segDur, windowSec: footageLen, speed: 1, fill: beatFill(b), ramp: null }
+      : { ...authoredTiming, timelineSec: segDur, windowSec: footageLen };
     const plan = speedPlan(timing);
 
     const vf = [
@@ -786,7 +782,9 @@ export async function exportCut(
       ...(plan.loops
         ? [`loop=loop=-1:size=${Math.max(1, Math.round(timing.windowSec * PROJECT_FPS))}:start=0`]
         : []),
-      ...(plan.retimed ? [`setpts=${plan.ptsFactor.toFixed(4)}*PTS`] : []),
+      ...(timing.ramp
+        ? [speedRampSetpts(timing.ramp, timing.windowSec)]
+        : plan.retimed ? [`setpts=${plan.ptsFactor.toFixed(4)}*PTS`] : []),
       ...(kbMove
         ? [
             ...kenBurnsChain(w, h, kbMove, segDur),
@@ -813,7 +811,7 @@ export async function exportCut(
     // Speed can overrun the Beat as easily as it can fall short — 2s of window
     // at 0.5× is 4s of picture for a 3s Beat — so the retimed stream is cut back
     // to the Beat's own length. Looping is unbounded and needs the same cap.
-    if (plan.retimed || plan.loops) {
+    if (timing.ramp || plan.retimed || plan.loops) {
       vf.push(`trim=duration=${segDur.toFixed(3)}`, "setpts=PTS-STARTPTS");
     }
 
@@ -833,9 +831,11 @@ export async function exportCut(
     const beatVol = effectiveBeatVolume(b, cut);
     // Beat audio is just the (optionally muted) source clip now; narration is the
     // master VO bed mixed in at the final stage.
-    const strategy: "source" | "silent" = isSplitScreen
-      ? (splitAudioInputs.length > 0 ? "source" : "silent")
-      : beatAudioStrategy(clip, beatVol);
+    const strategy: "source" | "silent" = timing.ramp
+      ? "silent"
+      : isSplitScreen
+        ? (splitAudioInputs.length > 0 ? "source" : "silent")
+        : beatAudioStrategy(clip, beatVol);
 
     const segDurStr = segDur.toFixed(3);
 

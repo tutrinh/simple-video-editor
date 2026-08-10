@@ -1,5 +1,7 @@
 import type { Beat, BeatFill } from "./types";
 import { DEFAULT_BEAT_SPEED, PROJECT_FPS } from "./types";
+import { activeSpeedRamp, averageRampSpeed, integratedRampSpeed, rampDurationSec, speedAtRampProgress } from "./speedRamp";
+import type { SpeedRamp } from "./types";
 
 /**
  * The one place a Beat's Speed and Fill are turned into time (ADR-0019).
@@ -23,6 +25,7 @@ export interface BeatTiming {
   windowSec: number;
   speed: number;
   fill: BeatFill;
+  ramp?: Required<SpeedRamp> | null;
 }
 
 /** Speed as a usable number. Guards the 0 and negative cases a saved file could carry. */
@@ -57,7 +60,7 @@ export function beatDurationSec(windowSec: number, speed: number): number {
  * of 0 or undefined means the length is unknown, so the trim window is trusted.
  */
 export function beatTiming(
-  beat: Pick<Beat, "inSec" | "outSec" | "speed" | "fill">,
+  beat: Pick<Beat, "inSec" | "outSec" | "speed" | "fill" | "speedRamp">,
   clipDurationSec?: number,
 ): BeatTiming {
   const requested = Math.max(0, beat.outSec - beat.inSec);
@@ -66,18 +69,20 @@ export function beatTiming(
     : requested;
   const windowSec = Math.min(requested, available);
   const speed = beatSpeed(beat);
+  const ramp = activeSpeedRamp(beat);
   return {
     // Derived, not stored: the footage and the Speed decide the length (ADR-0020).
-    timelineSec: beatDurationSec(windowSec, speed),
+    timelineSec: ramp ? rampDurationSec(windowSec, ramp) : beatDurationSec(windowSec, speed),
     windowSec,
     speed,
     fill: beatFill(beat),
+    ramp,
   };
 }
 
 /** Timeline seconds the available footage fills once Speed is applied. */
 export function slowedLengthSec(timing: BeatTiming): number {
-  return timing.windowSec / timing.speed;
+  return timing.windowSec / (timing.ramp ? averageRampSpeed(timing.ramp) : timing.speed);
 }
 
 /**
@@ -110,12 +115,21 @@ export interface SourceAt {
 export function sourceOffsetAt(timing: BeatTiming, elapsedSec: number): SourceAt {
   if (timing.windowSec <= 0) return { offsetSec: 0, holding: true };
 
-  const consumed = Math.max(0, elapsedSec) * timing.speed;
+  const progress = timing.timelineSec > 0 ? Math.max(0, elapsedSec) / timing.timelineSec : 0;
+  const consumed = timing.ramp
+    ? timing.windowSec * integratedRampSpeed(timing.ramp, progress) / averageRampSpeed(timing.ramp)
+    : Math.max(0, elapsedSec) * timing.speed;
   if (consumed < timing.windowSec) return { offsetSec: consumed, holding: false };
 
   return timing.fill === "loop"
     ? { offsetSec: consumed % timing.windowSec, holding: false }
     : { offsetSec: timing.windowSec, holding: true };
+}
+
+export function speedAtElapsed(timing: BeatTiming, elapsedSec: number): number {
+  if (!timing.ramp || timing.timelineSec <= 0) return timing.speed;
+  const snapCorrection = timing.windowSec / (timing.timelineSec * averageRampSpeed(timing.ramp));
+  return speedAtRampProgress(timing.ramp, elapsedSec / timing.timelineSec) * snapCorrection;
 }
 
 export interface SpeedPlan {

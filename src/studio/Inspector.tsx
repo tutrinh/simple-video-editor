@@ -3,7 +3,14 @@ import { useProject } from "../state/ProjectContext";
 import { useSettings, toneHint, MODEL_OPTIONS, TONE_OPTIONS } from "../state/SettingsContext";
 import type { Aspect, Beat, Clip, ColorAdjustments, ColorizeSettings, KenBurns, VideoTransitionType, SplitLayoutType, StoryPurpose } from "../domain/types";
 import { BEAT_SPEED_STEPS, nearestBeatSpeedIndex, STORY_PURPOSES } from "../domain/types";
-import { beatTiming, beatFill, beatGapSec, beatDurationSec, beatSpeed } from "../domain/beatTiming";
+import { beatTiming, beatFill, beatGapSec, beatDurationSec } from "../domain/beatTiming";
+import {
+  activeSpeedRamp,
+  nearestSpeedRampStepIndex,
+  SPEED_RAMP_DEFAULT,
+  SPEED_RAMP_PRESETS,
+  SPEED_RAMP_STEPS,
+} from "../domain/speedRamp";
 import { resizeBeat } from "../domain/beatDuration";
 import { hasAudioTags, stripAudioTags } from "../lib/audioTags";
 import type { VoFitController } from "./useVoFit";
@@ -18,6 +25,7 @@ import { autoRec709Grade } from "../lib/autoRec709";
 import { saveCustomPreset } from "../lib/customPresets";
 import { getClipBlobUrl } from "../lib/blobUrlCache";
 import SplitClipPickerModal from "./SplitClipPickerModal";
+import SpeedRampGraph, { SpeedRampBand, formatRampFrame, rampBoundaryAtTargetFrame, rampFrameAtProgress, snapRampProgressToFrame } from "../features/speed-ramp/SpeedRampGraph";
 
 
 
@@ -125,6 +133,8 @@ interface Props {
   onRequestDeleteSegment: (kind: "overlay" | "voiceover" | "sound effect" | "user voice" | "sticker", id: string, label: string) => void;
   /** Shared with the timeline's `f` shortcut so both show one in-flight state. */
   voFit: VoFitController;
+  /** Current selected Beat preview position, normalized 0..1. */
+  beatPreviewProgress?: number;
 }
 
 
@@ -213,7 +223,7 @@ function KenBurnsControls({ beat, clip, aspect, update }: {
   );
 }
 
-export default function Inspector({ beat, clip, clips, logline, index, total, onSelectBeat, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedUserVoiceId, onSelectUserVoice, selectedStickerId, onSelectSticker, audioPreviewSuspended = false, onRequestDeleteSegment, voFit }: Props) {
+export default function Inspector({ beat, clip, clips, logline, index, total, onSelectBeat, onDuplicateBeat, selectedOverlayId, onSelectOverlay, selectedVoId, onSelectVo, selectedSfxId, onSelectSfx, selectedUserVoiceId, onSelectUserVoice, selectedStickerId, onSelectSticker, audioPreviewSuspended = false, onRequestDeleteSegment, voFit, beatPreviewProgress = 0 }: Props) {
   const { state, dispatch } = useProject();
   const [, forceUpdate] = useReducer((x) => x + 1, 0);
 
@@ -388,6 +398,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   const [zoomOpen, setZoomOpen] = useState(false);
   const [rotationOpen, setRotationOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
+  const [speedAdvancedOpen, setSpeedAdvancedOpen] = useState(false);
   const [splitScreenOpen, setSplitScreenOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [pickerSlotIndex, setPickerSlotIndex] = useState<number | null>(null);
@@ -1617,7 +1628,8 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   // A Beat is as long as its footage takes to play at its Speed (ADR-0020),
   // snapped to whole frames.
   function durationFor(inSec: number, outSec: number, _captionText?: string, _durs?: number[]): number {
-    return beatDurationSec(footageLenOf(inSec, outSec), b ? beatSpeed(b) : 1);
+    if (!b) return beatDurationSec(footageLenOf(inSec, outSec), 1);
+    return beatTiming({ ...b, inSec, outSec }, clip?.durationSec).timelineSec;
   }
 
   // Write lines (and, when timed, their aligned timers) back to the beat, keeping
@@ -1728,12 +1740,39 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
   // duration is rewritten with it rather than left to drift from the model.
   function setBeatSpeed(speed: number) {
     if (!b) return;
+    const { speedRamp: _drop, ...withoutRamp } = b;
     update({
-      ...b,
+      ...withoutRamp,
       speed,
       durationSec: beatDurationSec(footageLenOf(b.inSec, b.outSec), speed),
       durationPreset: "custom",
     });
+  }
+
+  function setSpeedRamp(ramp: Beat["speedRamp"] | undefined) {
+    if (!b) return;
+    const next = { ...b, speedRamp: ramp };
+    update({
+      ...next,
+      durationSec: beatTiming(next, clip?.durationSec).timelineSec,
+      durationPreset: "custom",
+    });
+  }
+
+  function rampCenteredAtPlayhead(base = SPEED_RAMP_DEFAULT): Beat["speedRamp"] {
+    const timing = beatTiming(b, clip?.durationSec);
+    const halfWidth = Math.max(0.05, (base.secondPoint - base.firstPoint) / 2);
+    const center = snapRampProgressToFrame(
+      Math.min(0.9 - halfWidth, Math.max(0.1 + halfWidth, beatPreviewProgress)),
+      timing.timelineSec,
+    );
+    return {
+      ...base,
+      enabled: true,
+      firstPoint: Math.max(0.1, center - halfWidth),
+      secondPoint: Math.min(0.9, center + halfWidth),
+      preset: "custom",
+    };
   }
 
   function setBeatDuration(seconds: number, preset: Beat["durationPreset"]) {
@@ -3411,6 +3450,7 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
         {clip && clip.kind !== "still" && (() => {
           const timing = beatTiming(b, clip.durationSec);
           const speed = timing.speed;
+          const ramp = activeSpeedRamp(b);
           // Sub-frame only under ADR-0020 — a Beat is sized to its footage, so
           // there is nothing left over to Fill. Kept as a guard, not a feature.
           const gap = beatGapSec(timing);
@@ -3435,14 +3475,14 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
                     style={{ transform: speedOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--ink-2)" }}
                   />
                   <label style={{ margin: 0, cursor: "pointer" }}>Speed &amp; Fill</label>
-                  {Math.abs(speed - 1) > 0.001 && (
-                    <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>• {speed.toFixed(2)}×</span>
+                  {(ramp || Math.abs(speed - 1) > 0.001) && (
+                    <span style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600 }}>{ramp ? "• Ramp" : `• ${speed.toFixed(2)}×`}</span>
                   )}
                 </div>
-                {Math.abs(speed - 1) > 0.001 && (
+                {(ramp || Math.abs(speed - 1) > 0.001) && (
                   <ControlButton
                     style={{ fontSize: 10, fontWeight: 600, background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0 }}
-                    onClick={(e) => { e.stopPropagation(); update({ ...b, speed: 1 }); }}
+                    onClick={(e) => { e.stopPropagation(); setBeatSpeed(1); }}
                     onPointerDown={(e) => e.stopPropagation()}
                     title="Reset speed to 1×"
                   >
@@ -3454,49 +3494,326 @@ export default function Inspector({ beat, clip, clips, logline, index, total, on
               <div className={"st-color-collapsible" + (speedOpen ? " open" : "")}>
                 <div className="st-color-collapsible-inner">
                   <div className="st-color-adjustments" style={{ background: "var(--panel-2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
-                    {/* Stepped, not continuous: the slider walks BEAT_SPEED_STEPS
-                        by index so it can only land on an offered ratio. */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Speed</span>
-                      <InputControl
-                        type="range"
-                        min={0}
-                        max={BEAT_SPEED_STEPS.length - 1}
-                        step={1}
-                        value={nearestBeatSpeedIndex(speed)}
-                        aria-label="Beat speed"
-                        onChange={(e) => setBeatSpeed(BEAT_SPEED_STEPS[Number(e.target.value)])}
-                        onDoubleClick={() => setBeatSpeed(1)}
-                        style={sliderTrackStyle(nearestBeatSpeedIndex(speed), 0, BEAT_SPEED_STEPS.length - 1)}
-                      />
-                      <span style={{ fontSize: 10, width: 40, textAlign: "right", color: "var(--ink-3)", fontVariantNumeric: "tabular-nums" }}>{speed}×</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", paddingLeft: 78, paddingRight: 48 }}>
-                      {BEAT_SPEED_STEPS.map((step) => (
-                        <span
-                          key={step}
-                          style={{
-                            fontSize: 9,
-                            color: Math.abs(step - speed) < 1e-6 ? "var(--accent)" : "var(--ink-3)",
-                            fontWeight: Math.abs(step - speed) < 1e-6 ? 600 : 400,
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
-                          {step}×
-                        </span>
-                      ))}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: "var(--ink)", fontWeight: 650 }}>Speed ramp</div>
+                        <div style={{ fontSize: 9, color: "var(--ink-3)" }}>Original Beat audio is muted while ramping</div>
+                      </div>
+                      <ControlButton
+                        type="button"
+                        onClick={() => setSpeedRamp(ramp ? undefined : rampCenteredAtPlayhead())}
+                        style={{ fontSize: 9, padding: "4px 8px", border: "1px solid var(--accent)", borderRadius: 5, color: ramp ? "var(--ink-2)" : "var(--accent)", background: ramp ? "var(--panel-3)" : "var(--accent-subtle)" }}
+                      >
+                        {ramp ? "Remove ramp" : "Add ramp at playhead"}
+                      </ControlButton>
                     </div>
 
-                    {/* Speed changes how long the Beat runs (ADR-0020), so the
-                        Cut gets longer or shorter with it. Stating the resulting
-                        length beats making the Author read it off the timeline. */}
-                    <div style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5 }}>
-                      {Math.abs(speed - 1) <= 0.001
-                        ? `Your ${fmtSecs(timing.windowSec)} trim runs for ${fmtSecs(timing.timelineSec)}.`
-                        : `Your ${fmtSecs(timing.windowSec)} trim runs for ${fmtSecs(timing.timelineSec)} at ${speed}× — the Beat gets ${speed < 1 ? "longer" : "shorter"}, and the Cut with it. This Beat's own audio is stretched to match.`}
-                    </div>
+                    {ramp ? (() => {
+                      const updateRamp = (patch: Partial<NonNullable<typeof ramp>>) => setSpeedRamp({ ...ramp, ...patch, preset: "custom" });
+                      const setBoundaryHere = (boundary: "firstPoint" | "secondPoint") => {
+                        const targetFrame = rampFrameAtProgress(beatPreviewProgress, timing.timelineSec);
+                        const value = rampBoundaryAtTargetFrame(ramp, boundary, targetFrame, timing.windowSec);
+                        updateRamp({ [boundary]: value });
+                      };
+                      const setBoundaryFrame = (boundary: "firstPoint" | "secondPoint", targetFrame: number) => {
+                        const value = rampBoundaryAtTargetFrame(
+                          ramp,
+                          boundary,
+                          Math.max(0, Math.round(targetFrame)),
+                          timing.windowSec,
+                        );
+                        updateRamp({ [boundary]: value });
+                      };
+                      const speedRow = (label: string, key: "startSpeed" | "middleSpeed" | "endSpeed") => {
+                        const index = nearestSpeedRampStepIndex(ramp[key]);
+                        return (
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>{label}</span>
+                            <InputControl
+                              type="range" min={0} max={SPEED_RAMP_STEPS.length - 1} step={1}
+                              value={index}
+                              aria-label={`${label} ramp speed`}
+                              onChange={(event) => updateRamp({ [key]: SPEED_RAMP_STEPS[Number(event.target.value)] })}
+                              style={sliderTrackStyle(index, 0, SPEED_RAMP_STEPS.length - 1)}
+                            />
+                            <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)" }}>{ramp[key]}×</span>
+                          </div>
+                        );
+                      };
+                      return (
+                        <>
+                          <SpeedRampBand
+                            ramp={ramp}
+                            durationSec={timing.timelineSec}
+                            sourceWindowSec={timing.windowSec}
+                            playheadProgress={beatPreviewProgress}
+                            interactive
+                            onChange={(nextRamp) => setSpeedRamp(nextRamp)}
+                          />
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ width: 70, color: "var(--ink-2)", fontSize: 10 }}>Transition</span>
+                            <ControlButton
+                              type="button"
+                              aria-pressed={ramp.curve !== "instant"}
+                              onClick={() => updateRamp({ curve: "smooth", curveStrength: 1 })}
+                              style={{ flex: 1, padding: "4px 7px", border: ramp.curve !== "instant" ? "1px solid var(--accent)" : "1px solid var(--line)", borderRadius: 5, background: ramp.curve !== "instant" ? "var(--accent-subtle)" : "var(--panel-3)", color: ramp.curve !== "instant" ? "var(--accent)" : "var(--ink-2)", fontSize: 9 }}
+                            >
+                              Smooth ramp
+                            </ControlButton>
+                            <ControlButton
+                              type="button"
+                              aria-pressed={ramp.curve === "instant"}
+                              onClick={() => updateRamp({ curve: "instant" })}
+                              style={{ flex: 1, padding: "4px 7px", border: ramp.curve === "instant" ? "1px solid var(--accent)" : "1px solid var(--line)", borderRadius: 5, background: ramp.curve === "instant" ? "var(--accent-subtle)" : "var(--panel-3)", color: ramp.curve === "instant" ? "var(--accent)" : "var(--ink-2)", fontSize: 9 }}
+                            >
+                              Instant change
+                            </ControlButton>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                            <span style={{ fontSize: 9, color: "var(--ink-3)" }}>Drag the orange boundaries to place the focus-speed section.</span>
+                            <ControlButton
+                              type="button"
+                              onClick={() => setSpeedRamp(rampCenteredAtPlayhead(ramp))}
+                              style={{ flex: "none", fontSize: 9, padding: "3px 7px" }}
+                            >
+                              Center at playhead
+                            </ControlButton>
+                          </div>
+                          {speedRow("Before", "startSpeed")}
+                          {speedRow("Focus", "middleSpeed")}
+                          {speedRow("After", "endSpeed")}
+                          {ramp.curve === "instant" && (
+                            <div className="st-speed-ramp-instant-frames">
+                              <div>
+                                <label htmlFor={`speed-ramp-first-frame-${b.id}`}>Before → Focus</label>
+                                <span>F</span>
+                                <InputControl
+                                  id={`speed-ramp-first-frame-${b.id}`}
+                                  type="number"
+                                  min={0}
+                                  max={rampFrameAtProgress(1, timing.timelineSec)}
+                                  step={1}
+                                  value={rampFrameAtProgress(ramp.firstPoint, timing.timelineSec)}
+                                  aria-label="First instant speed change frame"
+                                  onChange={(event) => setBoundaryFrame("firstPoint", Number(event.target.value))}
+                                />
+                                <ControlButton type="button" onClick={() => setBoundaryHere("firstPoint")}>Use playhead</ControlButton>
+                              </div>
+                              <div>
+                                <label htmlFor={`speed-ramp-second-frame-${b.id}`}>Focus → After</label>
+                                <span>F</span>
+                                <InputControl
+                                  id={`speed-ramp-second-frame-${b.id}`}
+                                  type="number"
+                                  min={0}
+                                  max={rampFrameAtProgress(1, timing.timelineSec)}
+                                  step={1}
+                                  value={rampFrameAtProgress(ramp.secondPoint, timing.timelineSec)}
+                                  aria-label="Second instant speed change frame"
+                                  onChange={(event) => setBoundaryFrame("secondPoint", Number(event.target.value))}
+                                />
+                                <ControlButton type="button" onClick={() => setBoundaryHere("secondPoint")}>Use playhead</ControlButton>
+                              </div>
+                              <p>Frames are relative to the start of this Beat.</p>
+                            </div>
+                          )}
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, font: "8px var(--mono)", color: "var(--ink-3)" }}>
+                            <span>Focus starts {formatRampFrame(ramp.firstPoint, timing.timelineSec)}</span>
+                            <span>ends {formatRampFrame(ramp.secondPoint, timing.timelineSec)}</span>
+                          </div>
+                          {ramp.curve !== "instant" && (
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <ControlButton type="button" onClick={() => setBoundaryHere("firstPoint")} style={{ flex: 1, padding: "4px 6px", fontSize: 9 }}>Set focus start here</ControlButton>
+                              <ControlButton type="button" onClick={() => setBoundaryHere("secondPoint")} style={{ flex: 1, padding: "4px 6px", fontSize: 9 }}>Set focus end here</ControlButton>
+                            </div>
+                          )}
+                          <ControlButton
+                            type="button"
+                            aria-expanded={speedAdvancedOpen}
+                            onClick={() => setSpeedAdvancedOpen((open) => !open)}
+                            style={{ display: "flex", justifyContent: "space-between", width: "100%", padding: "5px 7px", border: "1px solid var(--line)", borderRadius: 5, background: "var(--panel-3)", color: "var(--ink-2)", fontSize: 9 }}
+                          >
+                            <span>Advanced curve controls</span>
+                            <span>{speedAdvancedOpen ? "Hide" : "Show"}</span>
+                          </ControlButton>
+                          {speedAdvancedOpen && (
+                            <>
+                              <SpeedRampGraph
+                                ramp={ramp}
+                                interactive
+                                onChange={(nextRamp) => setSpeedRamp(nextRamp)}
+                                durationSec={timing.timelineSec}
+                                sourceWindowSec={timing.windowSec}
+                                playheadProgress={beatPreviewProgress}
+                              />
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Preset</span>
+                            <SelectControl
+                              value={ramp.preset}
+                              onChange={(event) => {
+                                const preset = SPEED_RAMP_PRESETS.find((item) => item.value === event.target.value);
+                                if (preset) setSpeedRamp({ ...preset.ramp });
+                                else setSpeedRamp({ ...ramp, preset: "custom" });
+                              }}
+                              style={{ flex: 1, fontSize: 10 }}
+                            >
+                              <option value="custom">Custom</option>
+                              {SPEED_RAMP_PRESETS.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
+                            </SelectControl>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Curve</span>
+                            <SelectControl
+                              value={ramp.curve}
+                              onChange={(event) => setSpeedRamp({ ...ramp, curve: event.target.value as NonNullable<Beat["speedRamp"]>["curve"], preset: "custom" })}
+                              style={{ flex: 1, fontSize: 10 }}
+                            >
+                              <option value="linear">Linear</option>
+                              <option value="ease-in">Ease in</option>
+                              <option value="ease-out">Ease out</option>
+                              <option value="smooth">Smooth S-curve</option>
+                              <option value="custom">Custom Bézier</option>
+                              <option value="instant">Instant change</option>
+                            </SelectControl>
+                          </div>
+                          {ramp.curve !== "linear" && ramp.curve !== "custom" && ramp.curve !== "instant" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Strength</span>
+                              <InputControl
+                                type="range" min={0} max={100} step={5}
+                                value={Math.round(ramp.curveStrength * 100)}
+                                onChange={(event) => updateRamp({ curveStrength: Number(event.target.value) / 100 })}
+                                style={sliderTrackStyle(ramp.curveStrength * 100, 0, 100)}
+                              />
+                              <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)" }}>{Math.round(ramp.curveStrength * 100)}%</span>
+                            </div>
+                          )}
+                          {ramp.curve === "custom" && (
+                            <>
+                              <div style={{ fontSize: 9, color: "var(--ink-3)" }}>Drag the two hollow handles in any direction. Pull them horizontally toward an edge for a sharper shoulder.</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Sharpness</span>
+                                <InputControl
+                                  type="range" min={0} max={100} step={1}
+                                  value={Math.round(ramp.curveSharpness * 100)}
+                                  onChange={(event) => updateRamp({ curveSharpness: Number(event.target.value) / 100 })}
+                                  style={sliderTrackStyle(ramp.curveSharpness * 100, 0, 100)}
+                                />
+                                <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)" }}>{Math.round(ramp.curveSharpness * 100)}%</span>
+                              </div>
+                              <div style={{ display: "flex", gap: 5 }}>
+                                {([
+                                  { label: "Soft", value: 0 },
+                                  { label: "Sharp", value: 0.55 },
+                                  { label: "Snap", value: 1 },
+                                ] as const).map((option) => (
+                                  <ControlButton
+                                    key={option.label}
+                                    type="button"
+                                    onClick={() => updateRamp({ curveSharpness: option.value })}
+                                    style={{ flex: 1, padding: "4px 6px", border: Math.abs(ramp.curveSharpness - option.value) < 0.01 ? "1px solid var(--accent)" : "1px solid var(--line)", borderRadius: 5, background: Math.abs(ramp.curveSharpness - option.value) < 0.01 ? "var(--accent-subtle)" : "var(--panel-3)", color: Math.abs(ramp.curveSharpness - option.value) < 0.01 ? "var(--accent)" : "var(--ink-2)", fontSize: 9 }}
+                                  >
+                                    {option.label}
+                                  </ControlButton>
+                                ))}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ width: 70, color: "var(--ink-2)", fontSize: 10 }}>Overshoot</span>
+                                {([
+                                  { label: "None", value: 0.75 },
+                                  { label: "+25%", value: 1.25 },
+                                  { label: "+60%", value: 1.6 },
+                                ] as const).map((option) => (
+                                  <ControlButton
+                                    key={option.label}
+                                    type="button"
+                                    onClick={() => updateRamp({ curveOut: option.value })}
+                                    style={{ flex: 1, padding: "4px 5px", border: Math.abs(ramp.curveOut - option.value) < 0.01 ? "1px solid var(--accent)" : "1px solid var(--line)", borderRadius: 5, background: Math.abs(ramp.curveOut - option.value) < 0.01 ? "var(--accent-subtle)" : "var(--panel-3)", color: Math.abs(ramp.curveOut - option.value) < 0.01 ? "var(--accent)" : "var(--ink-2)", fontSize: 9 }}
+                                  >
+                                    {option.label}
+                                  </ControlButton>
+                                ))}
+                              </div>
+                              <div style={{ fontSize: 8, color: "var(--ink-3)" }}>Overshoot passes the target speed, then settles back on it at the boundary.</div>
+                              {(["curveIn", "curveOut"] as const).flatMap((yKey, controlIndex) => {
+                                const xKey = controlIndex === 0 ? "curveInX" as const : "curveOutX" as const;
+                                const xMin = controlIndex === 0 ? 0 : Math.round(ramp.curveInX * 100);
+                                const xMax = controlIndex === 0 ? Math.round(ramp.curveOutX * 100) : 100;
+                                return ([
+                                  <div key={`${xKey}-x`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Handle {controlIndex + 1} X</span>
+                                    <InputControl
+                                      type="range" min={xMin} max={xMax} step={1}
+                                      value={Math.round(ramp[xKey] * 100)}
+                                      onChange={(event) => updateRamp({ [xKey]: Number(event.target.value) / 100 })}
+                                      style={sliderTrackStyle(ramp[xKey] * 100, xMin, xMax)}
+                                    />
+                                    <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)" }}>{Math.round(ramp[xKey] * 100)}%</span>
+                                  </div>,
+                                  <div key={`${yKey}-y`} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Handle {controlIndex + 1} Y</span>
+                                    <InputControl
+                                      type="range" min={0} max={200} step={1}
+                                      value={Math.round(ramp[yKey] * 100)}
+                                      onChange={(event) => updateRamp({ [yKey]: Number(event.target.value) / 100 })}
+                                      style={sliderTrackStyle(ramp[yKey] * 100, 0, 200)}
+                                    />
+                                    <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)" }}>{Math.round(ramp[yKey] * 100)}%</span>
+                                  </div>,
+                                ]);
+                              })}
+                            </>
+                          )}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Ramp in</span>
+                            <InputControl
+                              type="range" min={10} max={Math.round((ramp.secondPoint - 0.1) * 100)} step={5}
+                              value={Math.round(ramp.firstPoint * 100)}
+                              onChange={(event) => updateRamp({ firstPoint: Number(event.target.value) / 100 })}
+                              style={sliderTrackStyle(ramp.firstPoint * 100, 10, 80)}
+                            />
+                            <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)" }}>{Math.round(ramp.firstPoint * 100)}%</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 10, width: 70, color: "var(--ink-2)" }}>Ramp out</span>
+                            <InputControl
+                              type="range" min={Math.round((ramp.firstPoint + 0.1) * 100)} max={90} step={5}
+                              value={Math.round(ramp.secondPoint * 100)}
+                              onChange={(event) => updateRamp({ secondPoint: Number(event.target.value) / 100 })}
+                              style={sliderTrackStyle(ramp.secondPoint * 100, 20, 90)}
+                            />
+                            <span style={{ fontSize: 10, width: 36, textAlign: "right", color: "var(--ink-3)" }}>{Math.round(ramp.secondPoint * 100)}%</span>
+                          </div>
+                            </>
+                          )}
+                          <div style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5 }}>
+                            Your {fmtSecs(timing.windowSec)} trim runs for {fmtSecs(timing.timelineSec)} with this ramp.
+                          </div>
+                        </>
+                      );
+                    })() : (
+                      <>
+                        {/* Stepped fixed-speed control. */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Speed</span>
+                          <InputControl
+                            type="range" min={0} max={BEAT_SPEED_STEPS.length - 1} step={1}
+                            value={nearestBeatSpeedIndex(speed)} aria-label="Beat speed"
+                            onChange={(e) => setBeatSpeed(BEAT_SPEED_STEPS[Number(e.target.value)])}
+                            onDoubleClick={() => setBeatSpeed(1)}
+                            style={sliderTrackStyle(nearestBeatSpeedIndex(speed), 0, BEAT_SPEED_STEPS.length - 1)}
+                          />
+                          <span style={{ fontSize: 10, width: 40, textAlign: "right", color: "var(--ink-3)" }}>{speed}×</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--ink-3)", lineHeight: 1.5 }}>
+                          {Math.abs(speed - 1) <= 0.001
+                            ? `Your ${fmtSecs(timing.windowSec)} trim runs for ${fmtSecs(timing.timelineSec)}.`
+                            : `Your ${fmtSecs(timing.windowSec)} trim runs for ${fmtSecs(timing.timelineSec)} at ${speed}× — the Beat gets ${speed < 1 ? "longer" : "shorter"}, and the Cut with it. This Beat's own audio is stretched to match.`}
+                        </div>
+                      </>
+                    )}
 
-                    {gap > 0.01 && (
+                    {!ramp && gap > 0.01 && (
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 11, width: 70, color: "var(--ink-2)" }}>Fill</span>
                         <div style={{ display: "flex", gap: 6, flex: 1 }}>
